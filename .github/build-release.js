@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { spawnSync } = require('child_process');
-const { PUBLIC_PATHS, isPublicFile } = require('../scripts/pack-share-extras.cjs');
+const { isPublicFile } = require('../scripts/pack-share-extras.cjs');
 const { checkRelease, walk } = require('./check-release.js');
 
 function run(command, args, cwd, env = process.env) {
@@ -49,7 +49,7 @@ function buildRelease({ root, tag, dest, ref = tag }) {
   const tree = run('git', ['ls-tree', '-rz', '--full-tree', commit], root).split('\0').filter(Boolean).map(line => {
     const match = line.match(/^(\d+) (\w+) ([a-f0-9]+)\t(.+)$/s);
     if (!match) throw new Error('unreadable Git tree');
-    return { mode: match[1], type: match[2], name: match[4] };
+    return { mode: match[1], type: match[2], object: match[3], name: match[4] };
   }).filter(entry => !entry.name.startsWith('.github/'));
   for (const entry of tree) {
     if (!isPublicFile(entry.name) || entry.type !== 'blob' || !['100644', '100755'].includes(entry.mode)) throw new Error('unapproved tracked file: ' + entry.name);
@@ -65,13 +65,28 @@ function buildRelease({ root, tag, dest, ref = tag }) {
   try {
     const packageDir = path.join(temp, name);
     fs.mkdirSync(packageDir);
-    const selected = PUBLIC_PATHS.filter(item => sourceFiles.some(file => file === item || file.startsWith(item + '/')));
-    run('git', ['archive', '--format=tar', '--output=' + path.join(temp, 'source.tar'), commit, '--', ...selected], root);
-    run('tar', ['-xf', 'source.tar', '-C', name], temp);
-    for (const file of sourceFiles.filter(file => /\.(cmd|bat|ps1)$/i.test(file))) {
-      const full = path.join(packageDir, file);
-      fs.writeFileSync(full, windowsLineEndings(fs.readFileSync(full)));
+    const exported = spawnSync('git', ['cat-file', '--batch'], {
+      cwd: root, input: tree.map(entry => entry.object).join('\n') + '\n',
+      timeout: 120000, maxBuffer: 256 * 1024 * 1024,
+    });
+    if (exported.error || exported.status !== 0) throw new Error('Git blob export failed: ' + (exported.error?.message || String(exported.stderr || '')));
+    let offset = 0;
+    for (const entry of tree) {
+      const end = exported.stdout.indexOf(10, offset);
+      if (end < 0) throw new Error('incomplete Git object header');
+      const header = exported.stdout.subarray(offset, end).toString('ascii').split(' ');
+      const size = Number(header[2]);
+      if (header[0] !== entry.object || header[1] !== 'blob' || !Number.isSafeInteger(size) || size < 0) throw new Error('unexpected Git object header');
+      const start = end + 1;
+      const data = exported.stdout.subarray(start, start + size);
+      if (data.length !== size || exported.stdout[start + size] !== 10 ||
+          crypto.createHash('sha1').update(`blob ${size}\0`).update(data).digest('hex') !== entry.object) throw new Error('Git blob content mismatch: ' + entry.name);
+      offset = start + size + 1;
+      const full = path.join(packageDir, entry.name);
+      fs.mkdirSync(path.dirname(full), { recursive: true });
+      fs.writeFileSync(full, /\.(cmd|bat|ps1)$/i.test(entry.name) ? windowsLineEndings(data) : data);
     }
+    if (offset !== exported.stdout.length) throw new Error('unexpected trailing Git export data');
     const result = checkRelease(packageDir, tag);
     if (result.problems.length) throw new Error('release gate failed:\n' + result.problems.join('\n'));
     if (JSON.stringify(result.files) !== JSON.stringify(sourceFiles)) throw new Error('archive file set differs from Git');
