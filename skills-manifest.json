@@ -1,6 +1,6 @@
 {
  "package_name": "Qoder-Optimization",
- "version": "0.0.2",
+ "version": "0.0.3",
  "generated": "2026-10-28",
  "skills": [
   {
@@ -144,6 +144,11 @@
    "files": 1
   },
   {
+   "name": "injected-context-slimming",
+   "tier": "library",
+   "files": 1
+  },
+  {
    "name": "java-architect",
    "tier": "library",
    "files": 1
@@ -202,6 +207,11 @@
    "name": "mechanize-rule-into-hook-guard",
    "tier": "library",
    "files": 7
+  },
+  {
+   "name": "memory-bank-divergence-repair",
+   "tier": "library",
+   "files": 1
   },
   {
    "name": "memory-entry-update",

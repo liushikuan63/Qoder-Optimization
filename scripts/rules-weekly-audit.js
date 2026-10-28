@@ -172,9 +172,19 @@ function checkSoundness() {
     const t = readText(p);
     if (!t) { add('warn', '健全性', name + ' 读不到', '确认路径与权限'); continue; }
     // 用换行计数，与 `wc -l` 口径一致（split('\n') 在有尾换行时会多算 1 行，容易与手工核对打架）
-    const n = (t.match(/\n/g) || []).length;
-    if (n > hard) add('warn', '健全性', `${name} 已 ${n} 行（硬线 ${hard}）`, '把领域/流程内容拆到 rules/，只留跨领域约束');
-    else if (n > warn) add('info', '健全性', `${name} ${n} 行（预警线 ${warn}）`, '考虑拆出可触发加载的内容');
+    const n = t.split(String.fromCharCode(10)).length - 1;
+    if (n > hard) add('warn', '健全性', `${name} 已 ${n} 行（硬线 ${hard}）`, '按层级优先级转索引（先技能流程与记忆、再 rules/ 领域细则）；主文件只留一句判据 + 指针，不得删判据');
+    else if (n > warn) add('info', '健全性', `${name} ${n} 行（预警线 ${warn}）`, '按层级优先级把低优先级内容转成索引（rules/ / references/ / 主题子索引）');
+  }
+
+  // 2b-2. 记忆索引红线：MEMORY.md 超 200 行，客户端只加载一部分（条目会静默丢）
+  {
+    const mp = path.join(A, 'memory', 'MEMORY.md');
+    if (fs.existsSync(mp)) {
+      const t = readText(mp);
+      const n = t.split(String.fromCharCode(10)).length - 1;
+      if (n > 200) add('warn', '健全性', `MEMORY.md 已 ${n} 行（红线 200）`, '按层级优先级把低优先级条目并入主题子索引，主索引只留指针；不得删指针');
+    }
   }
 
   // 2c. hook 接线完整性：两侧三个事件都要挂

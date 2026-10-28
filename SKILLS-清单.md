@@ -1,6 +1,6 @@
-# Qoder-Optimization-0.0.2 技能清单
+# Qoder-Optimization - 0.0.3 技能清单
 
-共 123 个源码随包技能：常驻 12 / 按需 111。机器可读版见 `skills-manifest.json` 与 `catalog.json`。
+共 125 个源码随包技能：常驻 12 / 按需 113。机器可读版见 `skills-manifest.json` 与 `catalog.json`。
 
 **默认不全量安装**：先登记包，再按技术栈与任务用 `pkg-catalog.cjs search/install` 选择；`tier` 决定安装到常驻层还是按需库。
 
@@ -34,6 +34,7 @@
 - `goal-driven-execution`（常驻）—— 目标化执行：把长任务设成"带可失败判据的目标"，逐格推进、每格落盘，直到判据全绿才算完成。当任务是中大型 / 跨多回合 / 容易半途跑偏或"看起来做完了其实没做完"时使用。触发词：设个目标、持续推进、盯到完成、别中途跑偏、长任务、多步骤、任务目标、Goal 模式、完成判据、什么时候算做完。不用于：小改动与单点修复（直接做）、纯探索类问题（先给结论）。
 - `hid-device-protocol-probe`（按需）—— Windows 上不用厂商软件、从 PowerShell 探 USB HID 收发通路——用 SetupAPI 加 HidP_GetCaps 枚举每个 collection 的 UsagePage 与 Usage 及报告长度找厂商命令通道；用 joyGetPosEx 证明手柄真的在；读写各放可取消工作线程；发只读查询帧按回复直方图区分发不出去与设备答了但客户端收不到。用于手柄、2.4G 接收器、外设配置工具卡在同步转圈且不报错，或 HI
 - `i-have-adhd`（按需）—— Shape output for a reader with ADHD - lead with the next action, number multi-step work, restate state across turns, suppress tangents, give specific time estimates, make wins visible.
+- `injected-context-slimming`（按需）—— 每轮注入文件（AGENTS.md / MEMORY.md / 索引领航类长文）的无损瘦身流水线：先量化再动手 → 备份 → 只压叙述不删判据 → 覆盖断言逐条证明没丢 → 双侧同写验收。触发词：阅读压力、上下文太大、AGENTS 太长、MEMORY 超行、规则文件瘦身、压缩规则、注入体积、降 token、超红线转索引。不用于：技能描述瘦身（→skill-description-route-cue-rewrite）、技能降量（→skill
 - `java-architect`（按需）—— Use when building, configuring, or debugging enterprise Java applications with Spring Boot 3.x, microservices, or reactive programming。中文触发：Spring Boot Java 后端 Bean 依赖注入 JVM 组件。分工：本技能管架构取向与疑难排查，Spring 脚手架与端点实现走 springboo
 - `java-quality`（按需）—— Java code quality with Checkstyle, SpotBugs, PMD, and SonarJava。中文触发：Java 后端 JVM
 - `kafka-best-practices`（按需）—— Apache Kafka best practices for topic design, producer/consumer configuration, exactly-once semantics, Kafka Streams, Connect, and cluster management
@@ -46,6 +47,7 @@
 - `local-rust-engineering`（按需）—— 补充 Rust 所有权、错误、异步并发和测试边界；用于相关 Rust 实现与缺陷，不用于纯文案或只有前端的修改。
 - `local-spring-mybatis`（按需）—— 补充 Spring 与 MyBatis 的事务、参数绑定、映射和查询性能检查；用于这些后端实现问题，不替代本机环境预检。
 - `mechanize-rule-into-hook-guard`（按需）—— 把提示词里的纪律做成会判红的门禁 hook 取证流水线：缺口取证 → carrier-preflight 问限额 → 判据抽成 core 真源，PreToolUse 拦 / PostToolUse 记账 → 红与负对照自测 → 逐断言变异验证 → 台账非空核查 → RFC5737 真机探针 → 两侧接线与周检复跑。触发词：机制化、做成 hook、加门禁、加守卫、guard、这条规则没生效、反复违反、为什么没拦住、连败三次、停手上报、ho
+- `memory-bank-divergence-repair`（按需）—— 双侧记忆库（~/.qoder/memory 与 ~/.qoder-cn/memory）分叉修复流水线：逐文件测行集包含关系再分档（严格超集直接覆盖 / 真双向逐段合并 / 单边补缺）→ 两侧同写 → 用 sync 脚本与 md5 验收。触发词：记忆分叉、sync-memory 报分叉、两侧记忆不一致、memory drift、记忆漂移、分叉修复、索引不自洽。不用于：单条记忆内容更新（→memory-entry-update）、注入文件瘦
 - `memory-entry-update`（按需）—— 更新单条已有长期记忆的可复现流程：Read 正文与 MEMORY.md 两个载体 → 各跑 backup-file.js → Edit 三处成对改动（正文 / frontmatter description / 索引行）→ 四条能失败的验收（含周检 0 告警，[INFO] 不算告警）→ 区分已验证与未验证。触发词：更新记忆、记忆索引同步、改 MEMORY.md、记忆维护。不用于：新建记忆（self-evolution）、链接与凭据审计。
 - `merge-inbound-qoder-package`（按需）—— 将外部 Qoder 分享包、回流包或配置包安全并入本机真源：非系统盘隔离解压、与本机基线做逐文件哈希三分类、卫生与敏感信息预检、realpath/junction 归属判位、dry-run、backup-file.js、逐文件定点合并、三方冲突保留本机独有内容、索引与全局冒烟收口。触发词：回流包、入站分享包、并入本机、三方冲突、对方包丢能力；不用于首次安装未知第三方包（先走 inspect-untrusted-tool-package）
 - `minigame-dev-pro`（按需）—— 小游戏开发专家：从创意到上架到运营的全链路顾问。覆盖微信/抖音等主流小游戏平台，提供市场分析、合规审查（14条红线+8份SOP）、游戏设计、技术开发（Cocos/原生）、数据增长、质量保障、运营变现、失败复盘，并涵盖小游戏跨端经营（App/PC）路径。集成本地执行工具（环境验证/预览/日志/截图/真机/上传/就绪度/合规/包体/性能/素材/知识过滤/SOP时效巡检/官方规范核验 + 全平台规范实时核实 + 全维度安全合规扫描 +

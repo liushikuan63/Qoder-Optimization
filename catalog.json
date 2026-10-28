@@ -2,12 +2,12 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.0.2"
+  "version": "0.0.3"
  },
  "generated": "2026-10-28",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
-  "skill": 123,
+  "skill": 125,
   "script": 87,
   "command": 10,
   "agent": 2
@@ -378,6 +378,19 @@
    "source": "skills/i-have-adhd"
   },
   {
+   "id": "skill:injected-context-slimming",
+   "category": "skill",
+   "name": "injected-context-slimming",
+   "status": "shipped",
+   "tier": "library",
+   "description": "每轮注入文件（AGENTS.md / MEMORY.md / 索引领航类长文）的无损瘦身流水线：先量化再动手 → 备份 → 只压叙述不删判据 → 覆盖断言逐条证明没丢 → 双侧同写验收。触发词：阅读压力、上下文太大、AGENTS 太长、MEMORY 超行、规则文件瘦身、压缩规则、注入体积、降 token、超红线转索引。不用于：技能描述瘦身（→skill-description-route-cue-rewrite）、技能降量（→skill-trim-with-capability-transfer）、两侧记忆不一致（→memory-bank-divergence-repair）。",
+   "source": "skills/injected-context-slimming",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   }
+  },
+  {
    "id": "skill:java-architect",
    "category": "skill",
    "name": "java-architect",
@@ -532,6 +545,19 @@
     "tier": "library"
    },
    "source": "skills/mechanize-rule-into-hook-guard"
+  },
+  {
+   "id": "skill:memory-bank-divergence-repair",
+   "category": "skill",
+   "name": "memory-bank-divergence-repair",
+   "status": "shipped",
+   "tier": "library",
+   "description": "双侧记忆库（~/.qoder/memory 与 ~/.qoder-cn/memory）分叉修复流水线：逐文件测行集包含关系再分档（严格超集直接覆盖 / 真双向逐段合并 / 单边补缺）→ 两侧同写 → 用 sync 脚本与 md5 验收。触发词：记忆分叉、sync-memory 报分叉、两侧记忆不一致、memory drift、记忆漂移、分叉修复、索引不自洽。不用于：单条记忆内容更新（→memory-entry-update）、注入文件瘦身（→injected-context-slimming）、分享包并入（→merge-inbound-qoder-package）。",
+   "source": "skills/memory-bank-divergence-repair",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   }
   },
   {
    "id": "skill:memory-entry-update",
