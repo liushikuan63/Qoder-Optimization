@@ -12,6 +12,7 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ### Changed
 - Release assets are immutable: a published zip is never replaced, fixes ship as a new patch release.
+- Package and asset names contain no spaces (`Qoder-Optimization-0.0.1.zip`, top-level folder `Qoder-Optimization-0.0.1/`), so GitHub does not rewrite the asset name.
 
 ## [0.0.1] - 2026-10-27
 

@@ -22,7 +22,7 @@ No clone required — pick a version and download it. Every release carries a re
 
 | Version | Released | Highlights | Download |
 |---|---|---|---|
-| 0.0.1 | 2026-10-27 | First open-source release | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.1/Qoder-Optimization%20-%200.0.1.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.1) |
+| 0.0.1 | 2026-10-27 | First open-source release | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.1/Qoder-Optimization-0.0.1.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.1) |
 
 Published assets are immutable: a released zip is never replaced, fixes ship as a new patch version. Full history in [CHANGELOG.md](CHANGELOG.md).
 
@@ -192,7 +192,7 @@ Binaries under `mcp/offline/` are third-party artifacts distributed with their o
 
 | 版本 | 发布日期 | 主要内容 | 下载 |
 |---|---|---|---|
-| 0.0.1 | 2026-10-27 | 首个开源版 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.1/Qoder-Optimization%20-%200.0.1.zip) · [说明](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.1) |
+| 0.0.1 | 2026-10-27 | 首个开源版 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.1/Qoder-Optimization-0.0.1.zip) · [说明](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.1) |
 
 已发布的资产不再替换：发现缺陷就发新的补丁版本，历史记录见 [CHANGELOG.md](CHANGELOG.md)。
 
