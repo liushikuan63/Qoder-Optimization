@@ -1,0 +1,60 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gate (tag = VERSION = catalog = files)
+        run: node .github/check-release.js "${GITHUB_REF_NAME}"
+
+      - name: Build package zip
+        run: |
+          set -euo pipefail
+          VER="${GITHUB_REF_NAME#v}"
+          NAME="Qoder-Optimization - ${VER}"
+          DEST="${RUNNER_TEMP}/dist"
+          mkdir -p "${DEST}/${NAME}"
+          tar --exclude=./.git --exclude=./.github -cf - . | tar -xf - -C "${DEST}/${NAME}"
+          ( cd "${DEST}" && zip -qr "${NAME}.zip" "${NAME}" && sha256sum "${NAME}.zip" > "${NAME}.zip.sha256" )
+          unzip -Z1 "${DEST}/${NAME}.zip" | grep -qx "${NAME}/VERSION"
+          unzip -Z1 "${DEST}/${NAME}.zip" | grep -qx "${NAME}/README.md"
+          if unzip -Z1 "${DEST}/${NAME}.zip" | grep -q "^${NAME}/\.github/"; then
+            echo "unexpected .github/ inside the package"; exit 1
+          fi
+          ls -lh "${DEST}"
+
+      - name: Publish release (assets are never replaced)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VER="${GITHUB_REF_NAME#v}"
+          NAME="Qoder-Optimization - ${VER}"
+          DEST="${RUNNER_TEMP}/dist"
+          if ! gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release create "${GITHUB_REF_NAME}" --title "${NAME}" --generate-notes
+          fi
+          for f in "${DEST}/${NAME}.zip" "${DEST}/${NAME}.zip.sha256"; do
+            base="$(basename "$f")"
+            if gh release view "${GITHUB_REF_NAME}" --json assets -q '.assets[].name' | grep -qx "$base"; then
+              echo "asset already published, left untouched: $base"
+            else
+              gh release upload "${GITHUB_REF_NAME}" "$f"
+            fi
+          done

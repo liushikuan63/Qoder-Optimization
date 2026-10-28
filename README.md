@@ -13,6 +13,19 @@ English | [简体中文](#简体中文)
 
 ## English
 
+### Download
+
+No clone required — pick a version and download it. Every release carries a ready-to-install zip (versioned top-level folder) and a `.sha256` checksum; GitHub also attaches a source snapshot automatically.
+
+- **Latest:** https://github.com/liushikuan63/Qoder-Optimization/releases/latest
+- **All versions:** https://github.com/liushikuan63/Qoder-Optimization/releases
+
+| Version | Released | Highlights | Download |
+|---|---|---|---|
+| 0.0.1 | 2026-10-27 | First open-source release | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.1/Qoder-Optimization%20-%200.0.1.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.1) |
+
+Published assets are immutable: a released zip is never replaced, fixes ship as a new patch version. Full history in [CHANGELOG.md](CHANGELOG.md).
+
 ### The problem
 
 AI coding assistants are capable, but their **behavior drifts**. The same prompt on two days can produce two different working styles, and "done" often means "the model said so" rather than "something provable happened". Five recurring failure modes:
@@ -96,6 +109,8 @@ Restart the client afterwards — configuration is read at startup.
 ```
 .
 ├── VERSION                       # 0.0.1
+├── CHANGELOG.md                  # version history
+├── .github/                      # release gate + tag-triggered release workflow
 ├── README-安装说明.md             # detailed install guide (Chinese)
 ├── Qoder-AI编码通用规则.md        # shareable rule set (sanitized)
 ├── Qoder-个人规则生成提示词.md     # prompt that generates rules for YOUR environment
@@ -167,6 +182,19 @@ Binaries under `mcp/offline/` are third-party artifacts distributed with their o
 ---
 
 ## 简体中文
+
+### 下载
+
+不用克隆仓库，按版本下载即可。每个 Release 都附一个可直接安装的 zip（顶层目录带版本号）和 `.sha256` 校验文件，GitHub 另自动生成源码包。
+
+- **最新版**：https://github.com/liushikuan63/Qoder-Optimization/releases/latest
+- **全部版本**：https://github.com/liushikuan63/Qoder-Optimization/releases
+
+| 版本 | 发布日期 | 主要内容 | 下载 |
+|---|---|---|---|
+| 0.0.1 | 2026-10-27 | 首个开源版 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.1/Qoder-Optimization%20-%200.0.1.zip) · [说明](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.1) |
+
+已发布的资产不再替换：发现缺陷就发新的补丁版本，历史记录见 [CHANGELOG.md](CHANGELOG.md)。
 
 ### 这是什么
 
@@ -243,6 +271,8 @@ node ~/.qoder/scripts/build-skills-index.cjs   # 重建技能索引
 ```
 .
 ├── VERSION                       # 0.0.1
+├── CHANGELOG.md                  # 版本历史
+├── .github/                      # 发布门禁 + tag 触发的发布工作流
 ├── README-安装说明.md             # 详细安装说明
 ├── Qoder-AI编码通用规则.md        # 可分享版规则（已脱敏）
 ├── Qoder-个人规则生成提示词.md     # 按你的环境生成个人规则的提示词
