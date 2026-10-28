@@ -198,7 +198,7 @@ test('a tracked private file blocks the build rather than being silently exporte
   assert.equal(fs.existsSync(path.join(f.base, 'dist/Qoder-Optimization-0.0.2.zip')), false);
 }));
 
-function publicationFixture(f, { existing = true, mismatch = false, error = false, wrongCommit = false } = {}) {
+function publicationFixture(f, { existing = true, mismatch = false, error = false, wrongCommit = false, draft = false } = {}) {
   const dest = path.join(f.base, 'publish');
   fs.mkdirSync(dest);
   const name = 'Qoder-Optimization-0.0.2';
@@ -207,14 +207,15 @@ function publicationFixture(f, { existing = true, mismatch = false, error = fals
   fs.writeFileSync(path.join(dest, name + '.zip.sha256'), `${digest}  ${name}.zip\n`);
   const commit = 'a'.repeat(40);
   fs.writeFileSync(path.join(dest, 'build.json'), JSON.stringify({ tag: 'v0.0.2', package: name, commit, sha256: digest }));
-  let release = existing ? { tag_name: 'v0.0.2', draft: false, html_url: 'https://github.com/example/project/releases/tag/v0.0.2', assets: [{ name: name + '.zip' }, { name: name + '.zip.sha256' }] } : null;
+  let release = existing ? { tag_name: 'v0.0.2', draft, html_url: 'https://github.com/example/project/releases/tag/v0.0.2', assets: [{ name: name + '.zip' }, { name: name + '.zip.sha256' }] } : null;
   const calls = [];
   const gh = args => {
     calls.push(args);
     if (args[0] === 'api' && args[1].includes('/commits/')) return { status: 0, stdout: wrongCommit ? 'b'.repeat(40) : commit };
     if (args[0] === 'api') {
       if (error) return { status: 1, stderr: 'gh: Forbidden (HTTP 403)' };
-      return release ? { status: 0, stdout: JSON.stringify(release) } : { status: 1, stderr: 'gh: Not Found (HTTP 404)' };
+      if (args[1].includes('/releases?')) return { status: 0, stdout: JSON.stringify([release ? [release] : []]) };
+      return release && !release.draft ? { status: 0, stdout: JSON.stringify(release) } : { status: 1, stderr: 'gh: Not Found (HTTP 404)' };
     }
     if (args[1] === 'create') release = { tag_name: 'v0.0.2', draft: true, html_url: 'https://github.com/example/project/releases/tag/v0.0.2', assets: [] };
     if (args[1] === 'upload') release.assets.push({ name: path.basename(args[3]) });
@@ -236,6 +237,14 @@ test('same-name assets are downloaded and compared, never blindly skipped', () =
   assert.equal(result.assets.length, 2);
   assert.equal(p.calls.filter(args => args[1] === 'download').length, 2);
   assert.equal(p.calls.some(args => ['upload', 'create', 'edit'].includes(args[1])), false);
+}));
+
+test('existing draft hidden from the tag endpoint is verified without duplication', () => withFixture(f => {
+  const p = publicationFixture(f, { draft: true });
+  publishRelease({ repo: 'example/project', tag: 'v0.0.2', ...p });
+  assert.equal(p.calls.some(args => args[1] === 'create' || args[1] === 'upload'), false);
+  assert.equal(p.calls.filter(args => args[1] === 'download').length, 2);
+  assert.equal(p.calls.filter(args => args[1] === 'edit').length, 1);
 }));
 
 test('different same-name content stops without replacing any asset', () => withFixture(f => {

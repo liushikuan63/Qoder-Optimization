@@ -20,7 +20,11 @@ function publishRelease({ repo, tag, dest, gh = officialGh }) {
   const endpoint = `repos/${repo}/releases/tags/${tag}`;
   const getRelease = () => {
     const text = invoke(['api', endpoint], true);
-    return text === null ? null : JSON.parse(text);
+    if (text !== null) return JSON.parse(text);
+    const pages = JSON.parse(invoke(['api', `repos/${repo}/releases?per_page=100`, '--paginate', '--slurp']));
+    const matches = pages.flat().filter(release => release.tag_name === tag);
+    if (matches.length > 1) throw new Error('multiple releases share the requested tag; nothing replaced');
+    return matches[0] || null;
   };
   const evidence = JSON.parse(fs.readFileSync(path.join(dest, 'build.json'), 'utf8'));
   const name = 'Qoder-Optimization-' + tag.slice(1);
