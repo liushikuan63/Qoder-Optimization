@@ -75,5 +75,20 @@ caseRun('未知条目 → exit 2', ['show', 'no-such'], (r) => r.code === 2);
 caseRun('越界 id 被拒', ['install', 'skill:../../evil', '--apply'], (r) => r.code === 2);
 caseRun('list 按类别过滤', ['list', '--category', 'skill'], (r) => r.code === 0 && r.out.includes('skill:demo-skill') && !r.out.includes('plugin:demo-plugin'));
 
+function caseSchema(name, schema, wantExit) {
+  const ctx = setup();
+  try {
+    const cat = JSON.parse(fs.readFileSync(ctx.catalogPath, 'utf8'));
+    cat.schema = schema;
+    fs.writeFileSync(ctx.catalogPath, JSON.stringify(cat, null, 2));
+    const r = run(ctx, ['list']);
+    check(name, r.code === wantExit, `exit=${r.code}`);
+  } finally {
+    fs.rmSync(ctx.sb, { recursive: true, force: true });
+  }
+}
+caseSchema('已发布包的字符串 schema 可读', 'qoder-share-catalog/1', 0);
+caseSchema('未知 schema 判失败', 'qoder-share-catalog/99', 2);
+
 console.log(fail === 0 ? '\nALL PASS' : `\n${fail} FAILURE(S)`);
 process.exit(fail === 0 ? 0 : 1);

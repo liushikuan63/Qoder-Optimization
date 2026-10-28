@@ -149,7 +149,7 @@ for (const kind of ['commands', 'agents']) {
 }
 const counts = {};
 for (const e of entries) counts[e.category] = (counts[e.category] || 0) + 1;
-const catalog = { schema: 'qoder-share-catalog/1', package: { name: packageName, version: ver }, generated: new Date().toISOString().slice(0, 19) + 'Z',
+const catalog = { schema: 1, package: { name: packageName, version: ver }, generated: new Date().toISOString().slice(0, 19) + 'Z',
   usage: 'node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search "<关键词>" → install <id> [--apply]', counts, entries };
 const manifest = { package_name: packageName, version: ver, generated: catalog.generated, skills: shippedSkills.map(s => ({ name: s.name, tier: s.tier, files: s.files })) };
 const indexMd = [`# ${packageName} - ${ver}`, '', '## 分享包索引（按需加装）', '', `共 ${entries.length} 条：` + Object.entries(counts).map(([k, v]) => `${k}=${v}`).join(' / '),

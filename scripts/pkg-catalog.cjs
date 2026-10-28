@@ -60,10 +60,11 @@ function loadCatalog() {
 
 function readCatalog(file) {
   const catalog = readJson(file);
-  if (catalog.schema !== 1 || !Array.isArray(catalog.entries) || catalog.entries.some(e =>
+  const schemaOk = catalog.schema === 1 || catalog.schema === 'qoder-share-catalog/1';
+  if (!schemaOk || !Array.isArray(catalog.entries) || catalog.entries.some(e =>
     !e || typeof e.id !== 'string' || typeof e.name !== 'string' || typeof e.category !== 'string' ||
     (e.description !== undefined && typeof e.description !== 'string'))) {
-    throw new Error('分享包索引格式错误：需要 schema=1 和有效 entries');
+    throw new Error('分享包索引格式错误：需要 schema=1（或 "qoder-share-catalog/1"）和有效 entries');
   }
   return catalog;
 }
