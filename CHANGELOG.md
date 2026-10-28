@@ -6,8 +6,19 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.0.2] - 2026-10-28
+
+### Fixed
+- Reduce the recommended resident set to 12 entries without deleting skills; repair core/library resource lookup, zero-write previews, explicit migration scopes and index-failure reporting.
+- Generate installable catalog source/install entries from the public package, not from private HOME configuration; validate schema before replacing registration.
+- Validate tag, VERSION, catalog, manifest, counts and consumer behavior; build only approved committed files and independently verify ZIP contents.
+- Compare existing remote assets by downloaded content instead of names, and retain drafts until both assets pass verification.
+- Back up exact pending suggestion rows and verify updates before COMMIT; leave evolving, expired and unselected rows untouched.
+- Preserve model/tool/author attribution and uncertainty in rewritten guidance; numeric or word-list checks do not establish semantic equivalence.
+- Correct secret-scan false positives for versions, relative paths and Markdown names, while rejecting missing or empty scan inputs.
+
 ### Added
-- Release workflow: pushing a `v*` tag runs a release gate, builds `Qoder-Optimization - <version>.zip` with a versioned top-level folder, writes a `.sha256` checksum, and attaches both to the GitHub Release.
+- Release workflow: pushing a `v*` tag runs a release gate, builds `Qoder-Optimization-<version>.zip` with a versioned top-level folder, writes a `.sha256` checksum, and attaches both to the GitHub Release.
 - `CHANGELOG.md`, plus a download section and version table in `README.md`, so users can pick a version without cloning.
 
 ### Changed
@@ -26,5 +37,6 @@ During the 0.x line, minor versions may contain breaking changes.
 - De-identified memory export (`qoder-memory-export-generic.tar.gz`) and offline MCP assets.
 - MIT license.
 
-[Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.0.1...HEAD
+[Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.0.2...HEAD
+[0.0.2]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.2
 [0.0.1]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.1

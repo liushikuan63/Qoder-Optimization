@@ -5,10 +5,12 @@ desktop.ini
 
 # Backups and scratch files
 *.bak
+*.bak.*
 *.bak_*
 *.bak-*
 *~
 *.log
+.qoder-work-queue.md
 
 # Node dependencies (this repository ships no node_modules)
 node_modules/

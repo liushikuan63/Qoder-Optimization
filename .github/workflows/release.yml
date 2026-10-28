@@ -2,6 +2,7 @@ name: release
 
 on:
   push:
+    branches: ['main']
     tags: ['v*']
 
 permissions:
@@ -20,41 +21,30 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Gate (tag = VERSION = catalog = files)
-        run: node .github/check-release.js "${GITHUB_REF_NAME}"
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.16.0'
 
-      - name: Build package zip
+      - name: Install locked document-test dependencies
+        run: npm ci --prefix skills/office-docs --ignore-scripts --no-audit --no-fund
+
+      - name: Isolated self-tests and release contracts
+        run: node .github/run-tests.js
+
+      - name: Gate, build and independently verify the committed package
         run: |
-          set -euo pipefail
-          VER="${GITHUB_REF_NAME#v}"
-          PKG="Qoder-Optimization-${VER}"
-          DEST="${RUNNER_TEMP}/dist"
-          mkdir -p "${DEST}/${PKG}"
-          tar --exclude=./.git --exclude=./.github -cf - . | tar -xf - -C "${DEST}/${PKG}"
-          ( cd "${DEST}" && zip -qr "${PKG}.zip" "${PKG}" && sha256sum "${PKG}.zip" > "${PKG}.zip.sha256" )
-          unzip -Z1 "${DEST}/${PKG}.zip" | grep -qx "${PKG}/VERSION"
-          unzip -Z1 "${DEST}/${PKG}.zip" | grep -qx "${PKG}/README.md"
-          if unzip -Z1 "${DEST}/${PKG}.zip" | grep -q "^${PKG}/\.github/"; then
-            echo "unexpected .github/ inside the package"; exit 1
-          fi
-          ls -lh "${DEST}"
+          TAG="$(node -p "require('fs').readFileSync('VERSION', 'utf8').split(/\r?\n/)[0]")"
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then TAG="${GITHUB_REF_NAME}"; fi
+          node .github/build-release.js "${TAG}" "${RUNNER_TEMP}/dist" "${GITHUB_SHA}"
 
-      - name: Publish release (assets are never replaced)
+      - name: Scan the actual distribution
+        run: |
+          PKG="$(node -p "JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP + '/dist/build.json', 'utf8')).package")"
+          node scripts/share-secret-scan.cjs "${RUNNER_TEMP}/dist/${PKG}"
+
+      - name: Publish only after remote asset comparison
+        if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          VER="${GITHUB_REF_NAME#v}"
-          PKG="Qoder-Optimization-${VER}"
-          DEST="${RUNNER_TEMP}/dist"
-          if ! gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
-            gh release create "${GITHUB_REF_NAME}" --title "Qoder-Optimization ${VER}" --generate-notes
-          fi
-          for f in "${DEST}/${PKG}.zip" "${DEST}/${PKG}.zip.sha256"; do
-            base="$(basename "$f")"
-            if gh release view "${GITHUB_REF_NAME}" --json assets -q '.assets[].name' | grep -qx "$base"; then
-              echo "asset already published, left untouched: $base"
-            else
-              gh release upload "${GITHUB_REF_NAME}" "$f"
-            fi
-          done
+        run: node .github/publish-release.js "${GITHUB_REF_NAME}" "${RUNNER_TEMP}/dist"

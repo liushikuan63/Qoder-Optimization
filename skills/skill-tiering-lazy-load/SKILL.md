@@ -44,12 +44,12 @@ description: "技能分层懒加载 playbook：注入过大时，把 ~/.qoder/sk
 2. **只移不删**：只允许 `rename`；禁止 `rm -rf`、禁止清空 `skills-library/`。迁移前做 md5 清单，迁移后按“技能名 → 哈希”比对，证明内容未变。
 3. **硬引用先扫**：`AGENTS.md` / `rules/*.md` / `commands/*.md` 里用反引号点名的技能，要么留在常驻，要么同批把引用改成“先 `skill-load` 再 Read”。库技能不会被自动注入，引用它的规则可能“看得见名字、找不到描述”。
 
-本技能自身是元技能：若以后运行 `tier-skills.cjs --apply`，用 `--keep skill-tiering-lazy-load` 或把它加入 CORE，避免把自己移入库。
+本技能是低频分层维护流程，默认按需加载，不因自称元技能而保留常驻。迁移执行器独立位于 scripts，不随技能目录移动；报告工具按 skill-load 返回的实际目录定位。
 
 ## 阶段 1 · 盘点与基线
 
 ```bash
-node ~/.qoder/skills/skill-tiering-lazy-load/scripts/skill-tier-report.cjs
+node ~/.qoder/skills-library/skill-tiering-lazy-load/scripts/skill-tier-report.cjs
 ```
 
 输出：core/library/total 计数、core 每轮注入字符（`name + description + 4` 同口径）、最长 description、索引 stale/missing/extra/duplicate、硬引用警告、入口文件是否齐全。先记下基线，再谈降幅；同一口径前后对比，不追求与平台实际注入字节完全相等。
@@ -60,7 +60,7 @@ node ~/.qoder/skills/skill-tiering-lazy-load/scripts/skill-tier-report.cjs
 
 优先常驻：
 
-- 元技能：路由、验证、交付、降量、规则审计、自进化
+- 跨任务必要入口：路由、验证、交付与当前常用工作流；降量、分层、审计等专项默认按需，不凭元技能标签扩大常驻集
 - 跨域高频：一周会用 ≥3 次的技能
 - 硬引用：AGENTS/rules/commands 点名的技能
 - 入口：`skills-router` 及其依赖（`skill-load.cjs` / `build-skills-index.cjs` / `tier-skills.cjs` 不随技能移动）
@@ -78,7 +78,7 @@ node ~/.qoder/scripts/build-skills-index.cjs          # 显式重建
 ```
 
 - `tier-skills.cjs` 默认 dry-run，`--apply` 才 rename；库中已有同名会 SKIP，不会覆盖。
-- `--restore <名>` / `--restore-all` 反向恢复。
+- `--restore <名>` / `--restore-all` 先预览，增加 `--apply` 才反向恢复。
 - 移动后必须显式重建派生索引；`skill-load.cjs` 只读扫描现场，既不采用旧路径也不在查询时自动写索引。
 - 校验：总数不变；md5 清单按技能名一致；report 脚本 exit 0。
 - 不要在会话中途移动 `skills-router`；技能列表是运行期快照，移动后 `/skills reload` 或新会话再看注入面。
@@ -126,7 +126,7 @@ node ~/.qoder/scripts/skill-load.cjs "zzz-no-such"; echo EXIT=$?  # 期望 NO_MA
 
 | 判据 | 命令 | 期望 |
 |---|---|---|
-| 索引与磁盘一致 | `node ~/.qoder/skills/skill-tiering-lazy-load/scripts/skill-tier-report.cjs` | exit 0，stale=missing=duplicate=0 |
+| 索引与磁盘一致 | `node ~/.qoder/skills-library/skill-tiering-lazy-load/scripts/skill-tier-report.cjs` | exit 0，stale=missing=duplicate=0 |
 | 无技能丢失 | core+library 总数 vs 迁移前 | 相等；md5 映射一致 |
 | 检索可用 | 正/负查询各一条 | 正例 exit 0 且路径在库；负例 `NO_MATCH` exit 3 |
 | 周检不新增红 | `node ~/.qoder/scripts/rules-weekly-audit.js --no-fix` | 与迁移前对比，新增告警 0 |
@@ -140,8 +140,8 @@ node ~/.qoder/scripts/skill-load.cjs "zzz-no-such"; echo EXIT=$?  # 期望 NO_MA
 ## 回滚
 
 ```bash
-node ~/.qoder/scripts/tier-skills.cjs --restore <名>
-node ~/.qoder/scripts/tier-skills.cjs --restore-all
+node ~/.qoder/scripts/tier-skills.cjs --restore <名> --apply
+node ~/.qoder/scripts/tier-skills.cjs --restore-all --apply
 node ~/.qoder/scripts/build-skills-index.cjs
 ```
 

@@ -34,4 +34,14 @@ function counterpart(root) {
   try { return fs.existsSync(p) ? p : null; } catch (e) { return null; }
 }
 
-module.exports = { clientRoot, counterpart, homeDir };
+// Resource lookup follows the wrapper's installation, not the caller's HOME.
+function resolveSkillFile(name, file, root = path.resolve(__dirname, '..')) {
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(name) || path.isAbsolute(file) || /[\\:]/.test(file) || file.split('/').includes('..')) throw new Error('Invalid skill resource path');
+  const matches = ['skills', 'skills-library'].map(tier => path.join(root, tier, name, file)).filter(candidate => {
+    try { return fs.statSync(candidate).isFile(); } catch { return false; }
+  });
+  if (matches.length !== 1) throw new Error(`${matches.length ? 'Ambiguous' : 'Missing'} skill resource: ${name}/${file}`);
+  return matches[0];
+}
+
+module.exports = { clientRoot, counterpart, homeDir, resolveSkillFile };

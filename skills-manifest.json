@@ -1,7 +1,7 @@
 {
  "package_name": "Qoder-Optimization",
- "version": "0.0.1",
- "generated": "2026-10-27T15:17:26Z",
+ "version": "0.0.2",
+ "generated": "2026-10-28",
  "skills": [
   {
    "name": "architecture-designer",
@@ -41,7 +41,7 @@
   {
    "name": "continuation-state-audit",
    "tier": "core",
-   "files": 1
+   "files": 2
   },
   {
    "name": "deliver-prd",
@@ -51,7 +51,7 @@
   {
    "name": "desktop-update-push-triage",
    "tier": "library",
-   "files": 1
+   "files": 2
   },
   {
    "name": "diagnose-github-actions-quota",
@@ -65,8 +65,8 @@
   },
   {
    "name": "disk-junction-migration",
-   "tier": "core",
-   "files": 1
+   "tier": "library",
+   "files": 2
   },
   {
    "name": "distinctive-design-systems",
@@ -96,7 +96,7 @@
   {
    "name": "encrypted-office-visual-inspection",
    "tier": "library",
-   "files": 1
+   "files": 6
   },
   {
    "name": "frontend-design-ui-ux",
@@ -125,8 +125,8 @@
   },
   {
    "name": "global-config-smoke-runner",
-   "tier": "core",
-   "files": 1
+   "tier": "library",
+   "files": 2
   },
   {
    "name": "goal-driven-execution",
@@ -161,56 +161,56 @@
   {
    "name": "large-sqlite-text-extraction",
    "tier": "library",
-   "files": 1
+   "files": 4
   },
   {
    "name": "local-api-contracts",
    "tier": "library",
-   "files": 3
+   "files": 4
   },
   {
    "name": "local-browser-e2e",
    "tier": "library",
-   "files": 4
+   "files": 5
   },
   {
    "name": "local-db-migrations",
    "tier": "library",
-   "files": 3
+   "files": 4
   },
   {
    "name": "local-frontend-a11y",
    "tier": "library",
-   "files": 3
+   "files": 4
   },
   {
    "name": "local-performance-evidence",
    "tier": "library",
-   "files": 3
+   "files": 4
   },
   {
    "name": "local-rust-engineering",
    "tier": "library",
-   "files": 3
+   "files": 4
   },
   {
    "name": "local-spring-mybatis",
    "tier": "library",
-   "files": 3
+   "files": 4
   },
   {
    "name": "mechanize-rule-into-hook-guard",
-   "tier": "core",
-   "files": 1
+   "tier": "library",
+   "files": 7
   },
   {
    "name": "memory-entry-update",
-   "tier": "core",
+   "tier": "library",
    "files": 1
   },
   {
    "name": "merge-inbound-qoder-package",
-   "tier": "core",
+   "tier": "library",
    "files": 1
   },
   {
@@ -280,8 +280,8 @@
   },
   {
    "name": "office-docs",
-   "tier": "core",
-   "files": 5
+   "tier": "library",
+   "files": 8
   },
   {
    "name": "open-code-review-delegate",
@@ -295,7 +295,7 @@
   },
   {
    "name": "pause-writer-before-shared-file-edit",
-   "tier": "core",
+   "tier": "library",
    "files": 1
   },
   {
@@ -405,18 +405,18 @@
   },
   {
    "name": "rules-conflict-audit",
-   "tier": "core",
+   "tier": "library",
    "files": 1
   },
   {
    "name": "safe-text-editing",
    "tier": "core",
-   "files": 1
+   "files": 2
   },
   {
    "name": "self-evolution",
    "tier": "core",
-   "files": 1
+   "files": 3
   },
   {
    "name": "senior-devops",
@@ -440,28 +440,28 @@
   },
   {
    "name": "skill-authoring-closure",
-   "tier": "core",
-   "files": 1
+   "tier": "library",
+   "files": 3
   },
   {
    "name": "skill-description-route-cue-rewrite",
-   "tier": "core",
-   "files": 1
+   "tier": "library",
+   "files": 2
   },
   {
    "name": "skill-reference-integrity-audit",
-   "tier": "core",
-   "files": 1
+   "tier": "library",
+   "files": 3
   },
   {
    "name": "skill-tiering-lazy-load",
-   "tier": "core",
-   "files": 1
+   "tier": "library",
+   "files": 3
   },
   {
    "name": "skill-trim-with-capability-transfer",
-   "tier": "core",
-   "files": 1
+   "tier": "library",
+   "files": 2
   },
   {
    "name": "skills-router",
@@ -521,7 +521,7 @@
   {
    "name": "structured-edit-safety",
    "tier": "core",
-   "files": 1
+   "files": 3
   },
   {
    "name": "systemd-java-service-centos7",
@@ -545,7 +545,7 @@
   },
   {
    "name": "user-side-deploy-verify",
-   "tier": "core",
+   "tier": "library",
    "files": 1
   },
   {
@@ -556,22 +556,22 @@
   {
    "name": "verify-ui-in-browser",
    "tier": "core",
-   "files": 1
+   "files": 2
   },
   {
    "name": "verify-windows-cmd-tool",
-   "tier": "core",
+   "tier": "library",
    "files": 1
   },
   {
    "name": "vibe-coding-workflow",
    "tier": "core",
-   "files": 3
+   "files": 4
   },
   {
    "name": "vibecoding-doc",
    "tier": "core",
-   "files": 1
+   "files": 3
   },
   {
    "name": "vue-expert",
@@ -615,8 +615,8 @@
   },
   {
    "name": "write-repowiki",
-   "tier": "core",
-   "files": 1
+   "tier": "library",
+   "files": 3
   }
  ]
 }

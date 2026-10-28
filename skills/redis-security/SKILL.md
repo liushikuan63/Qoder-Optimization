@@ -78,13 +78,13 @@ The most common Redis breach is a public-internet Redis with no auth. Avoid that
 
 ```
 # redis.conf — bind to specific interfaces, keep protected-mode on
-bind 127.0.0.1 192.168.1.100
+bind 127.0.0.1 192.0.2.100
 protected-mode yes
 ```
 
 ```bash
 # Firewall — allow only application subnets
-iptables -A INPUT -p tcp --dport 6379 -s 192.168.1.0/24 -j ACCEPT
+iptables -A INPUT -p tcp --dport 6379 -s 192.0.2.0/24 -j ACCEPT
 iptables -A INPUT -p tcp --dport 6379 -j DROP
 ```
 

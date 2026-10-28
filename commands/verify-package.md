@@ -10,7 +10,7 @@ description: 打包前校验分享包——描述长度、垃圾文件、零字�
 
 ```bash
 # 只校验目录
-node ~/.qoder/scripts/share-package-verify.cjs "D:/tmp/Qoder-Optimization - 0.0.1"
+node ~/.qoder/scripts/share-package-verify.cjs "D:/tmp/Qoder-Optimization-0.0.2"
 
 # 额外校验规则文档第一节是否与 AGENTS.md 逐字节一致
 node ~/.qoder/scripts/share-package-verify.cjs "<包目录>" --agents ~/.qoder/AGENTS.md

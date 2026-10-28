@@ -3,8 +3,8 @@
 **An opt-in toolkit for making Qoder workflows more repeatable and verifiable.** It adds rules, on-demand skills, hooks, commands, scripts, and MCP templates through Qoder's extension points; it does not modify Qoder itself.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.0.1-blue.svg)](VERSION)
-[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
+[![Version](https://img.shields.io/badge/version-0.0.2-blue.svg)](VERSION)
+[![Node](https://img.shields.io/badge/node-24-brightgreen.svg)](https://nodejs.org)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#requirements-and-limits)
 
 [English](#english) | [简体中文](#简体中文) · [Install guide](README-安装说明.md) · [Skill catalog](SKILLS-清单.md) · [Machine-readable index](catalog.json)
@@ -22,6 +22,7 @@ No clone required — pick a version and download it. Every release carries a re
 
 | Version | Released | Highlights | Download |
 |---|---|---|---|
+| 0.0.2 | 2026-10-28 | Installable catalog and verified release pipeline | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.2/Qoder-Optimization-0.0.2.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.2) |
 | 0.0.1 | 2026-10-27 | First open-source release | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.1/Qoder-Optimization-0.0.1.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.1) |
 
 Published assets are immutable: a released zip is never replaced, fixes ship as a new patch version. Full history in [CHANGELOG.md](CHANGELOG.md).
@@ -92,12 +93,12 @@ The first two checks should report a clean skill set and no trigger collisions. 
 
 ### Catalog snapshot
 
-In the catalog generated on 2026-10-27, 28 core skill descriptions total 6,817 characters; all 123 skill descriptions total 25,421 characters. The core descriptions are 26.8% of the full catalog description text. This compares description text only, not total prompt tokens.
+In the catalog generated on 2026-10-28, 12 core skill descriptions total 2,645 characters; all 123 skill descriptions total 25,776 characters. The core descriptions are 10.3% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
 
 ### Requirements and limits
 
 - Qoder desktop client: international (`~/.qoder`) or CN (`~/.qoder-cn`). Scripts detect a single-client setup and do not create the other directory.
-- Node.js 20 or newer for scripts and tooling.
+- Node.js 24 is recommended; this release uses 24.16.0 for its test pipeline. The suggestion utility needs the built-in `node:sqlite` module.
 - Developed and tested on Windows 10/11. Most scripts use Node.js; desktop automation and some cleanup tools are Windows-specific.
 - No service, telemetry, or account is required. MCP configuration contains placeholders and must be configured by you.
 - Hooks only run after you wire them into Qoder. Guards fail open if they crash, so they do not replace operating-system or platform permissions.
@@ -113,6 +114,14 @@ In the catalog generated on 2026-10-27, 28 core skill descriptions total 6,817 c
 ### Contributing
 
 Issues and pull requests are welcome. New guards should include a case that must be blocked and a case that must pass. Keep unrelated behavior changes in separate contributions.
+
+### Release maintenance
+
+Maintain releases from a Git checkout, not from a downloaded zip. Fetch and merge the latest remote changes while preserving local work. The public repository is the distribution source; the metadata generator does not read your HOME or export private configuration. Preview metadata changes, back up existing files, then use `--apply` when the scope is correct. Keep VERSION, catalog, manifest, both language sections, counts and download links aligned.
+
+`npm ci --prefix skills/office-docs --ignore-scripts` prepares locked test dependencies; `node .github/run-tests.js` runs the isolated self-tests and release contracts. On Windows, set `RELEASE_TEST_HOME_PARENT` to a disposable parent outside paths classified as temporary, and keep TEMP/TMP in a separate test directory.
+
+The tag workflow validates and packages only approved committed files, then independently unpacks and compares their contents. Existing release assets are downloaded and compared before being retained; differing assets are not replaced. Finally, verify the actual CI run and download both published assets. A successful upload alone is not delivery verification.
 
 ### License
 
@@ -131,6 +140,7 @@ MIT; see [LICENSE](LICENSE). This is an unofficial community project and is not 
 
 | 版本 | 发布日期 | 主要内容 | 下载 |
 |---|---|---|---|
+| 0.0.2 | 2026-10-28 | 修复索引安装，补齐发布验证 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.2/Qoder-Optimization-0.0.2.zip) · [说明](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.2) |
 | 0.0.1 | 2026-10-27 | 首个开源版 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.1/Qoder-Optimization-0.0.1.zip) · [说明](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.1) |
 
 已发布的资产不再替换：发现缺陷就发新的补丁版本，历史记录见 [CHANGELOG.md](CHANGELOG.md)。
@@ -203,12 +213,12 @@ node ~/.qoder/scripts/build-skills-index.cjs
 
 ### 目录快照
 
-截至 2026-10-27 生成的目录，28 个常驻技能的描述共 6,817 字符；123 个技能的描述共 25,421 字符。常驻描述占全部技能描述文本的 26.8%。这里比较的是描述文本，不是完整提示词 token 数。
+截至 2026-10-28 生成的目录，12 个常驻技能的描述共 2,645 字符；123 个技能的描述共 25,776 字符。常驻描述占全部技能描述文本的 10.3%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
 
 ### 环境与限制
 
 - 适用于 Qoder 桌面客户端：国际版（`~/.qoder`）或中文版（`~/.qoder-cn`）。脚本可识别单客户端环境，不会创建另一侧目录。
-- 脚本与工具要求 Node.js 20 或更新版本。
+- 推荐 Node.js 24，本版测试流水线使用 24.16.0；建议状态工具需要内置的 `node:sqlite` 模块。
 - 在 Windows 10/11 上开发和验证。多数脚本使用 Node.js；桌面自动化和部分清理工具仅适用于 Windows。
 - 无需服务端、遥测或账号。MCP 配置仅含占位符，需要自行配置。
 - Hooks 接线后才会运行。守卫崩溃时会 fail-open，因此不能替代操作系统或平台权限。
@@ -224,6 +234,14 @@ node ~/.qoder/scripts/build-skills-index.cjs
 ### 参与贡献
 
 欢迎提交 Issue 和 PR。新增守卫应同时提供必须拦截和必须放行的用例；无关行为变更请拆分提交。
+
+### 版本维护
+
+维护版本要使用 Git 源码仓库，不从下载的 ZIP 直接改出新版。先拉取并保留本地工作合并最新远端；公开仓库是交付源，元数据生成器不读取 HOME，也不导出私有配置。先预演和备份，确认范围后再加 `--apply`，同步 VERSION、catalog、manifest、双语文档、计数和下载链接。
+
+用 `npm ci --prefix skills/office-docs --ignore-scripts` 准备锁定的测试依赖，再运行 `node .github/run-tests.js`。Windows 上把 `RELEASE_TEST_HOME_PARENT` 指向不会被识别为临时路径的独立沙箱父目录，TEMP/TMP 使用另一测试目录。
+
+标签工作流只校验和打包获准的已提交文件，并独立解包比对内容。已有同名资产下载比对后才保留，内容不一致时停止、不覆盖。最后核对真实 CI，并下载 ZIP 和校验文件复验；上传成功不能单独证明交付成功。
 
 ### 许可证
 

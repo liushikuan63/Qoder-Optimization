@@ -53,9 +53,9 @@ description: 按 Qoder 标准格式生成或维护仓库 wiki（.qoder/repowiki/
 两个脚本**随本技能分发**（在技能目录里，不在 `~/.qoder/scripts/`）：
 
 ```bash
-node ~/.qoder/skills/write-repowiki/scripts/validate-repowiki.js <repo 路径>            # 只读，退 0/1/2
-node ~/.qoder/skills/write-repowiki/scripts/fix-repowiki-toc.js <repo 路径>             # 只报
-node ~/.qoder/skills/write-repowiki/scripts/fix-repowiki-toc.js <repo 路径> --apply     # 落盘（逐文件备份 .bak-<时间戳>）
+node ~/.qoder/skills-library/write-repowiki/scripts/validate-repowiki.js <repo 路径>            # 只读，退 0/1/2
+node ~/.qoder/skills-library/write-repowiki/scripts/fix-repowiki-toc.js <repo 路径>             # 只报
+node ~/.qoder/skills-library/write-repowiki/scripts/fix-repowiki-toc.js <repo 路径> --apply     # 落盘（逐文件备份 .bak-<时间戳>）
 ```
 
 - `validate-repowiki.js` 查七项：`wiki_plan.yaml` 顶层键（`version` / `repowiki` / `knowledgecard` —— **不含 `scope`**）、四层目录、代码围栏闭合、内链可达、`#Lx-Ly` 行号、疑似明文凭据、plan↔磁盘一致；另查 YAML 两个真实坑（tab 缩进、双引号标量里嵌引号）。

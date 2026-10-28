@@ -12,6 +12,10 @@
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
+const fixedTime = process.env.SOURCE_DATE_EPOCH === undefined ? null : Number(process.env.SOURCE_DATE_EPOCH) * 1000;
+if (fixedTime !== null && (!Number.isFinite(fixedTime) || fixedTime < Date.UTC(1980, 0, 1) || fixedTime >= Date.UTC(2108, 0, 1))) {
+  throw new Error('SOURCE_DATE_EPOCH must fit the ZIP timestamp range');
+}
 
 const CRC_TABLE = (() => {
   const t = new Array(256);
@@ -30,9 +34,10 @@ function crc32(buf) {
 }
 
 function dosDateTime(mtime) {
-  const d = new Date(mtime);
-  const time = (d.getHours() << 11) | (d.getMinutes() << 5) | Math.floor(d.getSeconds() / 2);
-  const date = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+  const d = new Date(fixedTime === null ? mtime : fixedTime);
+  const get = name => d[(fixedTime === null ? 'get' : 'getUTC') + name]();
+  const time = (get('Hours') << 11) | (get('Minutes') << 5) | Math.floor(get('Seconds') / 2);
+  const date = ((get('FullYear') - 1980) << 9) | ((get('Month') + 1) << 5) | get('Date');
   return { time, date };
 }
 
@@ -42,7 +47,7 @@ function dosDateTime(mtime) {
 const SKIP = /(\.bak([-._][^/]*)?|~|\.tmp|\.swp|\.orig)$/i;
 
 function walk(dir, base, entries) {
-  for (const name of fs.readdirSync(dir)) {
+  for (const name of fs.readdirSync(dir).sort()) {
     if (SKIP.test(name)) { console.error(`[skip] 备份/临时件不入包：${base ? base + '/' : ''}${name}`); continue; }
     const full = path.join(dir, name);
     const rel = base ? base + '/' + name : name;

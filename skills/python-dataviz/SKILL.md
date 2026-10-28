@@ -234,7 +234,7 @@ plt.savefig('output.png', dpi=300)  # Not 72 or 100
 The skill includes a venv with all dependencies. Always activate before use:
 
 ```bash
-cd /home/matt/.openclaw/workspace/skills/python-dataviz
+cd ~/.openclaw/workspace/skills/python-dataviz
 source .venv/bin/activate
 ```
 

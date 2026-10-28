@@ -1,6 +1,6 @@
-# Qoder-Optimization - 0.0.1 技能清单
+# Qoder-Optimization-0.0.2 技能清单
 
-共 123 个源码随包技能：常驻 28 / 按需 95。机器可读版见 `skills-manifest.json` 与 `catalog.json`。
+共 123 个源码随包技能：常驻 12 / 按需 111。机器可读版见 `skills-manifest.json` 与 `catalog.json`。
 
 **默认不全量安装**：先登记包，再按技术栈与任务用 `pkg-catalog.cjs search/install` 选择；`tier` 决定安装到常驻层还是按需库。
 
@@ -18,7 +18,7 @@
 - `desktop-update-push-triage`（按需）—— Windows 桌面客户端（Electron/ele 触发词：收不到更新推送、Qoder 收不到更新推送、Qoder 更新不生效、Qoder 更新失败、桌面客户端更新失败、自动更新不生效、检查不到新版本、更新缓存目录不能是符号链接、无法安全完成 System 更新、updaterCacheDirName、junction 更新、electron-updater、NSIS 静默重装；不用于：浏览器打不开网页（edge-net-check）
 - `diagnose-github-actions-quota`（按需）—— 私有仓库 GitHub Actions CI 全红时先定性再修——用一组能失败的只读 gh 判据阶梯区分账户计费与配额闸门和真实代码红，并强制在成功 run 上重跑同一阶梯证明判据可失败。当出现推送后 2~3 秒即红、看不到步骤或日志、gh run view 空输出、run 里 total_count=0 没有 job、日志端点返回 BlobNotFound、annotation 含 payments have failed，或任务涉及
 - `diagnose-windows-webview2-blank-window`（按需）—— 诊断 Windows WebView2 壳应用白屏、无限转圈或卡在那正在登录（new Outlook olk.exe 与 Microsoft.OutlookForWindows、Edge 系 AppX、任何持有 EBWebView user-data-dir 的应用）。先抓真实窗口把渲染空白与登录流程停滞分开，再按 --user-data-dir 与父进程归属 msedgewebview2、读应用自己的日志，最后用被代理与直连对照证明或
-- `disk-junction-migration`（常驻）—— Windows C 盘腾空间：先分类再动手 + junction 搬迁安全执行。触发词：C 盘满、junction、mklink /J、rmdir 断链、robocopy /XJ、崩溃产物（hs_err_pid*.mdmp、java_error_in_idea*.hprof）、npm 缓存改路径、idea.system.path、GRADLE_USER_HOME、分享包首次部署问迁移。按 DELETE/TRIM/JUNCTION/OFF
+- `disk-junction-migration`（按需）—— Windows C 盘腾空间：先分类再动手 + junction 搬迁安全执行。触发词：C 盘满、junction、mklink /J、rmdir 断链、robocopy /XJ、崩溃产物（hs_err_pid*.mdmp、java_error_in_idea*.hprof）、npm 缓存改路径、idea.system.path、GRADLE_USER_HOME、分享包首次部署问迁移。按 DELETE/TRIM/JUNCTION/OFF
 - `distinctive-design-systems`（按需）—— Patterns for creating design systems with personality and distinctive aesthetics。中文触发：前端样式 设计系统 UI 组件库 设计 模式规范
 - `dsh-session-format-debug`（按需）—— 取证 dsh（DeepSeek Harness，~/.dsh）会话轮次反复失败的固定流程，报错特征为 format v4 message requires a producer-owned source kind。六步——从 ~/.dsh/logs 锁定失败 session id；按 zstd 帧魔数 28 B5 2F FD 逐帧解 session.v4.jsonl.zstd；按事件类型统计 source.kind 并用两遍独立扫描对账
 - `electron-app-stuck-spinner-triage`（按需）—— 定位 Windows 桌面客户端（尤其 Electron 老客户端、外设配套软件）界面无限转圈且不报错——先按进程有无 ESTABLISHED 对外 TCP 一刀切开云同步与设备握手两类原因，再用界面上的逐字中文串反查遮罩的置位与清除条件与超时兜底，然后主动发只读帧自证发得出去收不回来，最后核对设备主注册 PID 与实际在俗 PID。用于某客户端一直转圈、重启重插换 USB 口都无效、手柄或 2.4G 接收器配置同步失败。HID 收发见
@@ -30,7 +30,7 @@
 - `game-designer-toolkit`（按需）—— Complete game design toolkit for creating professional GDD, game systems, level design, and prototypes。中文触发：小游戏 游戏设计 数值 设计
 - `game-numeric-design`（按需）—— 游戏数值策划技能 - 基于《游戏数值设定入门》方法论，提供数值设计公式、经济系统、成长曲线等工具
 - `github-accelerator`（按需）—— 小白友好的一键诊断并修复 GitHub 访问问题（hosts 修复 + 镜像兜底 + SSH-over-443）。当用户反馈"打不开 GitHub / GitHub 加载不出来 / 无法安装 GitHub 上的开源 Skill 或软件 / git clone 失败 / 下载 Release 失败"，或要求"配置 GitHub 加速"时使用。支持 macOS 与 Windows。
-- `global-config-smoke-runner`（常驻）—— 本机 Qoder 全局配置冒烟：枚举 ~/.qoder/scripts 下全部 *.test.js 与 skills-doctor / skill-collisions / config-doctor / rules-weekly-audit，逐项运行并只汇总名称+退出码，再对非零项按真缺陷/检查器假阳性/可接受平台差异三分类并给修复动作。用于改规则/技能/hook/脚本后、重打分享包前、体检报红时。触发词：完整冒烟、全局配置冒烟、配置
+- `global-config-smoke-runner`（按需）—— 本机 Qoder 全局配置冒烟：枚举 ~/.qoder/scripts 下全部 *.test.js 与 skills-doctor / skill-collisions / config-doctor / rules-weekly-audit，逐项运行并只汇总名称+退出码，再对非零项按真缺陷/检查器假阳性/可接受平台差异三分类并给修复动作。用于改规则/技能/hook/脚本后、重打分享包前、体检报红时。触发词：完整冒烟、全局配置冒烟、配置
 - `goal-driven-execution`（常驻）—— 目标化执行：把长任务设成"带可失败判据的目标"，逐格推进、每格落盘，直到判据全绿才算完成。当任务是中大型 / 跨多回合 / 容易半途跑偏或"看起来做完了其实没做完"时使用。触发词：设个目标、持续推进、盯到完成、别中途跑偏、长任务、多步骤、任务目标、Goal 模式、完成判据、什么时候算做完。不用于：小改动与单点修复（直接做）、纯探索类问题（先给结论）。
 - `hid-device-protocol-probe`（按需）—— Windows 上不用厂商软件、从 PowerShell 探 USB HID 收发通路——用 SetupAPI 加 HidP_GetCaps 枚举每个 collection 的 UsagePage 与 Usage 及报告长度找厂商命令通道；用 joyGetPosEx 证明手柄真的在；读写各放可取消工作线程；发只读查询帧按回复直方图区分发不出去与设备答了但客户端收不到。用于手柄、2.4G 接收器、外设配置工具卡在同步转圈且不报错，或 HI
 - `i-have-adhd`（按需）—— Shape output for a reader with ADHD - lead with the next action, number multi-step work, restate state across turns, suppress tangents, give specific time estimates, make wins visible.
@@ -45,9 +45,9 @@
 - `local-performance-evidence`（按需）—— 补充性能或成本优化的基线、瓶颈归因、对照实验与停止条件；用于明确指标的优化，不用于普通功能实现或泛泛提速。
 - `local-rust-engineering`（按需）—— 补充 Rust 所有权、错误、异步并发和测试边界；用于相关 Rust 实现与缺陷，不用于纯文案或只有前端的修改。
 - `local-spring-mybatis`（按需）—— 补充 Spring 与 MyBatis 的事务、参数绑定、映射和查询性能检查；用于这些后端实现问题，不替代本机环境预检。
-- `mechanize-rule-into-hook-guard`（常驻）—— 把提示词里的纪律做成会判红的门禁 hook 取证流水线：缺口取证 → carrier-preflight 问限额 → 判据抽成 core 真源，PreToolUse 拦 / PostToolUse 记账 → 红与负对照自测 → 逐断言变异验证 → 台账非空核查 → RFC5737 真机探针 → 两侧接线与周检复跑。触发词：机制化、做成 hook、加门禁、加守卫、guard、这条规则没生效、反复违反、为什么没拦住、连败三次、停手上报、ho
-- `memory-entry-update`（常驻）—— 更新单条已有长期记忆的可复现流程：Read 正文与 MEMORY.md 两个载体 → 各跑 backup-file.js → Edit 三处成对改动（正文 / frontmatter description / 索引行）→ 四条能失败的验收（含周检 0 告警，[INFO] 不算告警）→ 区分已验证与未验证。触发词：更新记忆、记忆索引同步、改 MEMORY.md、记忆维护。不用于：新建记忆（self-evolution）、链接与凭据审计。
-- `merge-inbound-qoder-package`（常驻）—— 将外部 Qoder 分享包、回流包或配置包安全并入本机真源：非系统盘隔离解压、与本机基线做逐文件哈希三分类、卫生与敏感信息预检、realpath/junction 归属判位、dry-run、backup-file.js、逐文件定点合并、三方冲突保留本机独有内容、索引与全局冒烟收口。触发词：回流包、入站分享包、并入本机、三方冲突、对方包丢能力；不用于首次安装未知第三方包（先走 inspect-untrusted-tool-package）
+- `mechanize-rule-into-hook-guard`（按需）—— 把提示词里的纪律做成会判红的门禁 hook 取证流水线：缺口取证 → carrier-preflight 问限额 → 判据抽成 core 真源，PreToolUse 拦 / PostToolUse 记账 → 红与负对照自测 → 逐断言变异验证 → 台账非空核查 → RFC5737 真机探针 → 两侧接线与周检复跑。触发词：机制化、做成 hook、加门禁、加守卫、guard、这条规则没生效、反复违反、为什么没拦住、连败三次、停手上报、ho
+- `memory-entry-update`（按需）—— 更新单条已有长期记忆的可复现流程：Read 正文与 MEMORY.md 两个载体 → 各跑 backup-file.js → Edit 三处成对改动（正文 / frontmatter description / 索引行）→ 四条能失败的验收（含周检 0 告警，[INFO] 不算告警）→ 区分已验证与未验证。触发词：更新记忆、记忆索引同步、改 MEMORY.md、记忆维护。不用于：新建记忆（self-evolution）、链接与凭据审计。
+- `merge-inbound-qoder-package`（按需）—— 将外部 Qoder 分享包、回流包或配置包安全并入本机真源：非系统盘隔离解压、与本机基线做逐文件哈希三分类、卫生与敏感信息预检、realpath/junction 归属判位、dry-run、backup-file.js、逐文件定点合并、三方冲突保留本机独有内容、索引与全局冒烟收口。触发词：回流包、入站分享包、并入本机、三方冲突、对方包丢能力；不用于首次安装未知第三方包（先走 inspect-untrusted-tool-package）
 - `minigame-dev-pro`（按需）—— 小游戏开发专家：从创意到上架到运营的全链路顾问。覆盖微信/抖音等主流小游戏平台，提供市场分析、合规审查（14条红线+8份SOP）、游戏设计、技术开发（Cocos/原生）、数据增长、质量保障、运营变现、失败复盘，并涵盖小游戏跨端经营（App/PC）路径。集成本地执行工具（环境验证/预览/日志/截图/真机/上传/就绪度/合规/包体/性能/素材/知识过滤/SOP时效巡检/官方规范核验 + 全平台规范实时核实 + 全维度安全合规扫描 +
 - `miniprogram-development`（按需）—— WeChat Mini Program development skill for building, debugging, previewing, testing, publishing, and optimizing mini program projects (小程序开发、调试、预览、发布)。中文触发：微信小程序 uni-app 云开发 发布 测试 性能优化。不用于：Web frontend (use web-developmen
 - `mongodb-atlas-stream-processing`（按需）—— Manages MongoDB Atlas Stream Processing (ASP) workflows。中文触发：MongoDB 文档库 集合 聚合管道 Atlas 流式。不用于：general MongoDB queries or Atlas cluster management. Requires MongoDB MCP Server with Atl
@@ -61,10 +61,10 @@
 - `nextjs-app-router-patterns`（按需）—— Master Next.js 14+ App Router with Server Components, streaming, parallel routes, and advanced data fetching. Use when building Next.js applications, implementing SSR/SSG, or optimizing React Server Components.
 - `nginx-config-builder`（按需）—— Generate NGINX configuration files for web servers, reverse proxies, load balancing, SSL termination, and static file serving. Triggers on "create nginx config", "generate nginx.conf", "nginx configuration for", "reverse
 - `nodejs-backend-patterns`（按需）—— Build production-ready Node.js backend services with Express/Fastify, implementing middleware patterns, error handling, authentication, database integration, and API design best practices. Use when creating Node.js serve
-- `office-docs`（常驻）—— 不依赖 Python 用 Node 读写 Excel（.xlsx/.csv）与 Word（.docx）——读表格转 markdown/JSON（支持按范围/行数截断、列工作表、读公式原文）、按 JSON 规格生成工作簿（列宽/冻结/数字格式/CSV 直转）、改既有工作簿的单元格、抽取 Word 正文与表格、生成 Word 文档（含样式/图片/分页，支持 Markdown 直转含插图）、往既有 docx 模板插入新表格（解包改 XML 回
+- `office-docs`（按需）—— 不依赖 Python 用 Node 读写 Excel（.xlsx/.csv）与 Word（.docx）——读表格转 markdown/JSON（支持按范围/行数截断、列工作表、读公式原文）、按 JSON 规格生成工作簿（列宽/冻结/数字格式/CSV 直转）、改既有工作簿的单元格、抽取 Word 正文与表格、生成 Word 文档（含样式/图片/分页，支持 Markdown 直转含插图）、往既有 docx 模板插入新表格（解包改 XML 回
 - `open-code-review-delegate`（按需）—— Delegation mode for open-code-review (OCR). Use when the host agent should drive the review with its own LLM capabilities。中文触发：代码评审 审查 评审
 - `oracledb`（按需）—— Use these skills to manage and monitor Oracle databases by executing SQL statements, exploring schema metadata, analyzing query performance, monitoring active sessions and resource consumption, and managing storage and o
-- `pause-writer-before-shared-file-edit`（常驻）—— 编辑会被并行会话/自动机制改写的文件（技能 description、记忆索引、台账、evolution 状态）时的防竞态流程：先证明有并发写入方（mtime+字节数）→ 官方 CLI 暂停（evolution.js pause，不手写 control.json）→ 暂停后重新扫描再动手 → 扫描红当「暂定」，复跑一次再判 → 改完 resume 并记录基线。触发词：并发写入、并行会话改了我的文件、description 被回滚、悬空引用
+- `pause-writer-before-shared-file-edit`（按需）—— 编辑会被并行会话/自动机制改写的文件（技能 description、记忆索引、台账、evolution 状态）时的防竞态流程：先证明有并发写入方（mtime+字节数）→ 官方 CLI 暂停（evolution.js pause，不手写 control.json）→ 暂停后重新扫描再动手 → 扫描红当「暂定」，复跑一次再判 → 改完 resume 并记录基线。触发词：并发写入、并行会话改了我的文件、description 被回滚、悬空引用
 - `postgresql-optimization`（按需）—— Expert in PostgreSQL performance tuning, query optimization, and database administration. Specializes in EXPLAIN analysis, indexing strategies, connection pooling, partitioning, and production-grade
 - `postgresql-table-design`（按需）—— Design a PostgreSQL-specific schema. Covers best-practices, data types, indexing, constraints, performance patterns, and advanced features
 - `powershell-windows-display-interop`（按需）—— 用 PowerShell Add-Type P-Invoke 读或改 Windows 显示栈——EDID 块、HDR 与自动色彩管理、当前分辨率、刷新率、像素时钟、位深、显示器友好名。用于 DisplayConfigGetDeviceInfo 或 EnumDisplaySettings 返回 TRUE 或 hr=0 却字段全空、设备信息调用对每种类型都回 hr=0x1F 或 0x7A、EDID 扩展块解析成乱码、Add-Type 编不过
@@ -86,18 +86,18 @@
 - `redis-search`（按需）—— Redis Search guidance covering FT.CREATE schema design, field type selection (TEXT, TAG, NUMERIC, GEO, GEOSHAPE, VECTOR, JSON path), DIALECT 2 query syntax, FT.SEARCH / FT.AGGREGATE / FT.HYBRID command selection, vector 
 - `redis-security`（按需）—— Redis security guidance covering authentication (requirepass and ACL users), TLS, ACL-based least-privilege access control, restricting network exposure via bind and protected-mode, firewall rules, and disabling dangerou
 - `redis-semantic-cache`（按需）—— Redis LangCache guidance for semantic caching of LLM responses on Redis Cloud — calling search/set via the SDK or REST API, tuning the similarity threshold, separating caches per task type, and filtering with custom attr
-- `rules-conflict-audit`（常驻）—— 规则体系冲突与验证主张审计：只读交叉核对 AGENTS、提醒、收尾门禁、领域规则、技能描述和记忆，输出引用、行号、行为影响、具体改文与扩权标注；核对证明力、真实问答、多项阻塞与历史授权反例。报告交付即完成审阅；批准实施后才修改，保留平台强制审批。扩展：技能/文档家族一致性审计——按四层模型核对 description、正文、校验器、规则文件、分享包五个面，正负夹具防校验器假绿，修复后同批同步分享包。
+- `rules-conflict-audit`（按需）—— 规则体系冲突与验证主张审计：只读交叉核对 AGENTS、提醒、收尾门禁、领域规则、技能描述和记忆，输出引用、行号、行为影响、具体改文与扩权标注；核对证明力、真实问答、多项阻塞与历史授权反例。报告交付即完成审阅；批准实施后才修改，保留平台强制审批。扩展：技能/文档家族一致性审计——按四层模型核对 description、正文、校验器、规则文件、分享包五个面，正负夹具防校验器假绿，修复后同批同步分享包。
 - `safe-text-editing`（常驻）—— 改文件与传参的字符安全 playbook。当"内容写出来不对"时用：引号/反斜杠/反引号/`$` 被 shell 先解释、中文进 .cmd 变乱码、CRLF 与 GBK 被改写、整文件覆盖丢内容、替换串手抄失配、管道吞掉退出码、命令成功但改错地方。触发词：编辑出错、字符被吃掉、内容不对、乱码、转义、引号问题、sed 替换没生效、写进去的不是我要的、编码、GBK、CRLF、退出码不对。不用于：纯文本内容校对（走文档类技能）、.cmd 工具
 - `self-evolution`（常驻）—— 将用户明确的长期偏好、重复纠正、验证过的复用经验和持续能力缺口转为有证据的规则、技能或工具配置更新；也用于查看、暂停、恢复与回退自动调整。触发词：自进化、学到的规则、暂停自动调整、恢复自进化、撤销最近学到的、查看学到的规则、经验沉淀、证据门槛。不用于：单次临时指令和普通成功任务。
 - `senior-devops`（按需）—— Comprehensive DevOps skill for CI/CD, infrastructure automation, containerization, and cloud platforms (AWS, GCP, Azure)。中文触发：CI 流水线 容器
 - `setup-windows-selfhosted-runner`（按需）—— 在 Windows 上安装、注册、验证并持久化 GitHub Actions 自托管 runner 的完整链与九类实测坑避坑顺序。用于要装 self-hosted runner、把门禁挪到本机跑以省 GitHub Free 的 2000 分钟/月、job 在含空格的 runner 目录下秒红（/usr/bin/bash 报 D:\\Program 无此文件）、runner 随会话结束即停或开机弹常驻终端、硬杀 listener 后报 A
 - `ship-clean-pr`（常驻）—— 干净交付流水线：提交/推 PR 前先 git status 分辨并行会话改动，绝不 git add -A，只加明确路径；说明跟随目标仓库惯例；本地 commit 跑相关测试，推送/开 PR 前全量测试；推送前同步上游让 diff 只含本批次；只保留唯一 PR，撤回旧 PR 先问；汇报 PR 链接+文件数+增删行+mergeable。触发：提交、推 PR、提 PR、合入、交付、发布、撤回 PR。
 - `shipped-app-js-patch-hygiene`（按需）—— 热修已安装桌面或 Electron 应用打包 JS 的可验证流程——改前用 SHA1 加补丁标记数证明 live 文件是否原版（.bak 未必干净、.patched 不是还原点），意图命名备份、最小改动、node --check 语法门、与已验原版逐行 diff、真重启后从应用自己的日志数标记、修不动就还原并复验 SHA1。用于热修 JS、残留 .bak 或 .patched、node --check 通过但应用照坏、删 scratch
-- `skill-authoring-closure`（常驻）—— 把进化建议落成技能，或新增 / 改名 / 上收技能后的闭环：同域判重合并 → 通用 SKILL.md + references/<产品>.md → carrier-preflight 定级 → 校验元数据 → 重建索引 → 三组查询验收路由 → skills-doctor 收口。触发词：自进化建议、把自进化建议合并成技能、合并成技能、标记 evolved、技能上线、skill-load 检索不到。不用于：单技能从零编写（skill-cr
-- `skill-description-route-cue-rewrite`（常驻）—— 改写或瘦身其他技能 description 的保护性流程：动笔前重新 Read 并与上一轮比对（防并行会话改短）；按七组路由线索盘点去向——反直觉结论、已发生状态的禁止动作、人工解除/回退入口、守卫覆盖面边界、零风险探针、完整触发词、不用于→指向；写入后用 check-description.cjs 验收（逐组短语断言 + 残缺版负对照必须判红 + 单行/无 CRLF/长度明显低于原版）。触发词：description 瘦身、压短描述、
-- `skill-reference-integrity-audit`（常驻）—— 技能/文档悬空引用审计与修复决策流程：提取引用清单→存在性核查→会话归档考古判定『从未落盘 vs 丢失』→同域技能功能映射让渡或按真值重建；含并行会话竞态处置（对象消失先查 skills-disabled）。触发词：悬空引用、缺失文件、引用审计、归档考古、技能完整性检查、skills-disabled 竞态。不适用于：代码层面的 import/require 缺失（走静态分析）、文档内部链接失效（走 link-checker）。
-- `skill-tiering-lazy-load`（常驻）—— 技能分层懒加载 playbook：注入过大时，把 ~/.qoder/skills 拆成「常驻元/高频 + skills-library 按需库」，用 tier-skills 迁移、build-skills-index 重建索引、skill-load 检索；含常驻集拍板、library 回退修补、注入降幅测量、可失败验收、回滚与分享包复现。触发词：技能分层、按需库、skills-library、skill-load。不用于停用合并（ski
-- `skill-trim-with-capability-transfer`（常驻）—— 技能降量的可执行 playbook（停入口、不丢能力）。当用户说「技能太多要精简」「降量 / 停用技能」「同域不装第二个」「几个技能抢同一个触发」「停掉的技能能力不能丢」「skills-disabled 怎么回退」「降量后周检 / 全局体检判红」时使用。按引用关系分档决定谁能停，把只此一家的能力用真代码或规则条目搬进留存内容，同步会被钉死的机械判据，再用周检加提及扫描收口。不用于外部分享包并入（走 merge-inbound-qoder
+- `skill-authoring-closure`（按需）—— 把进化建议落成技能，或新增 / 改名 / 上收技能后的闭环：同域判重合并 → 通用 SKILL.md + references/<产品>.md → carrier-preflight 定级 → 校验元数据 → 重建索引 → 三组查询验收路由 → skills-doctor 收口。触发词：自进化建议、把自进化建议合并成技能、合并成技能、标记 evolved、技能上线、skill-load 检索不到。不用于：单技能从零编写（skill-cr
+- `skill-description-route-cue-rewrite`（按需）—— 改写或瘦身其他技能 description 的保护性流程：动笔前重新 Read 并与上一轮比对（防并行会话改短）；按七组路由线索盘点去向——反直觉结论、已发生状态的禁止动作、人工解除/回退入口、守卫覆盖面边界、零风险探针、完整触发词、不用于→指向；写入后用 check-description.cjs 验收（逐组短语断言 + 残缺版负对照必须判红 + 单行/无 CRLF/长度明显低于原版）。触发词：description 瘦身、压短描述、
+- `skill-reference-integrity-audit`（按需）—— 技能/文档悬空引用审计与修复决策流程：提取引用清单→存在性核查→会话归档考古判定『从未落盘 vs 丢失』→同域技能功能映射让渡或按真值重建；含并行会话竞态处置（对象消失先查 skills-disabled）。触发词：悬空引用、缺失文件、引用审计、归档考古、技能完整性检查、skills-disabled 竞态。不适用于：代码层面的 import/require 缺失（走静态分析）、文档内部链接失效（走 link-checker）。
+- `skill-tiering-lazy-load`（按需）—— 技能分层懒加载 playbook：注入过大时，把 ~/.qoder/skills 拆成「常驻元/高频 + skills-library 按需库」，用 tier-skills 迁移、build-skills-index 重建索引、skill-load 检索；含常驻集拍板、library 回退修补、注入降幅测量、可失败验收、回滚与分享包复现。触发词：技能分层、按需库、skills-library、skill-load。不用于停用合并（ski
+- `skill-trim-with-capability-transfer`（按需）—— 技能降量的可执行 playbook（停入口、不丢能力）。当用户说「技能太多要精简」「降量 / 停用技能」「同域不装第二个」「几个技能抢同一个触发」「停掉的技能能力不能丢」「skills-disabled 怎么回退」「降量后周检 / 全局体检判红」时使用。按引用关系分档决定谁能停，把只此一家的能力用真代码或规则条目搬进留存内容，同步会被钉死的机械判据，再用周检加提及扫描收口。不用于外部分享包并入（走 merge-inbound-qoder
 - `skills-router`（常驻）—— 领域任务的技能入口。任何非纯对话任务开始前，先用 node ~/.qoder/scripts/skill-load.cjs "<关键词>" 检索技能索引（常驻 + 按需库，数量以 ~/.qoder/skills-index.json 实测为准）；命中就 Read 对应 SKILL.md 再动手。覆盖 Java/Spring、数据库、前端、部署、运维、文档、小程序、爬虫等。不检索等于这些技能不存在。新增技能先判层级：元/跨域高频或硬引用进
 - `spring-aop`（按需）—— Spring AOP (Aspect-Oriented Programming) per Spring Boot 3.x。中文触发：Spring Boot Java 后端 Bean 依赖注入
 - `spring-boot-actuator`（按需）—— Provides patterns to configure Spring Boot Actuator for production-grade monitoring, health probes, secured management endpoints, and Micrometer metrics across JVM services. Use when setting up monitoring, health checks,
@@ -114,10 +114,10 @@
 - `tailwindcss-animations`（按需）—— Tailwind CSS animations and transitions including built-in utilities and custom keyframes。中文触发：前端样式 设计系统 UI 组件库 动画
 - `typescript-pro`（按需）—— Implements advanced TypeScript type systems, creates custom type guards, utility types, and branded types, and configures tRPC for end-to-end type safety。中文触发：TypeScript 类型 泛型 配置
 - `umi3-to-umi4-upgrade`（按需）—— umi3 → umi4 / webpack5 升级后的回归排查与恢复流水线：document.ejs 模板被静默取消（用 headScripts/links 恢复、#root 动态注入与 loading 约定）、深 触发词：umi4 升级、umi3 升 umi4、document.ejs 失效、umi 样式回归、升级后白块、loading 不显示、headScripts、CSS module hash、webpack5 迁移、umi_l
-- `user-side-deploy-verify`（常驻）—— 部署自验全绿 ≠ 用户端生效的三道门：① 入口缓存头审计（首页与 fallback 必须 no-store；有 ETag 无 Cache-Control 即启发式缓存隐患）② 用户侧取证（access.log 按 UA 还原 document 链比对 bundle hash，旧 hash 不 404 时零报错）③ 冷环境复现（新 profile + 登录态 + 截图）。触发词：用户端没生效、复验全绿但用户还是旧版、缓存头、no-stor
+- `user-side-deploy-verify`（按需）—— 部署自验全绿 ≠ 用户端生效的三道门：① 入口缓存头审计（首页与 fallback 必须 no-store；有 ETag 无 Cache-Control 即启发式缓存隐患）② 用户侧取证（access.log 按 UA 还原 document 链比对 bundle hash，旧 hash 不 404 时零报错）③ 冷环境复现（新 profile + 登录态 + 截图）。触发词：用户端没生效、复验全绿但用户还是旧版、缓存头、no-stor
 - `verify-before-claim`（常驻）—— 验证证据纪律与通用检查排错：每条断言必须能失败；启动/HTTP 验收要有「不存在路径」对照组、本轮编译退出码入判据、请求打本轮独占端口；计数断言先列「会改世界的操作」；多出来的红先归因自己算错；拿不到可失败证据显式标注「未验证」；常驻进程「改了没生效/上次修过还是坏」先证运行态版本==磁盘（启动时间 vs mtime、健康端点 vs 文件 sha256）。用于通用检查排错、模型能力审查、证据审计，以及验收/测试/证据/判据/全绿/汇报已
 - `verify-ui-in-browser`（常驻）—— 前台真实运行验收：网页/客户端/小程序/小游戏/App 的改动必须真跑 + 实际截图并比对预期才算完成，只过单测/构建不算。网页：dev server + 真实浏览器完整路径（含负向用例）、browser-use、SPA fallback 用 content-type 对照；小程序/小游戏：微信开发者工具实际点击 + 截图；App：模拟器/真机 + 截图；客户端：窗口截图。触发：前端验收、UI 验证、打开界面、dev server、pl
-- `verify-windows-cmd-tool`（常驻）—— 改/验/发 Windows 纯批处理（.cmd/.bat）控制台工具的闭环：① GBK+CRLF 编辑链（UTF-8 副本 → CRLF → GBK → 装全部副本 → md5 比对）；② 真实控制台验收（start 启动；禁用 MCP launch_app，会剥 APPDATA 造成假故障；capture-window.ps1 截图；SendInput 每键 250–350ms）；③ 无键盘验收；④ cmd 陷阱（chcp 吞 std
+- `verify-windows-cmd-tool`（按需）—— 改/验/发 Windows 纯批处理（.cmd/.bat）控制台工具的闭环：① GBK+CRLF 编辑链（UTF-8 副本 → CRLF → GBK → 装全部副本 → md5 比对）；② 真实控制台验收（start 启动；禁用 MCP launch_app，会剥 APPDATA 造成假故障；capture-window.ps1 截图；SendInput 每键 250–350ms）；③ 无键盘验收；④ cmd 陷阱（chcp 吞 std
 - `vibe-coding-workflow`（常驻）—— 大需求五阶段流程：需求、架构、模块、调试、迭代；检查阶段准入，已授权连续实施时不逐阶段重问。用于新项目或跨模块需求；用户明确设置的阶段批准继续保留。
 - `vibecoding-doc`（常驻）—— 把模糊需求变成可交给 AI 实施的四层文档：AGENTS.md（地图/命令/禁区）、spec.md（what/why+验收）、plan/tasks（短周期计划）、运行时上下文（按需装载）。按风险定强度：小项目只留宪法+窄契约+验收，字段级模型/完整四态/全量版本冻结仅在跨人、长周期、高风险时加。降本靠稳定前缀缓存与子 agent 隔离，不靠写更长。触发词：写 vibecoding 文档、SPEC、需求规格、AGENTS.md、上下文工程
 - `vue-expert`（按需）—— Builds Vue 3 components with Composition API patterns, configures Nuxt 3 SSR/SSG projects, sets up Pinia stores, scaffolds Quasar/Capacitor mobile apps, implements PWA features, and optimises Vite builds。中文触发：Vue Nuxt Pi
@@ -128,7 +128,7 @@
 - `windows-powershell-from-gitbash`（按需）—— 从 Git Bash 或 MSYS 驱动 PowerShell 5.1 写一次性 .ps1 诊断脚本的替换规则。用于内联 powershell.exe -Command 炸出 extglob、CommandNotFoundException 或无法识别的 cmdlet；含中文字面量或正则的 .ps1 报 TerminatorExpectedAtEndOfString；输出文件回读每个字符间带空格（UTF-16）；以及任何用 Get-Ci
 - `windows-relocated-install-path-repair`（按需）—— 诊断并修复 Windows 应用被手工从 C 盘搬到 D 盘之后出现的能启动但核心功能失效。形态——输入法能切中文却不出候选只吐英文字母；软件能开但后台服务、渲染进程、更新或卸载失效；日志出现 Service Control Manager 7000 系统找不到指定的文件；注册表 InstallPath 或服务 ImagePath 仍指向已删除的旧 C 盘目录。 触发词：7000、ImagePath、InstallLocation。
 - `windows-ui-forensics-powershell`（按需）—— 从 Git Bash 驱动的 Windows 桌面取证手册——截图、UIA 枚举、托盘与飞窗检查、P-Invoke 常量，以及会让探针说谎的编码陷阱。用于 PowerShell 探针报 0 项或无匹配却要分清空窗口与缺句柄、UIA Name 为空要靠 AutomationId 或 ClassName、Add-Type 前找不到类型、0x80000000 变负 Int32 破坏 uint 参数、无 BOM 的中文被当 cp936 而静默不
-- `write-repowiki`（常驻）—— 按 Qoder 标准格式生成或维护仓库 wiki（.qoder/repowiki/）。当任务要"先查 wiki 再动手""给仓库建/补/改 wiki""代码改了要同批回写 wiki"、或多写手并行写长文档时使用。关键词：repowiki、仓库 wiki、知识卡、wiki_plan、四层结构、回写 wiki、wiki 与代码冲突、knowledge-plan、/knowledge。
+- `write-repowiki`（按需）—— 按 Qoder 标准格式生成或维护仓库 wiki（.qoder/repowiki/）。当任务要"先查 wiki 再动手""给仓库建/补/改 wiki""代码改了要同批回写 wiki"、或多写手并行写长文档时使用。关键词：repowiki、仓库 wiki、知识卡、wiki_plan、四层结构、回写 wiki、wiki 与代码冲突、knowledge-plan、/knowledge。
 
 ## 明确不随包
 

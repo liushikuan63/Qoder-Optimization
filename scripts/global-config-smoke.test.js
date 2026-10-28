@@ -6,7 +6,8 @@ const path = require('path');
 const assert = require('node:assert/strict');
 const { spawnSync } = require('child_process');
 const { test } = require('node:test');
-const runner = path.resolve(__dirname, '../skills/global-config-smoke-runner/scripts/smoke-runner.cjs');
+const { resolveSkillFile } = require('./client-root.js');
+const runner = resolveSkillFile('global-config-smoke-runner', 'scripts/smoke-runner.cjs');
 const checkerNames = ['skills-doctor.cjs', 'skill-collisions.cjs', 'config-doctor.cjs', 'rules-weekly-audit.js'];
 
 function setup(t, singleClient = false) {

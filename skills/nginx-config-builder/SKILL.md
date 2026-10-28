@@ -171,12 +171,12 @@ upstream app_servers {
     least_conn;
 
     # Backend servers
-    server 10.0.0.1:8080 weight=5;
-    server 10.0.0.2:8080 weight=3;
-    server 10.0.0.3:8080 weight=2;
+    server 192.0.2.1:8080 weight=5;
+    server 192.0.2.2:8080 weight=3;
+    server 192.0.2.3:8080 weight=2;
 
     # Backup server
-    server 10.0.0.4:8080 backup;
+    server 192.0.2.4:8080 backup;
 
     # Health checks
     keepalive 32;

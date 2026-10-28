@@ -176,7 +176,8 @@ function rebuildIndex() {
   const script = path.join(QODER, 'scripts', 'build-skills-index.cjs');
   if (!fs.existsSync(script)) return '索引未重建（build-skills-index.cjs 不在 ~/.qoder/scripts）';
   const r = spawnSync(process.execPath, [script], { encoding: 'utf8', timeout: 60000 });
-  return r.status === 0 ? '索引已重建' : `索引重建失败（exit=${r.status}）：${(r.stderr || '').slice(0, 200)}`;
+  if (r.status !== 0) fail(1, `文件已写入，但索引重建失败（exit=${r.status}）：${(r.stderr || '').slice(0, 200)}`);
+  return '索引已重建';
 }
 
 function cmdInstall() {
@@ -184,6 +185,9 @@ function cmdInstall() {
   if (!value) fail(2, '用法：pkg-catalog.cjs install <id|名称> [--apply] [--tier core|library] [--force]');
   const e = findEntry(entries, value);
   if (!e) fail(2, `没有条目「${value}」，先 search`);
+  if (!e.install || typeof e.install !== 'object' || Array.isArray(e.install)) {
+    fail(2, '条目的 install 格式无效：请使用已修复的分享包索引');
+  }
   if (e.install.mode === 'external' || e.status === 'local-only') {
     console.log(`[外部] ${e.name} 不随包转发源码，需你自行安装：`);
     console.log('  ' + (e.install.command || e.install.note || '见分享包清单'));
@@ -194,10 +198,23 @@ function cmdInstall() {
     console.log('  ' + (e.install.note || '见 mcp/README-mcp.md'));
     return;
   }
+  if (!e.name || e.name === '.' || e.name === '..' || /[\\/:]/.test(e.name) || typeof e.source !== 'string') {
+    fail(2, '条目的名称或 source 无效');
+  }
+  const expected = { skill: `skills/${e.name}`, script: `scripts/${e.name}`, command: `commands/${e.name}.md`, agent: `agents/${e.name}.md` }[e.category];
+  if (!expected || e.source !== expected) fail(2, '条目的 source 与类别或名称不一致');
   const src = path.resolve(root, e.source);
   if (!within(root, src) || !fs.existsSync(src)) fail(2, `条目源文件不存在或越界：${e.source}`);
+  if (!within(fs.realpathSync(root), fs.realpathSync(src))) fail(2, '安装源解析后越界');
+  const assertNoLinks = (file) => {
+    const st = fs.lstatSync(file);
+    if (st.isSymbolicLink()) fail(2, '安装路径不能含符号链接');
+    if (st.isDirectory()) for (const name of fs.readdirSync(file)) assertNoLinks(path.join(file, name));
+  };
+  assertNoLinks(src);
   const t = installTarget(e, root);
   if (!t) fail(2, `不支持的类别：${e.category}`);
+  if (fs.existsSync(t.target)) assertNoLinks(t.target);
   if (fs.existsSync(t.target) && !FORCE) fail(1, `目标已存在：${t.target}（确需覆盖加 --force）`);
   console.log(`[${APPLY ? '安装' : '预演'}] ${e.id} → ${t.target}${t.tier ? `（tier=${t.tier}）` : ''}`);
   if (!APPLY) { console.log('  未写盘；确认后加 --apply。'); return; }
@@ -215,6 +232,7 @@ function cmdRegister() {
   const dir = path.resolve(value || (CATALOG_ARG ? path.dirname(path.resolve(CATALOG_ARG)) : '.'));
   const file = path.join(dir, 'catalog.json');
   if (!fs.existsSync(file)) fail(2, `目录下没有 catalog.json：${dir}`);
+  readCatalog(file);
   fs.mkdirSync(QODER, { recursive: true });
   fs.writeFileSync(POINTER, JSON.stringify({ catalog: file, registered_at: new Date().toISOString().slice(0, 10) }, null, 2) + '\n');
   console.log(`已登记分享包索引：${file}`);

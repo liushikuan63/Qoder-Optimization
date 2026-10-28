@@ -1,4 +1,4 @@
-# Qoder-Optimization - 0.0.1 安装说明
+# Qoder-Optimization-0.0.2 安装说明
 
 ## 包内容与落点
 
@@ -16,8 +16,10 @@
 
 ## 安装
 
-1. 技能：先运行 `node ~/.qoder/scripts/pkg-catalog.cjs register <分享包目录>` 登记包，再用 `search` 查找、`install <id>` 预演、明确需要后加 `--apply`；条目 `tier` 决定进 `skills/`（常驻）还是 `skills-library/`（按需）。**不要 `cp -r skills/*` 全量安装**。
-2. 脚本：`cp scripts/* <客户端目录>/scripts/`（`<客户端目录>` = `~/.qoder` 或 `~/.qoder-cn`，**只装一个就只往那一个里放**）
+推荐 Node.js 24。在解压包的顶层目录使用包内脚本开始，不假设本机已经安装检索工具；修改已有文件前先备份。
+
+1. 基础检索：先用 `node scripts/pkg-catalog.cjs register .` 登记当前包。按需安装 `script:client-root.js`、`script:pkg-catalog.cjs`、`script:build-skills-index.cjs`、`script:skill-load.cjs`；统一通过包内 `node scripts/pkg-catalog.cjs install <id>` 预演，确认后再加 `--apply`。
+2. 技能与其他脚本：用包内 `search "<关键词>"` 查找，再按 ID 预演和安装。技能层级由 manifest/catalog 指定，`--tier core` 可显式选择常驻；不要整目录复制，已存在目标不自动覆盖。
 3. 规则：把 `Qoder-AI编码通用规则.md` 中与你的环境相符的部分并进 `~/.qoder/AGENTS.md`——按你的实际工具与环境删改，不必整篇照抄
 4. **hooks 接线**（不做这步，脚本躺着不跑）：照 `hooks/README-hooks.md` 把 `hooks.example.json` 的占位符替换后**并入该客户端的** `settings.json` 的 `hooks`（双端都装才各挂一份；只装一个就只挂一个）
 5. MCP：照 `mcp/README-mcp.md` 合并配置，并做一次协议级冒烟（能列出工具名即接线成功）
@@ -42,7 +44,7 @@
 - 重建索引：任何增删移技能后显式跑 `node ~/.qoder/scripts/build-skills-index.cjs`；`skill-load` 只读扫描实际文件，不在查询时写盘，包候选不等于已安装或已授权安装
 - **新增技能先判层级**：元/跨域高频或被 AGENTS·rules 硬引用（引用处未注明按需检索）→ `skills/`；单领域专用 → `skills-library/`；拿不准默认进库。创建前用 `node ~/.qoder/scripts/carrier-preflight.cjs --type skill --name <名> --path ~/.qoder/skills-library/<名>/SKILL.md` 预检——会列出两层同名/同类候选、提示本次拟入层与常驻预算（40 软 / 60 硬）
 
-制作端现场：123 个技能（28 常驻 + 95 按需）；常驻名称与描述约 7409 字符。此数不是随包技能数，也不是接收者需安装的数量。
+包内实物：123 个技能（12 常驻 + 111 按需）；常驻描述 2645 字符，全部技能描述 25776 字符，占比 10.3%。按 catalog 的 description.length 计算，不是制作端或接收者的已安装数量。
 
 ## 按需加装（分享包索引）
 
@@ -79,8 +81,8 @@
 
 ## 脚本速查
 
-- `node ~/.qoder/skills/office-docs/scripts/office.js read-xlsx|write-xlsx|set-xlsx|read-docx|write-docx ...` —— Node 读写 Excel / Word（依赖在技能目录内，见「依赖」；顶层 `~/.qoder/scripts/office.js` 是兼容转发壳）
-- `node ~/.qoder/skills/office-docs/scripts/office-styles.js themes|render|extract-theme|--selftest` —— Word 主题化排版（公文 / 商务 / 极简三套 + 目录域 + 页码）；`extract-theme --from 图.png -o theme.json` 从截图或 LOGO 取主色板并按 WCAG AA 校准可读性，`render --theme-json theme.json` 直接套用。用法与验证边界见技能内 `STYLES.md`（图像解码依赖 `jimp`，已列入该技能的 `package.json`）
+- `node ~/.qoder/skills-library/office-docs/scripts/office.js read-xlsx|write-xlsx|set-xlsx|read-docx|write-docx ...` —— Node 读写 Excel / Word（依赖在技能目录内，见「依赖」；顶层 `~/.qoder/scripts/office.js` 是兼容转发壳）
+- `node ~/.qoder/skills-library/office-docs/scripts/office-styles.js themes|render|extract-theme|--selftest` —— Word 主题化排版（公文 / 商务 / 极简三套 + 目录域 + 页码）；`extract-theme --from 图.png -o theme.json` 从截图或 LOGO 取主色板并按 WCAG AA 校准可读性，`render --theme-json theme.json` 直接套用。用法与验证边界见技能内 `STYLES.md`（图像解码依赖 `jimp`，已列入该技能的 `package.json`）
 - `node ~/.qoder/scripts/validate-repowiki.js <仓库根>` / `fix-repowiki-toc.js` —— repo wiki 校验与目录修复
 - `node ~/.qoder/scripts/tmp-sweeper.js` —— 临时产物清理（默认 dry-run，加 `--apply` 才真删）
 - `node ~/.qoder/scripts/disk-sweeper.js` —— C 盘水位三档报告与清理（默认只列，`--apply` 才删；配套指令 `/clean-disk`）

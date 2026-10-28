@@ -1,10 +1,10 @@
 {
- "schema": "qoder-share-catalog/1",
+ "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.0.1"
+  "version": "0.0.2"
  },
- "generated": "2026-10-27T15:17:26Z",
+ "generated": "2026-10-28",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 123,
@@ -19,9 +19,12 @@
    "name": "architecture-designer",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Use when designing new high-level system architecture, reviewing existing designs, or making architectural decisions。中文触发：系统架构 ADR 技术选型 容量与扩展性 设计 架构 评审\"",
-   "install": "cp -r skills/architecture-designer ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Use when designing new high-level system architecture, reviewing existing designs, or making architectural decisions。中文触发：系统架构 ADR 技术选型 容量与扩展性 设计 架构 评审",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/architecture-designer"
   },
   {
    "id": "skill:async-python-patterns",
@@ -30,8 +33,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "Master Python asyncio, concurrent programming, and async/await patterns for high-performance applications. Use when building async APIs, concurrent systems, or I/O-bound applications requiring non-blocking operations.",
-   "install": "cp -r skills/async-python-patterns ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/async-python-patterns"
   },
   {
    "id": "skill:audit-ci-cost-levers",
@@ -39,9 +45,12 @@
    "name": "audit-ci-cost-levers",
    "status": "shipped",
    "tier": "library",
-   "description": "\"给 CI（GitHub Actions 托管分钟）做先量化再动手的止血审计——逐个候选手段测真实收益、否证无效项，防止把通用最佳实践直接写进 workflow。用于配额烧穿或即将烧穿、判断某个节流手段值不值得加、CI run 红但 job 存活几秒且 steps=0 且日志取不到、考虑加 paths-ignore 或 concurrency.cancel-in-progress 或自托管 runner 或依赖缓存。判据——paths-ignore 命中率用 git log --name-only 数只动目标路径的提交占比；加忽略前 grep 门脚本是否真读该类文件并走通传递闭包。\"",
-   "install": "cp -r skills/audit-ci-cost-levers ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "给 CI（GitHub Actions 托管分钟）做先量化再动手的止血审计——逐个候选手段测真实收益、否证无效项，防止把通用最佳实践直接写进 workflow。用于配额烧穿或即将烧穿、判断某个节流手段值不值得加、CI run 红但 job 存活几秒且 steps=0 且日志取不到、考虑加 paths-ignore 或 concurrency.cancel-in-progress 或自托管 runner 或依赖缓存。判据——paths-ignore 命中率用 git log --name-only 数只动目标路径的提交占比；加忽略前 grep 门脚本是否真读该类文件并走通传递闭包。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/audit-ci-cost-levers"
   },
   {
    "id": "skill:awesome-design-md",
@@ -49,9 +58,12 @@
    "name": "awesome-design-md",
    "status": "shipped",
    "tier": "library",
-   "description": "\"A bundled library of 74 DESIGN.md design-system documents analyzed from real product websites (Apple, Claude, Stripe, Linear, Figma, Nike, Vercel, Tesla, Starbucks, Notion and more)。中文触发：前端样式 设计系统 UI 组件库 设计\"",
-   "install": "cp -r skills/awesome-design-md ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "A bundled library of 74 DESIGN.md design-system documents analyzed from real product websites (Apple, Claude, Stripe, Linear, Figma, Nike, Vercel, Tesla, Starbucks, Notion and more)。中文触发：前端样式 设计系统 UI 组件库 设计",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/awesome-design-md"
   },
   {
    "id": "skill:byok-model-retry",
@@ -60,8 +72,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "\"模型请求失败/重试诊断：401/403/429、配置/网络/协议/流式终包/代理对照；默认只读、鉴权失败不重试。Qoder BYOK outerProvider/customModels、general.maxAttempts 次数可配、间隔不可配、QODER_DISABLE_MODEL_RETRY_PAYLOAD_GUARD/QODER_CONFIG_MODEL_RETRY_AFTER_PAYLOAD",
-   "install": "cp -r skills/byok-model-retry ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/byok-model-retry"
   },
   {
    "id": "skill:cloudbase-wechat-integration",
@@ -69,9 +84,12 @@
    "name": "cloudbase-wechat-integration",
    "status": "shipped",
    "tier": "library",
-   "description": "\"CloudBase WeChat integration guide for Mini Program WeChat Pay, Mini Program virtual payment (虚拟支付, wx.requestVirtualPayment), Official Account JSAPI Pay, Native QR-code Pay, Official Account OAuth, openid handling, payment callbacks, and CloudBase Integration Center generated functions。中文触发：微信小程序\"",
-   "install": "cp -r skills/cloudbase-wechat-integration ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "CloudBase WeChat integration guide for Mini Program WeChat Pay, Mini Program virtual payment (虚拟支付, wx.requestVirtualPayment), Official Account JSAPI Pay, Native QR-code Pay, Official Account OAuth, openid handling, payment callbacks, and CloudBase Integration Center generated functions。中文触发：微信小程序",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/cloudbase-wechat-integration"
   },
   {
    "id": "skill:concurrent-edit-attribution-check",
@@ -79,9 +97,12 @@
    "name": "concurrent-edit-attribution-check",
    "status": "shipped",
    "tier": "core",
-   "description": "\"改无版本控制目录（如 ~/.qoder/skills、服务器配置目录）中的共享文件时，发现陌生 .bak、现役文件 md5 与自己刚备份内容不一致、疑似并行会话改了同一文件、或平台拦截 SKILL_HASH_CHANGED 时使用。配方：备份后 md5 三方比对判断改动归属，diff 定位对方改动行，全程定点替换不整文件覆盖，改完断言对方改动仍在；含备份保留策略误判与复验判据自洽两个坑。两套改动相撞把回归大面积判红时先二分 harness 漂移/产品缺陷，可协调的启动期校验一律 clamp 到语义安全值并暴露在健康端点，不做拒绝启动。触发词：大面积判红、拒绝启动、clamp、领地预检。\"",
-   "install": "cp -r skills/concurrent-edit-attribution-check ~/.qoder/skills/",
-   "source": "self-built"
+   "description": "改无版本控制目录（如 ~/.qoder/skills、服务器配置目录）中的共享文件时，发现陌生 .bak、现役文件 md5 与自己刚备份内容不一致、疑似并行会话改了同一文件、或平台拦截 SKILL_HASH_CHANGED 时使用。配方：备份后 md5 三方比对判断改动归属，diff 定位对方改动行，全程定点替换不整文件覆盖，改完断言对方改动仍在；含备份保留策略误判与复验判据自洽两个坑。两套改动相撞把回归大面积判红时先二分 harness 漂移/产品缺陷，可协调的启动期校验一律 clamp 到语义安全值并暴露在健康端点，不做拒绝启动。触发词：大面积判红、拒绝启动、clamp、领地预检。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "core"
+   },
+   "source": "skills/concurrent-edit-attribution-check"
   },
   {
    "id": "skill:continuation-state-audit",
@@ -89,9 +110,12 @@
    "name": "continuation-state-audit",
    "status": "shipped",
    "tier": "core",
-   "description": "\"Audit continuation queues/goal files before resuming，claimed done vs real artifacts，detect stale items；Qoder 异常会话恢复（定位会话、最小窗口读取、单次结构化恢复消息、终态回调＝成功判据）。触发：接续/继续上次/看队列/核对上次完成状态/上次说做完了但没生效/会话恢复/异常会话。Not for goal tracking/checkpoint writes（→goal-driven-execution）。\"",
-   "install": "cp -r skills/continuation-state-audit ~/.qoder/skills/",
-   "source": "self-built"
+   "description": "Audit continuation queues/goal files before resuming，claimed done vs real artifacts，detect stale items；Qoder 异常会话恢复（定位会话、最小窗口读取、单次结构化恢复消息、终态回调＝成功判据）。触发：接续/继续上次/看队列/核对上次完成状态/上次说做完了但没生效/会话恢复/异常会话。Not for goal tracking/checkpoint writes（→goal-driven-execution）。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "core"
+   },
+   "source": "skills/continuation-state-audit"
   },
   {
    "id": "skill:deliver-prd",
@@ -100,8 +124,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "Creates a comprehensive Product Requirements Document that aligns stakeholders on what to build, why, and how success will be measured. Use when specifying features, epics, or product initiatives for engineering handoff.",
-   "install": "cp -r skills/deliver-prd ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/deliver-prd"
   },
   {
    "id": "skill:desktop-update-push-triage",
@@ -110,8 +137,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "Windows 桌面客户端（Electron/ele 触发词：收不到更新推送、Qoder 收不到更新推送、Qoder 更新不生效、Qoder 更新失败、桌面客户端更新失败、自动更新不生效、检查不到新版本、更新缓存目录不能是符号链接、无法安全完成 System 更新、updaterCacheDirName、junction 更新、electron-updater、NSIS 静默重装；不用于：浏览器打不开网页（edge-net-check）、纯磁盘腾空间与目录迁移（disk-junction-migration）、~/.qoder 配置体检（global-config-smoke-runner）。",
-   "install": "cp -r skills/desktop-update-push-triage ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/desktop-update-push-triage"
   },
   {
    "id": "skill:diagnose-github-actions-quota",
@@ -119,9 +149,12 @@
    "name": "diagnose-github-actions-quota",
    "status": "shipped",
    "tier": "library",
-   "description": "\"私有仓库 GitHub Actions CI 全红时先定性再修——用一组能失败的只读 gh 判据阶梯区分账户计费与配额闸门和真实代码红，并强制在成功 run 上重跑同一阶梯证明判据可失败。当出现推送后 2~3 秒即红、看不到步骤或日志、gh run view 空输出、run 里 total_count=0 没有 job、日志端点返回 BlobNotFound、annotation 含 payments have failed，或任务涉及 Actions 配额与 GitHub Free 2000 分钟/月时使用。止血测算与车道落地用 audit-ci-cost-levers。\"",
-   "install": "cp -r skills/diagnose-github-actions-quota ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "私有仓库 GitHub Actions CI 全红时先定性再修——用一组能失败的只读 gh 判据阶梯区分账户计费与配额闸门和真实代码红，并强制在成功 run 上重跑同一阶梯证明判据可失败。当出现推送后 2~3 秒即红、看不到步骤或日志、gh run view 空输出、run 里 total_count=0 没有 job、日志端点返回 BlobNotFound、annotation 含 payments have failed，或任务涉及 Actions 配额与 GitHub Free 2000 分钟/月时使用。止血测算与车道落地用 audit-ci-cost-levers。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/diagnose-github-actions-quota"
   },
   {
    "id": "skill:diagnose-windows-webview2-blank-window",
@@ -129,19 +162,25 @@
    "name": "diagnose-windows-webview2-blank-window",
    "status": "shipped",
    "tier": "library",
-   "description": "\"诊断 Windows WebView2 壳应用白屏、无限转圈或卡在那正在登录（new Outlook olk.exe 与 Microsoft.OutlookForWindows、Edge 系 AppX、任何持有 EBWebView user-data-dir 的应用）。先抓真实窗口把渲染空白与登录流程停滞分开，再按 --user-data-dir 与父进程归属 msedgewebview2、读应用自己的日志，最后用被代理与直连对照证明或否证 WinINET 系统代理继承。用于桌面 WebView2 应用什么都不显示或登录不完。普通浏览器标签打不开网页用 /edge-net-check。\"",
-   "install": "cp -r skills/diagnose-windows-webview2-blank-window ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "诊断 Windows WebView2 壳应用白屏、无限转圈或卡在那正在登录（new Outlook olk.exe 与 Microsoft.OutlookForWindows、Edge 系 AppX、任何持有 EBWebView user-data-dir 的应用）。先抓真实窗口把渲染空白与登录流程停滞分开，再按 --user-data-dir 与父进程归属 msedgewebview2、读应用自己的日志，最后用被代理与直连对照证明或否证 WinINET 系统代理继承。用于桌面 WebView2 应用什么都不显示或登录不完。普通浏览器标签打不开网页用 /edge-net-check。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/diagnose-windows-webview2-blank-window"
   },
   {
    "id": "skill:disk-junction-migration",
    "category": "skill",
    "name": "disk-junction-migration",
    "status": "shipped",
-   "tier": "core",
-   "description": "\"Windows C 盘腾空间：先分类再动手 + junction 搬迁安全执行。触发词：C 盘满、junction、mklink /J、rmdir 断链、robocopy /XJ、崩溃产物（hs_err_pid*.mdmp、java_error_in_idea*.hprof）、npm 缓存改路径、idea.system.path、GRADLE_USER_HOME、分享包首次部署问迁移。按 DELETE/TRIM/JUNCTION/OFFICIAL/SYSTEM/NEVER 六档处置。不用于普通临时清理（/clean-temp）与 /clean-disk 执行器。\"",
-   "install": "cp -r skills/disk-junction-migration ~/.qoder/skills/",
-   "source": "self-built"
+   "tier": "library",
+   "description": "Windows C 盘腾空间：先分类再动手 + junction 搬迁安全执行。触发词：C 盘满、junction、mklink /J、rmdir 断链、robocopy /XJ、崩溃产物（hs_err_pid*.mdmp、java_error_in_idea*.hprof）、npm 缓存改路径、idea.system.path、GRADLE_USER_HOME、分享包首次部署问迁移。按 DELETE/TRIM/JUNCTION/OFFICIAL/SYSTEM/NEVER 六档处置。不用于普通临时清理（/clean-temp）与 /clean-disk 执行器。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/disk-junction-migration"
   },
   {
    "id": "skill:distinctive-design-systems",
@@ -149,9 +188,12 @@
    "name": "distinctive-design-systems",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Patterns for creating design systems with personality and distinctive aesthetics。中文触发：前端样式 设计系统 UI 组件库 设计 模式规范\"",
-   "install": "cp -r skills/distinctive-design-systems ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Patterns for creating design systems with personality and distinctive aesthetics。中文触发：前端样式 设计系统 UI 组件库 设计 模式规范",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/distinctive-design-systems"
   },
   {
    "id": "skill:dsh-session-format-debug",
@@ -160,8 +202,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "\"取证 dsh（DeepSeek Harness，~/.dsh）会话轮次反复失败的固定流程，报错特征为 format v4 message requires a producer-owned source kind。六步——从 ~/.dsh/logs 锁定失败 session id；按 zstd 帧魔数 28 B5 2F FD 逐帧解 session.v4.jsonl.zstd；按事件类型统计 source.kind 并用两遍独立扫描对账覆盖度；从 app.asar 现抽校验器跑消息形状矩阵",
-   "install": "cp -r skills/dsh-session-format-debug ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/dsh-session-format-debug"
   },
   {
    "id": "skill:electron-app-stuck-spinner-triage",
@@ -169,9 +214,12 @@
    "name": "electron-app-stuck-spinner-triage",
    "status": "shipped",
    "tier": "library",
-   "description": "\"定位 Windows 桌面客户端（尤其 Electron 老客户端、外设配套软件）界面无限转圈且不报错——先按进程有无 ESTABLISHED 对外 TCP 一刀切开云同步与设备握手两类原因，再用界面上的逐字中文串反查遮罩的置位与清除条件与超时兜底，然后主动发只读帧自证发得出去收不回来，最后核对设备主注册 PID 与实际在俗 PID。用于某客户端一直转圈、重启重插换 USB 口都无效、手柄或 2.4G 接收器配置同步失败。HID 收发见 hid-device-protocol-probe，包内代码取证见 electron-asar-code-forensics。\"",
-   "install": "cp -r skills/electron-app-stuck-spinner-triage ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "定位 Windows 桌面客户端（尤其 Electron 老客户端、外设配套软件）界面无限转圈且不报错——先按进程有无 ESTABLISHED 对外 TCP 一刀切开云同步与设备握手两类原因，再用界面上的逐字中文串反查遮罩的置位与清除条件与超时兜底，然后主动发只读帧自证发得出去收不回来，最后核对设备主注册 PID 与实际在俗 PID。用于某客户端一直转圈、重启重插换 USB 口都无效、手柄或 2.4G 接收器配置同步失败。HID 收发见 hid-device-protocol-probe，包内代码取证见 electron-asar-code-forensics。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/electron-app-stuck-spinner-triage"
   },
   {
    "id": "skill:electron-asar-code-forensics",
@@ -179,9 +227,12 @@
    "name": "electron-asar-code-forensics",
    "status": "shipped",
    "tier": "library",
-   "description": "\"不解包读取并执行已打包 Electron app.asar 或任何压缩近二进制包里的代码。用于报错串似乎只在 app.asar 里、grep -aoP 带上下文窗口的写法打不出而 grep -ao 加 wc -l 证明字面量在、必须看出厂校验逻辑对候选输入真做了什么而不是从压缩文本推断、要把函数从包里切出来跑。子命令 find 给字节偏移加可读上下文窗口、fn 用括号配对切整函数、exec 连依赖真跑出厂代码、--selftest。改 JS、备份、证明 live 文件是否原版走 shipped-app-js-patch-hygiene。\"",
-   "install": "cp -r skills/electron-asar-code-forensics ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "不解包读取并执行已打包 Electron app.asar 或任何压缩近二进制包里的代码。用于报错串似乎只在 app.asar 里、grep -aoP 带上下文窗口的写法打不出而 grep -ao 加 wc -l 证明字面量在、必须看出厂校验逻辑对候选输入真做了什么而不是从压缩文本推断、要把函数从包里切出来跑。子命令 find 给字节偏移加可读上下文窗口、fn 用括号配对切整函数、exec 连依赖真跑出厂代码、--selftest。改 JS、备份、证明 live 文件是否原版走 shipped-app-js-patch-hygiene。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/electron-asar-code-forensics"
   },
   {
    "id": "skill:electron-tray-icon-diagnosis",
@@ -189,9 +240,12 @@
    "name": "electron-tray-icon-diagnosis",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Windows 上 Electron 或 Chromium 应用托盘图标不显示、只在溢出面板出现、或图标在但 tooltip 丢失时的定位阶梯。用 Shell_NotifyIconGetRect 逐 uID 判定注册是否真的到达 shell，用同一张图标做对照注册证明 shell 通道与位图资源正常，再比对 explorer 与应用的完整性级别（UIPI 会静默丢弃低完整性进程发出的 Shell_NotifyIcon），把问题归因到资源、Shell、实例三类。用于托盘图标没了、通知区域看不到某软件、重装或重启后图标消失。网页打不开走 /edge-net-check。\"",
-   "install": "cp -r skills/electron-tray-icon-diagnosis ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Windows 上 Electron 或 Chromium 应用托盘图标不显示、只在溢出面板出现、或图标在但 tooltip 丢失时的定位阶梯。用 Shell_NotifyIconGetRect 逐 uID 判定注册是否真的到达 shell，用同一张图标做对照注册证明 shell 通道与位图资源正常，再比对 explorer 与应用的完整性级别（UIPI 会静默丢弃低完整性进程发出的 Shell_NotifyIcon），把问题归因到资源、Shell、实例三类。用于托盘图标没了、通知区域看不到某软件、重装或重启后图标消失。网页打不开走 /edge-net-check。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/electron-tray-icon-diagnosis"
   },
   {
    "id": "skill:encrypted-office-visual-inspection",
@@ -199,9 +253,12 @@
    "name": "encrypted-office-visual-inspection",
    "status": "shipped",
    "tier": "library",
-   "description": "\"企业透明加密（DLP）Office 读取、复刻、编辑与回归。信号：Node/JSZip 报 Can't find end of central directory、文件头不是 zip（非 504b0304/d0cf11e0； 触发词：透明加密、DLP 加密、密文、明文、转明文、加密 Word、加密 Excel、加密 PPT、加密 PDF、表格打不开、复刻加密文档、加密夹具、解密测试、文档截图取证、版式层对象、CUA 编辑加密文档；不用于：普通 xlsx/docx→office-docs；PPT 制作→pptx；口令破解不支持。\"",
-   "install": "cp -r skills/encrypted-office-visual-inspection ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "企业透明加密（DLP）Office 读取、复刻、编辑与回归。信号：Node/JSZip 报 Can't find end of central directory、文件头不是 zip（非 504b0304/d0cf11e0； 触发词：透明加密、DLP 加密、密文、明文、转明文、加密 Word、加密 Excel、加密 PPT、加密 PDF、表格打不开、复刻加密文档、加密夹具、解密测试、文档截图取证、版式层对象、CUA 编辑加密文档；不用于：普通 xlsx/docx→office-docs；PPT 制作→pptx；口令破解不支持。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/encrypted-office-visual-inspection"
   },
   {
    "id": "skill:frontend-design-ui-ux",
@@ -209,9 +266,12 @@
    "name": "frontend-design-ui-ux",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Produce a distinctive, LOCKED design language plus an implementation-ready UX/UI spec, written to `.ulpi/design/` - a per-brief visual identity (palette, type, signature), the design system to build on, user flows and states, component briefs, and accessibility constraints。中文触发：前端样式 设计系统 UI 组件库 前端\"",
-   "install": "cp -r skills/frontend-design-ui-ux ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Produce a distinctive, LOCKED design language plus an implementation-ready UX/UI spec, written to `.ulpi/design/` - a per-brief visual identity (palette, type, signature), the design system to build on, user flows and states, component briefs, and accessibility constraints。中文触发：前端样式 设计系统 UI 组件库 前端",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/frontend-design-ui-ux"
   },
   {
    "id": "skill:frontend-development",
@@ -219,9 +279,12 @@
    "name": "frontend-development",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Multi-framework frontend development。中文触发：前端 开发\"",
-   "install": "cp -r skills/frontend-development ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Multi-framework frontend development。中文触发：前端 开发",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/frontend-development"
   },
   {
    "id": "skill:game-designer-toolkit",
@@ -229,9 +292,12 @@
    "name": "game-designer-toolkit",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Complete game design toolkit for creating professional GDD, game systems, level design, and prototypes。中文触发：小游戏 游戏设计 数值 设计\"",
-   "install": "cp -r skills/game-designer-toolkit ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Complete game design toolkit for creating professional GDD, game systems, level design, and prototypes。中文触发：小游戏 游戏设计 数值 设计",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/game-designer-toolkit"
   },
   {
    "id": "skill:game-numeric-design",
@@ -240,8 +306,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "游戏数值策划技能 - 基于《游戏数值设定入门》方法论，提供数值设计公式、经济系统、成长曲线等工具",
-   "install": "cp -r skills/game-numeric-design ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/game-numeric-design"
   },
   {
    "id": "skill:github-accelerator",
@@ -250,18 +319,24 @@
    "status": "shipped",
    "tier": "library",
    "description": "小白友好的一键诊断并修复 GitHub 访问问题（hosts 修复 + 镜像兜底 + SSH-over-443）。当用户反馈\"打不开 GitHub / GitHub 加载不出来 / 无法安装 GitHub 上的开源 Skill 或软件 / git clone 失败 / 下载 Release 失败\"，或要求\"配置 GitHub 加速\"时使用。支持 macOS 与 Windows。",
-   "install": "cp -r skills/github-accelerator ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/github-accelerator"
   },
   {
    "id": "skill:global-config-smoke-runner",
    "category": "skill",
    "name": "global-config-smoke-runner",
    "status": "shipped",
-   "tier": "core",
-   "description": "\"本机 Qoder 全局配置冒烟：枚举 ~/.qoder/scripts 下全部 *.test.js 与 skills-doctor / skill-collisions / config-doctor / rules-weekly-audit，逐项运行并只汇总名称+退出码，再对非零项按真缺陷/检查器假阳性/可接受平台差异三分类并给修复动作。用于改规则/技能/hook/脚本后、重打分享包前、体检报红时。触发词：完整冒烟、全局配置冒烟、配置回归、检查器误报。不跑 mcp-smoke、dbhub、浏览器与生产库。\"",
-   "install": "cp -r skills/global-config-smoke-runner ~/.qoder/skills/",
-   "source": "self-built"
+   "tier": "library",
+   "description": "本机 Qoder 全局配置冒烟：枚举 ~/.qoder/scripts 下全部 *.test.js 与 skills-doctor / skill-collisions / config-doctor / rules-weekly-audit，逐项运行并只汇总名称+退出码，再对非零项按真缺陷/检查器假阳性/可接受平台差异三分类并给修复动作。用于改规则/技能/hook/脚本后、重打分享包前、体检报红时。触发词：完整冒烟、全局配置冒烟、配置回归、检查器误报。不跑 mcp-smoke、dbhub、浏览器与生产库。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/global-config-smoke-runner"
   },
   {
    "id": "skill:goal-driven-execution",
@@ -270,8 +345,11 @@
    "status": "shipped",
    "tier": "core",
    "description": "目标化执行：把长任务设成\"带可失败判据的目标\"，逐格推进、每格落盘，直到判据全绿才算完成。当任务是中大型 / 跨多回合 / 容易半途跑偏或\"看起来做完了其实没做完\"时使用。触发词：设个目标、持续推进、盯到完成、别中途跑偏、长任务、多步骤、任务目标、Goal 模式、完成判据、什么时候算做完。不用于：小改动与单点修复（直接做）、纯探索类问题（先给结论）。",
-   "install": "cp -r skills/goal-driven-execution ~/.qoder/skills/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "core"
+   },
+   "source": "skills/goal-driven-execution"
   },
   {
    "id": "skill:hid-device-protocol-probe",
@@ -279,9 +357,12 @@
    "name": "hid-device-protocol-probe",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Windows 上不用厂商软件、从 PowerShell 探 USB HID 收发通路——用 SetupAPI 加 HidP_GetCaps 枚举每个 collection 的 UsagePage 与 Usage 及报告长度找厂商命令通道；用 joyGetPosEx 证明手柄真的在；读写各放可取消工作线程；发只读查询帧按回复直方图区分发不出去与设备答了但客户端收不到。用于手柄、2.4G 接收器、外设配置工具卡在同步转圈且不报错，或 HID P-Invoke 读数离谱如 CreateFile err=123、ReadFile err=87、探针睡死。\"",
-   "install": "cp -r skills/hid-device-protocol-probe ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Windows 上不用厂商软件、从 PowerShell 探 USB HID 收发通路——用 SetupAPI 加 HidP_GetCaps 枚举每个 collection 的 UsagePage 与 Usage 及报告长度找厂商命令通道；用 joyGetPosEx 证明手柄真的在；读写各放可取消工作线程；发只读查询帧按回复直方图区分发不出去与设备答了但客户端收不到。用于手柄、2.4G 接收器、外设配置工具卡在同步转圈且不报错，或 HID P-Invoke 读数离谱如 CreateFile err=123、ReadFile err=87、探针睡死。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/hid-device-protocol-probe"
   },
   {
    "id": "skill:i-have-adhd",
@@ -289,9 +370,12 @@
    "name": "i-have-adhd",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Shape output for a reader with ADHD - lead with the next action, number multi-step work, restate state across turns, suppress tangents, give specific time estimates, make wins visible.\"",
-   "install": "cp -r skills/i-have-adhd ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Shape output for a reader with ADHD - lead with the next action, number multi-step work, restate state across turns, suppress tangents, give specific time estimates, make wins visible.",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/i-have-adhd"
   },
   {
    "id": "skill:java-architect",
@@ -299,9 +383,12 @@
    "name": "java-architect",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Use when building, configuring, or debugging enterprise Java applications with Spring Boot 3.x, microservices, or reactive programming。中文触发：Spring Boot Java 后端 Bean 依赖注入 JVM 组件。分工：本技能管架构取向与疑难排查，Spring 脚手架与端点实现走 springboot-patterns。\"",
-   "install": "cp -r skills/java-architect ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Use when building, configuring, or debugging enterprise Java applications with Spring Boot 3.x, microservices, or reactive programming。中文触发：Spring Boot Java 后端 Bean 依赖注入 JVM 组件。分工：本技能管架构取向与疑难排查，Spring 脚手架与端点实现走 springboot-patterns。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/java-architect"
   },
   {
    "id": "skill:java-quality",
@@ -309,9 +396,12 @@
    "name": "java-quality",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Java code quality with Checkstyle, SpotBugs, PMD, and SonarJava。中文触发：Java 后端 JVM\"",
-   "install": "cp -r skills/java-quality ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Java code quality with Checkstyle, SpotBugs, PMD, and SonarJava。中文触发：Java 后端 JVM",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/java-quality"
   },
   {
    "id": "skill:kafka-best-practices",
@@ -320,8 +410,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "Apache Kafka best practices for topic design, producer/consumer configuration, exactly-once semantics, Kafka Streams, Connect, and cluster management",
-   "install": "cp -r skills/kafka-best-practices ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/kafka-best-practices"
   },
   {
    "id": "skill:large-sqlite-text-extraction",
@@ -330,8 +423,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "从超大 SQLite / 二进制文件（数百 MB 到 1GB+，常无 sqlite3 CLI）按关键词取回 UTF-8 文本——典型场景是 UI 里被截断、或只存在于应用库中的完整描述：先解析数据目录真实路径（可能被搬迁成 junction）→ 单点用 grep -a 触发词：超大 SQLite、main.sqlite、二进制取证、UI 截断文本、取全文、grep 搜不到、ERR_STRING_TOO_LONG、分块扫描、按关键词提取、WAL；不用于：会话归档取证（chat-session-evidence-extraction）、正常规模的 SQL 查询（sqlite3 / dbhub）。",
-   "install": "cp -r skills/large-sqlite-text-extraction ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/large-sqlite-text-extraction"
   },
   {
    "id": "skill:local-api-contracts",
@@ -339,9 +435,12 @@
    "name": "local-api-contracts",
    "status": "shipped",
    "tier": "library",
-   "description": "",
-   "install": "cp -r skills/local-api-contracts ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "补充 REST API 的兼容、分页、错误和幂等设计；用于新增或修改接口契约，不用于普通内部函数修改。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/local-api-contracts"
   },
   {
    "id": "skill:local-browser-e2e",
@@ -349,9 +448,12 @@
    "name": "local-browser-e2e",
    "status": "shipped",
    "tier": "library",
-   "description": "",
-   "install": "cp -r skills/local-browser-e2e ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "补充网页关键路径的浏览器验收与 Playwright 稳定测试；用于真实交互、受影响页面或 E2E 缺陷，不用于纯后端改动。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/local-browser-e2e"
   },
   {
    "id": "skill:local-db-migrations",
@@ -359,9 +461,12 @@
    "name": "local-db-migrations",
    "status": "shipped",
    "tier": "library",
-   "description": "",
-   "install": "cp -r skills/local-db-migrations ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "补充数据库 schema 与数据迁移的兼容、锁、回填和恢复验证；用于写迁移或迁移评审，不用于普通查询修改。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/local-db-migrations"
   },
   {
    "id": "skill:local-frontend-a11y",
@@ -369,9 +474,12 @@
    "name": "local-frontend-a11y",
    "status": "shipped",
    "tier": "library",
-   "description": "",
-   "install": "cp -r skills/local-frontend-a11y ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "补充表单、弹窗、菜单和标签页的键盘、焦点及语义检查；用于交互组件或无障碍问题，不给所有前端任务追加全面审计。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/local-frontend-a11y"
   },
   {
    "id": "skill:local-performance-evidence",
@@ -379,9 +487,12 @@
    "name": "local-performance-evidence",
    "status": "shipped",
    "tier": "library",
-   "description": "",
-   "install": "cp -r skills/local-performance-evidence ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "补充性能或成本优化的基线、瓶颈归因、对照实验与停止条件；用于明确指标的优化，不用于普通功能实现或泛泛提速。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/local-performance-evidence"
   },
   {
    "id": "skill:local-rust-engineering",
@@ -389,9 +500,12 @@
    "name": "local-rust-engineering",
    "status": "shipped",
    "tier": "library",
-   "description": "",
-   "install": "cp -r skills/local-rust-engineering ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "补充 Rust 所有权、错误、异步并发和测试边界；用于相关 Rust 实现与缺陷，不用于纯文案或只有前端的修改。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/local-rust-engineering"
   },
   {
    "id": "skill:local-spring-mybatis",
@@ -399,39 +513,51 @@
    "name": "local-spring-mybatis",
    "status": "shipped",
    "tier": "library",
-   "description": "",
-   "install": "cp -r skills/local-spring-mybatis ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "补充 Spring 与 MyBatis 的事务、参数绑定、映射和查询性能检查；用于这些后端实现问题，不替代本机环境预检。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/local-spring-mybatis"
   },
   {
    "id": "skill:mechanize-rule-into-hook-guard",
    "category": "skill",
    "name": "mechanize-rule-into-hook-guard",
    "status": "shipped",
-   "tier": "core",
-   "description": "\"把提示词里的纪律做成会判红的门禁 hook 取证流水线：缺口取证 → carrier-preflight 问限额 → 判据抽成 core 真源，PreToolUse 拦 / PostToolUse 记账 → 红与负对照自测 → 逐断言变异验证 → 台账非空核查 → RFC5737 真机探针 → 两侧接线与周检复跑。触发词：机制化、做成 hook、加门禁、加守卫、guard、这条规则没生效、反复违反、为什么没拦住、连败三次、停手上报、hook 是否生效、两侧接线一致性、config-doctor、事件×命令集合、生成物被覆盖、分发包落后、台账取证、假绿、负对照、变异测试。不用于：认证/锁定签名",
-   "install": "cp -r skills/mechanize-rule-into-hook-guard ~/.qoder/skills/",
-   "source": "self-built"
+   "tier": "library",
+   "description": "把提示词里的纪律做成会判红的门禁 hook 取证流水线：缺口取证 → carrier-preflight 问限额 → 判据抽成 core 真源，PreToolUse 拦 / PostToolUse 记账 → 红与负对照自测 → 逐断言变异验证 → 台账非空核查 → RFC5737 真机探针 → 两侧接线与周检复跑。触发词：机制化、做成 hook、加门禁、加守卫、guard、这条规则没生效、反复违反、为什么没拦住、连败三次、停手上报、hook 是否生效、两侧接线一致性、config-doctor、事件×命令集合、生成物被覆盖、分发包落后、台账取证、假绿、负对照、变异测试。不用于：认证/锁定签名与防锁号现场操作（db-credential-auth-lock-safety）；同域旧版 mechanize-rule-as-hook-guard、enforcement-hook-lifecycle 已并入本 Skill。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/mechanize-rule-into-hook-guard"
   },
   {
    "id": "skill:memory-entry-update",
    "category": "skill",
    "name": "memory-entry-update",
    "status": "shipped",
-   "tier": "core",
+   "tier": "library",
    "description": "更新单条已有长期记忆的可复现流程：Read 正文与 MEMORY.md 两个载体 → 各跑 backup-file.js → Edit 三处成对改动（正文 / frontmatter description / 索引行）→ 四条能失败的验收（含周检 0 告警，[INFO] 不算告警）→ 区分已验证与未验证。触发词：更新记忆、记忆索引同步、改 MEMORY.md、记忆维护。不用于：新建记忆（self-evolution）、链接与凭据审计。",
-   "install": "cp -r skills/memory-entry-update ~/.qoder/skills/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/memory-entry-update"
   },
   {
    "id": "skill:merge-inbound-qoder-package",
    "category": "skill",
    "name": "merge-inbound-qoder-package",
    "status": "shipped",
-   "tier": "core",
+   "tier": "library",
    "description": "将外部 Qoder 分享包、回流包或配置包安全并入本机真源：非系统盘隔离解压、与本机基线做逐文件哈希三分类、卫生与敏感信息预检、realpath/junction 归属判位、dry-run、backup-file.js、逐文件定点合并、三方冲突保留本机独有内容、索引与全局冒烟收口。触发词：回流包、入站分享包、并入本机、三方冲突、对方包丢能力；不用于首次安装未知第三方包（先走 inspect-untrusted-tool-package）或普通技能精简。",
-   "install": "cp -r skills/merge-inbound-qoder-package ~/.qoder/skills/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/merge-inbound-qoder-package"
   },
   {
    "id": "skill:minigame-dev-pro",
@@ -439,9 +565,12 @@
    "name": "minigame-dev-pro",
    "status": "shipped",
    "tier": "library",
-   "description": "\"小游戏开发专家：从创意到上架到运营的全链路顾问。覆盖微信/抖音等主流小游戏平台，提供市场分析、合规审查（14条红线+8份SOP）、游戏设计、技术开发（Cocos/原生）、数据增长、质量保障、运营变现、失败复盘，并涵盖小游戏跨端经营（App/PC）路径。集成本地执行工具（环境验证/预览/日志/截图/真机/上传/就绪度/合规/包体/性能/素材/知识过滤/SOP时效巡检/官方规范核验 + 全平台规范实时核实 + 全维度安全合规扫描 +\"",
-   "install": "cp -r skills/minigame-dev-pro ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "小游戏开发专家：从创意到上架到运营的全链路顾问。覆盖微信/抖音等主流小游戏平台，提供市场分析、合规审查（14条红线+8份SOP）、游戏设计、技术开发（Cocos/原生）、数据增长、质量保障、运营变现、失败复盘，并涵盖小游戏跨端经营（App/PC）路径。集成本地执行工具（环境验证/预览/日志/截图/真机/上传/就绪度/合规/包体/性能/素材/知识过滤/SOP时效巡检/官方规范核验 + 全平台规范实时核实 + 全维度安全合规扫描 +",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/minigame-dev-pro"
   },
   {
    "id": "skill:miniprogram-development",
@@ -449,9 +578,12 @@
    "name": "miniprogram-development",
    "status": "shipped",
    "tier": "library",
-   "description": "\"WeChat Mini Program development skill for building, debugging, previewing, testing, publishing, and optimizing mini program projects (小程序开发、调试、预览、发布)。中文触发：微信小程序 uni-app 云开发 发布 测试 性能优化。不用于：Web frontend (use web-development), pure backend services (use cloudrun-development / clo\"",
-   "install": "cp -r skills/miniprogram-development ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "WeChat Mini Program development skill for building, debugging, previewing, testing, publishing, and optimizing mini program projects (小程序开发、调试、预览、发布)。中文触发：微信小程序 uni-app 云开发 发布 测试 性能优化。不用于：Web frontend (use web-development), pure backend services (use cloudrun-development / clo",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/miniprogram-development"
   },
   {
    "id": "skill:mongodb-atlas-stream-processing",
@@ -459,9 +591,12 @@
    "name": "mongodb-atlas-stream-processing",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Manages MongoDB Atlas Stream Processing (ASP) workflows。中文触发：MongoDB 文档库 集合 聚合管道 Atlas 流式。不用于：general MongoDB queries or Atlas cluster management. Requires MongoDB MCP Server with Atl\"",
-   "install": "cp -r skills/mongodb-atlas-stream-processing ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Manages MongoDB Atlas Stream Processing (ASP) workflows。中文触发：MongoDB 文档库 集合 聚合管道 Atlas 流式。不用于：general MongoDB queries or Atlas cluster management. Requires MongoDB MCP Server with Atl",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/mongodb-atlas-stream-processing"
   },
   {
    "id": "skill:mongodb-connection",
@@ -469,9 +604,12 @@
    "name": "mongodb-connection",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Optimize MongoDB client connection configuration (pools, timeouts, patterns) for any supported driver language。中文触发：MongoDB 文档库 集合 聚合管道 Atlas 性能优化 profiling 模式规范 配置\"",
-   "install": "cp -r skills/mongodb-connection ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Optimize MongoDB client connection configuration (pools, timeouts, patterns) for any supported driver language。中文触发：MongoDB 文档库 集合 聚合管道 Atlas 性能优化 profiling 模式规范 配置",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/mongodb-connection"
   },
   {
    "id": "skill:mongodb-mcp-setup",
@@ -480,8 +618,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "Guide users through configuring key MongoDB MCP server options. Use this skill when a user has the MongoDB MCP server installed but hasn't configured the required environment variables, or when they ask about connecting to MongoDB/Atlas and don't have the credentials set up.",
-   "install": "cp -r skills/mongodb-mcp-setup ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/mongodb-mcp-setup"
   },
   {
    "id": "skill:mongodb-natural-language-querying",
@@ -489,9 +630,12 @@
    "name": "mongodb-natural-language-querying",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Generate read-only MongoDB queries (find) or aggregation pipelines using natural language, with collection schema context and sample documents。中文触发：MongoDB 文档库 集合 聚合管道 Atlas 数据建模。只管把自然语言转成查询/聚合；慢查询与索引用 mongodb-query-optimizer，全文与向量检索用 mongodb-search-and-ai。\"",
-   "install": "cp -r skills/mongodb-natural-language-querying ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Generate read-only MongoDB queries (find) or aggregation pipelines using natural language, with collection schema context and sample documents。中文触发：MongoDB 文档库 集合 聚合管道 Atlas 数据建模。只管把自然语言转成查询/聚合；慢查询与索引用 mongodb-query-optimizer，全文与向量检索用 mongodb-search-and-ai。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/mongodb-natural-language-querying"
   },
   {
    "id": "skill:mongodb-query-optimizer",
@@ -499,9 +643,12 @@
    "name": "mongodb-query-optimizer",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Help with MongoDB query optimization and indexing。中文触发：MongoDB 文档库 集合 聚合管道 Atlas 性能优化 profiling 优化 查询\"",
-   "install": "cp -r skills/mongodb-query-optimizer ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Help with MongoDB query optimization and indexing。中文触发：MongoDB 文档库 集合 聚合管道 Atlas 性能优化 profiling 优化 查询",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/mongodb-query-optimizer"
   },
   {
    "id": "skill:mongodb-schema-design",
@@ -509,9 +656,12 @@
    "name": "mongodb-schema-design",
    "status": "shipped",
    "tier": "library",
-   "description": "\"MongoDB schema design patterns and anti-patterns。中文触发：MongoDB 文档库 集合 聚合管道 Atlas 数据建模 schema 设计 模式规范 表结构\"",
-   "install": "cp -r skills/mongodb-schema-design ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "MongoDB schema design patterns and anti-patterns。中文触发：MongoDB 文档库 集合 聚合管道 Atlas 数据建模 schema 设计 模式规范 表结构",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/mongodb-schema-design"
   },
   {
    "id": "skill:mongodb-search-and-ai",
@@ -519,9 +669,12 @@
    "name": "mongodb-search-and-ai",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Guides MongoDB users through implementing and optimizing Atlas Search (full-text), Vector Search (semantic), and Hybrid Search solutions。中文触发：MongoDB 文档库 集合 聚合管道 Atlas 性能优化 profiling 向量检索 全文检索。只管 Search、向量与混合检索的实现；写普通查询用 mongodb-natural-language-querying，调优索引用 mongodb-query-optimizer。\"",
-   "install": "cp -r skills/mongodb-search-and-ai ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Guides MongoDB users through implementing and optimizing Atlas Search (full-text), Vector Search (semantic), and Hybrid Search solutions。中文触发：MongoDB 文档库 集合 聚合管道 Atlas 性能优化 profiling 向量检索 全文检索。只管 Search、向量与混合检索的实现；写普通查询用 mongodb-natural-language-querying，调优索引用 mongodb-query-optimizer。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/mongodb-search-and-ai"
   },
   {
    "id": "skill:mysql",
@@ -530,8 +683,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "MySQL relational database with InnoDB, replication, and stored procedures. Use for MySQL operations.",
-   "install": "cp -r skills/mysql ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/mysql"
   },
   {
    "id": "skill:nextjs-app-router-patterns",
@@ -540,8 +696,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "Master Next.js 14+ App Router with Server Components, streaming, parallel routes, and advanced data fetching. Use when building Next.js applications, implementing SSR/SSG, or optimizing React Server Components.",
-   "install": "cp -r skills/nextjs-app-router-patterns ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/nextjs-app-router-patterns"
   },
   {
    "id": "skill:nginx-config-builder",
@@ -550,8 +709,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "Generate NGINX configuration files for web servers, reverse proxies, load balancing, SSL termination, and static file serving. Triggers on \"create nginx config\", \"generate nginx.conf\", \"nginx configuration for\", \"reverse proxy config\".",
-   "install": "cp -r skills/nginx-config-builder ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/nginx-config-builder"
   },
   {
    "id": "skill:nodejs-backend-patterns",
@@ -560,18 +722,24 @@
    "status": "shipped",
    "tier": "library",
    "description": "Build production-ready Node.js backend services with Express/Fastify, implementing middleware patterns, error handling, authentication, database integration, and API design best practices. Use when creating Node.js servers, REST APIs, GraphQL backends, or microservices architectures.",
-   "install": "cp -r skills/nodejs-backend-patterns ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/nodejs-backend-patterns"
   },
   {
    "id": "skill:office-docs",
    "category": "skill",
    "name": "office-docs",
    "status": "shipped",
-   "tier": "core",
+   "tier": "library",
    "description": "不依赖 Python 用 Node 读写 Excel（.xlsx/.csv）与 Word（.docx）——读表格转 markdown/JSON（支持按范围/行数截断、列工作表、读公式原文）、按 JSON 规格生成工作簿（列宽/冻结/数字格式/CSV 直转）、改既有工作簿的单元格、抽取 Word 正文与表格、生成 Word 文档（含样式/图片/分页，支持 Markdown 直转含插图）、往既有 docx 模板插入新表格（解包改 XML 回包、保模板样式）。",
-   "install": "cp -r skills/office-docs ~/.qoder/skills/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/office-docs"
   },
   {
    "id": "skill:open-code-review-delegate",
@@ -579,9 +747,12 @@
    "name": "open-code-review-delegate",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Delegation mode for open-code-review (OCR). Use when the host agent should drive the review with its own LLM capabilities。中文触发：代码评审 审查 评审\"",
-   "install": "cp -r skills/open-code-review-delegate ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Delegation mode for open-code-review (OCR). Use when the host agent should drive the review with its own LLM capabilities。中文触发：代码评审 审查 评审",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/open-code-review-delegate"
   },
   {
    "id": "skill:oracledb",
@@ -590,18 +761,24 @@
    "status": "shipped",
    "tier": "library",
    "description": "Use these skills to manage and monitor Oracle databases by executing SQL statements, exploring schema metadata, analyzing query performance, monitoring active sessions and resource consumption, and managing storage and object health.",
-   "install": "cp -r skills/oracledb ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/oracledb"
   },
   {
    "id": "skill:pause-writer-before-shared-file-edit",
    "category": "skill",
    "name": "pause-writer-before-shared-file-edit",
    "status": "shipped",
-   "tier": "core",
-   "description": "\"编辑会被并行会话/自动机制改写的文件（技能 description、记忆索引、台账、evolution 状态）时的防竞态流程：先证明有并发写入方（mtime+字节数）→ 官方 CLI 暂停（evolution.js pause，不手写 control.json）→ 暂停后重新扫描再动手 → 扫描红当「暂定」，复跑一次再判 → 改完 resume 并记录基线。触发词：并发写入、并行会话改了我的文件、description 被回滚、悬空引用假红、mtime/size 变了、evolution pause/resume。\"",
-   "install": "cp -r skills/pause-writer-before-shared-file-edit ~/.qoder/skills/",
-   "source": "self-built"
+   "tier": "library",
+   "description": "编辑会被并行会话/自动机制改写的文件（技能 description、记忆索引、台账、evolution 状态）时的防竞态流程：先证明有并发写入方（mtime+字节数）→ 官方 CLI 暂停（evolution.js pause，不手写 control.json）→ 暂停后重新扫描再动手 → 扫描红当「暂定」，复跑一次再判 → 改完 resume 并记录基线。触发词：并发写入、并行会话改了我的文件、description 被回滚、悬空引用假红、mtime/size 变了、evolution pause/resume。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/pause-writer-before-shared-file-edit"
   },
   {
    "id": "skill:postgresql-optimization",
@@ -610,8 +787,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "Expert in PostgreSQL performance tuning, query optimization, and database administration. Specializes in EXPLAIN analysis, indexing strategies, connection pooling, partitioning, and production-grade",
-   "install": "cp -r skills/postgresql-optimization ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/postgresql-optimization"
   },
   {
    "id": "skill:postgresql-table-design",
@@ -620,8 +800,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "Design a PostgreSQL-specific schema. Covers best-practices, data types, indexing, constraints, performance patterns, and advanced features",
-   "install": "cp -r skills/postgresql-table-design ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/postgresql-table-design"
   },
   {
    "id": "skill:powershell-windows-display-interop",
@@ -629,9 +812,12 @@
    "name": "powershell-windows-display-interop",
    "status": "shipped",
    "tier": "library",
-   "description": "\"用 PowerShell Add-Type P-Invoke 读或改 Windows 显示栈——EDID 块、HDR 与自动色彩管理、当前分辨率、刷新率、像素时钟、位深、显示器友好名。用于 DisplayConfigGetDeviceInfo 或 EnumDisplaySettings 返回 TRUE 或 hr=0 却字段全空、设备信息调用对每种类型都回 hr=0x1F 或 0x7A、EDID 扩展块解析成乱码、Add-Type 编不过内联 C#（CS0266、ToString 字符字面量、缺 Desktop 程序集）、模式或路径结构体读回全 0。\"",
-   "install": "cp -r skills/powershell-windows-display-interop ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "用 PowerShell Add-Type P-Invoke 读或改 Windows 显示栈——EDID 块、HDR 与自动色彩管理、当前分辨率、刷新率、像素时钟、位深、显示器友好名。用于 DisplayConfigGetDeviceInfo 或 EnumDisplaySettings 返回 TRUE 或 hr=0 却字段全空、设备信息调用对每种类型都回 hr=0x1F 或 0x7A、EDID 扩展块解析成乱码、Add-Type 编不过内联 C#（CS0266、ToString 字符字面量、缺 Desktop 程序集）、模式或路径结构体读回全 0。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/powershell-windows-display-interop"
   },
   {
    "id": "skill:python-anti-patterns",
@@ -639,9 +825,12 @@
    "name": "python-anti-patterns",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Use this skill when reviewing Python code for common anti-patterns to avoid。中文触发：Python 脚本 FastAPI 异步 类型注解 模式规范 评审\"",
-   "install": "cp -r skills/python-anti-patterns ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Use this skill when reviewing Python code for common anti-patterns to avoid。中文触发：Python 脚本 FastAPI 异步 类型注解 模式规范 评审",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/python-anti-patterns"
   },
   {
    "id": "skill:python-backend-guidelines",
@@ -650,8 +839,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "FastAPI/Django backend patterns and best practices",
-   "install": "cp -r skills/python-backend-guidelines ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/python-backend-guidelines"
   },
   {
    "id": "skill:python-dataviz",
@@ -659,9 +851,12 @@
    "name": "python-dataviz",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Professional data visualization using Python (matplotlib, seaborn, plotly)。中文触发：Python 脚本 FastAPI 异步 类型注解 图表 可视化 matplotlib\"",
-   "install": "cp -r skills/python-dataviz ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Professional data visualization using Python (matplotlib, seaborn, plotly)。中文触发：Python 脚本 FastAPI 异步 类型注解 图表 可视化 matplotlib",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/python-dataviz"
   },
   {
    "id": "skill:python-error-handling",
@@ -670,8 +865,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "Python error handling patterns including input validation, exception hierarchies, and partial failure handling. Use when implementing validation logic, designing exception strategies, handling batch processing failures, or building robust APIs.",
-   "install": "cp -r skills/python-error-handling ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/python-error-handling"
   },
   {
    "id": "skill:python-performance-optimization",
@@ -680,8 +878,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "Profile and optimize Python code using cProfile, memory profilers, and performance best practices. Use when debugging slow Python code, optimizing bottlenecks, or improving application performance.",
-   "install": "cp -r skills/python-performance-optimization ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/python-performance-optimization"
   },
   {
    "id": "skill:python-programmer",
@@ -689,9 +890,12 @@
    "name": "python-programmer",
    "status": "shipped",
    "tier": "library",
-   "description": "'Python programmer specialising in functional programming, clean code, documentation, and code quality using ruff and uv.'",
-   "install": "cp -r skills/python-programmer ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Python programmer specialising in functional programming, clean code, documentation, and code quality using ruff and uv.",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/python-programmer"
   },
   {
    "id": "skill:python-project-structure",
@@ -700,8 +904,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "Python project organization, module architecture, and public API design. Use when setting up new projects, organizing modules, defining public interfaces with __all__, or planning directory layouts.",
-   "install": "cp -r skills/python-project-structure ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/python-project-structure"
   },
   {
    "id": "skill:python-testing-patterns",
@@ -710,8 +917,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "Implement comprehensive testing strategies with pytest, fixtures, mocking, and test-driven development. Use when writing Python tests, setting up test suites, or implementing testing best practices.",
-   "install": "cp -r skills/python-testing-patterns ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/python-testing-patterns"
   },
   {
    "id": "skill:python-type-safety",
@@ -720,8 +930,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "Python type safety with type hints, generics, protocols, and strict type checking. Use when adding type annotations, implementing generic classes, defining structural interfaces, or configuring mypy/pyright.",
-   "install": "cp -r skills/python-type-safety ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/python-type-safety"
   },
   {
    "id": "skill:rabbitmq-expert",
@@ -729,9 +942,12 @@
    "name": "rabbitmq-expert",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Expert RabbitMQ administrator and developer specializing in message broker architecture, exchange patterns, clustering, high availability, and production monitoring。中文触发：系统架构 ADR 技术选型 容量与扩展性 RabbitMQ 消息队列 交换机 死信 模式规范 架构\"",
-   "install": "cp -r skills/rabbitmq-expert ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Expert RabbitMQ administrator and developer specializing in message broker architecture, exchange patterns, clustering, high availability, and production monitoring。中文触发：系统架构 ADR 技术选型 容量与扩展性 RabbitMQ 消息队列 交换机 死信 模式规范 架构",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/rabbitmq-expert"
   },
   {
    "id": "skill:react-modernization",
@@ -740,8 +956,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "Upgrade React applications to latest versions, migrate from class components to hooks, and adopt concurrent features. Use when modernizing React codebases, migrating to React Hooks, or upgrading to latest React versions.",
-   "install": "cp -r skills/react-modernization ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/react-modernization"
   },
   {
    "id": "skill:redis-clustering",
@@ -749,9 +968,12 @@
    "name": "redis-clustering",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Redis Cluster and replication guidance covering hash tags for multi-key operations, avoiding CROSSSLOT errors, and reading from replicas to scale read-heavy workloads。中文触发：Redis 缓存 键值 TTL 集群\"",
-   "install": "cp -r skills/redis-clustering ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Redis Cluster and replication guidance covering hash tags for multi-key operations, avoiding CROSSSLOT errors, and reading from replicas to scale read-heavy workloads。中文触发：Redis 缓存 键值 TTL 集群",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/redis-clustering"
   },
   {
    "id": "skill:redis-connections",
@@ -759,9 +981,12 @@
    "name": "redis-connections",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Redis client and connection guidance covering connection pooling, multiplexing, pipelining, client-side caching with RESP3, avoiding slow commands (KEYS, SMEMBERS, HGETALL), and tuning socket timeouts。中文触发：Redis 缓存 键值 TTL 集群\"",
-   "install": "cp -r skills/redis-connections ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Redis client and connection guidance covering connection pooling, multiplexing, pipelining, client-side caching with RESP3, avoiding slow commands (KEYS, SMEMBERS, HGETALL), and tuning socket timeouts。中文触发：Redis 缓存 键值 TTL 集群",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/redis-connections"
   },
   {
    "id": "skill:redis-core",
@@ -769,9 +994,12 @@
    "name": "redis-core",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Core Redis modeling guidance — choose the right data structure (String, Hash, List, Set, Sorted Set, JSON, Stream, Vector Set) and use consistent colon-separated key names。中文触发：Redis 缓存 键值 TTL 集群 向量检索 全文检索 流式 建模\"",
-   "install": "cp -r skills/redis-core ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Core Redis modeling guidance — choose the right data structure (String, Hash, List, Set, Sorted Set, JSON, Stream, Vector Set) and use consistent colon-separated key names。中文触发：Redis 缓存 键值 TTL 集群 向量检索 全文检索 流式 建模",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/redis-core"
   },
   {
    "id": "skill:redis-observability",
@@ -780,8 +1008,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "\"Redis observability guidance — which metrics to monitor (memory, connections, hit ratio, ops/sec, rejected connections), which built-in commands to reach for during incident triage (SLOWLOG, INFO, MEMORY DOCTOR, CLIENT LIST, FT.PROFILE), and when to use the Redis Insight GUI。",
-   "install": "cp -r skills/redis-observability ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/redis-observability"
   },
   {
    "id": "skill:redis-search",
@@ -789,9 +1020,12 @@
    "name": "redis-search",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Redis Search guidance covering FT.CREATE schema design, field type selection (TEXT, TAG, NUMERIC, GEO, GEOSHAPE, VECTOR, JSON path), DIALECT 2 query syntax, FT.SEARCH / FT.AGGREGATE / FT.HYBRID command selection, vector similarity with HNSW or FLAT, hybrid retrieval combining lexical and vector\"",
-   "install": "cp -r skills/redis-search ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Redis Search guidance covering FT.CREATE schema design, field type selection (TEXT, TAG, NUMERIC, GEO, GEOSHAPE, VECTOR, JSON path), DIALECT 2 query syntax, FT.SEARCH / FT.AGGREGATE / FT.HYBRID command selection, vector similarity with HNSW or FLAT, hybrid retrieval combining lexical and vector",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/redis-search"
   },
   {
    "id": "skill:redis-security",
@@ -799,9 +1033,12 @@
    "name": "redis-security",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Redis security guidance covering authentication (requirepass and ACL users), TLS, ACL-based least-privilege access control, restricting network exposure via bind and protected-mode, firewall rules, and disabling dangerous commands。中文触发：Redis 缓存 键值 TTL 集群 鉴权 安全\"",
-   "install": "cp -r skills/redis-security ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Redis security guidance covering authentication (requirepass and ACL users), TLS, ACL-based least-privilege access control, restricting network exposure via bind and protected-mode, firewall rules, and disabling dangerous commands。中文触发：Redis 缓存 键值 TTL 集群 鉴权 安全",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/redis-security"
   },
   {
    "id": "skill:redis-semantic-cache",
@@ -809,19 +1046,25 @@
    "name": "redis-semantic-cache",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Redis LangCache guidance for semantic caching of LLM responses on Redis Cloud — calling search/set via the SDK or REST API, tuning the similarity threshold, separating caches per task type, and filtering with custom attributes。中文触发：Redis 缓存 键值 TTL 集群 向量检索 全文检索 接口 检索\"",
-   "install": "cp -r skills/redis-semantic-cache ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Redis LangCache guidance for semantic caching of LLM responses on Redis Cloud — calling search/set via the SDK or REST API, tuning the similarity threshold, separating caches per task type, and filtering with custom attributes。中文触发：Redis 缓存 键值 TTL 集群 向量检索 全文检索 接口 检索",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/redis-semantic-cache"
   },
   {
    "id": "skill:rules-conflict-audit",
    "category": "skill",
    "name": "rules-conflict-audit",
    "status": "shipped",
-   "tier": "core",
-   "description": "\"规则体系冲突与验证主张审计：只读交叉核对 AGENTS、提醒、收尾门禁、领域规则、技能描述和记忆，输出引用、行号、行为影响、具体改文与扩权标注；核对证明力、真实问答、多项阻塞与历史授权反例。报告交付即完成审阅；批准实施后才修改，保留平台强制审批。扩展：技能/文档家族一致性审计——按四层模型核对 description、正文、校验器、规则文件、分享包五个面，正负夹具防校验器假绿，修复后同批同步分享包。\"",
-   "install": "cp -r skills/rules-conflict-audit ~/.qoder/skills/",
-   "source": "self-built"
+   "tier": "library",
+   "description": "规则体系冲突与验证主张审计：只读交叉核对 AGENTS、提醒、收尾门禁、领域规则、技能描述和记忆，输出引用、行号、行为影响、具体改文与扩权标注；核对证明力、真实问答、多项阻塞与历史授权反例。报告交付即完成审阅；批准实施后才修改，保留平台强制审批。扩展：技能/文档家族一致性审计——按四层模型核对 description、正文、校验器、规则文件、分享包五个面，正负夹具防校验器假绿，修复后同批同步分享包。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/rules-conflict-audit"
   },
   {
    "id": "skill:safe-text-editing",
@@ -830,8 +1073,11 @@
    "status": "shipped",
    "tier": "core",
    "description": "改文件与传参的字符安全 playbook。当\"内容写出来不对\"时用：引号/反斜杠/反引号/`$` 被 shell 先解释、中文进 .cmd 变乱码、CRLF 与 GBK 被改写、整文件覆盖丢内容、替换串手抄失配、管道吞掉退出码、命令成功但改错地方。触发词：编辑出错、字符被吃掉、内容不对、乱码、转义、引号问题、sed 替换没生效、写进去的不是我要的、编码、GBK、CRLF、退出码不对。不用于：纯文本内容校对（走文档类技能）、.cmd 工具的整套改/验/发链（走 verify-windows-cmd-tool）。",
-   "install": "cp -r skills/safe-text-editing ~/.qoder/skills/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "core"
+   },
+   "source": "skills/safe-text-editing"
   },
   {
    "id": "skill:self-evolution",
@@ -840,8 +1086,11 @@
    "status": "shipped",
    "tier": "core",
    "description": "将用户明确的长期偏好、重复纠正、验证过的复用经验和持续能力缺口转为有证据的规则、技能或工具配置更新；也用于查看、暂停、恢复与回退自动调整。触发词：自进化、学到的规则、暂停自动调整、恢复自进化、撤销最近学到的、查看学到的规则、经验沉淀、证据门槛。不用于：单次临时指令和普通成功任务。",
-   "install": "cp -r skills/self-evolution ~/.qoder/skills/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "core"
+   },
+   "source": "skills/self-evolution"
   },
   {
    "id": "skill:senior-devops",
@@ -849,9 +1098,12 @@
    "name": "senior-devops",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Comprehensive DevOps skill for CI/CD, infrastructure automation, containerization, and cloud platforms (AWS, GCP, Azure)。中文触发：CI 流水线 容器\"",
-   "install": "cp -r skills/senior-devops ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Comprehensive DevOps skill for CI/CD, infrastructure automation, containerization, and cloud platforms (AWS, GCP, Azure)。中文触发：CI 流水线 容器",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/senior-devops"
   },
   {
    "id": "skill:setup-windows-selfhosted-runner",
@@ -860,8 +1112,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "\"在 Windows 上安装、注册、验证并持久化 GitHub Actions 自托管 runner 的完整链与九类实测坑避坑顺序。用于要装 self-hosted runner、把门禁挪到本机跑以省 GitHub Free 的 2000 分钟/月、job 在含空格的 runner 目录下秒红（/usr/bin/bash 报 D:\\\\Program 无此文件）、runner 随会话结束即停或开机弹常驻终端、硬杀 listener 后报 A session for this runner already exists。",
-   "install": "cp -r skills/setup-windows-selfhosted-runner ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/setup-windows-selfhosted-runner"
   },
   {
    "id": "skill:ship-clean-pr",
@@ -869,9 +1124,12 @@
    "name": "ship-clean-pr",
    "status": "shipped",
    "tier": "core",
-   "description": "\"干净交付流水线：提交/推 PR 前先 git status 分辨并行会话改动，绝不 git add -A，只加明确路径；说明跟随目标仓库惯例；本地 commit 跑相关测试，推送/开 PR 前全量测试；推送前同步上游让 diff 只含本批次；只保留唯一 PR，撤回旧 PR 先问；汇报 PR 链接+文件数+增删行+mergeable。触发：提交、推 PR、提 PR、合入、交付、发布、撤回 PR。\"",
-   "install": "cp -r skills/ship-clean-pr ~/.qoder/skills/",
-   "source": "self-built"
+   "description": "干净交付流水线：提交/推 PR 前先 git status 分辨并行会话改动，绝不 git add -A，只加明确路径；说明跟随目标仓库惯例；本地 commit 跑相关测试，推送/开 PR 前全量测试；推送前同步上游让 diff 只含本批次；只保留唯一 PR，撤回旧 PR 先问；汇报 PR 链接+文件数+增删行+mergeable。触发：提交、推 PR、提 PR、合入、交付、发布、撤回 PR。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "core"
+   },
+   "source": "skills/ship-clean-pr"
   },
   {
    "id": "skill:shipped-app-js-patch-hygiene",
@@ -879,59 +1137,77 @@
    "name": "shipped-app-js-patch-hygiene",
    "status": "shipped",
    "tier": "library",
-   "description": "\"热修已安装桌面或 Electron 应用打包 JS 的可验证流程——改前用 SHA1 加补丁标记数证明 live 文件是否原版（.bak 未必干净、.patched 不是还原点），意图命名备份、最小改动、node --check 语法门、与已验原版逐行 diff、真重启后从应用自己的日志数标记、修不动就还原并复验 SHA1。用于热修 JS、残留 .bak 或 .patched、node --check 通过但应用照坏、删 scratch user-data-dir 报 Device or resource busy。不用于 git 仓库源码与重新打包。\"",
-   "install": "cp -r skills/shipped-app-js-patch-hygiene ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "热修已安装桌面或 Electron 应用打包 JS 的可验证流程——改前用 SHA1 加补丁标记数证明 live 文件是否原版（.bak 未必干净、.patched 不是还原点），意图命名备份、最小改动、node --check 语法门、与已验原版逐行 diff、真重启后从应用自己的日志数标记、修不动就还原并复验 SHA1。用于热修 JS、残留 .bak 或 .patched、node --check 通过但应用照坏、删 scratch user-data-dir 报 Device or resource busy。不用于 git 仓库源码与重新打包。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/shipped-app-js-patch-hygiene"
   },
   {
    "id": "skill:skill-authoring-closure",
    "category": "skill",
    "name": "skill-authoring-closure",
    "status": "shipped",
-   "tier": "core",
+   "tier": "library",
    "description": "把进化建议落成技能，或新增 / 改名 / 上收技能后的闭环：同域判重合并 → 通用 SKILL.md + references/<产品>.md → carrier-preflight 定级 → 校验元数据 → 重建索引 → 三组查询验收路由 → skills-doctor 收口。触发词：自进化建议、把自进化建议合并成技能、合并成技能、标记 evolved、技能上线、skill-load 检索不到。不用于：单技能从零编写（skill-creator）、分层迁移（skill-tiering-lazy-load）、描述瘦身（skill-description-route-cue-rewrite）。",
-   "install": "cp -r skills/skill-authoring-closure ~/.qoder/skills/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/skill-authoring-closure"
   },
   {
    "id": "skill:skill-description-route-cue-rewrite",
    "category": "skill",
    "name": "skill-description-route-cue-rewrite",
    "status": "shipped",
-   "tier": "core",
-   "description": "\"改写或瘦身其他技能 description 的保护性流程：动笔前重新 Read 并与上一轮比对（防并行会话改短）；按七组路由线索盘点去向——反直觉结论、已发生状态的禁止动作、人工解除/回退入口、守卫覆盖面边界、零风险探针、完整触发词、不用于→指向；写入后用 check-description.cjs 验收（逐组短语断言 + 残缺版负对照必须判红 + 单行/无 CRLF/长度明显低于原版）。触发词：description 瘦身、压短描述、路由线索丢失、补回触发词。整技能降量→skill-trim-with-capability-transfer。\"",
-   "install": "cp -r skills/skill-description-route-cue-rewrite ~/.qoder/skills/",
-   "source": "self-built"
+   "tier": "library",
+   "description": "改写或瘦身其他技能 description 的保护性流程：动笔前重新 Read 并与上一轮比对（防并行会话改短）；按七组路由线索盘点去向——反直觉结论、已发生状态的禁止动作、人工解除/回退入口、守卫覆盖面边界、零风险探针、完整触发词、不用于→指向；写入后用 check-description.cjs 验收（逐组短语断言 + 残缺版负对照必须判红 + 单行/无 CRLF/长度明显低于原版）。触发词：description 瘦身、压短描述、路由线索丢失、补回触发词。整技能降量→skill-trim-with-capability-transfer。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/skill-description-route-cue-rewrite"
   },
   {
    "id": "skill:skill-reference-integrity-audit",
    "category": "skill",
    "name": "skill-reference-integrity-audit",
    "status": "shipped",
-   "tier": "core",
-   "description": "\"技能/文档悬空引用审计与修复决策流程：提取引用清单→存在性核查→会话归档考古判定『从未落盘 vs 丢失』→同域技能功能映射让渡或按真值重建；含并行会话竞态处置（对象消失先查 skills-disabled）。触发词：悬空引用、缺失文件、引用审计、归档考古、技能完整性检查、skills-disabled 竞态。不适用于：代码层面的 import/require 缺失（走静态分析）、文档内部链接失效（走 link-checker）。\"",
-   "install": "cp -r skills/skill-reference-integrity-audit ~/.qoder/skills/",
-   "source": "self-built"
+   "tier": "library",
+   "description": "技能/文档悬空引用审计与修复决策流程：提取引用清单→存在性核查→会话归档考古判定『从未落盘 vs 丢失』→同域技能功能映射让渡或按真值重建；含并行会话竞态处置（对象消失先查 skills-disabled）。触发词：悬空引用、缺失文件、引用审计、归档考古、技能完整性检查、skills-disabled 竞态。不适用于：代码层面的 import/require 缺失（走静态分析）、文档内部链接失效（走 link-checker）。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/skill-reference-integrity-audit"
   },
   {
    "id": "skill:skill-tiering-lazy-load",
    "category": "skill",
    "name": "skill-tiering-lazy-load",
    "status": "shipped",
-   "tier": "core",
-   "description": "\"技能分层懒加载 playbook：注入过大时，把 ~/.qoder/skills 拆成「常驻元/高频 + skills-library 按需库」，用 tier-skills 迁移、build-skills-index 重建索引、skill-load 检索；含常驻集拍板、library 回退修补、注入降幅测量、可失败验收、回滚与分享包复现。触发词：技能分层、按需库、skills-library、skill-load。不用于停用合并（skill-trim-with-capability-transfer）、描述瘦身（skill-description-route-cue-rewrite）。\"",
-   "install": "cp -r skills/skill-tiering-lazy-load ~/.qoder/skills/",
-   "source": "self-built"
+   "tier": "library",
+   "description": "技能分层懒加载 playbook：注入过大时，把 ~/.qoder/skills 拆成「常驻元/高频 + skills-library 按需库」，用 tier-skills 迁移、build-skills-index 重建索引、skill-load 检索；含常驻集拍板、library 回退修补、注入降幅测量、可失败验收、回滚与分享包复现。触发词：技能分层、按需库、skills-library、skill-load。不用于停用合并（skill-trim-with-capability-transfer）、描述瘦身（skill-description-route-cue-rewrite）。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/skill-tiering-lazy-load"
   },
   {
    "id": "skill:skill-trim-with-capability-transfer",
    "category": "skill",
    "name": "skill-trim-with-capability-transfer",
    "status": "shipped",
-   "tier": "core",
+   "tier": "library",
    "description": "技能降量的可执行 playbook（停入口、不丢能力）。当用户说「技能太多要精简」「降量 / 停用技能」「同域不装第二个」「几个技能抢同一个触发」「停掉的技能能力不能丢」「skills-disabled 怎么回退」「降量后周检 / 全局体检判红」时使用。按引用关系分档决定谁能停，把只此一家的能力用真代码或规则条目搬进留存内容，同步会被钉死的机械判据，再用周检加提及扫描收口。不用于外部分享包并入（走 merge-inbound-qoder-package）、C 盘腾空间（走 disk-junction-migration）、本机出包发给别人（走 update-share-package）。",
-   "install": "cp -r skills/skill-trim-with-capability-transfer ~/.qoder/skills/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/skill-trim-with-capability-transfer"
   },
   {
    "id": "skill:skills-router",
@@ -940,8 +1216,11 @@
    "status": "shipped",
    "tier": "core",
    "description": "领域任务的技能入口。任何非纯对话任务开始前，先用 node ~/.qoder/scripts/skill-load.cjs \"<关键词>\" 检索技能索引（常驻 + 按需库，数量以 ~/.qoder/skills-index.json 实测为准）；命中就 Read 对应 SKILL.md 再动手。覆盖 Java/Spring、数据库、前端、部署、运维、文档、小程序、爬虫等。不检索等于这些技能不存在。新增技能先判层级：元/跨域高频或硬引用进 skills/，单领域默认进 skills-library/。触发词：用什么技能、技能索引、skill-load、按需技能、领域技能、路由回归。",
-   "install": "cp -r skills/skills-router ~/.qoder/skills/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "core"
+   },
+   "source": "skills/skills-router"
   },
   {
    "id": "skill:spring-aop",
@@ -949,9 +1228,12 @@
    "name": "spring-aop",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Spring AOP (Aspect-Oriented Programming) per Spring Boot 3.x。中文触发：Spring Boot Java 后端 Bean 依赖注入\"",
-   "install": "cp -r skills/spring-aop ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Spring AOP (Aspect-Oriented Programming) per Spring Boot 3.x。中文触发：Spring Boot Java 后端 Bean 依赖注入",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/spring-aop"
   },
   {
    "id": "skill:spring-boot-actuator",
@@ -960,8 +1242,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "Provides patterns to configure Spring Boot Actuator for production-grade monitoring, health probes, secured management endpoints, and Micrometer metrics across JVM services. Use when setting up monitoring, health checks, or metrics for Spring Boot applications.",
-   "install": "cp -r skills/spring-boot-actuator ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/spring-boot-actuator"
   },
   {
    "id": "skill:spring-boot-cache",
@@ -969,9 +1254,12 @@
    "name": "spring-boot-cache",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Provides patterns for implementing Spring Boot caching - configures Redis/Caffeine/EhCache providers with TTL and eviction policies, applies @Cacheable/@CacheEvict/@CachePut annotations, validates cache hit/miss behavior, and exposes metrics via Actuator。中文触发：Redis 缓存 键值 TTL 集群 Spring Boot Java 后端\"",
-   "install": "cp -r skills/spring-boot-cache ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Provides patterns for implementing Spring Boot caching - configures Redis/Caffeine/EhCache providers with TTL and eviction policies, applies @Cacheable/@CacheEvict/@CachePut annotations, validates cache hit/miss behavior, and exposes metrics via Actuator。中文触发：Redis 缓存 键值 TTL 集群 Spring Boot Java 后端",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/spring-boot-cache"
   },
   {
    "id": "skill:spring-boot-event-driven-patterns",
@@ -979,9 +1267,12 @@
    "name": "spring-boot-event-driven-patterns",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Spring Boot 事件驱动架构模式——领域事件、ApplicationEvent 与 @TransactionalEventListener、Kafka 生产者与消费者、事务性 outbox 可靠分发。中文触发：事件驱动 EDA outbox 领域事件 Kafka 消息队列。只管跨进程事件架构（outbox、Kafka 生产消费）；进程内事件用 spring-events。\"",
-   "install": "cp -r skills/spring-boot-event-driven-patterns ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Spring Boot 事件驱动架构模式——领域事件、ApplicationEvent 与 @TransactionalEventListener、Kafka 生产者与消费者、事务性 outbox 可靠分发。中文触发：事件驱动 EDA outbox 领域事件 Kafka 消息队列。只管跨进程事件架构（outbox、Kafka 生产消费）；进程内事件用 spring-events。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/spring-boot-event-driven-patterns"
   },
   {
    "id": "skill:spring-boot-resilience4j",
@@ -989,9 +1280,12 @@
    "name": "spring-boot-resilience4j",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Provides fault tolerance patterns for Spring Boot 3.x using Resilience4j。中文触发：Spring Boot Java 后端 Bean 依赖注入 模式规范\"",
-   "install": "cp -r skills/spring-boot-resilience4j ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Provides fault tolerance patterns for Spring Boot 3.x using Resilience4j。中文触发：Spring Boot Java 后端 Bean 依赖注入 模式规范",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/spring-boot-resilience4j"
   },
   {
    "id": "skill:spring-boot-rest-api-standards",
@@ -1000,8 +1294,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "Provides REST API design standards and best practices for Spring Boot projects. Use when creating or reviewing REST endpoints, DTOs, error handling, pagination, security headers, HATEOAS and architecture patterns.",
-   "install": "cp -r skills/spring-boot-rest-api-standards ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/spring-boot-rest-api-standards"
   },
   {
    "id": "skill:spring-boot-test-patterns",
@@ -1009,9 +1306,12 @@
    "name": "spring-boot-test-patterns",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Provides comprehensive testing patterns for Spring Boot applications covering unit, integration, slice, and container-based testing with JUnit 5, Mockito, Testcontainers, and performance optimization。中文触发：Spring Boot Java 后端 Bean 依赖注入 测试\"",
-   "install": "cp -r skills/spring-boot-test-patterns ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Provides comprehensive testing patterns for Spring Boot applications covering unit, integration, slice, and container-based testing with JUnit 5, Mockito, Testcontainers, and performance optimization。中文触发：Spring Boot Java 后端 Bean 依赖注入 测试",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/spring-boot-test-patterns"
   },
   {
    "id": "skill:spring-events",
@@ -1019,9 +1319,12 @@
    "name": "spring-events",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Spring Application Events for Spring Boot 3.x。中文触发：Spring Boot Java 后端 Bean 依赖注入。只管进程内 ApplicationEvent；跨进程消息与 outbox 架构用 spring-boot-event-driven-patterns。\"",
-   "install": "cp -r skills/spring-events ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Spring Application Events for Spring Boot 3.x。中文触发：Spring Boot Java 后端 Bean 依赖注入。只管进程内 ApplicationEvent；跨进程消息与 outbox 架构用 spring-boot-event-driven-patterns。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/spring-events"
   },
   {
    "id": "skill:springboot-patterns",
@@ -1030,8 +1333,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "Spring Boot architecture patterns, REST API design, layered services, data access, caching, async processing, and logging. Use for Java Spring Boot backend work.",
-   "install": "cp -r skills/springboot-patterns ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/springboot-patterns"
   },
   {
    "id": "skill:springboot-verification",
@@ -1039,9 +1345,12 @@
    "name": "springboot-verification",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Verification loop for Spring Boot projects - build, static analysis, tests with coverage, security scans, and diff review before release or PR。中文触发：Spring Boot Java 后端 Bean 依赖注入 测试 覆盖率\"",
-   "install": "cp -r skills/springboot-verification ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Verification loop for Spring Boot projects - build, static analysis, tests with coverage, security scans, and diff review before release or PR。中文触发：Spring Boot Java 后端 Bean 依赖注入 测试 覆盖率",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/springboot-verification"
   },
   {
    "id": "skill:structured-edit-safety",
@@ -1049,9 +1358,12 @@
    "name": "structured-edit-safety",
    "status": "shipped",
    "tier": "core",
-   "description": "\"对清单/表格/队列/台账/多站点源码做批量机械改造的安全 playbook：追加型编辑锚点丢失（队列行被顶掉、表格行丢失）、多处替换只中一部分却「看起来成功」、dry-run→apply→复扫四段式、逐处计数断言当门禁、混行尾文件正则零命中、批量替换禁止 sed。触发词：批量替换、追加变覆盖、锚点、计数断言、dry-run、复扫、台账批量编辑。不用于字符级转义（→safe-text-editing）。\"",
-   "install": "cp -r skills/structured-edit-safety ~/.qoder/skills/",
-   "source": "self-built"
+   "description": "对清单/表格/队列/台账/多站点源码做批量机械改造的安全 playbook：追加型编辑锚点丢失（队列行被顶掉、表格行丢失）、多处替换只中一部分却「看起来成功」、dry-run→apply→复扫四段式、逐处计数断言当门禁、混行尾文件正则零命中、批量替换禁止 sed。触发词：批量替换、追加变覆盖、锚点、计数断言、dry-run、复扫、台账批量编辑。不用于字符级转义（→safe-text-editing）。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "core"
+   },
+   "source": "skills/structured-edit-safety"
   },
   {
    "id": "skill:systemd-java-service-centos7",
@@ -1060,8 +1372,11 @@
    "status": "shipped",
    "tier": "library",
    "description": "在 CentOS 7（systemd 219）上为 Java 微服务创建 systemd 开机自启加崩溃自重启的完整流程，包括 service 文件编写（bash -c 包裹日志重定向，绕过 append 不支持的陷阱）、一键配置移除脚本、daemon-reload 加 enable 加 verify。触发关键词：systemd、CentOS 7、开机自启、崩溃重启、java service、systemctl、StandardOutput append 不支持、Failed to parse output specifier。",
-   "install": "cp -r skills/systemd-java-service-centos7 ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/systemd-java-service-centos7"
   },
   {
    "id": "skill:tailwindcss-animations",
@@ -1069,9 +1384,12 @@
    "name": "tailwindcss-animations",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Tailwind CSS animations and transitions including built-in utilities and custom keyframes。中文触发：前端样式 设计系统 UI 组件库 动画\"",
-   "install": "cp -r skills/tailwindcss-animations ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Tailwind CSS animations and transitions including built-in utilities and custom keyframes。中文触发：前端样式 设计系统 UI 组件库 动画",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/tailwindcss-animations"
   },
   {
    "id": "skill:typescript-pro",
@@ -1079,9 +1397,12 @@
    "name": "typescript-pro",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Implements advanced TypeScript type systems, creates custom type guards, utility types, and branded types, and configures tRPC for end-to-end type safety。中文触发：TypeScript 类型 泛型 配置\"",
-   "install": "cp -r skills/typescript-pro ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Implements advanced TypeScript type systems, creates custom type guards, utility types, and branded types, and configures tRPC for end-to-end type safety。中文触发：TypeScript 类型 泛型 配置",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/typescript-pro"
   },
   {
    "id": "skill:umi3-to-umi4-upgrade",
@@ -1090,18 +1411,24 @@
    "status": "shipped",
    "tier": "library",
    "description": "umi3 → umi4 / webpack5 升级后的回归排查与恢复流水线：document.ejs 模板被静默取消（用 headScripts/links 恢复、#root 动态注入与 loading 约定）、深 触发词：umi4 升级、umi3 升 umi4、document.ejs 失效、umi 样式回归、升级后白块、loading 不显示、headScripts、CSS module hash、webpack5 迁移、umi_locale_url_applied；不用于：部署后用户端未生效（user-side-deploy-verify）、一般构建报错、非 umi 框架的前端样式问题。",
-   "install": "cp -r skills/umi3-to-umi4-upgrade ~/.qoder/skills-library/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/umi3-to-umi4-upgrade"
   },
   {
    "id": "skill:user-side-deploy-verify",
    "category": "skill",
    "name": "user-side-deploy-verify",
    "status": "shipped",
-   "tier": "core",
+   "tier": "library",
    "description": "部署自验全绿 ≠ 用户端生效的三道门：① 入口缓存头审计（首页与 fallback 必须 no-store；有 ETag 无 Cache-Control 即启发式缓存隐患）② 用户侧取证（access.log 按 UA 还原 document 链比对 bundle hash，旧 hash 不 404 时零报错）③ 冷环境复现（新 profile + 登录态 + 截图）。触发词：用户端没生效、复验全绿但用户还是旧版、缓存头、no-store、access.log UA。不用于：部署方自验（frontend-hash-deploy-verify）、浏览器打不开网页（edge-net-check）。",
-   "install": "cp -r skills/user-side-deploy-verify ~/.qoder/skills/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/user-side-deploy-verify"
   },
   {
    "id": "skill:verify-before-claim",
@@ -1109,9 +1436,12 @@
    "name": "verify-before-claim",
    "status": "shipped",
    "tier": "core",
-   "description": "\"验证证据纪律与通用检查排错：每条断言必须能失败；启动/HTTP 验收要有「不存在路径」对照组、本轮编译退出码入判据、请求打本轮独占端口；计数断言先列「会改世界的操作」；多出来的红先归因自己算错；拿不到可失败证据显式标注「未验证」；常驻进程「改了没生效/上次修过还是坏」先证运行态版本==磁盘（启动时间 vs mtime、健康端点 vs 文件 sha256）。用于通用检查排错、模型能力审查、证据审计，以及验收/测试/证据/判据/全绿/汇报已完成之前；区分静态、模拟、运行时与产物证据。不用于目标推进/接续（→goal-driven-execution）。\"",
-   "install": "cp -r skills/verify-before-claim ~/.qoder/skills/",
-   "source": "self-built"
+   "description": "验证证据纪律与通用检查排错：每条断言必须能失败；启动/HTTP 验收要有「不存在路径」对照组、本轮编译退出码入判据、请求打本轮独占端口；计数断言先列「会改世界的操作」；多出来的红先归因自己算错；拿不到可失败证据显式标注「未验证」；常驻进程「改了没生效/上次修过还是坏」先证运行态版本==磁盘（启动时间 vs mtime、健康端点 vs 文件 sha256）。用于通用检查排错、模型能力审查、证据审计，以及验收/测试/证据/判据/全绿/汇报已完成之前；区分静态、模拟、运行时与产物证据。不用于目标推进/接续（→goal-driven-execution）。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "core"
+   },
+   "source": "skills/verify-before-claim"
   },
   {
    "id": "skill:verify-ui-in-browser",
@@ -1119,19 +1449,25 @@
    "name": "verify-ui-in-browser",
    "status": "shipped",
    "tier": "core",
-   "description": "\"前台真实运行验收：网页/客户端/小程序/小游戏/App 的改动必须真跑 + 实际截图并比对预期才算完成，只过单测/构建不算。网页：dev server + 真实浏览器完整路径（含负向用例）、browser-use、SPA fallback 用 content-type 对照；小程序/小游戏：微信开发者工具实际点击 + 截图；App：模拟器/真机 + 截图；客户端：窗口截图。触发：前端验收、UI 验证、打开界面、dev server、playwright。\"",
-   "install": "cp -r skills/verify-ui-in-browser ~/.qoder/skills/",
-   "source": "self-built"
+   "description": "前台真实运行验收：网页/客户端/小程序/小游戏/App 的改动必须真跑 + 实际截图并比对预期才算完成，只过单测/构建不算。网页：dev server + 真实浏览器完整路径（含负向用例）、browser-use、SPA fallback 用 content-type 对照；小程序/小游戏：微信开发者工具实际点击 + 截图；App：模拟器/真机 + 截图；客户端：窗口截图。触发：前端验收、UI 验证、打开界面、dev server、playwright。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "core"
+   },
+   "source": "skills/verify-ui-in-browser"
   },
   {
    "id": "skill:verify-windows-cmd-tool",
    "category": "skill",
    "name": "verify-windows-cmd-tool",
    "status": "shipped",
-   "tier": "core",
-   "description": "\"改/验/发 Windows 纯批处理（.cmd/.bat）控制台工具的闭环：① GBK+CRLF 编辑链（UTF-8 副本 → CRLF → GBK → 装全部副本 → md5 比对）；② 真实控制台验收（start 启动；禁用 MCP launch_app，会剥 APPDATA 造成假故障；capture-window.ps1 截图；SendInput 每键 250–350ms）；③ 无键盘验收；④ cmd 陷阱（chcp 吞 stdin、rmdir 加 nul 断链、NT 路径前缀、选择器 1 基序号）；⑤ 打包后解压逐字节比对。触发：编辑/验收/打包 .cmd 工具。\"",
-   "install": "cp -r skills/verify-windows-cmd-tool ~/.qoder/skills/",
-   "source": "self-built"
+   "tier": "library",
+   "description": "改/验/发 Windows 纯批处理（.cmd/.bat）控制台工具的闭环：① GBK+CRLF 编辑链（UTF-8 副本 → CRLF → GBK → 装全部副本 → md5 比对）；② 真实控制台验收（start 启动；禁用 MCP launch_app，会剥 APPDATA 造成假故障；capture-window.ps1 截图；SendInput 每键 250–350ms）；③ 无键盘验收；④ cmd 陷阱（chcp 吞 stdin、rmdir 加 nul 断链、NT 路径前缀、选择器 1 基序号）；⑤ 打包后解压逐字节比对。触发：编辑/验收/打包 .cmd 工具。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/verify-windows-cmd-tool"
   },
   {
    "id": "skill:vibe-coding-workflow",
@@ -1140,8 +1476,11 @@
    "status": "shipped",
    "tier": "core",
    "description": "大需求五阶段流程：需求、架构、模块、调试、迭代；检查阶段准入，已授权连续实施时不逐阶段重问。用于新项目或跨模块需求；用户明确设置的阶段批准继续保留。",
-   "install": "cp -r skills/vibe-coding-workflow ~/.qoder/skills/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "core"
+   },
+   "source": "skills/vibe-coding-workflow"
   },
   {
    "id": "skill:vibecoding-doc",
@@ -1149,9 +1488,12 @@
    "name": "vibecoding-doc",
    "status": "shipped",
    "tier": "core",
-   "description": "\"把模糊需求变成可交给 AI 实施的四层文档：AGENTS.md（地图/命令/禁区）、spec.md（what/why+验收）、plan/tasks（短周期计划）、运行时上下文（按需装载）。按风险定强度：小项目只留宪法+窄契约+验收，字段级模型/完整四态/全量版本冻结仅在跨人、长周期、高风险时加。降本靠稳定前缀缓存与子 agent 隔离，不靠写更长。触发词：写 vibecoding 文档、SPEC、需求规格、AGENTS.md、上下文工程、氛围编程。不用于需求已明确、架构评审、代码评审。\"",
-   "install": "cp -r skills/vibecoding-doc ~/.qoder/skills/",
-   "source": "self-built"
+   "description": "把模糊需求变成可交给 AI 实施的四层文档：AGENTS.md（地图/命令/禁区）、spec.md（what/why+验收）、plan/tasks（短周期计划）、运行时上下文（按需装载）。按风险定强度：小项目只留宪法+窄契约+验收，字段级模型/完整四态/全量版本冻结仅在跨人、长周期、高风险时加。降本靠稳定前缀缓存与子 agent 隔离，不靠写更长。触发词：写 vibecoding 文档、SPEC、需求规格、AGENTS.md、上下文工程、氛围编程。不用于需求已明确、架构评审、代码评审。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "core"
+   },
+   "source": "skills/vibecoding-doc"
   },
   {
    "id": "skill:vue-expert",
@@ -1159,9 +1501,12 @@
    "name": "vue-expert",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Builds Vue 3 components with Composition API patterns, configures Nuxt 3 SSR/SSG projects, sets up Pinia stores, scaffolds Quasar/Capacitor mobile apps, implements PWA features, and optimises Vite builds。中文触发：Vue Nuxt Pinia 组件 性能优化 profiling 模式规范 配置 接口\"",
-   "install": "cp -r skills/vue-expert ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "Builds Vue 3 components with Composition API patterns, configures Nuxt 3 SSR/SSG projects, sets up Pinia stores, scaffolds Quasar/Capacitor mobile apps, implements PWA features, and optimises Vite builds。中文触发：Vue Nuxt Pinia 组件 性能优化 profiling 模式规范 配置 接口",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/vue-expert"
   },
   {
    "id": "skill:wechat-miniprogram-dev",
@@ -1169,9 +1514,12 @@
    "name": "wechat-miniprogram-dev",
    "status": "shipped",
    "tier": "library",
-   "description": "\"微信小程序云开发完整指南。包含项目结构、云函数开发、miniprogram-ci 部署命令、常见问题处理。适用于需要开发、部署微信小程序的场景。中文触发：微信小程序 uni-app 云开发 发布\"",
-   "install": "cp -r skills/wechat-miniprogram-dev ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "微信小程序云开发完整指南。包含项目结构、云函数开发、miniprogram-ci 部署命令、常见问题处理。适用于需要开发、部署微信小程序的场景。中文触发：微信小程序 uni-app 云开发 发布",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/wechat-miniprogram-dev"
   },
   {
    "id": "skill:windows-desktop-keyboard-automation",
@@ -1179,9 +1527,12 @@
    "name": "windows-desktop-keyboard-automation",
    "status": "shipped",
    "tier": "library",
-   "description": "\"往真实 Windows 桌面应用注入按键并证明实际到达了什么，且不碰用户自己的窗口。用于代理必须向原生应用按键或热键、验证 IME 转换、回读应用的文本缓冲、SendInput 返回 0、注入键落在错误窗口。覆盖 x64 INPUT 布局、前台与焦点断言、剪贴板哨兵回读、Windows 11 记事本双进程与会话恢复陷阱、IME 组字缓冲、无损码点重建。只要截图取证用 capture-window.ps1。\"",
-   "install": "cp -r skills/windows-desktop-keyboard-automation ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "往真实 Windows 桌面应用注入按键并证明实际到达了什么，且不碰用户自己的窗口。用于代理必须向原生应用按键或热键、验证 IME 转换、回读应用的文本缓冲、SendInput 返回 0、注入键落在错误窗口。覆盖 x64 INPUT 布局、前台与焦点断言、剪贴板哨兵回读、Windows 11 记事本双进程与会话恢复陷阱、IME 组字缓冲、无损码点重建。只要截图取证用 capture-window.ps1。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/windows-desktop-keyboard-automation"
   },
   {
    "id": "skill:windows-elevated-changes-from-git-bash",
@@ -1189,9 +1540,12 @@
    "name": "windows-elevated-changes-from-git-bash",
    "status": "shipped",
    "tier": "library",
-   "description": "\"从未提权的 Git Bash 或 MSYS 会话执行需要管理员权限的 Windows 改动——HKLM 注册表写、服务 ImagePath 与配置、计划任务、ACL 受限路径、服务重启。固定双文件模式：纯 ASCII 的提权 payload .ps1 把带时间戳结果追加进日志，启动器用 Start-Process -Verb RunAs -PassThru -File 再回读日志，因为提权子进程写不到调用方 stdout。用于需要 UAC、reg.exe add /d 吞引号造成无引号服务路径、HKLM 写了但值没变、exitcode=0 不可信。\"",
-   "install": "cp -r skills/windows-elevated-changes-from-git-bash ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "从未提权的 Git Bash 或 MSYS 会话执行需要管理员权限的 Windows 改动——HKLM 注册表写、服务 ImagePath 与配置、计划任务、ACL 受限路径、服务重启。固定双文件模式：纯 ASCII 的提权 payload .ps1 把带时间戳结果追加进日志，启动器用 Start-Process -Verb RunAs -PassThru -File 再回读日志，因为提权子进程写不到调用方 stdout。用于需要 UAC、reg.exe add /d 吞引号造成无引号服务路径、HKLM 写了但值没变、exitcode=0 不可信。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/windows-elevated-changes-from-git-bash"
   },
   {
    "id": "skill:windows-gitbash-command-safety",
@@ -1199,9 +1553,12 @@
    "name": "windows-gitbash-command-safety",
    "status": "shipped",
    "tier": "library",
-   "description": "\"从 Git Bash 或 MSYS 直调 Windows 原生 exe（reg.exe、whoami.exe、tasklist.exe、sc.exe、wmic、cmd）的替换表。用于命令死于 无效语法 或 extra operand；/v /s /f /im /y /groups 被静默改写成盘符路径；交给 Windows 程序的 /tmp 变成 C:\\\\tmp\\\\...；原生工具的中文在管道或重定向文件里是 GBK 乱码；grep 对注册表输出报 Binary file matches。随包一个包装器一次修好开关改写与 cp936 解码。\"",
-   "install": "cp -r skills/windows-gitbash-command-safety ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "从 Git Bash 或 MSYS 直调 Windows 原生 exe（reg.exe、whoami.exe、tasklist.exe、sc.exe、wmic、cmd）的替换表。用于命令死于 无效语法 或 extra operand；/v /s /f /im /y /groups 被静默改写成盘符路径；交给 Windows 程序的 /tmp 变成 C:\\tmp\\...；原生工具的中文在管道或重定向文件里是 GBK 乱码；grep 对注册表输出报 Binary file matches。随包一个包装器一次修好开关改写与 cp936 解码。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/windows-gitbash-command-safety"
   },
   {
    "id": "skill:windows-powershell-from-gitbash",
@@ -1209,9 +1566,12 @@
    "name": "windows-powershell-from-gitbash",
    "status": "shipped",
    "tier": "library",
-   "description": "\"从 Git Bash 或 MSYS 驱动 PowerShell 5.1 写一次性 .ps1 诊断脚本的替换规则。用于内联 powershell.exe -Command 炸出 extglob、CommandNotFoundException 或无法识别的 cmdlet；含中文字面量或正则的 .ps1 报 TerminatorExpectedAtEndOfString；输出文件回读每个字符间带空格（UTF-16）；以及任何用 Get-CimInstance、Add-Type P-Invoke、reg export、截屏的脚本之前。随包脚本骨架与纯 UTF-8 捕获的 runner。\"",
-   "install": "cp -r skills/windows-powershell-from-gitbash ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "从 Git Bash 或 MSYS 驱动 PowerShell 5.1 写一次性 .ps1 诊断脚本的替换规则。用于内联 powershell.exe -Command 炸出 extglob、CommandNotFoundException 或无法识别的 cmdlet；含中文字面量或正则的 .ps1 报 TerminatorExpectedAtEndOfString；输出文件回读每个字符间带空格（UTF-16）；以及任何用 Get-CimInstance、Add-Type P-Invoke、reg export、截屏的脚本之前。随包脚本骨架与纯 UTF-8 捕获的 runner。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/windows-powershell-from-gitbash"
   },
   {
    "id": "skill:windows-relocated-install-path-repair",
@@ -1219,9 +1579,12 @@
    "name": "windows-relocated-install-path-repair",
    "status": "shipped",
    "tier": "library",
-   "description": "\"诊断并修复 Windows 应用被手工从 C 盘搬到 D 盘之后出现的能启动但核心功能失效。形态——输入法能切中文却不出候选只吐英文字母；软件能开但后台服务、渲染进程、更新或卸载失效；日志出现 Service Control Manager 7000 系统找不到指定的文件；注册表 InstallPath 或服务 ImagePath 仍指向已删除的旧 C 盘目录。 触发词：7000、ImagePath、InstallLocation。\"",
-   "install": "cp -r skills/windows-relocated-install-path-repair ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "诊断并修复 Windows 应用被手工从 C 盘搬到 D 盘之后出现的能启动但核心功能失效。形态——输入法能切中文却不出候选只吐英文字母；软件能开但后台服务、渲染进程、更新或卸载失效；日志出现 Service Control Manager 7000 系统找不到指定的文件；注册表 InstallPath 或服务 ImagePath 仍指向已删除的旧 C 盘目录。 触发词：7000、ImagePath、InstallLocation。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/windows-relocated-install-path-repair"
   },
   {
    "id": "skill:windows-ui-forensics-powershell",
@@ -1229,811 +1592,1015 @@
    "name": "windows-ui-forensics-powershell",
    "status": "shipped",
    "tier": "library",
-   "description": "\"从 Git Bash 驱动的 Windows 桌面取证手册——截图、UIA 枚举、托盘与飞窗检查、P-Invoke 常量，以及会让探针说谎的编码陷阱。用于 PowerShell 探针报 0 项或无匹配却要分清空窗口与缺句柄、UIA Name 为空要靠 AutomationId 或 ClassName、Add-Type 前找不到类型、0x80000000 变负 Int32 破坏 uint 参数、无 BOM 的中文被当 cp936 而静默不匹配，以及点击-截图-枚举易失界面之前。订正见 windows-powershell-from-gitbash《订正与增量》。\"",
-   "install": "cp -r skills/windows-ui-forensics-powershell ~/.qoder/skills-library/",
-   "source": "self-built"
+   "description": "从 Git Bash 驱动的 Windows 桌面取证手册——截图、UIA 枚举、托盘与飞窗检查、P-Invoke 常量，以及会让探针说谎的编码陷阱。用于 PowerShell 探针报 0 项或无匹配却要分清空窗口与缺句柄、UIA Name 为空要靠 AutomationId 或 ClassName、Add-Type 前找不到类型、0x80000000 变负 Int32 破坏 uint 参数、无 BOM 的中文被当 cp936 而静默不匹配，以及点击-截图-枚举易失界面之前。订正见 windows-powershell-from-gitbash《订正与增量》。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/windows-ui-forensics-powershell"
   },
   {
    "id": "skill:write-repowiki",
    "category": "skill",
    "name": "write-repowiki",
    "status": "shipped",
-   "tier": "core",
+   "tier": "library",
    "description": "按 Qoder 标准格式生成或维护仓库 wiki（.qoder/repowiki/）。当任务要\"先查 wiki 再动手\"\"给仓库建/补/改 wiki\"\"代码改了要同批回写 wiki\"、或多写手并行写长文档时使用。关键词：repowiki、仓库 wiki、知识卡、wiki_plan、四层结构、回写 wiki、wiki 与代码冲突、knowledge-plan、/knowledge。",
-   "install": "cp -r skills/write-repowiki ~/.qoder/skills/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:attempt-lock-core.js",
-   "category": "script",
-   "name": "attempt-lock-core.js",
-   "status": "shipped",
-   "install": "cp scripts/attempt-lock-core.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:attempt-lock-guard.js",
-   "category": "script",
-   "name": "attempt-lock-guard.js",
-   "status": "shipped",
-   "install": "cp scripts/attempt-lock-guard.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:attempt-lock-guard.test.js",
-   "category": "script",
-   "name": "attempt-lock-guard.test.js",
-   "status": "shipped",
-   "install": "cp scripts/attempt-lock-guard.test.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:auth-lock-core.js",
-   "category": "script",
-   "name": "auth-lock-core.js",
-   "status": "shipped",
-   "install": "cp scripts/auth-lock-core.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:auth-lock-guard.js",
-   "category": "script",
-   "name": "auth-lock-guard.js",
-   "status": "shipped",
-   "install": "cp scripts/auth-lock-guard.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:auth-lock-guard.test.js",
-   "category": "script",
-   "name": "auth-lock-guard.test.js",
-   "status": "shipped",
-   "install": "cp scripts/auth-lock-guard.test.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:auth-lock-merge-mutation.test.js",
-   "category": "script",
-   "name": "auth-lock-merge-mutation.test.js",
-   "status": "shipped",
-   "install": "cp scripts/auth-lock-merge-mutation.test.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:backup-file.js",
-   "category": "script",
-   "name": "backup-file.js",
-   "status": "shipped",
-   "install": "cp scripts/backup-file.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:backup-file.test.js",
-   "category": "script",
-   "name": "backup-file.test.js",
-   "status": "shipped",
-   "install": "cp scripts/backup-file.test.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:build-skills-index.cjs",
-   "category": "script",
-   "name": "build-skills-index.cjs",
-   "status": "shipped",
-   "install": "cp scripts/build-skills-index.cjs ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:byok-modelconfigs-guard.js",
-   "category": "script",
-   "name": "byok-modelconfigs-guard.js",
-   "status": "shipped",
-   "install": "cp scripts/byok-modelconfigs-guard.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:capture-window.ps1",
-   "category": "script",
-   "name": "capture-window.ps1",
-   "status": "shipped",
-   "install": "cp scripts/capture-window.ps1 ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:carrier-preflight.cjs",
-   "category": "script",
-   "name": "carrier-preflight.cjs",
-   "status": "shipped",
-   "install": "cp scripts/carrier-preflight.cjs ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:carrier-preflight.test.js",
-   "category": "script",
-   "name": "carrier-preflight.test.js",
-   "status": "shipped",
-   "install": "cp scripts/carrier-preflight.test.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:cdp-two-frame-shot.mjs",
-   "category": "script",
-   "name": "cdp-two-frame-shot.mjs",
-   "status": "shipped",
-   "install": "cp scripts/cdp-two-frame-shot.mjs ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:clarify-contract.test.js",
-   "category": "script",
-   "name": "clarify-contract.test.js",
-   "status": "shipped",
-   "install": "cp scripts/clarify-contract.test.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:client-root.js",
-   "category": "script",
-   "name": "client-root.js",
-   "status": "shipped",
-   "install": "cp scripts/client-root.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:commit-scope-guard.js",
-   "category": "script",
-   "name": "commit-scope-guard.js",
-   "status": "shipped",
-   "install": "cp scripts/commit-scope-guard.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:commit-scope-guard.test.js",
-   "category": "script",
-   "name": "commit-scope-guard.test.js",
-   "status": "shipped",
-   "install": "cp scripts/commit-scope-guard.test.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:config-doctor.cjs",
-   "category": "script",
-   "name": "config-doctor.cjs",
-   "status": "shipped",
-   "install": "cp scripts/config-doctor.cjs ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:cua-cursor-guard.js",
-   "category": "script",
-   "name": "cua-cursor-guard.js",
-   "status": "shipped",
-   "install": "cp scripts/cua-cursor-guard.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:cua-cursor-guard.test.js",
-   "category": "script",
-   "name": "cua-cursor-guard.test.js",
-   "status": "shipped",
-   "install": "cp scripts/cua-cursor-guard.test.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:cua-wait.ps1",
-   "category": "script",
-   "name": "cua-wait.ps1",
-   "status": "shipped",
-   "install": "cp scripts/cua-wait.ps1 ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:disk-migration-candidates.sh",
-   "category": "script",
-   "name": "disk-migration-candidates.sh",
-   "status": "shipped",
-   "install": "cp scripts/disk-migration-candidates.sh ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:disk-sweeper.js",
-   "category": "script",
-   "name": "disk-sweeper.js",
-   "status": "shipped",
-   "install": "cp scripts/disk-sweeper.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:disk-sweeper.test.js",
-   "category": "script",
-   "name": "disk-sweeper.test.js",
-   "status": "shipped",
-   "install": "cp scripts/disk-sweeper.test.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:edge-net-check.cjs",
-   "category": "script",
-   "name": "edge-net-check.cjs",
-   "status": "shipped",
-   "install": "cp scripts/edge-net-check.cjs ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:edit-guard.js",
-   "category": "script",
-   "name": "edit-guard.js",
-   "status": "shipped",
-   "install": "cp scripts/edit-guard.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:edit-guard.test.js",
-   "category": "script",
-   "name": "edit-guard.test.js",
-   "status": "shipped",
-   "install": "cp scripts/edit-guard.test.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:evidence-audit.cjs",
-   "category": "script",
-   "name": "evidence-audit.cjs",
-   "status": "shipped",
-   "install": "cp scripts/evidence-audit.cjs ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:evidence-audit.test.js",
-   "category": "script",
-   "name": "evidence-audit.test.js",
-   "status": "shipped",
-   "install": "cp scripts/evidence-audit.test.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:fact-ledger.cjs",
-   "category": "script",
-   "name": "fact-ledger.cjs",
-   "status": "shipped",
-   "install": "cp scripts/fact-ledger.cjs ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:fact-ledger.test.js",
-   "category": "script",
-   "name": "fact-ledger.test.js",
-   "status": "shipped",
-   "install": "cp scripts/fact-ledger.test.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:fix-repowiki-toc.js",
-   "category": "script",
-   "name": "fix-repowiki-toc.js",
-   "status": "shipped",
-   "install": "cp scripts/fix-repowiki-toc.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:gh-accel-plan.cjs",
-   "category": "script",
-   "name": "gh-accel-plan.cjs",
-   "status": "shipped",
-   "install": "cp scripts/gh-accel-plan.cjs ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:global-config-guard.js",
-   "category": "script",
-   "name": "global-config-guard.js",
-   "status": "shipped",
-   "install": "cp scripts/global-config-guard.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:global-config-guard.test.js",
-   "category": "script",
-   "name": "global-config-guard.test.js",
-   "status": "shipped",
-   "install": "cp scripts/global-config-guard.test.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:global-config-smoke.test.js",
-   "category": "script",
-   "name": "global-config-smoke.test.js",
-   "status": "shipped",
-   "install": "cp scripts/global-config-smoke.test.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:hook-crash-guard.js",
-   "category": "script",
-   "name": "hook-crash-guard.js",
-   "status": "shipped",
-   "install": "cp scripts/hook-crash-guard.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:hook-crash-guard.test.js",
-   "category": "script",
-   "name": "hook-crash-guard.test.js",
-   "status": "shipped",
-   "install": "cp scripts/hook-crash-guard.test.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:huge-output-guard.js",
-   "category": "script",
-   "name": "huge-output-guard.js",
-   "status": "shipped",
-   "install": "cp scripts/huge-output-guard.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:huge-output-guard.test.js",
-   "category": "script",
-   "name": "huge-output-guard.test.js",
-   "status": "shipped",
-   "install": "cp scripts/huge-output-guard.test.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:link-cn-dirs.ps1",
-   "category": "script",
-   "name": "link-cn-dirs.ps1",
-   "status": "shipped",
-   "install": "cp scripts/link-cn-dirs.ps1 ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:mcp-smoke.js",
-   "category": "script",
-   "name": "mcp-smoke.js",
-   "status": "shipped",
-   "install": "cp scripts/mcp-smoke.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:migrate-data-to-disk.sh",
-   "category": "script",
-   "name": "migrate-data-to-disk.sh",
-   "status": "shipped",
-   "install": "cp scripts/migrate-data-to-disk.sh ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:migrate-qoder-data.ps1",
-   "category": "script",
-   "name": "migrate-qoder-data.ps1",
-   "status": "shipped",
-   "install": "cp scripts/migrate-qoder-data.ps1 ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:office.js",
-   "category": "script",
-   "name": "office.js",
-   "status": "shipped",
-   "install": "cp scripts/office.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:office.test.js",
-   "category": "script",
-   "name": "office.test.js",
-   "status": "shipped",
-   "install": "cp scripts/office.test.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:pack-folder.js",
-   "category": "script",
-   "name": "pack-folder.js",
-   "status": "shipped",
-   "install": "cp scripts/pack-folder.js ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:pack-share-docs.cjs",
-   "category": "script",
-   "name": "pack-share-docs.cjs",
-   "status": "shipped",
-   "install": "cp scripts/pack-share-docs.cjs ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:pack-share-extras.cjs",
-   "category": "script",
-   "name": "pack-share-extras.cjs",
-   "status": "shipped",
-   "install": "cp scripts/pack-share-extras.cjs ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:pkg-catalog.cjs",
-   "category": "script",
-   "name": "pkg-catalog.cjs",
-   "status": "shipped",
-   "install": "cp scripts/pkg-catalog.cjs ~/.qoder/scripts/",
-   "source": "self-built"
-  },
-  {
-   "id": "script:pkg-catalog.test.js",
-   "category": "script",
-   "name": "pkg-catalog.test.js",
-   "status": "shipped",
-   "install": "cp scripts/pkg-catalog.test.js ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/write-repowiki"
   },
   {
    "id": "script:README-rule-enforcement.md",
    "category": "script",
    "name": "README-rule-enforcement.md",
    "status": "shipped",
-   "install": "cp scripts/README-rule-enforcement.md ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/README-rule-enforcement.md"
+  },
+  {
+   "id": "script:attempt-lock-core.js",
+   "category": "script",
+   "name": "attempt-lock-core.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/attempt-lock-core.js"
+  },
+  {
+   "id": "script:attempt-lock-guard.js",
+   "category": "script",
+   "name": "attempt-lock-guard.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/attempt-lock-guard.js"
+  },
+  {
+   "id": "script:attempt-lock-guard.test.js",
+   "category": "script",
+   "name": "attempt-lock-guard.test.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/attempt-lock-guard.test.js"
+  },
+  {
+   "id": "script:auth-lock-core.js",
+   "category": "script",
+   "name": "auth-lock-core.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/auth-lock-core.js"
+  },
+  {
+   "id": "script:auth-lock-guard.js",
+   "category": "script",
+   "name": "auth-lock-guard.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/auth-lock-guard.js"
+  },
+  {
+   "id": "script:auth-lock-guard.test.js",
+   "category": "script",
+   "name": "auth-lock-guard.test.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/auth-lock-guard.test.js"
+  },
+  {
+   "id": "script:auth-lock-merge-mutation.test.js",
+   "category": "script",
+   "name": "auth-lock-merge-mutation.test.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/auth-lock-merge-mutation.test.js"
+  },
+  {
+   "id": "script:backup-file.js",
+   "category": "script",
+   "name": "backup-file.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/backup-file.js"
+  },
+  {
+   "id": "script:backup-file.test.js",
+   "category": "script",
+   "name": "backup-file.test.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/backup-file.test.js"
+  },
+  {
+   "id": "script:build-skills-index.cjs",
+   "category": "script",
+   "name": "build-skills-index.cjs",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/build-skills-index.cjs"
+  },
+  {
+   "id": "script:byok-modelconfigs-guard.js",
+   "category": "script",
+   "name": "byok-modelconfigs-guard.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/byok-modelconfigs-guard.js"
+  },
+  {
+   "id": "script:capture-window.ps1",
+   "category": "script",
+   "name": "capture-window.ps1",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/capture-window.ps1"
+  },
+  {
+   "id": "script:carrier-preflight.cjs",
+   "category": "script",
+   "name": "carrier-preflight.cjs",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/carrier-preflight.cjs"
+  },
+  {
+   "id": "script:carrier-preflight.test.js",
+   "category": "script",
+   "name": "carrier-preflight.test.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/carrier-preflight.test.js"
+  },
+  {
+   "id": "script:cdp-two-frame-shot.mjs",
+   "category": "script",
+   "name": "cdp-two-frame-shot.mjs",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/cdp-two-frame-shot.mjs"
+  },
+  {
+   "id": "script:clarify-contract.test.js",
+   "category": "script",
+   "name": "clarify-contract.test.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/clarify-contract.test.js"
+  },
+  {
+   "id": "script:client-root.js",
+   "category": "script",
+   "name": "client-root.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/client-root.js"
+  },
+  {
+   "id": "script:commit-scope-guard.js",
+   "category": "script",
+   "name": "commit-scope-guard.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/commit-scope-guard.js"
+  },
+  {
+   "id": "script:commit-scope-guard.test.js",
+   "category": "script",
+   "name": "commit-scope-guard.test.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/commit-scope-guard.test.js"
+  },
+  {
+   "id": "script:config-doctor.cjs",
+   "category": "script",
+   "name": "config-doctor.cjs",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/config-doctor.cjs"
+  },
+  {
+   "id": "script:cua-cursor-guard.js",
+   "category": "script",
+   "name": "cua-cursor-guard.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/cua-cursor-guard.js"
+  },
+  {
+   "id": "script:cua-cursor-guard.test.js",
+   "category": "script",
+   "name": "cua-cursor-guard.test.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/cua-cursor-guard.test.js"
+  },
+  {
+   "id": "script:cua-wait.ps1",
+   "category": "script",
+   "name": "cua-wait.ps1",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/cua-wait.ps1"
+  },
+  {
+   "id": "script:disk-migration-candidates.sh",
+   "category": "script",
+   "name": "disk-migration-candidates.sh",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/disk-migration-candidates.sh"
+  },
+  {
+   "id": "script:disk-sweeper.js",
+   "category": "script",
+   "name": "disk-sweeper.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/disk-sweeper.js"
+  },
+  {
+   "id": "script:disk-sweeper.test.js",
+   "category": "script",
+   "name": "disk-sweeper.test.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/disk-sweeper.test.js"
+  },
+  {
+   "id": "script:edge-net-check.cjs",
+   "category": "script",
+   "name": "edge-net-check.cjs",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/edge-net-check.cjs"
+  },
+  {
+   "id": "script:edit-guard.js",
+   "category": "script",
+   "name": "edit-guard.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/edit-guard.js"
+  },
+  {
+   "id": "script:edit-guard.test.js",
+   "category": "script",
+   "name": "edit-guard.test.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/edit-guard.test.js"
+  },
+  {
+   "id": "script:evidence-audit.cjs",
+   "category": "script",
+   "name": "evidence-audit.cjs",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/evidence-audit.cjs"
+  },
+  {
+   "id": "script:evidence-audit.test.js",
+   "category": "script",
+   "name": "evidence-audit.test.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/evidence-audit.test.js"
+  },
+  {
+   "id": "script:fact-ledger.cjs",
+   "category": "script",
+   "name": "fact-ledger.cjs",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/fact-ledger.cjs"
+  },
+  {
+   "id": "script:fact-ledger.test.js",
+   "category": "script",
+   "name": "fact-ledger.test.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/fact-ledger.test.js"
+  },
+  {
+   "id": "script:fix-repowiki-toc.js",
+   "category": "script",
+   "name": "fix-repowiki-toc.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/fix-repowiki-toc.js"
+  },
+  {
+   "id": "script:gh-accel-plan.cjs",
+   "category": "script",
+   "name": "gh-accel-plan.cjs",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/gh-accel-plan.cjs"
+  },
+  {
+   "id": "script:global-config-guard.js",
+   "category": "script",
+   "name": "global-config-guard.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/global-config-guard.js"
+  },
+  {
+   "id": "script:global-config-guard.test.js",
+   "category": "script",
+   "name": "global-config-guard.test.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/global-config-guard.test.js"
+  },
+  {
+   "id": "script:global-config-smoke.test.js",
+   "category": "script",
+   "name": "global-config-smoke.test.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/global-config-smoke.test.js"
+  },
+  {
+   "id": "script:hook-crash-guard.js",
+   "category": "script",
+   "name": "hook-crash-guard.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/hook-crash-guard.js"
+  },
+  {
+   "id": "script:hook-crash-guard.test.js",
+   "category": "script",
+   "name": "hook-crash-guard.test.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/hook-crash-guard.test.js"
+  },
+  {
+   "id": "script:huge-output-guard.js",
+   "category": "script",
+   "name": "huge-output-guard.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/huge-output-guard.js"
+  },
+  {
+   "id": "script:huge-output-guard.test.js",
+   "category": "script",
+   "name": "huge-output-guard.test.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/huge-output-guard.test.js"
+  },
+  {
+   "id": "script:link-cn-dirs.ps1",
+   "category": "script",
+   "name": "link-cn-dirs.ps1",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/link-cn-dirs.ps1"
+  },
+  {
+   "id": "script:mcp-smoke.js",
+   "category": "script",
+   "name": "mcp-smoke.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/mcp-smoke.js"
+  },
+  {
+   "id": "script:migrate-data-to-disk.sh",
+   "category": "script",
+   "name": "migrate-data-to-disk.sh",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/migrate-data-to-disk.sh"
+  },
+  {
+   "id": "script:migrate-qoder-data.ps1",
+   "category": "script",
+   "name": "migrate-qoder-data.ps1",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/migrate-qoder-data.ps1"
+  },
+  {
+   "id": "script:office.js",
+   "category": "script",
+   "name": "office.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/office.js"
+  },
+  {
+   "id": "script:office.test.js",
+   "category": "script",
+   "name": "office.test.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/office.test.js"
+  },
+  {
+   "id": "script:pack-folder.js",
+   "category": "script",
+   "name": "pack-folder.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/pack-folder.js"
+  },
+  {
+   "id": "script:pack-share-docs.cjs",
+   "category": "script",
+   "name": "pack-share-docs.cjs",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/pack-share-docs.cjs"
+  },
+  {
+   "id": "script:pack-share-extras.cjs",
+   "category": "script",
+   "name": "pack-share-extras.cjs",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/pack-share-extras.cjs"
+  },
+  {
+   "id": "script:pkg-catalog.cjs",
+   "category": "script",
+   "name": "pkg-catalog.cjs",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/pkg-catalog.cjs"
+  },
+  {
+   "id": "script:pkg-catalog.test.js",
+   "category": "script",
+   "name": "pkg-catalog.test.js",
+   "status": "shipped",
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/pkg-catalog.test.js"
   },
   {
    "id": "script:risky-match-guard.js",
    "category": "script",
    "name": "risky-match-guard.js",
    "status": "shipped",
-   "install": "cp scripts/risky-match-guard.js ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/risky-match-guard.js"
   },
   {
    "id": "script:risky-match-guard.test.js",
    "category": "script",
    "name": "risky-match-guard.test.js",
    "status": "shipped",
-   "install": "cp scripts/risky-match-guard.test.js ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/risky-match-guard.test.js"
   },
   {
    "id": "script:rules-reminder.js",
    "category": "script",
    "name": "rules-reminder.js",
    "status": "shipped",
-   "install": "cp scripts/rules-reminder.js ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/rules-reminder.js"
   },
   {
    "id": "script:rules-reminder.test.js",
    "category": "script",
    "name": "rules-reminder.test.js",
    "status": "shipped",
-   "install": "cp scripts/rules-reminder.test.js ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/rules-reminder.test.js"
   },
   {
    "id": "script:rules-weekly-audit.js",
    "category": "script",
    "name": "rules-weekly-audit.js",
    "status": "shipped",
-   "install": "cp scripts/rules-weekly-audit.js ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/rules-weekly-audit.js"
   },
   {
    "id": "script:rules-weekly-audit.test.js",
    "category": "script",
    "name": "rules-weekly-audit.test.js",
    "status": "shipped",
-   "install": "cp scripts/rules-weekly-audit.test.js ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/rules-weekly-audit.test.js"
   },
   {
    "id": "script:session-budget.js",
    "category": "script",
    "name": "session-budget.js",
    "status": "shipped",
-   "install": "cp scripts/session-budget.js ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/session-budget.js"
   },
   {
    "id": "script:session-budget.test.js",
    "category": "script",
    "name": "session-budget.test.js",
    "status": "shipped",
-   "install": "cp scripts/session-budget.test.js ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/session-budget.test.js"
   },
   {
    "id": "script:share-package-verify.cjs",
    "category": "script",
    "name": "share-package-verify.cjs",
    "status": "shipped",
-   "install": "cp scripts/share-package-verify.cjs ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/share-package-verify.cjs"
   },
   {
    "id": "script:share-package-verify.test.js",
    "category": "script",
    "name": "share-package-verify.test.js",
    "status": "shipped",
-   "install": "cp scripts/share-package-verify.test.js ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/share-package-verify.test.js"
   },
   {
    "id": "script:share-secret-scan.cjs",
    "category": "script",
    "name": "share-secret-scan.cjs",
    "status": "shipped",
-   "install": "cp scripts/share-secret-scan.cjs ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/share-secret-scan.cjs"
   },
   {
    "id": "script:skill-collisions.cjs",
    "category": "script",
    "name": "skill-collisions.cjs",
    "status": "shipped",
-   "install": "cp scripts/skill-collisions.cjs ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/skill-collisions.cjs"
   },
   {
    "id": "script:skill-load.cjs",
    "category": "script",
    "name": "skill-load.cjs",
    "status": "shipped",
-   "install": "cp scripts/skill-load.cjs ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/skill-load.cjs"
   },
   {
    "id": "script:skill-load.test.js",
    "category": "script",
    "name": "skill-load.test.js",
    "status": "shipped",
-   "install": "cp scripts/skill-load.test.js ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/skill-load.test.js"
   },
   {
    "id": "script:skills-doctor.cjs",
    "category": "script",
    "name": "skills-doctor.cjs",
    "status": "shipped",
-   "install": "cp scripts/skills-doctor.cjs ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/skills-doctor.cjs"
   },
   {
    "id": "script:stop-gate.js",
    "category": "script",
    "name": "stop-gate.js",
    "status": "shipped",
-   "install": "cp scripts/stop-gate.js ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/stop-gate.js"
   },
   {
    "id": "script:stop-gate.test.js",
    "category": "script",
    "name": "stop-gate.test.js",
    "status": "shipped",
-   "install": "cp scripts/stop-gate.test.js ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/stop-gate.test.js"
   },
   {
    "id": "script:sync-global-config.sh",
    "category": "script",
    "name": "sync-global-config.sh",
    "status": "shipped",
-   "install": "cp scripts/sync-global-config.sh ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/sync-global-config.sh"
   },
   {
    "id": "script:sync-global-config.test.sh",
    "category": "script",
    "name": "sync-global-config.test.sh",
    "status": "shipped",
-   "install": "cp scripts/sync-global-config.test.sh ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/sync-global-config.test.sh"
   },
   {
    "id": "script:sync-memory.sh",
    "category": "script",
    "name": "sync-memory.sh",
    "status": "shipped",
-   "install": "cp scripts/sync-memory.sh ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/sync-memory.sh"
   },
   {
    "id": "script:sync-memory.test.sh",
    "category": "script",
    "name": "sync-memory.test.sh",
    "status": "shipped",
-   "install": "cp scripts/sync-memory.test.sh ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/sync-memory.test.sh"
   },
   {
    "id": "script:sync-project-memory.ps1",
    "category": "script",
    "name": "sync-project-memory.ps1",
    "status": "shipped",
-   "install": "cp scripts/sync-project-memory.ps1 ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/sync-project-memory.ps1"
   },
   {
    "id": "script:sync-projects-junction.ps1",
    "category": "script",
    "name": "sync-projects-junction.ps1",
    "status": "shipped",
-   "install": "cp scripts/sync-projects-junction.ps1 ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/sync-projects-junction.ps1"
   },
   {
    "id": "script:tier-skills.cjs",
    "category": "script",
    "name": "tier-skills.cjs",
    "status": "shipped",
-   "install": "cp scripts/tier-skills.cjs ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/tier-skills.cjs"
   },
   {
    "id": "script:tmp-sweeper.js",
    "category": "script",
    "name": "tmp-sweeper.js",
    "status": "shipped",
-   "install": "cp scripts/tmp-sweeper.js ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/tmp-sweeper.js"
   },
   {
    "id": "script:tmp-sweeper.test.js",
    "category": "script",
    "name": "tmp-sweeper.test.js",
    "status": "shipped",
-   "install": "cp scripts/tmp-sweeper.test.js ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/tmp-sweeper.test.js"
   },
   {
    "id": "script:tool-payload-guard.js",
    "category": "script",
    "name": "tool-payload-guard.js",
    "status": "shipped",
-   "install": "cp scripts/tool-payload-guard.js ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/tool-payload-guard.js"
   },
   {
    "id": "script:tool-payload-guard.test.js",
    "category": "script",
    "name": "tool-payload-guard.test.js",
    "status": "shipped",
-   "install": "cp scripts/tool-payload-guard.test.js ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/tool-payload-guard.test.js"
   },
   {
    "id": "script:validate-repowiki.js",
    "category": "script",
    "name": "validate-repowiki.js",
    "status": "shipped",
-   "install": "cp scripts/validate-repowiki.js ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/validate-repowiki.js"
   },
   {
    "id": "script:win-path-guard.js",
    "category": "script",
    "name": "win-path-guard.js",
    "status": "shipped",
-   "install": "cp scripts/win-path-guard.js ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/win-path-guard.js"
   },
   {
    "id": "script:win-path-guard.test.js",
    "category": "script",
    "name": "win-path-guard.test.js",
    "status": "shipped",
-   "install": "cp scripts/win-path-guard.test.js ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/win-path-guard.test.js"
   },
   {
    "id": "script:work-queue-check.js",
    "category": "script",
    "name": "work-queue-check.js",
    "status": "shipped",
-   "install": "cp scripts/work-queue-check.js ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/work-queue-check.js"
   },
   {
    "id": "script:work-queue-check.test.js",
    "category": "script",
    "name": "work-queue-check.test.js",
    "status": "shipped",
-   "install": "cp scripts/work-queue-check.test.js ~/.qoder/scripts/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "scripts/work-queue-check.test.js"
   },
   {
    "id": "command:checkpoint",
    "category": "command",
    "name": "checkpoint",
    "status": "shipped",
-   "install": "cp commands/checkpoint.md ~/.qoder/commands/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "commands/checkpoint.md"
   },
   {
    "id": "command:clarify",
    "category": "command",
    "name": "clarify",
    "status": "shipped",
-   "install": "cp commands/clarify.md ~/.qoder/commands/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "commands/clarify.md"
   },
   {
    "id": "command:clean-disk",
    "category": "command",
    "name": "clean-disk",
    "status": "shipped",
-   "install": "cp commands/clean-disk.md ~/.qoder/commands/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "commands/clean-disk.md"
   },
   {
    "id": "command:clean-temp",
    "category": "command",
    "name": "clean-temp",
    "status": "shipped",
-   "install": "cp commands/clean-temp.md ~/.qoder/commands/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "commands/clean-temp.md"
   },
   {
    "id": "command:converge",
    "category": "command",
    "name": "converge",
    "status": "shipped",
-   "install": "cp commands/converge.md ~/.qoder/commands/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "commands/converge.md"
   },
   {
    "id": "command:edge-net-check",
    "category": "command",
    "name": "edge-net-check",
    "status": "shipped",
-   "install": "cp commands/edge-net-check.md ~/.qoder/commands/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "commands/edge-net-check.md"
   },
   {
    "id": "command:fact",
    "category": "command",
    "name": "fact",
    "status": "shipped",
-   "install": "cp commands/fact.md ~/.qoder/commands/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "commands/fact.md"
   },
   {
    "id": "command:pkg-find",
    "category": "command",
    "name": "pkg-find",
    "status": "shipped",
-   "install": "cp commands/pkg-find.md ~/.qoder/commands/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "commands/pkg-find.md"
   },
   {
    "id": "command:skill-load",
    "category": "command",
    "name": "skill-load",
    "status": "shipped",
-   "install": "cp commands/skill-load.md ~/.qoder/commands/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "commands/skill-load.md"
   },
   {
    "id": "command:verify-package",
    "category": "command",
    "name": "verify-package",
    "status": "shipped",
-   "install": "cp commands/verify-package.md ~/.qoder/commands/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "commands/verify-package.md"
   },
   {
    "id": "agent:deploy-verifier",
    "category": "agent",
    "name": "deploy-verifier",
    "status": "shipped",
-   "install": "cp agents/deploy-verifier.md ~/.qoder/agents/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "agents/deploy-verifier.md"
   },
   {
    "id": "agent:runtime-truth-verifier",
    "category": "agent",
    "name": "runtime-truth-verifier",
    "status": "shipped",
-   "install": "cp agents/runtime-truth-verifier.md ~/.qoder/agents/",
-   "source": "self-built"
+   "install": {
+    "mode": "copy-file"
+   },
+   "source": "agents/runtime-truth-verifier.md"
   }
  ]
 }

@@ -79,5 +79,5 @@ grep -rn "readdirSync(.*skills\|path.join(.*'skills'\|path.join(.*\"skills\"" \
   ~/.qoder/scripts/*.js ~/.qoder/scripts/*.cjs | grep -v skills-library
 
 # 盘点所有技能目录的期望集合
-node ~/.qoder/skills/skill-tiering-lazy-load/scripts/skill-tier-report.cjs
+node ~/.qoder/skills-library/skill-tiering-lazy-load/scripts/skill-tier-report.cjs
 ```

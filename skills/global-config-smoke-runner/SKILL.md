@@ -41,7 +41,7 @@ description: "本机 Qoder 全局配置冒烟：枚举 ~/.qoder/scripts 下全�
 ## 运行
 
 ```bash
-node ~/.qoder/skills/global-config-smoke-runner/scripts/smoke-runner.cjs
+node ~/.qoder/skills-library/global-config-smoke-runner/scripts/smoke-runner.cjs
 ```
 
 常用参数：

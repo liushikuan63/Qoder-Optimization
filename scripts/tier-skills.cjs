@@ -1,76 +1,82 @@
 #!/usr/bin/env node
-// 技能分层：把非核心技能从 ~/.qoder/skills 移到 ~/.qoder/skills-library（或反向恢复），然后重建索引。
-// 默认 dry-run，加 --apply 才动手。
-//   node tier-skills.cjs                        # 预览：哪些会移入按需库
-//   node tier-skills.cjs --apply                # 执行分层（核心 = 内置 KEEP 列表）
-//   node tier-skills.cjs --apply --keep a,b,c   # 额外保留（逗号分隔）
-//   node tier-skills.cjs --restore a,b          # 把指定技能移回常驻
-//   node tier-skills.cjs --restore-all          # 全部移回常驻
+'use strict';
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 const { clientRoot } = require('./client-root.js');
-const CLIENT_ROOT = clientRoot();
-const os = require('os');
-const { execFileSync } = require('child_process');
-const Q = CLIENT_ROOT;
-const S = path.join(Q, 'skills');
-const LIB = path.join(Q, 'skills-library');
 
 const CORE = [
   'skills-router', 'verify-before-claim', 'verify-ui-in-browser', 'goal-driven-execution',
-  'ship-clean-pr', 'skill-trim-with-capability-transfer', 'rules-conflict-audit',
-  'skill-reference-integrity-audit', 'skill-description-route-cue-rewrite', 'self-evolution',
-  'safe-text-editing', 'structured-edit-safety', 'memory-link-and-credential-audit',
-  'pause-writer-before-shared-file-edit', 'concurrent-edit-attribution-check',
-  'office-docs', 'write-repowiki', 'vibecoding-doc', 'vibe-coding-workflow',
-  'disk-junction-migration', 'verify-windows-cmd-tool', 'continuation-state-audit',
-  'share-package-rebuild-triage', 'mechanize-rule-into-hook-guard',
-  'skill-tiering-lazy-load', 'global-config-smoke-runner',
+  'ship-clean-pr', 'self-evolution', 'safe-text-editing', 'structured-edit-safety',
+  'continuation-state-audit', 'concurrent-edit-attribution-check', 'vibecoding-doc', 'vibe-coding-workflow',
 ];
 
-const argv = process.argv.slice(2);
-const apply = argv.includes('--apply');
-const restoreAll = argv.includes('--restore-all');
-const keepArg = (() => { const i = argv.indexOf('--keep'); return i >= 0 ? String(argv[i + 1] || '') : ''; })();
-const restoreArg = (() => { const i = argv.indexOf('--restore'); return i >= 0 ? String(argv[i + 1] || '') : ''; })();
-const keep = new Set([...CORE, ...keepArg.split(',').map((x) => x.trim()).filter(Boolean)]);
-
-fs.mkdirSync(LIB, { recursive: true });
-const skillDirs = (root) => (fs.existsSync(root) ? fs.readdirSync(root).filter((d) => fs.existsSync(path.join(root, d, 'SKILL.md'))) : []);
-const rebuild = () => {
-  try { execFileSync(process.execPath, [path.join(__dirname, 'build-skills-index.cjs')], { stdio: 'inherit' }); }
-  catch (e) { console.log('索引重建失败：' + e.message); }
-};
-
-if (restoreAll || restoreArg) {
-  const names = restoreAll ? skillDirs(LIB) : restoreArg.split(',').map((x) => x.trim()).filter(Boolean);
-  let n = 0;
-  for (const name of names) {
-    const from = path.join(LIB, name), to = path.join(S, name);
-    if (!fs.existsSync(from)) { console.log('SKIP 库中无 ' + name); continue; }
-    if (fs.existsSync(to)) { console.log('SKIP 常驻已有 ' + name); continue; }
-    if (apply) { fs.renameSync(from, to); n++; } else console.log('would-restore ' + name);
+function main(argv) {
+  let apply = false, restoreAll = false, keep = [], restore = [], only = [];
+  const names = value => {
+    const result = value.split(',').map(name => name.trim()).filter(Boolean);
+    if (!result.length || result.some(name => !/^[a-z0-9][a-z0-9-]*$/.test(name))) throw new Error('技能名必须为小写字母、数字或连字符');
+    return [...new Set(result)];
+  };
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--apply') apply = true;
+    else if (argv[i] === '--restore-all') restoreAll = true;
+    else if (['--keep', '--restore', '--only'].includes(argv[i]) && argv[i + 1] && !argv[i + 1].startsWith('--')) {
+      const option = argv[i++];
+      if (option === '--keep') keep = names(argv[i]);
+      else if (option === '--only') only = names(argv[i]);
+      else restore = names(argv[i]);
+    } else if (argv[i] === '--help') {
+      console.log('tier-skills.cjs [--apply] [--keep a,b] [--only a,b] | [--apply] (--restore a,b | --restore-all)');
+      return 0;
+    } else throw new Error('未知或缺值参数：' + argv[i]);
   }
-  console.log((apply ? 'restored=' : 'dry-run restore=') + (apply ? n : names.length));
-  if (apply && n) rebuild();
-  process.exit(0);
+  if ((restoreAll && restore.length) || ((restoreAll || restore.length) && (keep.length || only.length))) throw new Error('迁移与恢复参数不能混用');
+  const root = clientRoot();
+  const resident = path.join(root, 'skills');
+  const library = path.join(root, 'skills-library');
+  const list = dir => fs.existsSync(dir) ? fs.readdirSync(dir).filter(name => fs.existsSync(path.join(dir, name, 'SKILL.md'))).sort() : [];
+  const restoring = restoreAll || restore.length > 0;
+  const kept = new Set([...CORE, ...keep]);
+  const movable = list(resident).filter(name => !kept.has(name));
+  if (only.some(name => !movable.includes(name))) throw new Error('--only 含不存在或应保留的技能');
+  const selected = restoring ? (restoreAll ? list(library) : restore) : (only.length ? only : movable);
+  const plan = selected.map(name => ({ name, from: path.join(restoring ? library : resident, name), to: path.join(restoring ? resident : library, name) }));
+  for (const item of plan) {
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(item.name) || !fs.existsSync(path.join(item.from, 'SKILL.md'))) throw new Error('源技能不存在或名称无效：' + item.name);
+    if (fs.lstatSync(item.from).isSymbolicLink()) throw new Error('不自动迁移链接目录：' + item.name);
+    if (fs.existsSync(item.to)) throw new Error('目标已有同名技能，未执行任何迁移：' + item.name);
+  }
+  console.log(`${apply ? 'APPLY' : 'DRY-RUN'} ${restoring ? 'restore' : 'library'}=${plan.length}`);
+  for (const item of plan) console.log(`${item.name} -> ${restoring ? 'core' : 'library'}`);
+  if (!apply || !plan.length) return 0;
+  const builder = path.join(__dirname, 'build-skills-index.cjs');
+  if (!fs.existsSync(builder)) throw new Error('缺少 build-skills-index.cjs，未执行迁移');
+  const moved = [];
+  try {
+    fs.mkdirSync(restoring ? resident : library, { recursive: true });
+    for (const item of plan) { fs.renameSync(item.from, item.to); moved.push(item); }
+    const result = spawnSync(process.execPath, [builder], { encoding: 'utf8', timeout: 60000 });
+    if (result.error || result.status !== 0) throw new Error('索引重建失败，exit=' + result.status);
+    process.stdout.write(result.stdout || '');
+    console.log('VERIFIED moved=' + moved.length);
+    return 0;
+  } catch (error) {
+    const failed = [];
+    for (const item of moved.reverse()) {
+      try {
+        if (fs.existsSync(item.from)) throw new Error('原位置出现其他内容');
+        fs.renameSync(item.to, item.from);
+      } catch { failed.push(item.name); }
+    }
+    console.error('TIER_FAILED: ' + error.message);
+    console.error(failed.length ? '回滚未完成，请保留现场：' + failed.join(',') : '目录迁移已回滚；派生索引须复验，未覆盖其他写入者的索引。');
+    return 1;
+  }
 }
 
-const all = skillDirs(S);
-const move = all.filter((d) => !keep.has(d));
-const stay = all.filter((d) => keep.has(d));
-console.log('常驻=' + stay.length + ' 拟移入按需库=' + move.length);
-console.log('常驻: ' + stay.join(' '));
-if (!apply) {
-  console.log('拟移出: ' + move.join(' '));
-  console.log('（dry-run；加 --apply 执行）');
-  process.exit(0);
+module.exports = { CORE };
+if (require.main === module) {
+  try { process.exitCode = main(process.argv.slice(2)); }
+  catch (error) { console.error('TIER_ERROR: ' + error.message); process.exitCode = 2; }
 }
-let moved = 0;
-for (const d of move) {
-  const from = path.join(S, d), to = path.join(LIB, d);
-  if (fs.existsSync(to)) { console.log('SKIP 库中已有 ' + d); continue; }
-  fs.renameSync(from, to); moved++;
-}
-console.log('moved=' + moved);
-rebuild();

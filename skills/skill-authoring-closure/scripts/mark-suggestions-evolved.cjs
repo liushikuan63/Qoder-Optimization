@@ -75,21 +75,31 @@ const CLIENT_ROOT = (() => {
   try { return require(path.join(__dirname, '..', '..', '..', 'scripts', 'client-root.js')).clientRoot(); } catch (e) { return path.join(os.homedir(), '.qoder'); }
 })();
 const backupDir = get('backup-dir') || path.join(CLIENT_ROOT, 'evolution', 'backups');
-fs.mkdirSync(backupDir, { recursive: true });
-const stamp = new Date(now).toISOString().replace(/[:.]/g, '-');
-const backupFile = path.join(backupDir, `suggestion-rows-${stamp}.json`);
-const full = db.prepare(`SELECT * FROM skill_evolution_suggestions WHERE id IN (${rows.map(() => '?').join(',')})`).all(...rows.map((r) => r.id));
-fs.writeFileSync(backupFile, JSON.stringify({ db: dbPath, rows: full }, null, 2), 'utf8');
-console.log('逻辑备份: ' + backupFile);
-
+const selectedIds = rows.map(r => r.id);
+const selectedPlaceholders = selectedIds.map(() => '?').join(',');
+let pendingBefore;
+let pendingAfter;
 try {
   db.exec('BEGIN IMMEDIATE');
+  const full = db.prepare(`SELECT * FROM skill_evolution_suggestions WHERE id IN (${selectedPlaceholders})`).all(...selectedIds);
+  if (full.length !== rows.length || full.some(r => r.status !== 'pending' || r.skill_name !== rows.find(before => before.id === r.id).skill_name)) {
+    throw new Error('预览后目标状态或名称变化，请重新核对');
+  }
+  pendingBefore = db.prepare("SELECT COUNT(*) c FROM skill_evolution_suggestions WHERE status='pending'").get().c;
+  fs.mkdirSync(backupDir, { recursive: true });
+  const stamp = new Date(now).toISOString().replace(/[:.]/g, '-');
+  const backupFile = path.join(backupDir, `suggestion-rows-${stamp}.json`);
+  fs.writeFileSync(backupFile, JSON.stringify({ db: dbPath, rows: full }, null, 2), { encoding: 'utf8', flag: 'wx' });
+  console.log('逻辑备份: ' + backupFile);
   const upd = db.prepare(
     `UPDATE skill_evolution_suggestions
      SET status = 'evolved', updated_at = ?, reason = ?
      WHERE id = ? AND status = 'pending'`
   );
-  for (const r of rows) upd.run(now, reason, r.id);
+  for (const id of selectedIds) if (upd.run(now, reason, id).changes !== 1) throw new Error('目标更新数量不符');
+  const marked = db.prepare(`SELECT COUNT(*) c FROM skill_evolution_suggestions WHERE id IN (${selectedPlaceholders}) AND status='evolved'`).get(...selectedIds).c;
+  pendingAfter = db.prepare("SELECT COUNT(*) c FROM skill_evolution_suggestions WHERE status='pending'").get().c;
+  if (marked !== selectedIds.length || pendingBefore - pendingAfter !== selectedIds.length) throw new Error('事务内复验失败，撤销本批状态变化');
   db.exec('COMMIT');
 } catch (e) {
   try { db.exec('ROLLBACK'); } catch {}
@@ -98,17 +108,9 @@ try {
   process.exit(4);
 }
 
-const after = db.prepare(`SELECT status, COUNT(*) c FROM skill_evolution_suggestions WHERE ${selector} IN (${ph}) GROUP BY status`).all(...wanted);
 const pendingLeft = db.prepare("SELECT COUNT(*) c FROM skill_evolution_suggestions WHERE status='pending'").get().c;
-console.log('\n写入后状态分布:', JSON.stringify(after));
-console.log(`全库 pending: ${total} -> ${pendingLeft}（应减少 ${rows.length}）`);
-const marked = db.prepare(`SELECT COUNT(*) c FROM skill_evolution_suggestions WHERE ${selector} IN (${ph}) AND status='evolved'`).get(...wanted).c;
-if (total - pendingLeft !== rows.length) {
-  console.error(`复验不符：pending 减少量 ${total - pendingLeft} ≠ 匹配行 ${rows.length}（有其他会话并发写入，请按备份核对）`);
-  db.close();
-  process.exit(4);
-}
-if (!marked) { console.error('复验失败：没有任何行处于 evolved'); db.close(); process.exit(4); }
-console.log(`[复验] 已标记 evolved = ${marked}`);
+console.log(`事务内 pending: ${pendingBefore} -> ${pendingAfter}（减少 ${selectedIds.length}）`);
+console.log(`全库当前 pending: ${pendingLeft}`);
+console.log(`[复验] 已标记 evolved = ${selectedIds.length}`);
 db.close();
 process.exit(0);

@@ -3,12 +3,12 @@
 让生成的 Word **默认就好看**：主题化排版 + 目录域 + 页码 + 表格底纹；还能**从图片识别配色 → 生成主题**。与 `scripts/office.js` 分开，互不覆盖；共用技能内 `node_modules`。
 
 ```bash
-node ~/.qoder/skills/office-docs/scripts/office-styles.js themes      # 看主题与排版参数
-node ~/.qoder/skills/office-docs/scripts/office-styles.js render \
+node ~/.qoder/skills-library/office-docs/scripts/office-styles.js themes      # 看主题与排版参数
+node ~/.qoder/skills-library/office-docs/scripts/office-styles.js render \
      --md 报告.md -o 报告.docx --theme business --title "季度报告" --header "内部资料"
-cat 报告.md | node ~/.qoder/skills/office-docs/scripts/office-styles.js render \
+cat 报告.md | node ~/.qoder/skills-library/office-docs/scripts/office-styles.js render \
      --md - -o 报告.docx --theme gongwen --chapter-break            # 一级标题各起一页
-node ~/.qoder/skills/office-docs/scripts/office-styles.js --selftest # 76 条断言
+node ~/.qoder/skills-library/office-docs/scripts/office-styles.js --selftest # 76 条断言
 ```
 
 ## 三套主题
@@ -26,9 +26,9 @@ node ~/.qoder/skills/office-docs/scripts/office-styles.js --selftest # 76 条断
 给一张截图 / 品牌页 / LOGO，量化出主色板并产出一份**与内置主题同形**的 JSON，直接喂 `render`：
 
 ```bash
-node ~/.qoder/skills/office-docs/scripts/office-styles.js extract-theme \
+node ~/.qoder/skills-library/office-docs/scripts/office-styles.js extract-theme \
      --from 品牌图.png --name acme -o theme.json --verbose
-node ~/.qoder/skills/office-docs/scripts/office-styles.js render \
+node ~/.qoder/skills-library/office-docs/scripts/office-styles.js render \
      --md 报告.md -o 报告.docx --theme-json theme.json --title "季度报告"
 ```
 

@@ -22,13 +22,13 @@ npm i exceljs docx jszip fast-xml-parser --registry=https://registry.npmmirror.c
 ## 六个子命令
 
 ```bash
-node ~/.qoder/skills/office-docs/scripts/office.js read-xlsx  <file.xlsx|file.csv> [--sheet <名>] [--json]
+node ~/.qoder/skills-library/office-docs/scripts/office.js read-xlsx  <file.xlsx|file.csv> [--sheet <名>] [--json]
                                    [--range A1:C10] [--limit N] [--list-sheets] [--formulas]
-node ~/.qoder/skills/office-docs/scripts/office.js write-xlsx <spec.json> -o <输出.xlsx>
-node ~/.qoder/skills/office-docs/scripts/office.js set-xlsx   <文件.xlsx> <工作表> <单元格> <值>
-node ~/.qoder/skills/office-docs/scripts/office.js read-docx  <文件.docx> [--json]
-node ~/.qoder/skills/office-docs/scripts/office.js write-docx <spec.json> -o <输出.docx>
-node ~/.qoder/skills/office-docs/scripts/office.js write-docx --md <md文件|-> -o <输出.docx>
+node ~/.qoder/skills-library/office-docs/scripts/office.js write-xlsx <spec.json> -o <输出.xlsx>
+node ~/.qoder/skills-library/office-docs/scripts/office.js set-xlsx   <文件.xlsx> <工作表> <单元格> <值>
+node ~/.qoder/skills-library/office-docs/scripts/office.js read-docx  <文件.docx> [--json]
+node ~/.qoder/skills-library/office-docs/scripts/office.js write-docx <spec.json> -o <输出.docx>
+node ~/.qoder/skills-library/office-docs/scripts/office.js write-docx --md <md文件|-> -o <输出.docx>
 ```
 
 退出码 `0` 成功 / `1` 运行失败 / `2` 用法或前置错误（文件不存在、spec 不是合法 JSON、缺依赖、文件头不是 zip 等）。
@@ -81,7 +81,7 @@ node ~/.qoder/skills/office-docs/scripts/office.js write-docx --md <md文件|-> 
 `write-xlsx` 是整份重生成（会丢样式与其它工作表）；只想动一个格时用它。值 `=` 开头按公式、纯数字按数值、其余按文本，改完**就地保存**并打印改动前后：
 
 ```bash
-node ~/.qoder/skills/office-docs/scripts/office.js set-xlsx 报表.xlsx 数据 B2 99
+node ~/.qoder/skills-library/office-docs/scripts/office.js set-xlsx 报表.xlsx 数据 B2 99
 # 已改 数据!B2: 12 → "99"（报表.xlsx 已保存）
 ```
 
@@ -119,7 +119,7 @@ node ~/.qoder/skills/office-docs/scripts/office.js set-xlsx 报表.xlsx 数据 B
 手上是 md、要交的是 Word 时用这条，省掉手写 spec：`#`–`####` → 标题 1–4，`-`/`*` → 无序列表，`1.` → 有序列表（真编号，不是文本前缀），`| a | b |` 表格 → Word 表格（首行加粗），`![说明](图片路径 "宽度")` → 插图（宽度可省），其余按段落。`-` 表示从 stdin 读：
 
 ```bash
-node ~/.qoder/skills/office-docs/scripts/office.js write-docx --md 周报.md -o 周报.docx
+node ~/.qoder/skills-library/office-docs/scripts/office.js write-docx --md 周报.md -o 周报.docx
 ```
 
 只认上面这几类块——**别指望它做完整 Markdown 渲染**（粗体、链接、代码块都按普通文本原样进去）。
@@ -127,7 +127,7 @@ node ~/.qoder/skills/office-docs/scripts/office.js write-docx --md 周报.md -o 
 ## 自测（改脚本后必跑）
 
 ```bash
-node ~/.qoder/skills/office-docs/scripts/office.js --selftest
+node ~/.qoder/skills-library/office-docs/scripts/office.js --selftest
 ```
 
 48 条断言，**判据是"写出去再读回来对得上"**，不是"没报错"：xlsx 断言表头/整数/小数/空单元格不错位，docx 断言标题文本、段落文本、表格行数与单元格内容；`set-xlsx` 断言改完的值真变了；`--md` 断言四类块（标题 / 无序 / 有序 / 表格）都回读得到；读闸门断言 `--list-sheets` / `--limit` 截断提示 / `--range` 子矩阵 / `--formulas` 公式原文；CSV 读与 CSV→xlsx、列宽 / 冻结 / 数字格式回读；docx 样式（颜色 / 字号 / 斜体）、分页、内嵌图片（含 md 插图）。另含**八条负对照**——读不存在的 xlsx、无效 docx、sheet 不存在、md 源不存在、非法 `--range`、图片不存在、CSV 不存在、非 zip 文件头，都必须给出非零退出，用来证明检查真的会红。
@@ -139,7 +139,7 @@ node ~/.qoder/skills/office-docs/scripts/office.js --selftest
 `office.js` 只做"读"与"新建"；**改一份已经存在的 Word**（替换文字、看修订、校验结构）用同目录的 `docx-surgery.js`：
 
 ```bash
-S=~/.qoder/skills/office-docs/scripts/docx-surgery.js
+S=~/.qoder/skills-library/office-docs/scripts/docx-surgery.js
 node $S replace 合同.docx 合同-v2.docx --find "三十日内" --replace "十五个工作日内"   # 跨 run 安全
 node $S unpack  合同.docx ./unpacked && node $S pack ./unpacked 合同-改.docx
 node $S validate 合同-v2.docx        # 要件齐全 + XML 全可解析

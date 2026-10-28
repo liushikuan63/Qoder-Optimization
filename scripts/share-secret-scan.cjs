@@ -42,9 +42,9 @@ const HARD = {
   '凭据键值': /(password|passwd|pwd|secret|api[_-]?key|access[_-]?key|token)\s*[:=]\s*["']?([^\s"',;)]{6,})/gi,
 };
 const SOFT = {
-  '私网IP示例': /\b(?:10|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}\b/g,
-  '内网后缀主机': /\b[a-z0-9-]+\.(?:internal|intra|corp|lan|local)\b/gi,
-  '他人家目录': /(?:[A-Za-z]:[\\/]{1,2}[Uu]sers|[/]home)[\\/](?!Admin\b|admin\b|user\b|User\b|x\b|\{|\$)[A-Za-z0-9._-]{2,}/g,
+  '私网IP示例': /\b(?:10\.\d{1,3}|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}\b/g,
+  '内网后缀主机': /\b[a-z0-9-]+\.(?:internal|intra|corp|lan|local)(?![a-z0-9_.-])/gi,
+  '他人家目录': /(?<![A-Za-z0-9_./$])(?:[A-Za-z]:[\\/]{1,2}[Uu]sers[\\/]{1,2}|[/]home[/])(?!Admin\b|admin\b|user\b|User\b|x\b|\{|\$|\.)[A-Za-z0-9._-]{2,}/g,
 };
 function scanText(text) {
   const hits = {};
@@ -84,12 +84,15 @@ function selftest() {
   // 夹具在源码里拆开写：包内文本不含完整凭据形状（否则本扫描器会把自己判红），运行时拼出来仍能被抓
   const fakeAppId = 'wx' + '0742b9f3c1' + 'a8d4e5';
   const fakePwd = 'S3cr3t' + 'Value9x77';
-  fs.writeFileSync(dirty, `appid ${fakeAppId} 与 password = "${fakePwd}" 以及主机 build-07.corp\n`);
-  fs.writeFileSync(clean, '示例：`wx' + '1234567890' + 'abcdef` 是占位，password = <从凭据文件取>，api_key = process.env.OPENAI_API_KEY，文档用 IP 见 RFC5737 的 192.0.2.1\n');
+  const fakeHost = 'build-07.' + 'corp';
+  const fakeIp = '10.' + '23.45.67';
+  const fakeHome = ['/home', 'someone', 'config'].join('/');
+  fs.writeFileSync(dirty, `appid ${fakeAppId} 与 password = "${fakePwd}" 以及主机 ${fakeHost} ${fakeIp} ${fakeHome}\n`);
+  fs.writeFileSync(clean, '示例：`wx' + '1234567890' + 'abcdef` 是占位，password = <从凭据文件取>，api_key = process.env.OPENAI_API_KEY，文档用 IP 见 RFC5737 的 192.0.2.1\n版本10.12.5；pm-skills.local.md；./home/home.component；$T/case/home/.qoder\n');
   const dh = scanText(fs.readFileSync(dirty, 'utf8'));
   const ch = scanText(fs.readFileSync(clean, 'utf8'));
-  const okHard = dh['真实微信AppID'] >= 1 && dh['凭据键值'] >= 1 && dh['内网后缀主机'] >= 1;
-  const okClean = !Object.keys(ch).some(isHard);
+  const okHard = dh['真实微信AppID'] >= 1 && dh['凭据键值'] >= 1 && dh['内网后缀主机'] >= 1 && dh['私网IP示例'] >= 1 && dh['他人家目录'] >= 1;
+  const okClean = Object.keys(ch).length === 0;
   fs.rmSync(dir, { recursive: true, force: true });
   console.log('脏夹具命中类别 = ' + Object.keys(dh).join(',') + ' → ' + (okHard ? 'OK 能判红' : 'RED 抓不到'));
   console.log('干净夹具类别 = ' + (Object.keys(ch).join(',') || '无') + ' → ' + (okClean ? 'OK 不误判硬类别' : 'RED 误判'));
@@ -99,13 +102,13 @@ function selftest() {
 if (process.argv.includes('--selftest')) selftest();
 const targets = process.argv.slice(2).filter(a => !a.startsWith('--'));
 if (!targets.length) { console.error('用法：share-secret-scan.cjs <目录或文件>... | --selftest'); process.exit(2); }
-let hardFiles = 0, softFiles = 0, files = 0;
+let hardFiles = 0, softFiles = 0, files = 0, unreadable = 0;
 const rows = [];
 for (const t of targets) {
-  if (!fs.existsSync(t)) { console.log('跳过（不存在）: ' + t); continue; }
+  if (!fs.existsSync(t)) { console.error('FAIL 目标不存在: ' + t); unreadable++; continue; }
   for (const f of walk(t)) {
     let text;
-    try { text = fs.readFileSync(f, 'utf8'); } catch { continue; }
+    try { text = fs.readFileSync(f, 'utf8'); } catch { unreadable++; continue; }
     if (/\0/.test(text.slice(0, 8000))) continue;
     files++;
     const hits = scanText(text);
@@ -117,5 +120,6 @@ for (const t of targets) {
   }
 }
 rows.forEach(([f, c, lvl]) => console.log(`  [${lvl}] ${path.relative(process.cwd(), f).replace(/\\/g, '/')} :: ${c}`));
-console.log(`扫描 ${files} 个文件：硬命中 ${hardFiles}，软命中 ${softFiles}`);
-process.exit(hardFiles ? 2 : (softFiles ? 1 : 0));
+console.log(`扫描 ${files} 个文件：硬命中 ${hardFiles}，软命中 ${softFiles}，不可读 ${unreadable}`);
+if (!files) console.error('FAIL 没有可扫描的文本文件');
+process.exit(unreadable || !files || hardFiles ? 2 : (softFiles ? 1 : 0));

@@ -47,7 +47,7 @@ references/archive-archaeology.md
 用 `scripts/audit-references.cjs` 扫描：
 
 ```bash
-node ~/.qoder/skills/skill-reference-integrity-audit/scripts/audit-references.cjs <技能目录>
+node ~/.qoder/skills-library/skill-reference-integrity-audit/scripts/audit-references.cjs <技能目录>
 ```
 
 输出 JSON：
