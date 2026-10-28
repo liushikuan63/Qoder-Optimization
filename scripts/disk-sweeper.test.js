@@ -120,10 +120,10 @@ check('回取退出码 0', back.rc, 0)
 run(['--restore', man, '--purge'])
 check('--purge 才清掉归档副本', fs.existsSync(manifest.moved[0].to), false)
 
-// 归档目标落在被清理范围内 ⇒ 必须拒绝（否则等于把文件搬进待删的堆里）
+// copyFile may refresh mtime; rejection needs its own stale input.
+const nestedSource = touch(path.join(root, 'nested-control.log'), 60)
 const nested = run(['--simulate-free', String(LOW), '--apply', '--archive', path.join(root, 'inside')])
-check('归档目标在一档范围内时拒绝执行（退 2）', nested.rc, 2)
-check('拒绝时源文件仍在', fs.existsSync(path.join(root, 'memory', 'keep.md')), true)
+check('归档目标在一档范围内时拒绝且源文件保留', [nested.rc, fs.existsSync(nestedSource)], [2, true])
 
 // ---------- 三档：C 盘其余无用缓存 / 过期内容，**逐条点名**才可删 ----------
 const cacheA = path.join(root, 'fakelib-cache')

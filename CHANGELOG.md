@@ -9,6 +9,7 @@ During the 0.x line, minor versions may contain breaking changes.
 ## [0.0.2] - 2026-10-28
 
 ### Fixed
+- Make cleanup safety fixtures independent of copy timestamps and expose bounded failure diagnostics in CI without weakening cleanup protections.
 - Reduce the recommended resident set to 12 entries without deleting skills; repair core/library resource lookup, zero-write previews, explicit migration scopes and index-failure reporting.
 - Generate installable catalog source/install entries from the public package, not from private HOME configuration; validate schema before replacing registration.
 - Validate tag, VERSION, catalog, manifest, counts and consumer behavior; build only approved committed files and independently verify ZIP contents.
