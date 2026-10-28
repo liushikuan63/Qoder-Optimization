@@ -6,6 +6,9 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Changed
+- Release notes are taken from the matching `CHANGELOG.md` section when a release is created; generated notes remain the fallback.
+
 ## [0.0.3] - 2026-10-28
 
 ### Added

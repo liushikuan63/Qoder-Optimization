@@ -273,3 +273,29 @@ test('new releases stay draft until both uploaded assets pass download verificat
   assert.equal(p.calls.slice(0, editAt).filter(args => args[1] === 'download').length, 2);
   assert.equal(p.calls.some(args => args.includes('--clobber')), false);
 }));
+
+test('release notes come from the CHANGELOG section when present', () => withFixture(f => {
+  const p = publicationFixture(f, { existing: false });
+  const root = path.join(f.base, 'notes-root');
+  fs.mkdirSync(root);
+  fs.writeFileSync(path.join(root, 'CHANGELOG.md'), ['# Changelog', '', '## [0.0.2] - 2026-10-28', '', '### Added', '- fixture note line', '', '## [0.0.1] - 2026-10-27', '', '- older line', ''].join(String.fromCharCode(10)));
+  const original = p.gh;
+  let captured = null;
+  p.gh = args => { if (args[1] === 'create') { const i = args.indexOf('--notes-file'); if (i > 0) captured = fs.readFileSync(args[i + 1], 'utf8'); } return original(args); };
+  publishRelease({ repo: 'example/project', tag: 'v0.0.2', root, ...p });
+  const create = p.calls.find(args => args[1] === 'create');
+  assert.ok(create);
+  assert.equal(create.includes('--generate-notes'), false);
+  assert.ok(captured && captured.includes('fixture note line'));
+  assert.equal(captured.includes('older line'), false);
+}));
+
+test('release notes fall back to generated notes without a CHANGELOG section', () => withFixture(f => {
+  const p = publicationFixture(f, { existing: false });
+  const root = path.join(f.base, 'no-notes-root');
+  fs.mkdirSync(root);
+  publishRelease({ repo: 'example/project', tag: 'v0.0.2', root, ...p });
+  const create = p.calls.find(args => args[1] === 'create');
+  assert.ok(create.includes('--generate-notes'));
+  assert.equal(create.includes('--notes-file'), false);
+}));

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { sha256 } = require('./build-release.js');
@@ -9,7 +10,21 @@ function officialGh(args) {
   return spawnSync(process.env.GH_EXECUTABLE || 'gh', args, { encoding: 'utf8', timeout: 180000, maxBuffer: 4 * 1024 * 1024 });
 }
 
-function publishRelease({ repo, tag, dest, gh = officialGh }) {
+
+function changelogNotes(root, version) {
+  try {
+    const raw = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
+    const lines = raw.split(String.fromCharCode(13)).join('').split(String.fromCharCode(10));
+    const start = lines.findIndex(line => line.startsWith('## [' + version + ']'));
+    if (start < 0) return null;
+    const body = [];
+    for (let i = start + 1; i < lines.length && !lines[i].startsWith('## ['); i++) body.push(lines[i]);
+    const notes = body.join(String.fromCharCode(10)).trim();
+    return notes || null;
+  } catch { return null; }
+}
+
+function publishRelease({ repo, tag, dest, gh = officialGh, root = process.cwd() }) {
   if (!/^[A-Za-z0-9][A-Za-z0-9_.-]*\/[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(repo || '') || !/^v\d+\.\d+\.\d+$/.test(tag || '')) throw new Error('invalid repository or tag');
   const invoke = (args, allow404 = false) => {
     const result = gh(args);
@@ -36,7 +51,17 @@ function publishRelease({ repo, tag, dest, gh = officialGh }) {
   if (remoteCommit !== evidence.commit) throw new Error('remote tag does not match the tested source commit');
   let release = getRelease();
   if (!release) {
-    invoke(['release', 'create', tag, '--repo', repo, '--draft', '--verify-tag', '--target', evidence.commit, '--title', `Qoder-Optimization ${tag.slice(1)}`, '--generate-notes']);
+    const args = ['release', 'create', tag, '--repo', repo, '--draft', '--verify-tag', '--target', evidence.commit, '--title', `Qoder-Optimization ${tag.slice(1)}`];
+    const notes = changelogNotes(root, tag.slice(1));
+    if (notes) {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qo-notes-'));
+      const file = path.join(dir, 'notes.md');
+      fs.writeFileSync(file, notes + String.fromCharCode(10));
+      try { args.push('--notes-file', file); invoke(args); } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+    } else {
+      args.push('--generate-notes');
+      invoke(args);
+    }
     release = getRelease();
   }
   if (!release || release.tag_name !== tag || !Array.isArray(release.assets)) throw new Error('invalid remote release metadata');
