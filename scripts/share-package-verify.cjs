@@ -22,8 +22,7 @@ const os = require('os');
 const path = require('path');
 
 const DESC_MAX = 300;
-const HOME = os.homedir();
-const DOCTOR = path.join(HOME, '.qoder', 'scripts', 'skills-doctor.cjs');
+const DOCTOR = path.join(__dirname, 'skills-doctor.cjs');
 
 function carrierCaps() {
   try {

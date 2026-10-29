@@ -58,7 +58,7 @@ function buildRelease({ root, tag, dest, ref = tag }) {
   if (!sourceFiles.length) throw new Error('empty release source');
   const name = 'Qoder-Optimization-' + tag.slice(1);
   fs.mkdirSync(dest, { recursive: true });
-  for (const file of [name, name + '.zip', name + '.zip.sha256', 'build.json']) {
+  for (const file of [name, name + '.zip', name + '.zip.sha256', name + '-offline.zip', name + '-offline.zip.sha256', 'build.json']) {
     if (fs.existsSync(path.join(dest, file))) throw new Error('output already exists; use a fresh directory: ' + file);
   }
   const temp = fs.mkdtempSync(path.join(dest, '.build-'));
@@ -90,24 +90,40 @@ function buildRelease({ root, tag, dest, ref = tag }) {
     const result = checkRelease(packageDir, tag);
     if (result.problems.length) throw new Error('release gate failed:\n' + result.problems.join('\n'));
     if (JSON.stringify(result.files) !== JSON.stringify(sourceFiles)) throw new Error('archive file set differs from Git');
-    const zip = path.join(temp, name + '.zip');
-    run(process.execPath, [path.join(packageDir, 'scripts', 'pack-folder.js'), packageDir, zip], temp, { ...process.env, SOURCE_DATE_EPOCH: epoch });
-    verifyZip(zip, name, sourceFiles);
     const verification = path.join(temp, 'verify');
     fs.mkdirSync(verification);
-    run('unzip', ['-q', zip, '-d', verification], temp);
+    const artifacts = [];
+    const groups = [
+      { suffix: '', files: sourceFiles.filter(file => !file.startsWith('mcp/offline/')) },
+      { suffix: '-offline', files: sourceFiles.filter(file => file.startsWith('mcp/offline/')) },
+    ].filter(group => group.files.length);
+    for (const group of groups) {
+      const directory = path.join(temp, group.suffix || 'core', name);
+      fs.mkdirSync(directory, { recursive: true });
+      for (const file of group.files) {
+        const target = path.join(directory, file);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.copyFileSync(path.join(packageDir, file), target);
+      }
+      const assetName = name + group.suffix + '.zip';
+      const zip = path.join(temp, assetName);
+      run(process.execPath, [path.join(packageDir, 'scripts/pack-folder.js'), directory, zip], temp, { ...process.env, SOURCE_DATE_EPOCH: epoch });
+      verifyZip(zip, name, group.files);
+      run('unzip', ['-q', zip, '-d', verification], temp);
+      const digest = sha256(zip);
+      fs.copyFileSync(zip, path.join(dest, assetName), fs.constants.COPYFILE_EXCL);
+      fs.writeFileSync(path.join(dest, assetName + '.sha256'), `${digest}  ${assetName}\n`, { flag: 'wx' });
+      artifacts.push({ name: assetName, sha256: digest, size: fs.statSync(zip).size, files: group.files });
+    }
     const extracted = path.join(verification, name);
-    if (JSON.stringify(walk(extracted)) !== JSON.stringify(sourceFiles)) throw new Error('extracted file set differs from Git');
+    if (JSON.stringify(walk(extracted)) !== JSON.stringify(sourceFiles)) throw new Error('split archive union differs from Git');
     const hashes = {};
     for (const file of sourceFiles) {
       hashes[file] = sha256(path.join(packageDir, file));
       if (hashes[file] !== sha256(path.join(extracted, file))) throw new Error('extracted content differs: ' + file);
     }
-    const digest = sha256(zip);
-    fs.copyFileSync(zip, path.join(dest, name + '.zip'), fs.constants.COPYFILE_EXCL);
-    fs.writeFileSync(path.join(dest, name + '.zip.sha256'), `${digest}  ${name}.zip\n`, { flag: 'wx' });
     fs.renameSync(packageDir, path.join(dest, name));
-    const evidence = { tag, commit, epoch: Number(epoch), package: name, sha256: digest, files: hashes };
+    const evidence = { tag, commit, epoch: Number(epoch), package: name, sha256: artifacts[0].sha256, artifacts, files: hashes };
     fs.writeFileSync(path.join(dest, 'build.json'), JSON.stringify(evidence, null, 2) + '\n', { flag: 'wx' });
     return evidence;
   } finally {

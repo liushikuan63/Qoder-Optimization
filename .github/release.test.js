@@ -25,7 +25,8 @@ function fixture() {
   put('VERSION', 'v0.0.2\n2026-10-28\n');
   put('skills/demo/SKILL.md', '---\nname: demo\ndescription: 离线报表 export report\n---\n\n# Demo\n');
   put('skills/demo/LICENSE', 'Fixture license retained\n');
-  for (const name of ['pkg-catalog.cjs', 'client-root.js', 'pack-folder.js', 'pack-share-extras.cjs']) put('scripts/' + name, fs.readFileSync(path.join(source, 'scripts', name)));
+  for (const name of ['pkg-catalog.cjs', 'client-root.js', 'package-dependencies.cjs', 'archive-entries.cjs', 'import-memory.cjs', 'pack-folder.js', 'pack-share-extras.cjs']) put('scripts/' + name, fs.readFileSync(path.join(source, 'scripts', name)));
+  put('qoder-memory-export-generic.tar.gz', require('zlib').gzipSync(require('../scripts/archive-entries.cjs').encodeTar([{ name: 'MEMORY.md', data: Buffer.from('fixture memory') }])));
   put('scripts/demo.cmd', Buffer.from([64, 101, 99, 104, 111, 32, 0x81, 0x40, 10]));
   put('commands/demo.md', '# Command\n');
   put('agents/demo.md', '# Agent\n');
@@ -47,6 +48,7 @@ function fixture() {
     put('README.md', ['# English / 简体中文', 'version-0.0.2-blue', `| 0.0.2 | 2026-10-28 | English | [zip](${link}) |`, `| 0.0.2 | 2026-10-28 | 中文 | [zip](${link}) |`, ...rows,
       `${coreEntries.length} core skill descriptions total ${coreChars} characters; all ${skillEntries.length} skill descriptions total ${totalChars} characters`,
       `${coreEntries.length} 个常驻技能的描述共 ${coreChars} 字符；${skillEntries.length} 个技能的描述共 ${totalChars} 字符`, ''].join('\n'));
+    for (const [file, content] of Object.entries(metadataFor(root).files)) put(file, content);
     return data;
   };
   refresh();
@@ -96,6 +98,81 @@ test('generated package can register, search and install through its own consume
   assert.equal(sha256(path.join(f.home, '.qoder/scripts/demo.cmd')), sha256(path.join(f.root, 'scripts/demo.cmd')));
   assert.equal(f.exec(process.execPath, [cli, 'search', '离线 absentword']).status, 3);
 }));
+
+test('cross-tier install refuses before changing existing routes', () => withFixture(f => {
+  const cli = path.join(f.root, 'scripts/pkg-catalog.cjs');
+  assert.equal(f.exec(process.execPath, [cli, 'install', 'skill:demo', '--apply']).status, 0);
+  const result = f.exec(process.execPath, [cli, 'install', 'skill:demo', '--tier', 'core', '--apply']);
+  assert.equal(result.status, 1);
+  assert.equal(fs.existsSync(path.join(f.home, '.qoder/skills/demo')), false);
+  assert.equal(fs.existsSync(path.join(f.home, '.qoder/skills-library/demo/SKILL.md')), true);
+}));
+
+test('script installation previews and installs the complete local dependency closure', () => withFixture(f => {
+  f.put('scripts/helper.js', 'module.exports = 42;');
+  f.put('scripts/worker.js', "console.log(require('./helper.js'));");
+  f.refresh();
+  const cli = path.join(f.root, 'scripts/pkg-catalog.cjs');
+  const preview = f.exec(process.execPath, [cli, 'install', 'script:worker.js']);
+  assert.equal(preview.status, 0, preview.stderr);
+  assert.ok(preview.stdout.includes('script:helper.js'));
+  assert.equal(fs.existsSync(path.join(f.home, '.qoder/scripts')), false);
+  const install = f.exec(process.execPath, [cli, 'install', 'script:worker.js', '--apply']);
+  assert.equal(install.status, 0, install.stderr);
+  const run = f.exec(process.execPath, [path.join(f.home, '.qoder/scripts/worker.js')]);
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.stdout.trim(), '42');
+}));
+
+test('missing dependency metadata blocks all writes', () => withFixture(f => {
+  f.put('scripts/helper.js', 'module.exports = 42;');
+  f.put('scripts/worker.js', "require('./helper.js');");
+  const data = f.refresh().catalog;
+  data.entries = data.entries.filter(e => e.id !== 'script:helper.js');
+  f.put('catalog.json', JSON.stringify(data));
+  const result = f.exec(process.execPath, [path.join(f.root, 'scripts/pkg-catalog.cjs'), 'install', 'script:worker.js', '--apply']);
+  assert.equal(result.status, 2);
+  assert.equal(fs.existsSync(path.join(f.home, '.qoder')), false);
+}));
+
+test('failed forced installation restores the previous skill and index', () => withFixture(f => {
+  const target = path.join(f.home, '.qoder/skills-library/demo');
+  const scripts = path.join(f.home, '.qoder/scripts');
+  fs.mkdirSync(target, { recursive: true }); fs.mkdirSync(scripts, { recursive: true });
+  fs.writeFileSync(path.join(target, 'SKILL.md'), 'previous content');
+  const index = path.join(f.home, '.qoder/skills-index.json');
+  fs.writeFileSync(index, 'previous index');
+  fs.writeFileSync(path.join(scripts, 'build-skills-index.cjs'), 'process.exit(7);');
+  const result = f.exec(process.execPath, [path.join(f.root, 'scripts/pkg-catalog.cjs'), 'install', 'skill:demo', '--force', '--apply']);
+  assert.equal(result.status, 1);
+  assert.equal(fs.readFileSync(path.join(target, 'SKILL.md'), 'utf8'), 'previous content');
+  assert.equal(fs.readFileSync(index, 'utf8'), 'previous index');
+}));
+
+test('rollback preserves a destination created concurrently after preflight', () => withFixture(f => {
+  const target = path.join(f.home, '.qoder/skills-library/demo');
+  const preload = path.join(f.base, 'race.cjs');
+  fs.writeFileSync(preload, `const fs=require('fs'),path=require('path');const copy=fs.cpSync;let fired=false;fs.cpSync=function(a,b,o){const r=copy(a,b,o);if(!fired&&path.basename(b)==='new-0'){fired=true;fs.mkdirSync(${JSON.stringify(target)},{recursive:true});fs.writeFileSync(path.join(${JSON.stringify(target)},'SKILL.md'),'parallel content');fs.writeFileSync(${JSON.stringify(path.join(f.home, '.qoder/skills-index.json'))},'parallel index');}return r;};`);
+  const result = f.exec(process.execPath, ['--require', preload, path.join(f.root, 'scripts/pkg-catalog.cjs'), 'install', 'skill:demo', '--apply']);
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(fs.readFileSync(path.join(target, 'SKILL.md'), 'utf8'), 'parallel content');
+  assert.equal(fs.readFileSync(path.join(f.home, '.qoder/skills-index.json'), 'utf8'), 'parallel index');
+}));
+
+test('a forced install refuses a target changed after preflight', () => withFixture(f => {
+  const target = path.join(f.home, '.qoder/skills-library/demo'); fs.mkdirSync(target, { recursive: true });
+  fs.writeFileSync(path.join(target, 'SKILL.md'), 'original');
+  const preload = path.join(f.base, 'race.cjs');
+  fs.writeFileSync(preload, `const fs=require('fs'),path=require('path');const copy=fs.cpSync;let fired=false;fs.cpSync=function(a,b,o){const r=copy(a,b,o);if(!fired&&path.basename(b)==='new-0'){fired=true;fs.writeFileSync(path.join(${JSON.stringify(target)},'SKILL.md'),'parallel edit');}return r;};`);
+  const result = f.exec(process.execPath, ['--require', preload, path.join(f.root, 'scripts/pkg-catalog.cjs'), 'install', 'skill:demo', '--force', '--apply']);
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(fs.readFileSync(path.join(target, 'SKILL.md'), 'utf8'), 'parallel edit');
+}));
+
+test('child-process script dependencies are included in the install graph', () => {
+  const deps = require('../scripts/package-dependencies.cjs').dependenciesFor(source, { id: 'script:stop-gate.js', category: 'script', name: 'stop-gate.js', source: 'scripts/stop-gate.js' });
+  assert.ok(deps.includes('script:work-queue-check.js'));
+});
 
 test('legacy schema is readable; unknown schema cannot replace a good registration', () => withFixture(f => {
   const cli = path.join(f.root, 'scripts/pkg-catalog.cjs');
@@ -191,6 +268,21 @@ test('build uses only committed files and verifies the complete ZIP with a stabl
   assert.throws(() => buildRelease({ root: f.root, tag: 'v0.0.2', ref: 'HEAD', dest: path.join(f.base, 'dist1') }), /already exists/);
 }));
 
+test('offline components are optional archives without omission or overlap', () => withFixture(f => {
+  f.put('mcp/offline/LICENSE-cua-driver.txt', 'fixture license');
+  f.put('mcp/offline/tool.bin', Buffer.from([0, 1, 2, 3]));
+  f.refresh();
+  commitFixture(f);
+  const dest = path.join(f.base, 'split');
+  const evidence = buildRelease({ root: f.root, tag: 'v0.0.2', ref: 'HEAD', dest });
+  assert.equal(evidence.artifacts.length, 2);
+  assert.ok(evidence.artifacts[0].files.every(file => !file.startsWith('mcp/offline/')));
+  assert.ok(evidence.artifacts[1].files.every(file => file.startsWith('mcp/offline/')));
+  const result = require('./verify-delivery.js').verifyDelivery(evidence, dest);
+  assert.equal(result.files, Object.keys(evidence.files).length);
+  assert.equal(result.verified, true);
+}));
+
 test('a tracked private file blocks the build rather than being silently exported', () => withFixture(f => {
   f.put('scripts/credentials.json', '{"fixture":true}\n');
   commitFixture(f);
@@ -206,7 +298,7 @@ function publicationFixture(f, { existing = true, mismatch = false, error = fals
   const digest = sha256(path.join(dest, name + '.zip'));
   fs.writeFileSync(path.join(dest, name + '.zip.sha256'), `${digest}  ${name}.zip\n`);
   const commit = 'a'.repeat(40);
-  fs.writeFileSync(path.join(dest, 'build.json'), JSON.stringify({ tag: 'v0.0.2', package: name, commit, sha256: digest }));
+  fs.writeFileSync(path.join(dest, 'build.json'), JSON.stringify({ tag: 'v0.0.2', package: name, commit, sha256: digest, artifacts: [{ name: name + '.zip', sha256: digest }] }));
   let release = existing ? { tag_name: 'v0.0.2', draft, html_url: 'https://github.com/example/project/releases/tag/v0.0.2', assets: [{ name: name + '.zip' }, { name: name + '.zip.sha256' }] } : null;
   const calls = [];
   const gh = args => {
@@ -272,6 +364,23 @@ test('new releases stay draft until both uploaded assets pass download verificat
   const editAt = p.calls.findIndex(args => args[1] === 'edit');
   assert.equal(p.calls.slice(0, editAt).filter(args => args[1] === 'download').length, 2);
   assert.equal(p.calls.some(args => args.includes('--clobber')), false);
+}));
+
+test('split releases verify all four assets before leaving draft', () => withFixture(f => {
+  const p = publicationFixture(f, { existing: false });
+  const manifestFile = path.join(p.dest, 'build.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestFile));
+  const name = manifest.package + '-offline.zip';
+  fs.writeFileSync(path.join(p.dest, name), 'offline fixture');
+  const digest = sha256(path.join(p.dest, name));
+  fs.writeFileSync(path.join(p.dest, name + '.sha256'), digest + '  ' + name + '\n');
+  manifest.artifacts.push({ name, sha256: digest });
+  fs.writeFileSync(manifestFile, JSON.stringify(manifest));
+  const result = publishRelease({ repo: 'example/project', tag: 'v0.0.2', ...p });
+  assert.equal(result.assets.length, 4);
+  assert.equal(p.calls.filter(args => args[1] === 'download').length, 4);
+  const publishedAt = p.calls.findIndex(args => args[1] === 'edit');
+  assert.equal(p.calls.slice(0, publishedAt).filter(args => args[1] === 'download').length, 4);
 }));
 
 test('release notes come from the CHANGELOG section when present', () => withFixture(f => {

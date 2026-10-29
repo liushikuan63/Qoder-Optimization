@@ -11,8 +11,10 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { clientRoot } = require('./client-root.js');
+const { dependenciesFor } = require('./package-dependencies.cjs');
 const CLIENT_ROOT = clientRoot();
 const { spawnSync } = require('child_process');
+const { createHash } = require('crypto');
 
 const HOME = os.homedir();
 const QODER = CLIENT_ROOT;
@@ -110,7 +112,7 @@ function formatEntry(e, catalogFile = '') {
   if (e.description) lines.push('  ' + e.description.slice(0, 140));
   if (e.install && e.install.command && presence.present !== true) lines.push('  ' + e.install.command);
   if (e.status === 'shipped' && presence.present === false) {
-    lines.push(`  安装预演：node ~/.qoder/scripts/pkg-catalog.cjs install ${JSON.stringify(e.id)}${catalogFile ? ' --catalog ' + JSON.stringify(catalogFile) : ''}`);
+    lines.push(`  安装预演：node ${JSON.stringify(path.join(QODER, 'scripts', 'pkg-catalog.cjs'))} install ${JSON.stringify(e.id)}${catalogFile ? ' --catalog ' + JSON.stringify(catalogFile) : ''}`);
   }
   return lines.join('\n');
 }
@@ -176,7 +178,7 @@ function rebuildIndex() {
   const script = path.join(QODER, 'scripts', 'build-skills-index.cjs');
   if (!fs.existsSync(script)) return '索引未重建（build-skills-index.cjs 不在 ~/.qoder/scripts）';
   const r = spawnSync(process.execPath, [script], { encoding: 'utf8', timeout: 60000 });
-  if (r.status !== 0) fail(1, `文件已写入，但索引重建失败（exit=${r.status}）：${(r.stderr || '').slice(0, 200)}`);
+  if (r.status !== 0) throw new Error(`索引重建失败（exit=${r.status}）：${(r.stderr || '').slice(0, 200)}`);
   return '索引已重建';
 }
 
@@ -198,34 +200,139 @@ function cmdInstall() {
     console.log('  ' + (e.install.note || '见 mcp/README-mcp.md'));
     return;
   }
-  if (!e.name || e.name === '.' || e.name === '..' || /[\\/:]/.test(e.name) || typeof e.source !== 'string') {
-    fail(2, '条目的名称或 source 无效');
-  }
-  const expected = { skill: `skills/${e.name}`, script: `scripts/${e.name}`, command: `commands/${e.name}.md`, agent: `agents/${e.name}.md` }[e.category];
-  if (!expected || e.source !== expected) fail(2, '条目的 source 与类别或名称不一致');
-  const src = path.resolve(root, e.source);
-  if (!within(root, src) || !fs.existsSync(src)) fail(2, `条目源文件不存在或越界：${e.source}`);
-  if (!within(fs.realpathSync(root), fs.realpathSync(src))) fail(2, '安装源解析后越界');
-  const assertNoLinks = (file) => {
+  const assertNoLinks = file => {
     const st = fs.lstatSync(file);
     if (st.isSymbolicLink()) fail(2, '安装路径不能含符号链接');
     if (st.isDirectory()) for (const name of fs.readdirSync(file)) assertNoLinks(path.join(file, name));
   };
-  assertNoLinks(src);
-  const t = installTarget(e, root);
-  if (!t) fail(2, `不支持的类别：${e.category}`);
-  if (fs.existsSync(t.target)) assertNoLinks(t.target);
-  if (fs.existsSync(t.target) && !FORCE) fail(1, `目标已存在：${t.target}（确需覆盖加 --force）`);
-  console.log(`[${APPLY ? '安装' : '预演'}] ${e.id} → ${t.target}${t.tier ? `（tier=${t.tier}）` : ''}`);
+  const fingerprint = file => {
+    const hash = createHash('sha256');
+    const walk = (p, rel) => {
+      const st = fs.lstatSync(p);
+      if (st.isSymbolicLink()) throw new Error('目标在检查后变成符号链接');
+      hash.update(rel + (st.isDirectory() ? '/' : ':'));
+      if (st.isDirectory()) for (const name of fs.readdirSync(p).sort()) walk(path.join(p, name), rel + '/' + name);
+      else hash.update(fs.readFileSync(p));
+    };
+    walk(file, ''); return hash.digest('hex');
+  };
+  const copyExclusive = (source, target, owned) => {
+    const st = fs.statSync(source);
+    if (st.isDirectory()) {
+      fs.mkdirSync(target);
+      const created = fs.lstatSync(target);
+      owned.push({ path: target, ino: created.ino, dev: created.dev, directory: true });
+      for (const name of fs.readdirSync(source)) copyExclusive(path.join(source, name), path.join(target, name), owned);
+    } else {
+      const bytes = fs.readFileSync(source), fd = fs.openSync(target, 'wx', st.mode);
+      const created = fs.fstatSync(fd);
+      owned.push({ path: target, ino: created.ino, dev: created.dev, hash: createHash('sha256').update(bytes).digest('hex') });
+      try { fs.writeFileSync(fd, bytes); } finally { fs.closeSync(fd); }
+    }
+  };
+  const plan = [], visiting = new Set(), visited = new Set();
+  const visit = entry => {
+    if (visited.has(entry.id)) return;
+    if (visiting.has(entry.id)) fail(2, '循环依赖：' + entry.id);
+    visiting.add(entry.id);
+    if (!entry.name || entry.name === '.' || entry.name === '..' || /[\\/:]/.test(entry.name)) fail(2, '条目名称无效');
+    const expected = { skill: `skills/${entry.name}`, script: `scripts/${entry.name}`, command: `commands/${entry.name}.md`, agent: `agents/${entry.name}.md` }[entry.category];
+    if (!expected || entry.source !== expected) fail(2, '条目的 source 与类别或名称不一致');
+    const src = path.resolve(root, expected);
+    if (!fs.existsSync(src) || !within(fs.realpathSync(root), fs.realpathSync(src))) fail(2, '安装源不存在或越界');
+    assertNoLinks(src);
+    if (entry.category === 'skill' ? !fs.statSync(src).isDirectory() || !fs.existsSync(path.join(src, 'SKILL.md')) || !fs.statSync(path.join(src, 'SKILL.md')).isFile() : !fs.statSync(src).isFile()) fail(2, '条目源类型或入口无效');
+    let dependencies;
+    try { dependencies = dependenciesFor(root, entry); } catch (error) { fail(2, error.message); }
+    for (const id of dependencies) {
+      const dependency = entries.find(item => item.id === id);
+      if (!dependency) fail(2, '缺少依赖条目：' + id);
+      visit(dependency);
+    }
+    const t = installTarget(entry, root);
+    if (entry.category === 'skill') {
+      const other = path.join(QODER, t.tier === 'core' ? 'skills-library' : 'skills', entry.name);
+      if (fs.existsSync(other)) {
+        if (entry === e || fs.existsSync(t.target)) fail(1, '另一层已有同名技能，请先明确迁移：' + entry.name);
+        assertNoLinks(other);
+        if (!fs.existsSync(path.join(other, 'SKILL.md'))) fail(1, '已安装依赖不完整：' + entry.id);
+        t.target = other;
+      }
+    }
+    if (fs.existsSync(t.target)) {
+      assertNoLinks(t.target);
+      if (entry === e && !FORCE) fail(1, `目标已存在：${t.target}（确需覆盖加 --force）`);
+      if (entry !== e) { visiting.delete(entry.id); visited.add(entry.id); return; }
+    }
+    const previous = fs.existsSync(t.target);
+    plan.push({ entry, src, target: t.target, previous, before: previous ? fingerprint(t.target) : null, owned: [], originalMoved: false });
+    visiting.delete(entry.id); visited.add(entry.id);
+  };
+  visit(e);
+  for (const item of plan) console.log(`[${APPLY ? '安装' : '预演'}] ${item.entry.id} → ${item.target}`);
   if (!APPLY) { console.log('  未写盘；确认后加 --apply。'); return; }
+  fs.mkdirSync(QODER, { recursive: true });
+  const stage = fs.mkdtempSync(path.join(QODER, '.pkg-install-'));
+  const indexPath = path.join(QODER, 'skills-index.json');
+  const indexBefore = fs.existsSync(indexPath) ? fs.readFileSync(indexPath) : null;
+  const applied = [];
+  let restored = false, indexAttempted = false;
   try {
-    fs.mkdirSync(path.dirname(t.target), { recursive: true });
-    fs.cpSync(src, t.target, { recursive: true, force: true });
-  } catch (err) { fail(1, `复制失败：${err.message}`); }
-  const marker = e.category === 'skill' ? path.join(t.target, 'SKILL.md') : t.target;
-  if (!fs.existsSync(marker)) fail(1, `安装后校验失败：${marker} 不存在`);
-  console.log('  已写入并通过存在性校验。');
-  if (e.category === 'skill') console.log('  ' + rebuildIndex());
+    for (let i = 0; i < plan.length; i++) {
+      const item = plan[i];
+      item.staged = path.join(stage, 'new-' + i);
+      item.backup = path.join(stage, 'old-' + i);
+      fs.cpSync(item.src, item.staged, { recursive: true, force: false, errorOnExist: true });
+    }
+    for (const item of plan) {
+      fs.mkdirSync(path.dirname(item.target), { recursive: true });
+      applied.push(item);
+      if (item.previous) {
+        if (fingerprint(item.target) !== item.before) throw new Error('目标在预检后已变化：' + item.entry.id);
+        fs.renameSync(item.target, item.backup);
+        item.originalMoved = true;
+      }
+      copyExclusive(item.staged, item.target, item.owned);
+    }
+    if (plan.some(item => item.entry.category === 'skill')) { indexAttempted = true; console.log('  ' + rebuildIndex()); }
+    console.log('  已安装全部依赖并通过入口校验。');
+    for (const item of plan) if (item.entry.category === 'skill' && fs.existsSync(path.join(item.target, 'package-lock.json'))) {
+      console.log('  第三方依赖需另行安装：npm ci --ignore-scripts --prefix ' + JSON.stringify(item.target));
+    }
+    if (plan.some(item => item.previous)) console.log('  原文件备份保留于：' + stage);
+    else fs.rmSync(stage, { recursive: true, force: true });
+  } catch (error) {
+    try {
+      let conflict = false;
+      for (const item of applied.reverse()) {
+        for (const owned of item.owned.reverse()) {
+          if (!fs.existsSync(owned.path)) continue;
+          const st = fs.lstatSync(owned.path);
+          if (st.ino !== owned.ino || st.dev !== owned.dev || st.isSymbolicLink()) { conflict = true; continue; }
+          if (owned.directory) {
+            if (fs.readdirSync(owned.path).length) { conflict = true; continue; }
+            fs.rmdirSync(owned.path);
+          } else {
+            if (createHash('sha256').update(fs.readFileSync(owned.path)).digest('hex') !== owned.hash) { conflict = true; continue; }
+            fs.unlinkSync(owned.path);
+          }
+        }
+        if (item.originalMoved) {
+          if (fs.existsSync(item.target)) conflict = true;
+          else copyExclusive(item.backup, item.target, []);
+        }
+      }
+      if (indexAttempted) {
+        if (indexBefore) fs.writeFileSync(indexPath, indexBefore);
+        else if (fs.existsSync(indexPath)) fs.unlinkSync(indexPath);
+      }
+      if (conflict) throw new Error('目标内容或归属变化，未完整回滚；保留文件与备份供核对：' + stage);
+      restored = true;
+    } finally {
+      if (restored) fs.rmSync(stage, { recursive: true, force: true });
+    }
+    fail(1, '安装失败，已回滚：' + error.message);
+  }
 }
 
 function cmdRegister() {

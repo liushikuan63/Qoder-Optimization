@@ -34,6 +34,7 @@ const BASH = (() => {
   return 'bash';
 })();
 const QUIET = process.argv.includes('--quiet');
+const READ_ONLY = process.argv.includes('--read-only') || process.argv.includes('--no-fix');
 // 单端（只装了 Qoder、没有 ~/.qoder-cn）是**合法安装形态**：所有"另一侧"的检查都跳过，
 // 不能报成"读不到 / 解析失败"——那是把正常安装判成故障（2026-09-23 用假 HOME 实测出来的）。
 const HAS_B = fs.existsSync(B);
@@ -255,7 +256,7 @@ function checkSoundness() {
   // 2e. 临时产物水位：规则承诺"超期件由 tmp-sweeper 兜底、周检带出清单"——这里兑现它。
   // 默认只列不删（`--apply` 才动，见 /clean-temp）；**没超期件时保持静默**（健康时零输出）。
   if (fs.existsSync(path.join(SCRIPTS, 'tmp-sweeper.js'))) {
-    const r = runNode(path.join(SCRIPTS, 'tmp-sweeper.js'), [], 30000);
+    const r = runNode(path.join(SCRIPTS, 'tmp-sweeper.js'), READ_ONLY ? ['--read-only'] : [], 30000);
     if (r.code === 0 || r.code === 1) {
       if (!/没有超期/.test(r.out)) {
         const brief = r.out.split('\n').map((s) => s.trim()).filter(Boolean).slice(0, 4).join(' / ');
@@ -520,7 +521,7 @@ function checkAdherence() {
 function checkDisk() {
   // 周检只**报告**水位与可释放量，绝不在这里删任何东西——删除必须用户在弹窗里点头（见 /clean-disk）。
   // 阈值与档位都取自 disk-sweeper.js，这里不另写一份数字（两份副本必然漂移）。
-  const r = runNode(path.join(SCRIPTS, 'disk-sweeper.js'), ['--json'], 120000);
+  const r = runNode(path.join(SCRIPTS, 'disk-sweeper.js'), READ_ONLY ? ['--json', '--read-only'] : ['--json'], 120000);
   if (r.code !== 0 && r.code !== 1) {
     add('warn', '磁盘水位', `disk-sweeper.js --json 未能执行（退出码 ${r.code}）：${r.out.slice(0, 120)}`,
       '手工跑一次看卡在哪；它挂了低水位就没人提醒');
@@ -568,10 +569,12 @@ function main() {
   const infos = findings.filter(f => f.level === 'info');
 
   // 台账：一行一次，便于看趋势（连续告警 / 长期健康）
-  try {
-    fs.mkdirSync(OUT_DIR, { recursive: true });
-    fs.appendFileSync(HISTORY, `${new Date().toISOString()}|warn=${warns.length}|fixed=${fixed.length}|info=${infos.length}\n`);
-  } catch (e) { /* 报告失败不影响结论 */ }
+  if (!READ_ONLY) {
+    try {
+      fs.mkdirSync(OUT_DIR, { recursive: true });
+      fs.appendFileSync(HISTORY, `${new Date().toISOString()}|warn=${warns.length}|fixed=${fixed.length}|info=${infos.length}\n`);
+    } catch (e) { /* 报告失败不影响结论 */ }
+  }
 
   if (!QUIET) {
     if (fixed.length) console.log('已自动修复：');

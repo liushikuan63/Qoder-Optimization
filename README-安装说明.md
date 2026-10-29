@@ -1,4 +1,4 @@
-# Qoder-Optimization-0.0.2 安装说明
+# Qoder-Optimization-0.0.4 安装说明
 
 ## 包内容与落点
 
@@ -18,12 +18,12 @@
 
 推荐 Node.js 24。在解压包的顶层目录使用包内脚本开始，不假设本机已经安装检索工具；修改已有文件前先备份。
 
-1. 基础检索：先用 `node scripts/pkg-catalog.cjs register .` 登记当前包。按需安装 `script:client-root.js`、`script:pkg-catalog.cjs`、`script:build-skills-index.cjs`、`script:skill-load.cjs`；统一通过包内 `node scripts/pkg-catalog.cjs install <id>` 预演，确认后再加 `--apply`。
+1. 基础检索：先用 `node scripts/pkg-catalog.cjs register .` 登记当前包，再用 `node scripts/pkg-catalog.cjs install script:skill-load.cjs` 预演。确认后加 `--apply`，安装器会列出并安装缺失的包内依赖；已存在的依赖不覆盖，不需要逐个重复安装。
 2. 技能与其他脚本：用包内 `search "<关键词>"` 查找，再按 ID 预演和安装。技能层级由 manifest/catalog 指定，`--tier core` 可显式选择常驻；不要整目录复制，已存在目标不自动覆盖。
 3. 规则：把 `Qoder-AI编码通用规则.md` 中与你的环境相符的部分并进 `~/.qoder/AGENTS.md`——按你的实际工具与环境删改，不必整篇照抄
 4. **hooks 接线**（不做这步，脚本躺着不跑）：照 `hooks/README-hooks.md` 把 `hooks.example.json` 的占位符替换后**并入该客户端的** `settings.json` 的 `hooks`（双端都装才各挂一份；只装一个就只挂一个）
 5. MCP：照 `mcp/README-mcp.md` 合并配置，并做一次协议级冒烟（能列出工具名即接线成功）
-6. 记忆：按 `Qoder-个人规则生成提示词.md` 第 3 步分类勾选，确认后再并入 `~/.qoder/memory/`
+6. 记忆：先按 `Qoder-个人规则生成提示词.md` 第 3 步分类勾选；`node scripts/import-memory.cjs <归档>` 仅预演，确认后加 `--apply`。支持平铺和带版本外层目录；与现有文件冲突时整批拒绝，先三方合并，不覆盖索引或复制归档里的脚本到现役目录。
 7. 子智能体：`cp agents/*.md <客户端目录>/agents/`（目录不存在就建；非官方机制不支持时可直接读该目录下的 md 当提示词用）
 
 ## 只装了一个客户端（单端装配）
@@ -44,7 +44,7 @@
 - 重建索引：任何增删移技能后显式跑 `node ~/.qoder/scripts/build-skills-index.cjs`；`skill-load` 只读扫描实际文件，不在查询时写盘，包候选不等于已安装或已授权安装
 - **新增技能先判层级**：元/跨域高频或被 AGENTS·rules 硬引用（引用处未注明按需检索）→ `skills/`；单领域专用 → `skills-library/`；拿不准默认进库。创建前用 `node ~/.qoder/scripts/carrier-preflight.cjs --type skill --name <名> --path ~/.qoder/skills-library/<名>/SKILL.md` 预检——会列出两层同名/同类候选、提示本次拟入层与常驻预算（40 软 / 60 硬）
 
-包内实物：123 个技能（12 常驻 + 111 按需）；常驻描述 2645 字符，全部技能描述 25776 字符，占比 10.3%。按 catalog 的 description.length 计算，不是制作端或接收者的已安装数量。
+包内实物：125 个技能（12 常驻 + 113 按需）；常驻描述 2645 字符，全部技能描述 26252 字符，占比 10.1%。按 catalog 计算，不是接收者的已安装数量。
 
 ## 按需加装（分享包索引）
 
@@ -52,7 +52,7 @@
 
 - 登记位置（一次）：`node ~/.qoder/scripts/pkg-catalog.cjs register <分享包目录>`
 - 检索：`node ~/.qoder/scripts/pkg-catalog.cjs search "<关键词>"`，或 `/pkg-find "<关键词>"`
-- 安装：`install <id>` 先预演，确认后加 `--apply`；技能默认进 `skills-library/`，要常驻加 `--tier core`
+- 安装：`install <id>` 先预演依赖闭包，确认后加 `--apply`；技能按 manifest/catalog 的 tier 落点安装。另一层已有同名技能时拒绝写入，迁移请使用 tier-skills；失败会回滚本批文件与索引。
 - 插件 / 社区技能 / MCP：只给官方安装命令与合并说明，不代装、不转发源码
 - 兜底：`skill-load` 查不到时，会自动到已登记的包内索引里找，并给出加装命令
 
@@ -100,6 +100,6 @@
 
 ## 依赖
 
-- Node ≥ 20（脚本为 CommonJS + 内置模块，无第三方依赖）。
-- `skills/office-docs` 需装一次依赖（唯一需要联网装的一次；`node_modules` 不随包）：`cd ~/.qoder/skills/office-docs && npm i --registry=https://registry.npmmirror.com`。
+- Node.js ≥24.16（脚本使用内置模块，包括归档CRC与SQLite；不适用于Node 20）。
+- `office-docs` 需另行安装锁定依赖，`node_modules` 不随包。默认按需落点使用 `npm ci --ignore-scripts --prefix <客户端目录>/skills-library/office-docs`；显式装到core时使用安装器实际打印的目录。不自动联网装包。
 - Git Bash（Windows）：`sync-*.sh` 与部分守卫要用 bash；非 Windows 直接用系统 bash。

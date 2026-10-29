@@ -21,7 +21,7 @@ for (const dir of [env.APPDATA, env.LOCALAPPDATA, path.join(home, '.qoder/script
 for (const name of ['hook-crash-guard.js', 'client-root.js']) fs.copyFileSync(path.join(root, 'scripts', name), path.join(home, '.qoder/scripts', name));
 const checks = [
   ['global self-tests', [path.join(root, 'skills/global-config-smoke-runner/scripts/smoke-runner.cjs'), '--tests-only']],
-  ['release, suggestion, scan and tiering contracts', ['--test', path.join(__dirname, 'release.test.js'), path.join(__dirname, 'suggestions.test.js'), path.join(__dirname, 'scan.test.js'), path.join(__dirname, 'tiering.test.js')]],
+  ['release, suggestion, scan and tiering contracts', ['--test', path.join(__dirname, 'release.test.js'), path.join(__dirname, 'suggestions.test.js'), path.join(__dirname, 'scan.test.js'), path.join(__dirname, 'tiering.test.js'), path.join(__dirname, 'maintenance.test.js'), path.join(__dirname, 'delivery.test.js')]],
 ];
 let failures = 0;
 try {

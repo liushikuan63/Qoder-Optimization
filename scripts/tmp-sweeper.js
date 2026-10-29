@@ -119,6 +119,8 @@ function heartbeat(line) {
 
 function main(argv) {
   const apply = argv.includes('--apply')
+  const readOnly = argv.includes('--read-only')
+  if (readOnly && apply) { console.error('--read-only cannot be combined with --apply'); return 2 }
   const asJson = argv.includes('--json')
   const roots = resolveRoots(argv)
   const found = []
@@ -137,7 +139,7 @@ function main(argv) {
       }
     }
   }
-  heartbeat(`${apply ? 'APPLY' : 'SCAN'} roots=${roots.length} stale=${found.length} deleted=${deleted} failed=${failed}`)
+  if (!readOnly) heartbeat(`${apply ? 'APPLY' : 'SCAN'} roots=${roots.length} stale=${found.length} deleted=${deleted} failed=${failed}`)
   if (asJson) {
     process.stdout.write(`${JSON.stringify({ roots, apply, stale: found, deleted, failed }, null, 2)}\n`)
   } else {

@@ -29,7 +29,7 @@ install-mcp.cmd --wire-guard   :: 同时接线鼠标抢占守卫（需先把 scr
 
 - **cua-driver**：`1) 用包内离线版本` / `2) 联网下载最新版` / `3) 跳过` / `4) 仅注册已安装的版本`。
 - **dbhub**：`1) 联网安装最新版` / `2) 用包内 tgz`（依赖仍需网络）/ `3) 跳过`。
-- 离线资产在 `mcp/offline/`：cua-driver 0.38.0（MIT，含 `SHA256SUMS` 与 `LICENSE-cua-driver.txt`）、dbhub tgz；安装前会校验 SHA256。
+- 核心 ZIP 不携带离线二进制。需要离线安装时，另取同版本 `Qoder-Optimization-<版本>-offline.zip` 及其 `.sha256`，校验后与核心包解压到同一目录；资产会落在 `mcp/offline/`。包含 cua-driver 0.38.0（MIT，含 `SHA256SUMS` 与许可证）和 dbhub tgz，安装前仍会校验组件 SHA256。
 - 联网安装走 GitHub release（`trycua/cua`），下载后同样校验 SHA256；GitHub 不通时直接选离线。
 - 无控制台 / 自动化：`install-mcp.cmd --yes --cua offline --dbhub skip --wire-guard`。
 - 离线版装完会问「是否设置开机自启（启动文件夹 VBS）」；不自启就每次手动 `cua-driver serve`。

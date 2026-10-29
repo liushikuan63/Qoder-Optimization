@@ -64,6 +64,10 @@ function checkRelease(root, tag, selectedFiles) {
     if (JSON.stringify(catalog.entries) !== JSON.stringify(expected.catalog.entries)) fail('catalog entries, descriptions or install/source paths drift from package files');
     if (JSON.stringify(manifest.skills) !== JSON.stringify(expected.manifest.skills)) fail('manifest skill names, tiers or file counts drift');
     if (read('INDEX.md') !== expected.files['INDEX.md']) fail('INDEX.md version or counts drift');
+    for (const file of ['README.md', 'README-安装说明.md', 'SKILLS-清单.md', 'Qoder-AI编码通用规则.md', 'Qoder-个人规则生成提示词.md']) {
+      if (read(file).replace(/\r\n/g, '\n') !== expected.files[file]) fail('generated documentation drift: ' + file);
+    }
+    if (!fs.readFileSync(path.join(root, 'qoder-memory-export-generic.tar.gz')).equals(expected.files['qoder-memory-export-generic.tar.gz'])) fail('memory archive tools drift from public source');
   } catch (error) { fail('package metadata cannot be regenerated: ' + error.message); }
   const readme = read('README.md');
   if (!readme.includes('version-' + version + '-')) fail('README version badge drift');

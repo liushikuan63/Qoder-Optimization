@@ -45,3 +45,63 @@ test('scanner fails for missing targets and an empty input set', () => fixture(f
   assert.equal(f.run(f.input).status, 2);
   assert.equal(f.run(f.dir).status, 2);
 }));
+
+for (const format of ['json', 'json-escaped', 'yaml', 'gzip', 'nested-gzip']) {
+  test('scanner detects credential values in ' + format, () => fixture(f => {
+    const value = ['R4nd0m', 'Value42Plus'].join('');
+    let content = Buffer.from(format === 'yaml' ? '"password": "' + value + '"' : JSON.stringify({ password: value }));
+    if (format === 'json-escaped') content = Buffer.from('{"' + String.fromCharCode(92) + 'u0070assword":"' + value + '"}');
+    let name = f.input;
+    if (format.includes('gzip')) {
+      content = require('zlib').gzipSync(content);
+      name += '.gz';
+      if (format === 'nested-gzip') { content = require('zlib').gzipSync(content); name += '.gz'; }
+    }
+    fs.writeFileSync(name, content);
+    const result = f.run(name);
+    assert.equal(result.status, 2, result.stdout + result.stderr);
+    assert.ok(result.stdout.includes('凭据键值'));
+    assert.equal((result.stdout + result.stderr).includes(value), false);
+  }));
+}
+
+test('a damaged archive fails even beside clean text', () => fixture(f => {
+  fs.writeFileSync(f.input, 'clean');
+  fs.writeFileSync(path.join(f.dir, 'broken.tar.gz'), 'not an archive');
+  assert.equal(f.run(f.dir).status, 2);
+}));
+
+test('scanner checks zip members without extracting them', () => fixture(f => {
+  const content = path.join(f.dir, 'content');
+  fs.mkdirSync(content);
+  fs.writeFileSync(path.join(content, 'entry.json'), JSON.stringify({ token: ['R4nd0m', 'Value42Plus'].join('') }));
+  const zip = path.join(f.dir, 'bundle.zip');
+  const build = spawnSync(process.execPath, [path.resolve(__dirname, '../scripts/pack-folder.js'), content, zip], { encoding: 'utf8' });
+  assert.equal(build.status, 0, build.stderr);
+  const before = fs.readdirSync(f.dir).sort();
+  assert.equal(f.run(zip).status, 2);
+  assert.deepEqual(fs.readdirSync(f.dir).sort(), before);
+}));
+
+test('a forged zip member count cannot hide the last entry', () => fixture(f => {
+  const dir = path.join(f.dir, 'content'); fs.mkdirSync(dir);
+  fs.writeFileSync(path.join(dir, 'a.txt'), 'clean');
+  fs.writeFileSync(path.join(dir, 'z.json'), JSON.stringify({ token: ['R4nd0m', 'Value42Plus'].join('') }));
+  const zip = path.join(f.dir, 'test.zip');
+  const build = spawnSync(process.execPath, [path.resolve(__dirname, '../scripts/pack-folder.js'), dir, zip]);
+  assert.equal(build.status, 0);
+  const data = fs.readFileSync(zip), end = data.length - 22;
+  const count = data.readUInt16LE(end + 10);
+  data.writeUInt16LE(count - 1, end + 8); data.writeUInt16LE(count - 1, end + 10);
+  fs.writeFileSync(zip, data);
+  const r = f.run(zip);
+  assert.equal(r.status, 2);
+  assert.ok(r.stderr.includes('无法完整检查'));
+}));
+
+test('description exemptions come from the distributed checker, not HOME', () => fixture(f => {
+  const checker = path.resolve(__dirname, '../scripts/share-package-verify.cjs');
+  const source = fs.readFileSync(checker, 'utf8');
+  assert.ok(source.includes("path.join(__dirname, 'skills-doctor.cjs')"));
+  assert.equal(source.includes("path.join(HOME, '.qoder'"), false);
+}));

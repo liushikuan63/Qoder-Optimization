@@ -205,6 +205,7 @@ function parse(argv) {
     const a = argv[i]
     if (a === '--apply') { o.apply = true }
     else if (a === '--json') { o.json = true }
+    else if (a === '--read-only') { o.readOnly = true }
     else if (a === '--check') { o.check = true }
     else if (a === '--verbose') { o.verbose = true }
     else if (a === '--purge') { o.purge = true }
@@ -334,6 +335,10 @@ function restoreFiles(manifestPath, purge) {
 
 function main(argv) {
   const opt = parse(argv)
+  if (opt.readOnly && (opt.apply || opt.restore || opt.applyExtra || opt.purge || opt.archive)) {
+    console.error('--read-only cannot be combined with write operations')
+    return 2
+  }
   if (opt.restore) {
     let r
     try {
@@ -486,6 +491,7 @@ function main(argv) {
     }
   }
   try {
+    if (opt.readOnly) return failed > 0 ? 2 : (level !== 'ok' && (t1.length || extras.length) ? 1 : 0)
     const hb = path.join(CLIENT_ROOT, 'tmp', 'disk-sweeper', 'heartbeat.log')
     fs.mkdirSync(path.dirname(hb), { recursive: true })
     fs.appendFileSync(hb, `${new Date().toISOString()} ${opt.apply ? 'APPLY' : 'SCAN'} free=${freeGb.toFixed(1)}GB `

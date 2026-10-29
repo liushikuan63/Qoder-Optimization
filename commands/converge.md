@@ -12,7 +12,7 @@ description: 一键收敛与优化——技能描述瘦身、同域技能合并�
 ```bash
 node ~/.qoder/scripts/skills-doctor.cjs          # 描述长度 / 悬空引用 / 两侧可见性 / 撞名
 node ~/.qoder/scripts/skill-collisions.cjs       # 每轮注入开销 + 触发重叠对
-node ~/.qoder/scripts/rules-weekly-audit.js --no-fix   # 规则漂移 / 篇幅 / 接线 / 心跳
+node ~/.qoder/scripts/rules-weekly-audit.js --read-only   # 规则漂移 / 篇幅 / 接线 / 心跳
 node ~/.qoder/scripts/carrier-preflight.cjs --type skill --name <拟新增名称>   # 仅在要新增载体时
 ```
 
@@ -39,7 +39,7 @@ node ~/.qoder/scripts/carrier-preflight.cjs --type skill --name <拟新增名称
 1. 先看 `skill-collisions.cjs` 的「未互相指认」重叠对——这类才是真正会抢触发的
 2. 两条路：① 在 description 里互相指认（分工写清）；② 真正合并——把被停技能里「只此一家」的能力搬进留存技能（真代码或规则条目）
 3. 停用走 `~/.qoder/skills-disabled/`（移走不删、可回退）
-4. 停完必须复查引用：`node ~/.qoder/scripts/skills-doctor.cjs`（悬空引用）与 `rules-weekly-audit.js --no-fix`（提及扫描）
+4. 停完必须复查引用：`node ~/.qoder/scripts/skills-doctor.cjs`（悬空引用）与 `rules-weekly-audit.js --read-only`（提及扫描）
 
 **判据**：重叠对=0；`skills-doctor` 无 DANGLING-REF；被停技能的能力在留存内容里有落点（能指出文件与行）。
 
@@ -49,7 +49,7 @@ node ~/.qoder/scripts/carrier-preflight.cjs --type skill --name <拟新增名称
 
 - 产出按 P0/P1/P2 分级，每条带「原文引用 + 文件:行 + 行为影响 + 具体改文 + 扩权标注」
 - **先报告后改**；涉及放宽红线、改权限或拦截范围的，逐条要批准
-- 改完必须跑：`node ~/.qoder/scripts/rules-weekly-audit.js --no-fix`
+- 改完必须跑：`node ~/.qoder/scripts/rules-weekly-audit.js --read-only`
 
 **判据**：周检 0 告警；门禁自测 `node ~/.qoder/scripts/stop-gate.test.js` 全过。
 
@@ -58,7 +58,7 @@ node ~/.qoder/scripts/carrier-preflight.cjs --type skill --name <拟新增名称
 ```bash
 node ~/.qoder/scripts/skills-doctor.cjs | tail -1     # 期望 VERDICT=CLEAN
 node ~/.qoder/scripts/skill-collisions.cjs | head -1  # 记下新的每轮注入值
-node ~/.qoder/scripts/rules-weekly-audit.js --no-fix  # 期望「健康（0 告警）」
+node ~/.qoder/scripts/rules-weekly-audit.js --read-only  # 期望「健康（0 告警）」
 ```
 
 把「收敛前 / 收敛后」的两个数记进项目 README 或接续文档；下次跑还能对比。

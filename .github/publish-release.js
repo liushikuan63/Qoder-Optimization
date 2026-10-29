@@ -43,10 +43,15 @@ function publishRelease({ repo, tag, dest, gh = officialGh, root = process.cwd()
   };
   const evidence = JSON.parse(fs.readFileSync(path.join(dest, 'build.json'), 'utf8'));
   const name = 'Qoder-Optimization-' + tag.slice(1);
-  const assets = [name + '.zip', name + '.zip.sha256'];
   if (evidence.tag !== tag || evidence.package !== name || !/^[a-f0-9]{40}$/.test(evidence.commit || '')) throw new Error('build provenance does not match release');
-  if (sha256(path.join(dest, assets[0])) !== evidence.sha256 ||
-      fs.readFileSync(path.join(dest, assets[1]), 'utf8') !== `${evidence.sha256}  ${assets[0]}\n`) throw new Error('local asset checksum mismatch');
+  const artifacts = evidence.artifacts;
+  if (!Array.isArray(artifacts) || !artifacts.length || artifacts.length > 2 || artifacts[0].name !== name + '.zip' ||
+      new Set(artifacts.map(a => a.name)).size !== artifacts.length || artifacts.some(a => ![name + '.zip', name + '-offline.zip'].includes(a.name))) throw new Error('invalid build artifact list');
+  const assets = artifacts.flatMap(artifact => [artifact.name, artifact.name + '.sha256']);
+  for (const artifact of artifacts) {
+    if (sha256(path.join(dest, artifact.name)) !== artifact.sha256 ||
+        fs.readFileSync(path.join(dest, artifact.name + '.sha256'), 'utf8') !== `${artifact.sha256}  ${artifact.name}\n`) throw new Error('local asset checksum mismatch');
+  }
   const remoteCommit = invoke(['api', `repos/${repo}/commits/${tag}`, '--jq', '.sha']).trim();
   if (remoteCommit !== evidence.commit) throw new Error('remote tag does not match the tested source commit');
   let release = getRelease();

@@ -10,6 +10,15 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { archiveEntries, MAX_BYTES } = require('./archive-entries.cjs');
+const { createHash } = require('crypto');
+
+// Pinned upstream JavaScript uses environment filenames, namespaces and property access, not private hosts.
+const CODE_HOST_FALSE_POSITIVES = {
+  'package/dist/chunk-VDA5BVNE.js': 'ad95b9ac764112b8bec26ff9fe1d078327716fb890bdbaf7223fdebbb3c00fc6',
+  'package/dist/public/assets/index-BdBaFSHd.js': '7d8049d00c3fd27452a14ab0bd535f1da002913e26bc8c032fd607025bf1eac8',
+  'package/dist/index.js': '4e10edf09ecad460f21a3119a78e7a236410cc8c70e272297e0567d7408734d9',
+};
 
 const HOME = os.homedir();
 const LISTS = {
@@ -39,7 +48,7 @@ function looksRealSecret(text, m, v) {
 }
 const HARD = {
   '真实微信AppID': /\bwx[0-9a-f]{16}\b/gi,
-  '凭据键值': /(password|passwd|pwd|secret|api[_-]?key|access[_-]?key|token)\s*[:=]\s*["']?([^\s"',;)]{6,})/gi,
+  '凭据键值': /\b(password|passwd|pwd|secret|api[_-]?key|access[_-]?key|token)["']?\s*[:=]\s*["']?([^\s"',;)}]{6,})/gi,
 };
 const SOFT = {
   '私网IP示例': /\b(?:10\.\d{1,3}|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}\b/g,
@@ -49,7 +58,22 @@ const SOFT = {
 function scanText(text) {
   const hits = {};
   const bump = (k, n) => { if (n) hits[k] = (hits[k] || 0) + n; };
+  let parsedJson = false;
+  try {
+    const value = JSON.parse(text.replace(/^\uFEFF/, ''));
+    parsedJson = true;
+    const pending = [value];
+    while (pending.length) {
+      const node = pending.pop();
+      if (!node || typeof node !== 'object') continue;
+      for (const [key, val] of Object.entries(node)) {
+        if (/^(password|passwd|pwd|secret|api[_-]?key|access[_-]?key|token)$/i.test(key) && typeof val === 'string' && looksRealSecret('', '', val)) bump('凭据键值', 1);
+        if (val && typeof val === 'object') pending.push(val);
+      }
+    }
+  } catch {}
   for (const [label, re] of Object.entries(HARD)) {
+    if (parsedJson && label === '凭据键值') continue;
     const g = re.source.includes('gi') || String(re.flags).includes('g') ? re : new RegExp(re.source, re.flags + 'g');
     bump(label, (text.match(g) || []).filter(m => {
       const v = m.replace(/.*[:=]\s*["']?/, '');
@@ -107,16 +131,29 @@ const rows = [];
 for (const t of targets) {
   if (!fs.existsSync(t)) { console.error('FAIL 目标不存在: ' + t); unreadable++; continue; }
   for (const f of walk(t)) {
-    let text;
-    try { text = fs.readFileSync(f, 'utf8'); } catch { unreadable++; continue; }
-    if (/\0/.test(text.slice(0, 8000))) continue;
-    files++;
-    const hits = scanText(text);
-    const cats = Object.entries(hits);
-    if (!cats.length) continue;
-    const hard = cats.filter(([k]) => isHard(k));
-    if (hard.length) hardFiles++; else softFiles++;
-    rows.push([f, cats.map(([k, n]) => k + '=' + n).join(' '), hard.length ? 'HARD' : 'soft']);
+    let expanded = 0;
+    const inspect = (name, bytes, depth = 0) => {
+      if (depth > 4 || (expanded += bytes.length) > MAX_BYTES * 2) throw new Error('archive expansion limit exceeded');
+      const members = archiveEntries(name, bytes);
+      if (members) {
+        for (const member of members) inspect(name + '!/' + member.name, member.data, depth + 1);
+        return;
+      }
+      const text = bytes.toString('utf8');
+      if (/\0/.test(text.slice(0, 8000))) return;
+      files++;
+      const hits = scanText(text);
+      const pinned = Object.entries(CODE_HOST_FALSE_POSITIVES).find(([member, digest]) =>
+        name.endsWith('!/' + member) && createHash('sha256').update(bytes).digest('hex') === digest);
+      if (pinned) delete hits['内网后缀主机'];
+      const cats = Object.entries(hits);
+      if (!cats.length) return;
+      const hard = cats.some(([key]) => isHard(key));
+      if (hard) hardFiles++; else softFiles++;
+      rows.push([name, cats.map(([key, count]) => key + '=' + count).join(' '), hard ? 'HARD' : 'soft']);
+    };
+    try { inspect(f, fs.readFileSync(f)); }
+    catch { unreadable++; console.error('FAIL 无法完整检查文件或归档: ' + path.relative(process.cwd(), f)); }
   }
 }
 rows.forEach(([f, c, lvl]) => console.log(`  [${lvl}] ${path.relative(process.cwd(), f).replace(/\\/g, '/')} :: ${c}`));

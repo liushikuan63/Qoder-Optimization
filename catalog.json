@@ -2,13 +2,13 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.0.3"
+  "version": "0.0.4"
  },
- "generated": "2026-10-28",
+ "generated": "2026-10-29",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 125,
-  "script": 87,
+  "script": 90,
   "command": 10,
   "agent": 2
  },
@@ -24,7 +24,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/architecture-designer"
+   "source": "skills/architecture-designer",
+   "dependencies": []
   },
   {
    "id": "skill:async-python-patterns",
@@ -37,7 +38,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/async-python-patterns"
+   "source": "skills/async-python-patterns",
+   "dependencies": []
   },
   {
    "id": "skill:audit-ci-cost-levers",
@@ -50,7 +52,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/audit-ci-cost-levers"
+   "source": "skills/audit-ci-cost-levers",
+   "dependencies": []
   },
   {
    "id": "skill:awesome-design-md",
@@ -63,7 +66,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/awesome-design-md"
+   "source": "skills/awesome-design-md",
+   "dependencies": []
   },
   {
    "id": "skill:byok-model-retry",
@@ -76,7 +80,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/byok-model-retry"
+   "source": "skills/byok-model-retry",
+   "dependencies": []
   },
   {
    "id": "skill:cloudbase-wechat-integration",
@@ -89,7 +94,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/cloudbase-wechat-integration"
+   "source": "skills/cloudbase-wechat-integration",
+   "dependencies": []
   },
   {
    "id": "skill:concurrent-edit-attribution-check",
@@ -102,7 +108,8 @@
     "mode": "copy-skill",
     "tier": "core"
    },
-   "source": "skills/concurrent-edit-attribution-check"
+   "source": "skills/concurrent-edit-attribution-check",
+   "dependencies": []
   },
   {
    "id": "skill:continuation-state-audit",
@@ -115,7 +122,8 @@
     "mode": "copy-skill",
     "tier": "core"
    },
-   "source": "skills/continuation-state-audit"
+   "source": "skills/continuation-state-audit",
+   "dependencies": []
   },
   {
    "id": "skill:deliver-prd",
@@ -128,7 +136,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/deliver-prd"
+   "source": "skills/deliver-prd",
+   "dependencies": []
   },
   {
    "id": "skill:desktop-update-push-triage",
@@ -141,7 +150,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/desktop-update-push-triage"
+   "source": "skills/desktop-update-push-triage",
+   "dependencies": []
   },
   {
    "id": "skill:diagnose-github-actions-quota",
@@ -154,7 +164,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/diagnose-github-actions-quota"
+   "source": "skills/diagnose-github-actions-quota",
+   "dependencies": []
   },
   {
    "id": "skill:diagnose-windows-webview2-blank-window",
@@ -167,7 +178,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/diagnose-windows-webview2-blank-window"
+   "source": "skills/diagnose-windows-webview2-blank-window",
+   "dependencies": []
   },
   {
    "id": "skill:disk-junction-migration",
@@ -180,7 +192,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/disk-junction-migration"
+   "source": "skills/disk-junction-migration",
+   "dependencies": []
   },
   {
    "id": "skill:distinctive-design-systems",
@@ -193,7 +206,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/distinctive-design-systems"
+   "source": "skills/distinctive-design-systems",
+   "dependencies": []
   },
   {
    "id": "skill:dsh-session-format-debug",
@@ -206,7 +220,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/dsh-session-format-debug"
+   "source": "skills/dsh-session-format-debug",
+   "dependencies": []
   },
   {
    "id": "skill:electron-app-stuck-spinner-triage",
@@ -219,7 +234,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/electron-app-stuck-spinner-triage"
+   "source": "skills/electron-app-stuck-spinner-triage",
+   "dependencies": []
   },
   {
    "id": "skill:electron-asar-code-forensics",
@@ -232,7 +248,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/electron-asar-code-forensics"
+   "source": "skills/electron-asar-code-forensics",
+   "dependencies": []
   },
   {
    "id": "skill:electron-tray-icon-diagnosis",
@@ -245,7 +262,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/electron-tray-icon-diagnosis"
+   "source": "skills/electron-tray-icon-diagnosis",
+   "dependencies": []
   },
   {
    "id": "skill:encrypted-office-visual-inspection",
@@ -258,7 +276,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/encrypted-office-visual-inspection"
+   "source": "skills/encrypted-office-visual-inspection",
+   "dependencies": []
   },
   {
    "id": "skill:frontend-design-ui-ux",
@@ -271,7 +290,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/frontend-design-ui-ux"
+   "source": "skills/frontend-design-ui-ux",
+   "dependencies": []
   },
   {
    "id": "skill:frontend-development",
@@ -284,7 +304,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/frontend-development"
+   "source": "skills/frontend-development",
+   "dependencies": []
   },
   {
    "id": "skill:game-designer-toolkit",
@@ -297,7 +318,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/game-designer-toolkit"
+   "source": "skills/game-designer-toolkit",
+   "dependencies": []
   },
   {
    "id": "skill:game-numeric-design",
@@ -310,7 +332,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/game-numeric-design"
+   "source": "skills/game-numeric-design",
+   "dependencies": []
   },
   {
    "id": "skill:github-accelerator",
@@ -323,7 +346,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/github-accelerator"
+   "source": "skills/github-accelerator",
+   "dependencies": []
   },
   {
    "id": "skill:global-config-smoke-runner",
@@ -336,7 +360,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/global-config-smoke-runner"
+   "source": "skills/global-config-smoke-runner",
+   "dependencies": []
   },
   {
    "id": "skill:goal-driven-execution",
@@ -349,7 +374,8 @@
     "mode": "copy-skill",
     "tier": "core"
    },
-   "source": "skills/goal-driven-execution"
+   "source": "skills/goal-driven-execution",
+   "dependencies": []
   },
   {
    "id": "skill:hid-device-protocol-probe",
@@ -362,7 +388,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/hid-device-protocol-probe"
+   "source": "skills/hid-device-protocol-probe",
+   "dependencies": []
   },
   {
    "id": "skill:i-have-adhd",
@@ -375,7 +402,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/i-have-adhd"
+   "source": "skills/i-have-adhd",
+   "dependencies": []
   },
   {
    "id": "skill:injected-context-slimming",
@@ -388,7 +416,8 @@
    "install": {
     "mode": "copy-skill",
     "tier": "library"
-   }
+   },
+   "dependencies": []
   },
   {
    "id": "skill:java-architect",
@@ -401,7 +430,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/java-architect"
+   "source": "skills/java-architect",
+   "dependencies": []
   },
   {
    "id": "skill:java-quality",
@@ -414,7 +444,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/java-quality"
+   "source": "skills/java-quality",
+   "dependencies": []
   },
   {
    "id": "skill:kafka-best-practices",
@@ -427,7 +458,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/kafka-best-practices"
+   "source": "skills/kafka-best-practices",
+   "dependencies": []
   },
   {
    "id": "skill:large-sqlite-text-extraction",
@@ -440,7 +472,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/large-sqlite-text-extraction"
+   "source": "skills/large-sqlite-text-extraction",
+   "dependencies": []
   },
   {
    "id": "skill:local-api-contracts",
@@ -453,7 +486,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/local-api-contracts"
+   "source": "skills/local-api-contracts",
+   "dependencies": []
   },
   {
    "id": "skill:local-browser-e2e",
@@ -466,7 +500,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/local-browser-e2e"
+   "source": "skills/local-browser-e2e",
+   "dependencies": []
   },
   {
    "id": "skill:local-db-migrations",
@@ -479,7 +514,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/local-db-migrations"
+   "source": "skills/local-db-migrations",
+   "dependencies": []
   },
   {
    "id": "skill:local-frontend-a11y",
@@ -492,7 +528,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/local-frontend-a11y"
+   "source": "skills/local-frontend-a11y",
+   "dependencies": []
   },
   {
    "id": "skill:local-performance-evidence",
@@ -505,7 +542,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/local-performance-evidence"
+   "source": "skills/local-performance-evidence",
+   "dependencies": []
   },
   {
    "id": "skill:local-rust-engineering",
@@ -518,7 +556,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/local-rust-engineering"
+   "source": "skills/local-rust-engineering",
+   "dependencies": []
   },
   {
    "id": "skill:local-spring-mybatis",
@@ -531,7 +570,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/local-spring-mybatis"
+   "source": "skills/local-spring-mybatis",
+   "dependencies": []
   },
   {
    "id": "skill:mechanize-rule-into-hook-guard",
@@ -544,7 +584,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/mechanize-rule-into-hook-guard"
+   "source": "skills/mechanize-rule-into-hook-guard",
+   "dependencies": []
   },
   {
    "id": "skill:memory-bank-divergence-repair",
@@ -552,12 +593,13 @@
    "name": "memory-bank-divergence-repair",
    "status": "shipped",
    "tier": "library",
-   "description": "双侧记忆库（~/.qoder/memory 与 ~/.qoder-cn/memory）分叉修复流水线：逐文件测行集包含关系再分档（严格超集直接覆盖 / 真双向逐段合并 / 单边补缺）→ 两侧同写 → 用 sync 脚本与 md5 验收。触发词：记忆分叉、sync-memory 报分叉、两侧记忆不一致、memory drift、记忆漂移、分叉修复、索引不自洽。不用于：单条记忆内容更新（→memory-entry-update）、注入文件瘦身（→injected-context-slimming）、分享包并入（→merge-inbound-qoder-package）。",
+   "description": "双侧记忆分叉修复：先核对共同基线与删除意图，再三方合并；无可信基线时只报告差异，不用行集大小判新旧。触发词：记忆分叉、sync-memory 报分叉、两侧记忆不一致、memory drift、索引不自洽。不用于：单条记忆更新、注入文件瘦身（→injected-context-slimming）、分享包并入（→merge-inbound-qoder-package）。",
    "source": "skills/memory-bank-divergence-repair",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
-   }
+   },
+   "dependencies": []
   },
   {
    "id": "skill:memory-entry-update",
@@ -570,7 +612,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/memory-entry-update"
+   "source": "skills/memory-entry-update",
+   "dependencies": []
   },
   {
    "id": "skill:merge-inbound-qoder-package",
@@ -583,7 +626,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/merge-inbound-qoder-package"
+   "source": "skills/merge-inbound-qoder-package",
+   "dependencies": []
   },
   {
    "id": "skill:minigame-dev-pro",
@@ -596,7 +640,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/minigame-dev-pro"
+   "source": "skills/minigame-dev-pro",
+   "dependencies": []
   },
   {
    "id": "skill:miniprogram-development",
@@ -609,7 +654,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/miniprogram-development"
+   "source": "skills/miniprogram-development",
+   "dependencies": []
   },
   {
    "id": "skill:mongodb-atlas-stream-processing",
@@ -622,7 +668,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/mongodb-atlas-stream-processing"
+   "source": "skills/mongodb-atlas-stream-processing",
+   "dependencies": []
   },
   {
    "id": "skill:mongodb-connection",
@@ -635,7 +682,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/mongodb-connection"
+   "source": "skills/mongodb-connection",
+   "dependencies": []
   },
   {
    "id": "skill:mongodb-mcp-setup",
@@ -648,7 +696,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/mongodb-mcp-setup"
+   "source": "skills/mongodb-mcp-setup",
+   "dependencies": []
   },
   {
    "id": "skill:mongodb-natural-language-querying",
@@ -661,7 +710,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/mongodb-natural-language-querying"
+   "source": "skills/mongodb-natural-language-querying",
+   "dependencies": []
   },
   {
    "id": "skill:mongodb-query-optimizer",
@@ -674,7 +724,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/mongodb-query-optimizer"
+   "source": "skills/mongodb-query-optimizer",
+   "dependencies": []
   },
   {
    "id": "skill:mongodb-schema-design",
@@ -687,7 +738,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/mongodb-schema-design"
+   "source": "skills/mongodb-schema-design",
+   "dependencies": []
   },
   {
    "id": "skill:mongodb-search-and-ai",
@@ -700,7 +752,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/mongodb-search-and-ai"
+   "source": "skills/mongodb-search-and-ai",
+   "dependencies": []
   },
   {
    "id": "skill:mysql",
@@ -713,7 +766,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/mysql"
+   "source": "skills/mysql",
+   "dependencies": []
   },
   {
    "id": "skill:nextjs-app-router-patterns",
@@ -726,7 +780,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/nextjs-app-router-patterns"
+   "source": "skills/nextjs-app-router-patterns",
+   "dependencies": []
   },
   {
    "id": "skill:nginx-config-builder",
@@ -739,7 +794,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/nginx-config-builder"
+   "source": "skills/nginx-config-builder",
+   "dependencies": []
   },
   {
    "id": "skill:nodejs-backend-patterns",
@@ -752,7 +808,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/nodejs-backend-patterns"
+   "source": "skills/nodejs-backend-patterns",
+   "dependencies": []
   },
   {
    "id": "skill:office-docs",
@@ -765,7 +822,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/office-docs"
+   "source": "skills/office-docs",
+   "dependencies": []
   },
   {
    "id": "skill:open-code-review-delegate",
@@ -778,7 +836,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/open-code-review-delegate"
+   "source": "skills/open-code-review-delegate",
+   "dependencies": []
   },
   {
    "id": "skill:oracledb",
@@ -791,7 +850,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/oracledb"
+   "source": "skills/oracledb",
+   "dependencies": []
   },
   {
    "id": "skill:pause-writer-before-shared-file-edit",
@@ -804,7 +864,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/pause-writer-before-shared-file-edit"
+   "source": "skills/pause-writer-before-shared-file-edit",
+   "dependencies": []
   },
   {
    "id": "skill:postgresql-optimization",
@@ -817,7 +878,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/postgresql-optimization"
+   "source": "skills/postgresql-optimization",
+   "dependencies": []
   },
   {
    "id": "skill:postgresql-table-design",
@@ -830,7 +892,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/postgresql-table-design"
+   "source": "skills/postgresql-table-design",
+   "dependencies": []
   },
   {
    "id": "skill:powershell-windows-display-interop",
@@ -843,7 +906,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/powershell-windows-display-interop"
+   "source": "skills/powershell-windows-display-interop",
+   "dependencies": []
   },
   {
    "id": "skill:python-anti-patterns",
@@ -856,7 +920,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/python-anti-patterns"
+   "source": "skills/python-anti-patterns",
+   "dependencies": []
   },
   {
    "id": "skill:python-backend-guidelines",
@@ -869,7 +934,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/python-backend-guidelines"
+   "source": "skills/python-backend-guidelines",
+   "dependencies": []
   },
   {
    "id": "skill:python-dataviz",
@@ -882,7 +948,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/python-dataviz"
+   "source": "skills/python-dataviz",
+   "dependencies": []
   },
   {
    "id": "skill:python-error-handling",
@@ -895,7 +962,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/python-error-handling"
+   "source": "skills/python-error-handling",
+   "dependencies": []
   },
   {
    "id": "skill:python-performance-optimization",
@@ -908,7 +976,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/python-performance-optimization"
+   "source": "skills/python-performance-optimization",
+   "dependencies": []
   },
   {
    "id": "skill:python-programmer",
@@ -921,7 +990,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/python-programmer"
+   "source": "skills/python-programmer",
+   "dependencies": []
   },
   {
    "id": "skill:python-project-structure",
@@ -934,7 +1004,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/python-project-structure"
+   "source": "skills/python-project-structure",
+   "dependencies": []
   },
   {
    "id": "skill:python-testing-patterns",
@@ -947,7 +1018,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/python-testing-patterns"
+   "source": "skills/python-testing-patterns",
+   "dependencies": []
   },
   {
    "id": "skill:python-type-safety",
@@ -960,7 +1032,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/python-type-safety"
+   "source": "skills/python-type-safety",
+   "dependencies": []
   },
   {
    "id": "skill:rabbitmq-expert",
@@ -973,7 +1046,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/rabbitmq-expert"
+   "source": "skills/rabbitmq-expert",
+   "dependencies": []
   },
   {
    "id": "skill:react-modernization",
@@ -986,7 +1060,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/react-modernization"
+   "source": "skills/react-modernization",
+   "dependencies": []
   },
   {
    "id": "skill:redis-clustering",
@@ -999,7 +1074,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/redis-clustering"
+   "source": "skills/redis-clustering",
+   "dependencies": []
   },
   {
    "id": "skill:redis-connections",
@@ -1012,7 +1088,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/redis-connections"
+   "source": "skills/redis-connections",
+   "dependencies": []
   },
   {
    "id": "skill:redis-core",
@@ -1025,7 +1102,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/redis-core"
+   "source": "skills/redis-core",
+   "dependencies": []
   },
   {
    "id": "skill:redis-observability",
@@ -1038,7 +1116,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/redis-observability"
+   "source": "skills/redis-observability",
+   "dependencies": []
   },
   {
    "id": "skill:redis-search",
@@ -1051,7 +1130,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/redis-search"
+   "source": "skills/redis-search",
+   "dependencies": []
   },
   {
    "id": "skill:redis-security",
@@ -1064,7 +1144,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/redis-security"
+   "source": "skills/redis-security",
+   "dependencies": []
   },
   {
    "id": "skill:redis-semantic-cache",
@@ -1077,7 +1158,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/redis-semantic-cache"
+   "source": "skills/redis-semantic-cache",
+   "dependencies": []
   },
   {
    "id": "skill:rules-conflict-audit",
@@ -1090,7 +1172,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/rules-conflict-audit"
+   "source": "skills/rules-conflict-audit",
+   "dependencies": []
   },
   {
    "id": "skill:safe-text-editing",
@@ -1103,7 +1186,8 @@
     "mode": "copy-skill",
     "tier": "core"
    },
-   "source": "skills/safe-text-editing"
+   "source": "skills/safe-text-editing",
+   "dependencies": []
   },
   {
    "id": "skill:self-evolution",
@@ -1116,7 +1200,8 @@
     "mode": "copy-skill",
     "tier": "core"
    },
-   "source": "skills/self-evolution"
+   "source": "skills/self-evolution",
+   "dependencies": []
   },
   {
    "id": "skill:senior-devops",
@@ -1129,7 +1214,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/senior-devops"
+   "source": "skills/senior-devops",
+   "dependencies": []
   },
   {
    "id": "skill:setup-windows-selfhosted-runner",
@@ -1142,7 +1228,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/setup-windows-selfhosted-runner"
+   "source": "skills/setup-windows-selfhosted-runner",
+   "dependencies": []
   },
   {
    "id": "skill:ship-clean-pr",
@@ -1155,7 +1242,8 @@
     "mode": "copy-skill",
     "tier": "core"
    },
-   "source": "skills/ship-clean-pr"
+   "source": "skills/ship-clean-pr",
+   "dependencies": []
   },
   {
    "id": "skill:shipped-app-js-patch-hygiene",
@@ -1168,7 +1256,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/shipped-app-js-patch-hygiene"
+   "source": "skills/shipped-app-js-patch-hygiene",
+   "dependencies": []
   },
   {
    "id": "skill:skill-authoring-closure",
@@ -1181,7 +1270,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/skill-authoring-closure"
+   "source": "skills/skill-authoring-closure",
+   "dependencies": []
   },
   {
    "id": "skill:skill-description-route-cue-rewrite",
@@ -1194,7 +1284,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/skill-description-route-cue-rewrite"
+   "source": "skills/skill-description-route-cue-rewrite",
+   "dependencies": []
   },
   {
    "id": "skill:skill-reference-integrity-audit",
@@ -1207,7 +1298,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/skill-reference-integrity-audit"
+   "source": "skills/skill-reference-integrity-audit",
+   "dependencies": []
   },
   {
    "id": "skill:skill-tiering-lazy-load",
@@ -1220,7 +1312,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/skill-tiering-lazy-load"
+   "source": "skills/skill-tiering-lazy-load",
+   "dependencies": []
   },
   {
    "id": "skill:skill-trim-with-capability-transfer",
@@ -1233,7 +1326,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/skill-trim-with-capability-transfer"
+   "source": "skills/skill-trim-with-capability-transfer",
+   "dependencies": []
   },
   {
    "id": "skill:skills-router",
@@ -1246,7 +1340,8 @@
     "mode": "copy-skill",
     "tier": "core"
    },
-   "source": "skills/skills-router"
+   "source": "skills/skills-router",
+   "dependencies": []
   },
   {
    "id": "skill:spring-aop",
@@ -1259,7 +1354,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/spring-aop"
+   "source": "skills/spring-aop",
+   "dependencies": []
   },
   {
    "id": "skill:spring-boot-actuator",
@@ -1272,7 +1368,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/spring-boot-actuator"
+   "source": "skills/spring-boot-actuator",
+   "dependencies": []
   },
   {
    "id": "skill:spring-boot-cache",
@@ -1285,7 +1382,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/spring-boot-cache"
+   "source": "skills/spring-boot-cache",
+   "dependencies": []
   },
   {
    "id": "skill:spring-boot-event-driven-patterns",
@@ -1298,7 +1396,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/spring-boot-event-driven-patterns"
+   "source": "skills/spring-boot-event-driven-patterns",
+   "dependencies": []
   },
   {
    "id": "skill:spring-boot-resilience4j",
@@ -1311,7 +1410,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/spring-boot-resilience4j"
+   "source": "skills/spring-boot-resilience4j",
+   "dependencies": []
   },
   {
    "id": "skill:spring-boot-rest-api-standards",
@@ -1324,7 +1424,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/spring-boot-rest-api-standards"
+   "source": "skills/spring-boot-rest-api-standards",
+   "dependencies": []
   },
   {
    "id": "skill:spring-boot-test-patterns",
@@ -1337,7 +1438,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/spring-boot-test-patterns"
+   "source": "skills/spring-boot-test-patterns",
+   "dependencies": []
   },
   {
    "id": "skill:spring-events",
@@ -1350,7 +1452,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/spring-events"
+   "source": "skills/spring-events",
+   "dependencies": []
   },
   {
    "id": "skill:springboot-patterns",
@@ -1363,7 +1466,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/springboot-patterns"
+   "source": "skills/springboot-patterns",
+   "dependencies": []
   },
   {
    "id": "skill:springboot-verification",
@@ -1376,7 +1480,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/springboot-verification"
+   "source": "skills/springboot-verification",
+   "dependencies": []
   },
   {
    "id": "skill:structured-edit-safety",
@@ -1389,7 +1494,8 @@
     "mode": "copy-skill",
     "tier": "core"
    },
-   "source": "skills/structured-edit-safety"
+   "source": "skills/structured-edit-safety",
+   "dependencies": []
   },
   {
    "id": "skill:systemd-java-service-centos7",
@@ -1402,7 +1508,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/systemd-java-service-centos7"
+   "source": "skills/systemd-java-service-centos7",
+   "dependencies": []
   },
   {
    "id": "skill:tailwindcss-animations",
@@ -1415,7 +1522,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/tailwindcss-animations"
+   "source": "skills/tailwindcss-animations",
+   "dependencies": []
   },
   {
    "id": "skill:typescript-pro",
@@ -1428,7 +1536,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/typescript-pro"
+   "source": "skills/typescript-pro",
+   "dependencies": []
   },
   {
    "id": "skill:umi3-to-umi4-upgrade",
@@ -1441,7 +1550,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/umi3-to-umi4-upgrade"
+   "source": "skills/umi3-to-umi4-upgrade",
+   "dependencies": []
   },
   {
    "id": "skill:user-side-deploy-verify",
@@ -1454,7 +1564,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/user-side-deploy-verify"
+   "source": "skills/user-side-deploy-verify",
+   "dependencies": []
   },
   {
    "id": "skill:verify-before-claim",
@@ -1467,7 +1578,8 @@
     "mode": "copy-skill",
     "tier": "core"
    },
-   "source": "skills/verify-before-claim"
+   "source": "skills/verify-before-claim",
+   "dependencies": []
   },
   {
    "id": "skill:verify-ui-in-browser",
@@ -1480,7 +1592,8 @@
     "mode": "copy-skill",
     "tier": "core"
    },
-   "source": "skills/verify-ui-in-browser"
+   "source": "skills/verify-ui-in-browser",
+   "dependencies": []
   },
   {
    "id": "skill:verify-windows-cmd-tool",
@@ -1493,7 +1606,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/verify-windows-cmd-tool"
+   "source": "skills/verify-windows-cmd-tool",
+   "dependencies": []
   },
   {
    "id": "skill:vibe-coding-workflow",
@@ -1506,7 +1620,8 @@
     "mode": "copy-skill",
     "tier": "core"
    },
-   "source": "skills/vibe-coding-workflow"
+   "source": "skills/vibe-coding-workflow",
+   "dependencies": []
   },
   {
    "id": "skill:vibecoding-doc",
@@ -1519,7 +1634,8 @@
     "mode": "copy-skill",
     "tier": "core"
    },
-   "source": "skills/vibecoding-doc"
+   "source": "skills/vibecoding-doc",
+   "dependencies": []
   },
   {
    "id": "skill:vue-expert",
@@ -1532,7 +1648,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/vue-expert"
+   "source": "skills/vue-expert",
+   "dependencies": []
   },
   {
    "id": "skill:wechat-miniprogram-dev",
@@ -1545,7 +1662,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/wechat-miniprogram-dev"
+   "source": "skills/wechat-miniprogram-dev",
+   "dependencies": []
   },
   {
    "id": "skill:windows-desktop-keyboard-automation",
@@ -1558,7 +1676,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/windows-desktop-keyboard-automation"
+   "source": "skills/windows-desktop-keyboard-automation",
+   "dependencies": []
   },
   {
    "id": "skill:windows-elevated-changes-from-git-bash",
@@ -1571,7 +1690,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/windows-elevated-changes-from-git-bash"
+   "source": "skills/windows-elevated-changes-from-git-bash",
+   "dependencies": []
   },
   {
    "id": "skill:windows-gitbash-command-safety",
@@ -1584,7 +1704,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/windows-gitbash-command-safety"
+   "source": "skills/windows-gitbash-command-safety",
+   "dependencies": []
   },
   {
    "id": "skill:windows-powershell-from-gitbash",
@@ -1597,7 +1718,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/windows-powershell-from-gitbash"
+   "source": "skills/windows-powershell-from-gitbash",
+   "dependencies": []
   },
   {
    "id": "skill:windows-relocated-install-path-repair",
@@ -1610,7 +1732,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/windows-relocated-install-path-repair"
+   "source": "skills/windows-relocated-install-path-repair",
+   "dependencies": []
   },
   {
    "id": "skill:windows-ui-forensics-powershell",
@@ -1623,7 +1746,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/windows-ui-forensics-powershell"
+   "source": "skills/windows-ui-forensics-powershell",
+   "dependencies": []
   },
   {
    "id": "skill:write-repowiki",
@@ -1636,7 +1760,8 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "source": "skills/write-repowiki"
+   "source": "skills/write-repowiki",
+   "dependencies": []
   },
   {
    "id": "script:README-rule-enforcement.md",
@@ -1646,7 +1771,19 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/README-rule-enforcement.md"
+   "source": "scripts/README-rule-enforcement.md",
+   "dependencies": []
+  },
+  {
+   "id": "script:archive-entries.cjs",
+   "category": "script",
+   "name": "archive-entries.cjs",
+   "status": "shipped",
+   "source": "scripts/archive-entries.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": []
   },
   {
    "id": "script:attempt-lock-core.js",
@@ -1656,7 +1793,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/attempt-lock-core.js"
+   "source": "scripts/attempt-lock-core.js",
+   "dependencies": [
+    "script:client-root.js"
+   ]
   },
   {
    "id": "script:attempt-lock-guard.js",
@@ -1666,7 +1806,11 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/attempt-lock-guard.js"
+   "source": "scripts/attempt-lock-guard.js",
+   "dependencies": [
+    "script:attempt-lock-core.js",
+    "script:hook-crash-guard.js"
+   ]
   },
   {
    "id": "script:attempt-lock-guard.test.js",
@@ -1676,7 +1820,12 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/attempt-lock-guard.test.js"
+   "source": "scripts/attempt-lock-guard.test.js",
+   "dependencies": [
+    "script:attempt-lock-core.js",
+    "script:attempt-lock-guard.js",
+    "script:risky-match-guard.js"
+   ]
   },
   {
    "id": "script:auth-lock-core.js",
@@ -1686,7 +1835,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/auth-lock-core.js"
+   "source": "scripts/auth-lock-core.js",
+   "dependencies": [
+    "script:client-root.js"
+   ]
   },
   {
    "id": "script:auth-lock-guard.js",
@@ -1696,7 +1848,11 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/auth-lock-guard.js"
+   "source": "scripts/auth-lock-guard.js",
+   "dependencies": [
+    "script:auth-lock-core.js",
+    "script:hook-crash-guard.js"
+   ]
   },
   {
    "id": "script:auth-lock-guard.test.js",
@@ -1706,7 +1862,11 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/auth-lock-guard.test.js"
+   "source": "scripts/auth-lock-guard.test.js",
+   "dependencies": [
+    "script:auth-lock-guard.js",
+    "script:risky-match-guard.js"
+   ]
   },
   {
    "id": "script:auth-lock-merge-mutation.test.js",
@@ -1716,7 +1876,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/auth-lock-merge-mutation.test.js"
+   "source": "scripts/auth-lock-merge-mutation.test.js",
+   "dependencies": []
   },
   {
    "id": "script:backup-file.js",
@@ -1726,7 +1887,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/backup-file.js"
+   "source": "scripts/backup-file.js",
+   "dependencies": []
   },
   {
    "id": "script:backup-file.test.js",
@@ -1736,7 +1898,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/backup-file.test.js"
+   "source": "scripts/backup-file.test.js",
+   "dependencies": [
+    "script:backup-file.js"
+   ]
   },
   {
    "id": "script:build-skills-index.cjs",
@@ -1746,7 +1911,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/build-skills-index.cjs"
+   "source": "scripts/build-skills-index.cjs",
+   "dependencies": [
+    "script:client-root.js"
+   ]
   },
   {
    "id": "script:byok-modelconfigs-guard.js",
@@ -1756,7 +1924,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/byok-modelconfigs-guard.js"
+   "source": "scripts/byok-modelconfigs-guard.js",
+   "dependencies": []
   },
   {
    "id": "script:capture-window.ps1",
@@ -1766,7 +1935,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/capture-window.ps1"
+   "source": "scripts/capture-window.ps1",
+   "dependencies": []
   },
   {
    "id": "script:carrier-preflight.cjs",
@@ -1776,7 +1946,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/carrier-preflight.cjs"
+   "source": "scripts/carrier-preflight.cjs",
+   "dependencies": [
+    "script:client-root.js"
+   ]
   },
   {
    "id": "script:carrier-preflight.test.js",
@@ -1786,7 +1959,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/carrier-preflight.test.js"
+   "source": "scripts/carrier-preflight.test.js",
+   "dependencies": [
+    "script:carrier-preflight.cjs"
+   ]
   },
   {
    "id": "script:cdp-two-frame-shot.mjs",
@@ -1796,7 +1972,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/cdp-two-frame-shot.mjs"
+   "source": "scripts/cdp-two-frame-shot.mjs",
+   "dependencies": []
   },
   {
    "id": "script:clarify-contract.test.js",
@@ -1806,7 +1983,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/clarify-contract.test.js"
+   "source": "scripts/clarify-contract.test.js",
+   "dependencies": []
   },
   {
    "id": "script:client-root.js",
@@ -1816,7 +1994,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/client-root.js"
+   "source": "scripts/client-root.js",
+   "dependencies": []
   },
   {
    "id": "script:commit-scope-guard.js",
@@ -1826,7 +2005,11 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/commit-scope-guard.js"
+   "source": "scripts/commit-scope-guard.js",
+   "dependencies": [
+    "script:client-root.js",
+    "script:hook-crash-guard.js"
+   ]
   },
   {
    "id": "script:commit-scope-guard.test.js",
@@ -1836,7 +2019,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/commit-scope-guard.test.js"
+   "source": "scripts/commit-scope-guard.test.js",
+   "dependencies": [
+    "script:commit-scope-guard.js"
+   ]
   },
   {
    "id": "script:config-doctor.cjs",
@@ -1846,7 +2032,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/config-doctor.cjs"
+   "source": "scripts/config-doctor.cjs",
+   "dependencies": [
+    "script:client-root.js"
+   ]
   },
   {
    "id": "script:cua-cursor-guard.js",
@@ -1856,7 +2045,11 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/cua-cursor-guard.js"
+   "source": "scripts/cua-cursor-guard.js",
+   "dependencies": [
+    "script:client-root.js",
+    "script:hook-crash-guard.js"
+   ]
   },
   {
    "id": "script:cua-cursor-guard.test.js",
@@ -1866,7 +2059,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/cua-cursor-guard.test.js"
+   "source": "scripts/cua-cursor-guard.test.js",
+   "dependencies": [
+    "script:cua-cursor-guard.js"
+   ]
   },
   {
    "id": "script:cua-wait.ps1",
@@ -1876,7 +2072,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/cua-wait.ps1"
+   "source": "scripts/cua-wait.ps1",
+   "dependencies": []
   },
   {
    "id": "script:disk-migration-candidates.sh",
@@ -1886,7 +2083,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/disk-migration-candidates.sh"
+   "source": "scripts/disk-migration-candidates.sh",
+   "dependencies": []
   },
   {
    "id": "script:disk-sweeper.js",
@@ -1896,7 +2094,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/disk-sweeper.js"
+   "source": "scripts/disk-sweeper.js",
+   "dependencies": [
+    "script:client-root.js"
+   ]
   },
   {
    "id": "script:disk-sweeper.test.js",
@@ -1906,7 +2107,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/disk-sweeper.test.js"
+   "source": "scripts/disk-sweeper.test.js",
+   "dependencies": [
+    "script:disk-sweeper.js"
+   ]
   },
   {
    "id": "script:edge-net-check.cjs",
@@ -1916,7 +2120,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/edge-net-check.cjs"
+   "source": "scripts/edge-net-check.cjs",
+   "dependencies": []
   },
   {
    "id": "script:edit-guard.js",
@@ -1926,7 +2131,11 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/edit-guard.js"
+   "source": "scripts/edit-guard.js",
+   "dependencies": [
+    "script:client-root.js",
+    "script:hook-crash-guard.js"
+   ]
   },
   {
    "id": "script:edit-guard.test.js",
@@ -1936,7 +2145,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/edit-guard.test.js"
+   "source": "scripts/edit-guard.test.js",
+   "dependencies": [
+    "script:edit-guard.js"
+   ]
   },
   {
    "id": "script:evidence-audit.cjs",
@@ -1946,7 +2158,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/evidence-audit.cjs"
+   "source": "scripts/evidence-audit.cjs",
+   "dependencies": []
   },
   {
    "id": "script:evidence-audit.test.js",
@@ -1956,7 +2169,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/evidence-audit.test.js"
+   "source": "scripts/evidence-audit.test.js",
+   "dependencies": [
+    "script:evidence-audit.cjs"
+   ]
   },
   {
    "id": "script:fact-ledger.cjs",
@@ -1966,7 +2182,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/fact-ledger.cjs"
+   "source": "scripts/fact-ledger.cjs",
+   "dependencies": [
+    "script:client-root.js"
+   ]
   },
   {
    "id": "script:fact-ledger.test.js",
@@ -1976,7 +2195,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/fact-ledger.test.js"
+   "source": "scripts/fact-ledger.test.js",
+   "dependencies": [
+    "script:fact-ledger.cjs"
+   ]
   },
   {
    "id": "script:fix-repowiki-toc.js",
@@ -1986,7 +2208,11 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/fix-repowiki-toc.js"
+   "source": "scripts/fix-repowiki-toc.js",
+   "dependencies": [
+    "script:client-root.js",
+    "skill:write-repowiki"
+   ]
   },
   {
    "id": "script:gh-accel-plan.cjs",
@@ -1996,7 +2222,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/gh-accel-plan.cjs"
+   "source": "scripts/gh-accel-plan.cjs",
+   "dependencies": []
   },
   {
    "id": "script:global-config-guard.js",
@@ -2006,7 +2233,11 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/global-config-guard.js"
+   "source": "scripts/global-config-guard.js",
+   "dependencies": [
+    "script:client-root.js",
+    "script:hook-crash-guard.js"
+   ]
   },
   {
    "id": "script:global-config-guard.test.js",
@@ -2016,7 +2247,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/global-config-guard.test.js"
+   "source": "scripts/global-config-guard.test.js",
+   "dependencies": [
+    "script:global-config-guard.js"
+   ]
   },
   {
    "id": "script:global-config-smoke.test.js",
@@ -2026,7 +2260,11 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/global-config-smoke.test.js"
+   "source": "scripts/global-config-smoke.test.js",
+   "dependencies": [
+    "script:client-root.js",
+    "skill:global-config-smoke-runner"
+   ]
   },
   {
    "id": "script:hook-crash-guard.js",
@@ -2036,7 +2274,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/hook-crash-guard.js"
+   "source": "scripts/hook-crash-guard.js",
+   "dependencies": []
   },
   {
    "id": "script:hook-crash-guard.test.js",
@@ -2046,7 +2285,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/hook-crash-guard.test.js"
+   "source": "scripts/hook-crash-guard.test.js",
+   "dependencies": []
   },
   {
    "id": "script:huge-output-guard.js",
@@ -2056,7 +2296,11 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/huge-output-guard.js"
+   "source": "scripts/huge-output-guard.js",
+   "dependencies": [
+    "script:client-root.js",
+    "script:hook-crash-guard.js"
+   ]
   },
   {
    "id": "script:huge-output-guard.test.js",
@@ -2066,7 +2310,24 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/huge-output-guard.test.js"
+   "source": "scripts/huge-output-guard.test.js",
+   "dependencies": [
+    "script:huge-output-guard.js"
+   ]
+  },
+  {
+   "id": "script:import-memory.cjs",
+   "category": "script",
+   "name": "import-memory.cjs",
+   "status": "shipped",
+   "source": "scripts/import-memory.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:archive-entries.cjs",
+    "script:client-root.js"
+   ]
   },
   {
    "id": "script:link-cn-dirs.ps1",
@@ -2076,7 +2337,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/link-cn-dirs.ps1"
+   "source": "scripts/link-cn-dirs.ps1",
+   "dependencies": []
   },
   {
    "id": "script:mcp-smoke.js",
@@ -2086,7 +2348,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/mcp-smoke.js"
+   "source": "scripts/mcp-smoke.js",
+   "dependencies": []
   },
   {
    "id": "script:migrate-data-to-disk.sh",
@@ -2096,7 +2359,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/migrate-data-to-disk.sh"
+   "source": "scripts/migrate-data-to-disk.sh",
+   "dependencies": []
   },
   {
    "id": "script:migrate-qoder-data.ps1",
@@ -2106,7 +2370,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/migrate-qoder-data.ps1"
+   "source": "scripts/migrate-qoder-data.ps1",
+   "dependencies": []
   },
   {
    "id": "script:office.js",
@@ -2116,7 +2381,11 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/office.js"
+   "source": "scripts/office.js",
+   "dependencies": [
+    "script:client-root.js",
+    "skill:office-docs"
+   ]
   },
   {
    "id": "script:office.test.js",
@@ -2126,7 +2395,11 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/office.test.js"
+   "source": "scripts/office.test.js",
+   "dependencies": [
+    "script:client-root.js",
+    "skill:office-docs"
+   ]
   },
   {
    "id": "script:pack-folder.js",
@@ -2136,7 +2409,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/pack-folder.js"
+   "source": "scripts/pack-folder.js",
+   "dependencies": []
   },
   {
    "id": "script:pack-share-docs.cjs",
@@ -2146,7 +2420,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/pack-share-docs.cjs"
+   "source": "scripts/pack-share-docs.cjs",
+   "dependencies": []
   },
   {
    "id": "script:pack-share-extras.cjs",
@@ -2156,7 +2431,22 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/pack-share-extras.cjs"
+   "source": "scripts/pack-share-extras.cjs",
+   "dependencies": [
+    "script:archive-entries.cjs",
+    "script:package-dependencies.cjs"
+   ]
+  },
+  {
+   "id": "script:package-dependencies.cjs",
+   "category": "script",
+   "name": "package-dependencies.cjs",
+   "status": "shipped",
+   "source": "scripts/package-dependencies.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": []
   },
   {
    "id": "script:pkg-catalog.cjs",
@@ -2166,7 +2456,11 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/pkg-catalog.cjs"
+   "source": "scripts/pkg-catalog.cjs",
+   "dependencies": [
+    "script:client-root.js",
+    "script:package-dependencies.cjs"
+   ]
   },
   {
    "id": "script:pkg-catalog.test.js",
@@ -2176,7 +2470,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/pkg-catalog.test.js"
+   "source": "scripts/pkg-catalog.test.js",
+   "dependencies": [
+    "script:pkg-catalog.cjs"
+   ]
   },
   {
    "id": "script:risky-match-guard.js",
@@ -2186,7 +2483,13 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/risky-match-guard.js"
+   "source": "scripts/risky-match-guard.js",
+   "dependencies": [
+    "script:attempt-lock-core.js",
+    "script:auth-lock-core.js",
+    "script:client-root.js",
+    "script:hook-crash-guard.js"
+   ]
   },
   {
    "id": "script:risky-match-guard.test.js",
@@ -2196,7 +2499,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/risky-match-guard.test.js"
+   "source": "scripts/risky-match-guard.test.js",
+   "dependencies": [
+    "script:risky-match-guard.js"
+   ]
   },
   {
    "id": "script:rules-reminder.js",
@@ -2206,7 +2512,11 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/rules-reminder.js"
+   "source": "scripts/rules-reminder.js",
+   "dependencies": [
+    "script:client-root.js",
+    "script:hook-crash-guard.js"
+   ]
   },
   {
    "id": "script:rules-reminder.test.js",
@@ -2216,7 +2526,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/rules-reminder.test.js"
+   "source": "scripts/rules-reminder.test.js",
+   "dependencies": [
+    "script:rules-reminder.js"
+   ]
   },
   {
    "id": "script:rules-weekly-audit.js",
@@ -2226,7 +2539,16 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/rules-weekly-audit.js"
+   "source": "scripts/rules-weekly-audit.js",
+   "dependencies": [
+    "script:client-root.js",
+    "script:disk-sweeper.js",
+    "script:hook-crash-guard.js",
+    "script:stop-gate.js",
+    "script:sync-global-config.sh",
+    "script:sync-memory.sh",
+    "script:tmp-sweeper.js"
+   ]
   },
   {
    "id": "script:rules-weekly-audit.test.js",
@@ -2236,7 +2558,11 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/rules-weekly-audit.test.js"
+   "source": "scripts/rules-weekly-audit.test.js",
+   "dependencies": [
+    "script:rules-weekly-audit.js",
+    "script:sync-global-config.sh"
+   ]
   },
   {
    "id": "script:session-budget.js",
@@ -2246,7 +2572,12 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/session-budget.js"
+   "source": "scripts/session-budget.js",
+   "dependencies": [
+    "script:client-root.js",
+    "script:disk-sweeper.js",
+    "script:hook-crash-guard.js"
+   ]
   },
   {
    "id": "script:session-budget.test.js",
@@ -2256,7 +2587,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/session-budget.test.js"
+   "source": "scripts/session-budget.test.js",
+   "dependencies": []
   },
   {
    "id": "script:share-package-verify.cjs",
@@ -2266,7 +2598,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/share-package-verify.cjs"
+   "source": "scripts/share-package-verify.cjs",
+   "dependencies": [
+    "script:skills-doctor.cjs"
+   ]
   },
   {
    "id": "script:share-package-verify.test.js",
@@ -2276,7 +2611,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/share-package-verify.test.js"
+   "source": "scripts/share-package-verify.test.js",
+   "dependencies": [
+    "script:share-package-verify.cjs"
+   ]
   },
   {
    "id": "script:share-secret-scan.cjs",
@@ -2286,7 +2624,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/share-secret-scan.cjs"
+   "source": "scripts/share-secret-scan.cjs",
+   "dependencies": [
+    "script:archive-entries.cjs"
+   ]
   },
   {
    "id": "script:skill-collisions.cjs",
@@ -2296,7 +2637,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/skill-collisions.cjs"
+   "source": "scripts/skill-collisions.cjs",
+   "dependencies": []
   },
   {
    "id": "script:skill-load.cjs",
@@ -2306,7 +2648,11 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/skill-load.cjs"
+   "source": "scripts/skill-load.cjs",
+   "dependencies": [
+    "script:build-skills-index.cjs",
+    "script:pkg-catalog.cjs"
+   ]
   },
   {
    "id": "script:skill-load.test.js",
@@ -2316,7 +2662,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/skill-load.test.js"
+   "source": "scripts/skill-load.test.js",
+   "dependencies": []
   },
   {
    "id": "script:skills-doctor.cjs",
@@ -2326,7 +2673,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/skills-doctor.cjs"
+   "source": "scripts/skills-doctor.cjs",
+   "dependencies": []
   },
   {
    "id": "script:stop-gate.js",
@@ -2336,7 +2684,12 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/stop-gate.js"
+   "source": "scripts/stop-gate.js",
+   "dependencies": [
+    "script:client-root.js",
+    "script:hook-crash-guard.js",
+    "script:work-queue-check.js"
+   ]
   },
   {
    "id": "script:stop-gate.test.js",
@@ -2346,7 +2699,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/stop-gate.test.js"
+   "source": "scripts/stop-gate.test.js",
+   "dependencies": [
+    "script:stop-gate.js"
+   ]
   },
   {
    "id": "script:sync-global-config.sh",
@@ -2356,7 +2712,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/sync-global-config.sh"
+   "source": "scripts/sync-global-config.sh",
+   "dependencies": []
   },
   {
    "id": "script:sync-global-config.test.sh",
@@ -2366,7 +2723,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/sync-global-config.test.sh"
+   "source": "scripts/sync-global-config.test.sh",
+   "dependencies": []
   },
   {
    "id": "script:sync-memory.sh",
@@ -2376,7 +2734,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/sync-memory.sh"
+   "source": "scripts/sync-memory.sh",
+   "dependencies": []
   },
   {
    "id": "script:sync-memory.test.sh",
@@ -2386,7 +2745,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/sync-memory.test.sh"
+   "source": "scripts/sync-memory.test.sh",
+   "dependencies": []
   },
   {
    "id": "script:sync-project-memory.ps1",
@@ -2396,7 +2756,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/sync-project-memory.ps1"
+   "source": "scripts/sync-project-memory.ps1",
+   "dependencies": []
   },
   {
    "id": "script:sync-projects-junction.ps1",
@@ -2406,7 +2767,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/sync-projects-junction.ps1"
+   "source": "scripts/sync-projects-junction.ps1",
+   "dependencies": []
   },
   {
    "id": "script:tier-skills.cjs",
@@ -2416,7 +2778,11 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/tier-skills.cjs"
+   "source": "scripts/tier-skills.cjs",
+   "dependencies": [
+    "script:build-skills-index.cjs",
+    "script:client-root.js"
+   ]
   },
   {
    "id": "script:tmp-sweeper.js",
@@ -2426,7 +2792,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/tmp-sweeper.js"
+   "source": "scripts/tmp-sweeper.js",
+   "dependencies": [
+    "script:client-root.js"
+   ]
   },
   {
    "id": "script:tmp-sweeper.test.js",
@@ -2436,7 +2805,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/tmp-sweeper.test.js"
+   "source": "scripts/tmp-sweeper.test.js",
+   "dependencies": [
+    "script:tmp-sweeper.js"
+   ]
   },
   {
    "id": "script:tool-payload-guard.js",
@@ -2446,7 +2818,11 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/tool-payload-guard.js"
+   "source": "scripts/tool-payload-guard.js",
+   "dependencies": [
+    "script:client-root.js",
+    "script:hook-crash-guard.js"
+   ]
   },
   {
    "id": "script:tool-payload-guard.test.js",
@@ -2456,7 +2832,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/tool-payload-guard.test.js"
+   "source": "scripts/tool-payload-guard.test.js",
+   "dependencies": [
+    "script:tool-payload-guard.js"
+   ]
   },
   {
    "id": "script:validate-repowiki.js",
@@ -2466,7 +2845,11 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/validate-repowiki.js"
+   "source": "scripts/validate-repowiki.js",
+   "dependencies": [
+    "script:client-root.js",
+    "skill:write-repowiki"
+   ]
   },
   {
    "id": "script:win-path-guard.js",
@@ -2476,7 +2859,11 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/win-path-guard.js"
+   "source": "scripts/win-path-guard.js",
+   "dependencies": [
+    "script:client-root.js",
+    "script:hook-crash-guard.js"
+   ]
   },
   {
    "id": "script:win-path-guard.test.js",
@@ -2486,7 +2873,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/win-path-guard.test.js"
+   "source": "scripts/win-path-guard.test.js",
+   "dependencies": [
+    "script:win-path-guard.js"
+   ]
   },
   {
    "id": "script:work-queue-check.js",
@@ -2496,7 +2886,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/work-queue-check.js"
+   "source": "scripts/work-queue-check.js",
+   "dependencies": []
   },
   {
    "id": "script:work-queue-check.test.js",
@@ -2506,7 +2897,10 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "scripts/work-queue-check.test.js"
+   "source": "scripts/work-queue-check.test.js",
+   "dependencies": [
+    "script:work-queue-check.js"
+   ]
   },
   {
    "id": "command:checkpoint",
@@ -2516,7 +2910,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "commands/checkpoint.md"
+   "source": "commands/checkpoint.md",
+   "dependencies": []
   },
   {
    "id": "command:clarify",
@@ -2526,7 +2921,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "commands/clarify.md"
+   "source": "commands/clarify.md",
+   "dependencies": []
   },
   {
    "id": "command:clean-disk",
@@ -2536,7 +2932,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "commands/clean-disk.md"
+   "source": "commands/clean-disk.md",
+   "dependencies": []
   },
   {
    "id": "command:clean-temp",
@@ -2546,7 +2943,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "commands/clean-temp.md"
+   "source": "commands/clean-temp.md",
+   "dependencies": []
   },
   {
    "id": "command:converge",
@@ -2556,7 +2954,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "commands/converge.md"
+   "source": "commands/converge.md",
+   "dependencies": []
   },
   {
    "id": "command:edge-net-check",
@@ -2566,7 +2965,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "commands/edge-net-check.md"
+   "source": "commands/edge-net-check.md",
+   "dependencies": []
   },
   {
    "id": "command:fact",
@@ -2576,7 +2976,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "commands/fact.md"
+   "source": "commands/fact.md",
+   "dependencies": []
   },
   {
    "id": "command:pkg-find",
@@ -2586,7 +2987,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "commands/pkg-find.md"
+   "source": "commands/pkg-find.md",
+   "dependencies": []
   },
   {
    "id": "command:skill-load",
@@ -2596,7 +2998,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "commands/skill-load.md"
+   "source": "commands/skill-load.md",
+   "dependencies": []
   },
   {
    "id": "command:verify-package",
@@ -2606,7 +3009,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "commands/verify-package.md"
+   "source": "commands/verify-package.md",
+   "dependencies": []
   },
   {
    "id": "agent:deploy-verifier",
@@ -2616,7 +3020,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "agents/deploy-verifier.md"
+   "source": "agents/deploy-verifier.md",
+   "dependencies": []
   },
   {
    "id": "agent:runtime-truth-verifier",
@@ -2626,7 +3031,8 @@
    "install": {
     "mode": "copy-file"
    },
-   "source": "agents/runtime-truth-verifier.md"
+   "source": "agents/runtime-truth-verifier.md",
+   "dependencies": []
   }
  ]
 }

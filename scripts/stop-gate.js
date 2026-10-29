@@ -3,7 +3,7 @@
 // 判据来源：最后一条助手文本 + 本轮工具调用记录（transcript）。
 // fail-open：任何异常一律静默放行，绝不因为门禁本身出问题而卡住会话。
 'use strict';
-require('./hook-crash-guard.js').install('stop-gate'); // 崩溃可见化：仍 fail-open，但写进 hooks-crash.log 供周检
+if (process.argv[2] !== '--report') require('./hook-crash-guard.js').install('stop-gate');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -793,6 +793,10 @@ try {
     main();
   }
 } catch (e) {
+  if (process.argv[2] === '--report') {
+    console.error('REPORT_FAILED');
+    process.exit(2);
+  }
   diag({ at: new Date().toISOString(), error: String(e && e.message) });
 }
 process.exit(0);

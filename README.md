@@ -3,7 +3,7 @@
 **An opt-in toolkit for making Qoder workflows more repeatable and verifiable.** It adds rules, on-demand skills, hooks, commands, scripts, and MCP templates through Qoder's extension points; it does not modify Qoder itself.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.0.3-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.0.4-blue.svg)](VERSION)
 [![Node](https://img.shields.io/badge/node-24-brightgreen.svg)](https://nodejs.org)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#requirements-and-limits)
 
@@ -22,6 +22,7 @@ No clone required — pick a version and download it. Every release carries a re
 
 | Version | Released | Highlights | Download |
 |---|---|---|---|
+| 0.0.4 | 2026-10-29 | Integrity fixes; optional offline bundle | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.4/Qoder-Optimization-0.0.4.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.4) |
 | 0.0.3 | 2026-10-28 | Slimmer rules (160 lines) with an over-budget index rule, plus two maintenance skills | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.3/Qoder-Optimization-0.0.3.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.3) |
 | 0.0.2 | 2026-10-28 | Installable catalog and verified release pipeline | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.2/Qoder-Optimization-0.0.2.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.2) |
 | 0.0.1 | 2026-10-27 | First open-source release | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.1/Qoder-Optimization-0.0.1.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.1) |
@@ -36,10 +37,10 @@ AI coding assistants can lose track of process: a check may be claimed without e
 | Included | Count | Examples |
 |---|---:|---|
 | Skills | 125 | Verification, code review, delivery, databases, documents, desktop automation |
-| Scripts | 87 | Guardrails, self-tests, packaging, validation, tool helpers |
+| Scripts | 90 | Guardrails, self-tests, packaging, validation, tool helpers |
 | Commands | 10 | Clarification, checkpoints, skill search, cleanup |
 | Sub-agents | 2 | Runtime-truth and post-deployment verification |
-| Catalog entries | 224 | Skills, scripts, commands, and agents |
+| Catalog entries | 227 | Skills, scripts, commands, and agents |
 
 ### How it fits together
 
@@ -94,7 +95,7 @@ The first two checks should report a clean skill set and no trigger collisions. 
 
 ### Catalog snapshot
 
-In the catalog generated on 2026-10-28, 12 core skill descriptions total 2,645 characters; all 125 skill descriptions total 26,354 characters. The core descriptions are 10.0% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
+In the catalog generated on 2026-10-29, 12 core skill descriptions total 2,645 characters; all 125 skill descriptions total 26,252 characters. The core descriptions are 10.1% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
 
 ### Requirements and limits
 
@@ -141,6 +142,7 @@ MIT; see [LICENSE](LICENSE). This is an unofficial community project and is not 
 
 | 版本 | 发布日期 | 主要内容 | 下载 |
 |---|---|---|---|
+| 0.0.4 | 2026-10-29 | 完整性修复；离线附件按需下载 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.4/Qoder-Optimization-0.0.4.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.4) |
 | 0.0.3 | 2026-10-28 | 规则瘦身至 160 行 + 超红线转索引条款 + 两个维护技能 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.3/Qoder-Optimization-0.0.3.zip) · [说明](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.3) |
 | 0.0.2 | 2026-10-28 | 修复索引安装，补齐发布验证 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.2/Qoder-Optimization-0.0.2.zip) · [说明](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.2) |
 | 0.0.1 | 2026-10-27 | 首个开源版 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.1/Qoder-Optimization-0.0.1.zip) · [说明](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.1) |
@@ -157,10 +159,10 @@ AI 编码助手常见的问题包括：没有证据就声称验证通过、失�
 | 内容 | 数量 | 示例 |
 |---|---:|---|
 | 技能 | 125 | 验证、代码评审、交付、数据库、文档、桌面自动化 |
-| 脚本 | 87 | 守卫、自测、打包、校验与工具补强 |
+| 脚本 | 90 | 守卫、自测、打包、校验与工具补强 |
 | 命令 | 10 | 需求澄清、接续检查、技能检索、清理 |
 | 子智能体 | 2 | 运行期真值核验、部署后验收 |
-| 目录条目 | 224 | 技能、脚本、命令与子智能体 |
+| 目录条目 | 227 | 技能、脚本、命令与子智能体 |
 
 ### 工作方式
 
@@ -215,7 +217,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 
 ### 目录快照
 
-截至 2026-10-28 生成的目录，12 个常驻技能的描述共 2,645 字符；125 个技能的描述共 26,354 字符。常驻描述占全部技能描述文本的 10.0%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
+截至 2026-10-29 生成的目录，12 个常驻技能的描述共 2,645 字符；125 个技能的描述共 26,252 字符。常驻描述占全部技能描述文本的 10.1%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
 
 ### 环境与限制
 
@@ -248,3 +250,11 @@ node ~/.qoder/scripts/build-skills-index.cjs
 ### 许可证
 
 项目采用 MIT 许可证，见 [LICENSE](LICENSE)。这是非官方社区项目，与 Qoder 官方无隶属或背书关系。`mcp/offline/` 下的第三方文件遵循各自许可证；相关说明见 [mcp/offline/LICENSE-cua-driver.txt](mcp/offline/LICENSE-cua-driver.txt)。
+
+<!-- offline-bundle:start -->
+### Optional offline bundle / 可选离线附件
+
+The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.4/Qoder-Optimization-0.0.4-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
+
+核心包不含 MCP 离线二进制；需要时单独下载离线附件，核对各自的 .sha256 后解压到同一目录。无需离线组件时只取核心包；链接仅在对应版本发布后可用。
+<!-- offline-bundle:end -->

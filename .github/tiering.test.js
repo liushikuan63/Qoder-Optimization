@@ -14,7 +14,7 @@ function fixture(body) {
   const home = path.join(base, 'home');
   const root = path.join(home, '.qoder');
   const put = (file, data) => { const target = path.join(root, file); fs.mkdirSync(path.dirname(target), { recursive: true }); fs.writeFileSync(target, data); };
-  for (const file of ['tier-skills.cjs', 'client-root.js', 'build-skills-index.cjs', 'skill-load.cjs', 'pkg-catalog.cjs']) put('scripts/' + file, fs.readFileSync(path.join(source, 'scripts', file)));
+  for (const file of ['tier-skills.cjs', 'client-root.js', 'package-dependencies.cjs', 'build-skills-index.cjs', 'skill-load.cjs', 'pkg-catalog.cjs']) put('scripts/' + file, fs.readFileSync(path.join(source, 'scripts', file)));
   for (const name of ['skills-router', 'demo']) put(`skills/${name}/SKILL.md`, `---\nname: ${name}\ndescription: ${name} fixture skill\n---\n`);
   put('skills/demo/asset.bin', Buffer.from([0, 127, 255, 10]));
   const env = { ...process.env, HOME: home, USERPROFILE: home, QODER_HOME: root, TEMP: base, TMP: base, TMPDIR: base };
@@ -129,6 +129,6 @@ test('consumer cannot report success when an available index builder fails', () 
   f.put('scripts/build-skills-index.cjs', 'process.exit(7);');
   const result = f.run('pkg-catalog.cjs', ['install', 'skill:install-demo', '--catalog', catalog, '--apply']);
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /文件已写入，但索引重建失败/);
-  assert.equal(fs.existsSync(path.join(f.root, 'skills-library/install-demo/SKILL.md')), true);
+  assert.match(result.stderr, /已回滚.*索引重建失败/);
+  assert.equal(fs.existsSync(path.join(f.root, 'skills-library/install-demo/SKILL.md')), false);
 }));

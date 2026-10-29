@@ -9,6 +9,20 @@ During the 0.x line, minor versions may contain breaking changes.
 ### Changed
 - Release notes are taken from the matching `CHANGELOG.md` section when a release is created; generated notes remain the fallback.
 
+## [0.0.4] - 2026-10-29
+
+### Fixed
+- Scan JSON credential keys after decoding, inspect nested archives with bounded expansion, and reject inconsistent ZIP directories.
+- Preflight installation dependencies and cross-tier duplicates; roll back files and indexes after installation failure.
+- Load package validation exemptions from the distributed source instead of the recipient's HOME.
+- Preserve deletion intent in memory merges, support both memory archive layouts, and refuse conflicting imports before writing.
+- Make read-only audits suppress history and child-check heartbeats; propagate verification failures as nonzero process exits.
+
+### Changed
+- Generate versioned documentation, full skill descriptions, dependency metadata and memory import tools from public package sources.
+- Distribute MCP offline components as an optional ZIP with its own checksum; verify the disjoint union against the same committed source.
+- Combine resumable download and full delivery verification in one maintainer entry point; authentication failures are not retried.
+
 ## [0.0.3] - 2026-10-28
 
 ### Added
@@ -52,7 +66,8 @@ During the 0.x line, minor versions may contain breaking changes.
 - De-identified memory export (`qoder-memory-export-generic.tar.gz`) and offline MCP assets.
 - MIT license.
 
-[Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.0.3...HEAD
+[Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.0.4...HEAD
+[0.0.4]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.4
 [0.0.3]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.3
 [0.0.2]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.2
 [0.0.1]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.1
