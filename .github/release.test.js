@@ -311,17 +311,28 @@ function publicationFixture(f, { existing = true, mismatch = false, error = fals
   fs.writeFileSync(path.join(dest, name + '.zip.sha256'), `${digest}  ${name}.zip\n`);
   const commit = 'a'.repeat(40);
   fs.writeFileSync(path.join(dest, 'build.json'), JSON.stringify({ tag: 'v0.0.2', package: name, commit, sha256: digest, artifacts: [{ name: name + '.zip', sha256: digest }] }));
-  let release = existing ? { tag_name: 'v0.0.2', draft, html_url: 'https://github.com/example/project/releases/tag/v0.0.2', assets: [{ name: name + '.zip' }, { name: name + '.zip.sha256' }] } : null;
+  let release = existing ? { id: 900, tag_name: 'v0.0.2', draft, html_url: 'https://github.com/example/project/releases/tag/v0.0.2', assets: [{ name: name + '.zip' }, { name: name + '.zip.sha256' }] } : null;
+  let visibleInList = existing;
   const calls = [];
   const gh = args => {
     calls.push(args);
     if (args[0] === 'api' && args[1].includes('/commits/')) return { status: 0, stdout: wrongCommit ? 'b'.repeat(40) : commit };
     if (args[0] === 'api') {
       if (error) return { status: 1, stderr: 'gh: Forbidden (HTTP 403)' };
-      if (args[1].includes('/releases?')) return { status: 0, stdout: JSON.stringify([release ? [release] : []]) };
+      const method = args.includes('POST') ? 'POST' : args.includes('PATCH') ? 'PATCH' : 'GET';
+      const endpoint = args.find(arg => arg.startsWith('repos/')) || args[1];
+      if (method === 'POST') {
+        release = { id: 901, tag_name: 'v0.0.2', draft: true, html_url: 'https://github.com/example/project/releases/tag/v0.0.2', assets: [] };
+        visibleInList = false;
+        return { status: 0, stdout: JSON.stringify(release) };
+      }
+      if (/\/releases\/\d+$/.test(endpoint)) {
+        if (method === 'PATCH') release.draft = false;
+        return { status: 0, stdout: JSON.stringify(release) };
+      }
+      if (endpoint.includes('/releases?')) return { status: 0, stdout: JSON.stringify(visibleInList && release ? [[release]] : [[]]) };
       return release && !release.draft ? { status: 0, stdout: JSON.stringify(release) } : { status: 1, stderr: 'gh: Not Found (HTTP 404)' };
     }
-    if (args[1] === 'create') release = { tag_name: 'v0.0.2', draft: true, html_url: 'https://github.com/example/project/releases/tag/v0.0.2', assets: [] };
     if (args[1] === 'upload') release.assets.push({ name: path.basename(args[3]) });
     if (args[1] === 'download') {
       const asset = args[args.indexOf('--pattern') + 1];
@@ -329,7 +340,6 @@ function publicationFixture(f, { existing = true, mismatch = false, error = fals
       fs.copyFileSync(path.join(dest, asset), target);
       if (mismatch) fs.appendFileSync(target, 'different remote content');
     }
-    if (args[1] === 'edit') release.draft = false;
     return { status: 0, stdout: '' };
   };
   return { dest, gh, calls };
@@ -340,21 +350,21 @@ test('same-name assets are downloaded and compared, never blindly skipped', () =
   const result = publishRelease({ repo: 'example/project', tag: 'v0.0.2', ...p });
   assert.equal(result.assets.length, 2);
   assert.equal(p.calls.filter(args => args[1] === 'download').length, 2);
-  assert.equal(p.calls.some(args => ['upload', 'create', 'edit'].includes(args[1])), false);
+  assert.equal(p.calls.some(a => a[1] === 'upload' || a.includes('POST') || a.includes('PATCH')), false);
 }));
 
 test('existing draft hidden from the tag endpoint is verified without duplication', () => withFixture(f => {
   const p = publicationFixture(f, { draft: true });
   publishRelease({ repo: 'example/project', tag: 'v0.0.2', ...p });
-  assert.equal(p.calls.some(args => args[1] === 'create' || args[1] === 'upload'), false);
+  assert.equal(p.calls.some(a => a.includes('POST') || a[1] === 'upload'), false);
   assert.equal(p.calls.filter(args => args[1] === 'download').length, 2);
-  assert.equal(p.calls.filter(args => args[1] === 'edit').length, 1);
+  assert.equal(p.calls.filter(a => a.includes('PATCH')).length, 1);
 }));
 
 test('different same-name content stops without replacing any asset', () => withFixture(f => {
   const p = publicationFixture(f, { mismatch: true });
   assert.throws(() => publishRelease({ repo: 'example/project', tag: 'v0.0.2', ...p }), /content mismatch/);
-  assert.equal(p.calls.some(args => ['upload', 'create', 'edit'].includes(args[1])), false);
+  assert.equal(p.calls.some(a => a[1] === 'upload' || a.includes('POST') || a.includes('PATCH')), false);
 }));
 
 test('authentication failures are not treated as a missing release', () => withFixture(f => {
@@ -373,7 +383,7 @@ test('new releases stay draft until both uploaded assets pass download verificat
   const p = publicationFixture(f, { existing: false });
   publishRelease({ repo: 'example/project', tag: 'v0.0.2', ...p });
   assert.equal(p.calls.filter(args => args[1] === 'upload').length, 2);
-  const editAt = p.calls.findIndex(args => args[1] === 'edit');
+  const editAt = p.calls.findIndex(a => a.includes('PATCH'));
   assert.equal(p.calls.slice(0, editAt).filter(args => args[1] === 'download').length, 2);
   assert.equal(p.calls.some(args => args.includes('--clobber')), false);
 }));
@@ -391,7 +401,7 @@ test('split releases verify all four assets before leaving draft', () => withFix
   const result = publishRelease({ repo: 'example/project', tag: 'v0.0.2', ...p });
   assert.equal(result.assets.length, 4);
   assert.equal(p.calls.filter(args => args[1] === 'download').length, 4);
-  const publishedAt = p.calls.findIndex(args => args[1] === 'edit');
+  const publishedAt = p.calls.findIndex(a => a.includes('PATCH'));
   assert.equal(p.calls.slice(0, publishedAt).filter(args => args[1] === 'download').length, 4);
 }));
 
@@ -402,11 +412,11 @@ test('release notes come from the CHANGELOG section when present', () => withFix
   fs.writeFileSync(path.join(root, 'CHANGELOG.md'), ['# Changelog', '', '## [0.0.2] - 2026-10-28', '', '### Added', '- fixture note line', '', '## [0.0.1] - 2026-10-27', '', '- older line', ''].join(String.fromCharCode(10)));
   const original = p.gh;
   let captured = null;
-  p.gh = args => { if (args[1] === 'create') { const i = args.indexOf('--notes-file'); if (i > 0) captured = fs.readFileSync(args[i + 1], 'utf8'); } return original(args); };
+  p.gh = args => { const at = args.findIndex(a => /^body=@/.test(a)); if (at >= 0) captured = fs.readFileSync(args[at].slice(6), 'utf8'); return original(args); };
   publishRelease({ repo: 'example/project', tag: 'v0.0.2', root, ...p });
-  const create = p.calls.find(args => args[1] === 'create');
+  const create = p.calls.find(a => a.includes('POST'));
   assert.ok(create);
-  assert.equal(create.includes('--generate-notes'), false);
+  assert.equal(create.includes('generate_release_notes=true'), false);
   assert.ok(captured && captured.includes('fixture note line'));
   assert.equal(captured.includes('older line'), false);
 }));
@@ -416,7 +426,7 @@ test('release notes fall back to generated notes without a CHANGELOG section', (
   const root = path.join(f.base, 'no-notes-root');
   fs.mkdirSync(root);
   publishRelease({ repo: 'example/project', tag: 'v0.0.2', root, ...p });
-  const create = p.calls.find(args => args[1] === 'create');
-  assert.ok(create.includes('--generate-notes'));
-  assert.equal(create.includes('--notes-file'), false);
+  const create = p.calls.find(a => a.includes('POST'));
+  assert.ok(create.includes('generate_release_notes=true'));
+  assert.equal(create.some(a => /^body=@/.test(a)), false);
 }));

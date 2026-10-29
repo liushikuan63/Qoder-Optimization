@@ -54,20 +54,32 @@ function publishRelease({ repo, tag, dest, gh = officialGh, root = process.cwd()
   }
   const remoteCommit = invoke(['api', `repos/${repo}/commits/${tag}`, '--jq', '.sha']).trim();
   if (remoteCommit !== evidence.commit) throw new Error('remote tag does not match the tested source commit');
+  const byId = id => JSON.parse(invoke(['api', `repos/${repo}/releases/${id}`]));
   let release = getRelease();
+  let releaseId = release && release.id;
   if (!release) {
-    const args = ['release', 'create', tag, '--repo', repo, '--draft', '--verify-tag', '--target', evidence.commit, '--title', `Qoder-Optimization ${tag.slice(1)}`];
+    // gh release create returns no id, and a fresh draft is not reliably visible by tag
+    // (no tag lookup for drafts, GITHUB_TOKEN viewerPermission is null). Create through the
+    // REST API so the response carries the id every later step can read back.
+    const args = ['api', '--method', 'POST', `repos/${repo}/releases`, '-f', `tag_name=${tag}`, '-f', `target_commitish=${evidence.commit}`, '-f', `name=Qoder-Optimization ${tag.slice(1)}`, '-F', 'draft=true'];
     const notes = changelogNotes(root, tag.slice(1));
-    if (notes) {
-      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qo-notes-'));
-      const file = path.join(dir, 'notes.md');
-      fs.writeFileSync(file, notes + String.fromCharCode(10));
-      try { args.push('--notes-file', file); invoke(args); } finally { fs.rmSync(dir, { recursive: true, force: true }); }
-    } else {
-      args.push('--generate-notes');
-      invoke(args);
-    }
-    release = getRelease();
+    let dir = null;
+    try {
+      if (notes) {
+        dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qo-notes-'));
+        const file = path.join(dir, 'notes.md');
+        fs.writeFileSync(file, notes + String.fromCharCode(10));
+        args.push('-F', `body=@${file}`);
+      } else {
+        args.push('-F', 'generate_release_notes=true');
+      }
+      release = JSON.parse(invoke(args));
+    } finally { if (dir) fs.rmSync(dir, { recursive: true, force: true }); }
+    if (!release || !Number.isSafeInteger(release.id)) throw new Error('release creation returned no id');
+    releaseId = release.id;
+  }
+  if (!release || release.tag_name !== tag || !Array.isArray(release.assets)) {
+    release = byId(releaseId);
   }
   if (!release || release.tag_name !== tag || !Array.isArray(release.assets)) throw new Error('invalid remote release metadata');
   if (release.assets.some(asset => !assets.includes(asset.name))) throw new Error('unexpected existing assets; no assets replaced');
@@ -83,10 +95,10 @@ function publishRelease({ repo, tag, dest, gh = officialGh, root = process.cwd()
         throw new Error('remote asset content mismatch; left untouched: ' + asset);
       }
     }
-    release = getRelease();
+    release = byId(releaseId);
     if (!release || release.assets.length !== assets.length || assets.some(name => !release.assets.some(asset => asset.name === name))) throw new Error('remote asset set is incomplete');
-    if (release.draft) invoke(['release', 'edit', tag, '--repo', repo, '--draft=false']);
-    const published = getRelease();
+    if (release.draft) invoke(['api', '--method', 'PATCH', `repos/${repo}/releases/${releaseId}`, '-F', 'draft=false']);
+    const published = byId(releaseId);
     if (!published || published.draft || !published.html_url) throw new Error('release publication was not confirmed');
     return { url: published.html_url, sha256: evidence.sha256, assets };
   } finally {
