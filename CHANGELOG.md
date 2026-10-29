@@ -52,6 +52,7 @@ During the 0.x line, minor versions may contain breaking changes.
 - De-identified memory export (`qoder-memory-export-generic.tar.gz`) and offline MCP assets.
 - MIT license.
 
-[Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.0.2...HEAD
+[Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.0.3...HEAD
+[0.0.3]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.3
 [0.0.2]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.2
 [0.0.1]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.1
