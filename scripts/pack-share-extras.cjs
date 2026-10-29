@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { dependenciesFor } = require('./package-dependencies.cjs');
-const { archiveEntries, encodeTar } = require('./archive-entries.cjs');
+const { archiveEntries, encodeTar, normalizeGzipHeader } = require('./archive-entries.cjs');
 const { gzipSync } = require('zlib');
 
 function memoryArchiveFor(root) {
@@ -11,7 +11,7 @@ function memoryArchiveFor(root) {
   const entries = new Map(archiveEntries(name, fs.readFileSync(path.join(root, name))).map(e => [e.name, e.data]));
   entries.set('scripts/import-memory.sh', Buffer.from('#!/bin/bash\nset -euo pipefail\nSCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"\nexec node "$SCRIPT_DIR/import-memory.cjs" "$@"\n'));
   for (const file of ['import-memory.cjs', 'archive-entries.cjs', 'client-root.js']) entries.set('scripts/' + file, fs.readFileSync(path.join(root, 'scripts', file)));
-  return gzipSync(encodeTar([...entries].sort(([a], [b]) => a.localeCompare(b, 'en')).map(([name, data]) => ({ name, data }))), { level: 9 });
+  return normalizeGzipHeader(gzipSync(encodeTar([...entries].sort(([a], [b]) => a.localeCompare(b, 'en')).map(([name, data]) => ({ name, data }))), { level: 9 }));
 }
 
 const PUBLIC_PATHS = [

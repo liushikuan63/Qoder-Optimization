@@ -268,6 +268,18 @@ test('build uses only committed files and verifies the complete ZIP with a stabl
   assert.throws(() => buildRelease({ root: f.root, tag: 'v0.0.2', ref: 'HEAD', dest: path.join(f.base, 'dist1') }), /already exists/);
 }));
 
+test('memory archive gate ignores the platform gzip header but not content', () => withFixture(f => {
+  const archive = path.join(f.root, 'qoder-memory-export-generic.tar.gz');
+  const original = fs.readFileSync(archive);
+  const unix = Buffer.from(original); unix[9] = 3;
+  f.put('qoder-memory-export-generic.tar.gz', unix);
+  assert.deepEqual(checkRelease(f.root, 'v0.0.2').problems, []);
+  const { archiveEntries, encodeTar } = require('../scripts/archive-entries.cjs');
+  const members = archiveEntries(archive, unix).map(e => ({ name: e.name, data: e.name === 'MEMORY.md' ? Buffer.from('tampered') : e.data }));
+  f.put('qoder-memory-export-generic.tar.gz', require('zlib').gzipSync(encodeTar(members)));
+  assert.ok(checkRelease(f.root, 'v0.0.2').problems.some(p => p.includes('memory archive tools drift')));
+}));
+
 test('offline components are optional archives without omission or overlap', () => withFixture(f => {
   f.put('mcp/offline/LICENSE-cua-driver.txt', 'fixture license');
   f.put('mcp/offline/tool.bin', Buffer.from([0, 1, 2, 3]));

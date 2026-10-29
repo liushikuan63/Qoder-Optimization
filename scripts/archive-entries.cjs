@@ -115,4 +115,13 @@ function encodeTar(entries) {
   return Buffer.concat([...blocks, Buffer.alloc(1024)]);
 }
 
-module.exports = { archiveEntries, tarEntries, safeName, encodeTar, MAX_BYTES };
+// gzip stores an OS byte (index 9): Windows writes 10, Unix writes 3. Pin it so the
+// same archive content produces identical bytes on every build machine.
+function normalizeGzipHeader(bytes) {
+  if (bytes.length < 10 || bytes[0] !== 0x1f || bytes[1] !== 0x8b) throw new Error('not a gzip stream');
+  const copy = Buffer.from(bytes);
+  copy[9] = 255;
+  return copy;
+}
+
+module.exports = { archiveEntries, tarEntries, safeName, encodeTar, normalizeGzipHeader, MAX_BYTES };
