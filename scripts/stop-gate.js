@@ -516,14 +516,35 @@ const TEST_BUILD_CMD = new RegExp([
   '\\b(?:npm|pnpm|yarn|bun)\\s+(?:run\\s+)?(?:test|build|ci|typecheck|lint|e2e)\\b',
   '\\bmvn\\b[^|;&]*\\b(?:test|verify|package|install|compile|clean)\\b',
   '\\bgradlew?\\b[^|;&]*\\b(?:test|build|check|assemble)\\b',
-  '\\bpytest\\b|\\btox\\b|\\bphpunit\\b|\\bnode\\s+--test\\b|\\bgo\\s+test\\b|\\bcargo\\s+test\\b',
-  // 本项目与很多脚本仓库的套件就是 `node xxx.test.js` / `bash xxx.test.sh`，不能只认 `node --test`
-  '\\bnode\\s+[^|;&\\s]*(?:\\.test\\.(?:js|cjs|mjs)|\\.test\\.sh)\\b',
+  '\\bpytest\\b|\\btox\\b|\\bphpunit\\b|\\bgo\\s+test\\b|\\bcargo\\s+test\\b',
   '\\bdotnet\\s+(?:test|build)\\b|\\bvitest\\b|\\bjest\\b|\\btsc\\b',
 ].join('|'), 'i');
+function ranNodeTest(command) {
+  const head = command.trim().replace(/;\s*([A-Za-z_][A-Za-z0-9_]*)=\$\?;\s*exit\s+(?:"\$\1"|\$\1)\s*$/, '');
+  if (head.includes('<<') || head.includes('`') || head.includes('$(')) return false;
+  const tokens = head.match(/\d*[<>]&\d+|(?:[^\s"';&|]+|"(?:\\.|[^"\\])*"|'[^']*')+|[;&|\n]+/g) || [];
+  const statements = [[]];
+  for (const token of tokens) {
+    if (token === '&&') statements.push([]);
+    else if (/^[;&|\n]+$/.test(token)) return false;
+    else statements[statements.length - 1].push(token);
+  }
+  const unquote = value => value.replace(/^(['"])([\s\S]*)\1$/, '$2');
+  if (statements.some(statement => /^(?:exit|return|exec)$/.test(unquote(statement[0] || '')))) return false;
+  return statements.some(statement => {
+    let index = statement[0] === 'env' ? 1 : 0;
+    while (/^[A-Za-z_][A-Za-z0-9_]*=/.test(statement[index] || '')) index++;
+    const executable = unquote(statement[index] || '').split(/[\\/]/).pop();
+    if (!/^node(?:\.exe)?$/i.test(executable)) return false;
+    const args = statement.slice(index + 1).map(unquote);
+    if (args.some(arg => ['--help', '-h', '--version', '-v', '--eval', '-e', '--print', '-p', '--check', '-c'].includes(arg))) return false;
+    return args[0] === '--test' || /\.test\.(?:js|cjs|mjs|sh)$/i.test(args[0] || '')
+      || /(?:^|[\\/])\.github[\\/]run-tests\.js$/.test(args[0] || '');
+  });
+}
 function ranGreenThisTurn(ctx) {
   return ctx.turnTools.some((tool) => tool.success && toolName(tool) === 'Bash'
-    && TEST_BUILD_CMD.test(String(tool.input.command || '')));
+    && (TEST_BUILD_CMD.test(String(tool.input.command || '')) || ranNodeTest(String(tool.input.command || ''))));
 }
 
 // R6 的兜底：项目没有队列文件时，本轮创建却没关掉的 TaskList 条目同样算"还有能做的格子"。

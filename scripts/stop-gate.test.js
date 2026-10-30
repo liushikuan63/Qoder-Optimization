@@ -140,6 +140,47 @@ check('R9 对照组：已显式声明未运行则放行', run({ last_assistant_m
 // 本仓库的套件形态是 `node xxx.test.js`，不能只认 `node --test`
 const trR9script = transcript([user('跑一下套件'), tool('Bash', { command: 'node ~/.qoder/scripts/stop-gate.test.js' }, '89/89 passed'), asst(r9text)]);
 check('R9 对照组：node *.test.js 也算本轮的测试证据', run({ last_assistant_message: r9text, transcript_path: trR9script, session_id: 'f6' }, 'f6').decision, 'allow');
+for (const [index, command] of [
+  '"C:/Program Files/nodejs/node.exe" --test scripts/verification-session.test.js',
+  "'C:/Program Files/nodejs/node.exe' 'D:/test suite/example.test.cjs'",
+  '"C:\\Program Files\\nodejs\\node.exe" --test scripts/verification-session.test.js',
+  'node.exe --test scripts/verification-session.test.js',
+  'node .github/run-tests.js',
+  '"C:/Program Files/nodejs/node.exe" .github/run-tests.js',
+  "TEMP='D:/temp path' TMP='D:/temp path' \"C:/Program Files/nodejs/node.exe\" .github/run-tests.js > logs.txt 2>&1; result=$?; exit \"$result\"",
+  'env NO_COLOR=1 /usr/bin/node /work/.github/run-tests.js',
+  'true && "C:/Program Files/nodejs/node.exe" .github/run-tests.js',
+  'node --test scripts/example.test.js && node --version',
+  'node --test scripts/example.test.js > "log;name.txt" 2>&1; status=$?; exit "$status"',
+].entries()) {
+  const id = 'r9-node-' + index;
+  const accepted = transcript([user('执行回归'), tool('Bash', { command }, 'TEST_EXIT=0'), asst(r9text)]);
+  const rejected = transcript([user('执行回归'), tool('Bash', { command }, 'Exit code 1\nTEST_EXIT=1', true), asst(r9text)]);
+  check('R9 Node命令成功可识别 ' + index, run({ transcript_path: accepted, session_id: id + '-ok' }, id + '-ok').decision, 'allow');
+  check('R9 Node命令失败不放行 ' + index, run({ transcript_path: rejected, session_id: id + '-fail' }, id + '-fail').decision, 'block');
+}
+for (const [index, command] of [
+  'echo "node --test scripts/example.test.js"',
+  "printf '%s' 'node .github/run-tests.js'",
+  'node --eval "console.log(\'node --test example.test.js\')"',
+  'node --check scripts/verification-session.cjs',
+  'node --test --help',
+  "cat <<'EOF'\nnode --test scripts/example.test.js\nEOF",
+  'true || node --test scripts/example.test.js',
+  'false && node .github/run-tests.js; true',
+  'node --test scripts/example.test.js || true',
+  'node .github/run-tests.js; true',
+  'exit 0; node --test scripts/example.test.js',
+  'exit 0 && node --test scripts/example.test.js',
+  'if false; then node --test scripts/example.test.js; fi',
+  'node --test scripts/example.test.js &',
+  'node --test scripts/example.test.js | true',
+  'node .github/run-tests.js <<END || true\nEND',
+].entries()) {
+  const id = 'r9-node-no-run-' + index;
+  const file = transcript([user('执行回归'), tool('Bash', { command }, 'command exited 0'), asst(r9text)]);
+  check('R9 未执行的Node测试文本不放行 ' + index, run({ transcript_path: file, session_id: id }, id).decision, 'block');
+}
 
 // R4 用户纠偏未落记忆
 const corr = '又停了？跟你说过不要停止任务，直接给弹窗让我选。';
