@@ -124,6 +124,100 @@ test('script installation previews and installs the complete local dependency cl
   assert.equal(run.stdout.trim(), '42');
 }));
 
+test('script directory dependencies retain their locked runtime without copying installed modules', () => withFixture(f => {
+  f.put('scripts/runtime/package.json', JSON.stringify({ name: 'fixture-runtime', main: 'index.cjs', dependencies: {} }));
+  f.put('scripts/runtime/package-lock.json', JSON.stringify({ name: 'fixture-runtime', lockfileVersion: 3, packages: {} }));
+  f.put('scripts/runtime/index.cjs', 'module.exports = 42;');
+  f.put('scripts/runtime/node_modules/private-cache.js', 'not a distribution file');
+  f.put('scripts/worker.cjs', "console.log(require('./runtime'));");
+  const catalog = f.refresh().catalog;
+  const runtime = catalog.entries.find(e => e.id === 'script:runtime');
+  assert.equal(runtime.source, 'scripts/runtime');
+  assert.equal(runtime.install.mode, 'copy-directory');
+  assert.deepEqual(catalog.entries.find(e => e.id === 'script:worker.cjs').dependencies, ['script:runtime']);
+  const cli = path.join(f.root, 'scripts/pkg-catalog.cjs');
+  const preview = f.exec(process.execPath, [cli, 'install', 'script:worker.cjs']);
+  assert.equal(preview.status, 0, preview.stderr);
+  assert.match(preview.stdout, /script:runtime/);
+  assert.equal(fs.existsSync(path.join(f.home, '.qoder')), false);
+  const install = f.exec(process.execPath, [cli, 'install', 'script:worker.cjs', '--apply']);
+  assert.equal(install.status, 0, install.stdout + install.stderr);
+  assert.match(install.stdout, /npm ci --ignore-scripts --prefix/);
+  for (const file of ['package.json', 'package-lock.json', 'index.cjs']) {
+    assert.equal(sha256(path.join(f.home, '.qoder/scripts/runtime', file)), sha256(path.join(f.root, 'scripts/runtime', file)));
+  }
+  assert.equal(fs.existsSync(path.join(f.home, '.qoder/scripts/runtime/node_modules')), false);
+  const run = f.exec(process.execPath, [path.join(f.home, '.qoder/scripts/worker.cjs')]);
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.stdout.trim(), '42');
+}));
+
+test('script directories without locked manifests are rejected', () => withFixture(f => {
+  f.put('scripts/runtime/index.cjs', 'module.exports = 42;');
+  assert.throws(() => f.refresh(), /package\.json|package-lock\.json/);
+}));
+
+test('script dependencies follow Node file-before-directory resolution', () => withFixture(f => {
+  f.put('scripts/runtime/package.json', JSON.stringify({ name: 'fixture-runtime', main: 'index.cjs' }));
+  f.put('scripts/runtime/package-lock.json', '{}');
+  f.put('scripts/runtime/index.cjs', 'module.exports = 2;');
+  f.put('scripts/runtime.js', 'module.exports = 1;');
+  f.put('scripts/worker.cjs', "console.log(require('./runtime'));");
+  const catalog = f.refresh().catalog;
+  assert.deepEqual(catalog.entries.find(entry => entry.id === 'script:worker.cjs').dependencies, ['script:runtime.js']);
+  const cli = path.join(f.root, 'scripts/pkg-catalog.cjs');
+  assert.equal(f.exec(process.execPath, [cli, 'install', 'script:worker.cjs', '--apply']).status, 0);
+  const installed = f.exec(process.execPath, [path.join(f.home, '.qoder/scripts/worker.cjs')]);
+  const original = f.exec(process.execPath, [path.join(f.root, 'scripts/worker.cjs')]);
+  assert.equal(installed.status, 0, installed.stderr);
+  assert.equal(original.status, 0, original.stderr);
+  assert.equal(installed.stdout.trim(), '1');
+  assert.equal(installed.stdout, original.stdout);
+  assert.equal(fs.existsSync(path.join(f.home, '.qoder/scripts/runtime')), false);
+}));
+
+test('an incomplete installed script runtime blocks dependent files before writes', () => withFixture(f => {
+  f.put('scripts/runtime/package.json', JSON.stringify({ name: 'fixture-runtime', main: 'index.cjs' }));
+  f.put('scripts/runtime/package-lock.json', '{}');
+  f.put('scripts/runtime/index.cjs', 'module.exports = 42;');
+  f.put('scripts/worker.cjs', "console.log(require('./runtime'));");
+  f.refresh();
+  const target = path.join(f.home, '.qoder/scripts/runtime');
+  fs.mkdirSync(target, { recursive: true });
+  fs.writeFileSync(path.join(target, 'package.json'), 'existing incomplete runtime');
+  const result = f.exec(process.execPath, [path.join(f.root, 'scripts/pkg-catalog.cjs'), 'install', 'script:worker.cjs', '--apply']);
+  assert.equal(result.status, 2, result.stdout + result.stderr);
+  assert.equal(fs.existsSync(path.join(f.home, '.qoder/scripts/worker.cjs')), false);
+  assert.equal(fs.readFileSync(path.join(target, 'package.json'), 'utf8'), 'existing incomplete runtime');
+}));
+
+test('installed script runtimes can be reused without traversing npm module links', () => withFixture(f => {
+  f.put('scripts/runtime/package.json', JSON.stringify({ name: 'fixture-runtime', main: 'index.cjs' }));
+  f.put('scripts/runtime/package-lock.json', '{}');
+  f.put('scripts/runtime/index.cjs', 'module.exports = 42;');
+  f.put('scripts/worker.cjs', "console.log(require('./runtime'));");
+  f.refresh();
+  const cli = path.join(f.root, 'scripts/pkg-catalog.cjs');
+  assert.equal(f.exec(process.execPath, [cli, 'install', 'script:runtime', '--apply']).status, 0);
+  const target = path.join(f.home, '.qoder/scripts/runtime');
+  const modules = path.join(target, 'node_modules');
+  fs.mkdirSync(path.join(modules, 'dependency'), { recursive: true });
+  fs.symlinkSync(path.join(modules, 'dependency'), path.join(modules, 'linked-dependency'), process.platform === 'win32' ? 'junction' : 'dir');
+  const result = f.exec(process.execPath, [cli, 'install', 'script:worker.cjs', '--apply']);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(fs.lstatSync(path.join(modules, 'linked-dependency')).isSymbolicLink(), true);
+  assert.equal(fs.readFileSync(path.join(target, 'index.cjs'), 'utf8'), 'module.exports = 42;');
+  f.put('scripts/other-worker.cjs', "console.log(require('./runtime'));");
+  f.refresh();
+  const outside = path.join(f.base, 'outside');
+  fs.mkdirSync(outside);
+  fs.symlinkSync(outside, path.join(target, 'linked-source'), process.platform === 'win32' ? 'junction' : 'dir');
+  const rejected = f.exec(process.execPath, [cli, 'install', 'script:other-worker.cjs', '--apply']);
+  assert.equal(rejected.status, 2, rejected.stdout + rejected.stderr);
+  assert.equal(fs.existsSync(path.join(f.home, '.qoder/scripts/other-worker.cjs')), false);
+  assert.deepEqual(fs.readdirSync(outside), []);
+}));
+
 test('missing dependency metadata blocks all writes', () => withFixture(f => {
   f.put('scripts/helper.js', 'module.exports = 42;');
   f.put('scripts/worker.js', "require('./helper.js');");
@@ -244,7 +338,19 @@ for (const [label, mutate, expected] of [
 
 test('public source policy permits licenses and rejects private or traversing paths', () => {
   for (const good of ['LICENSE', 'mcp/offline/LICENSE-cua-driver.txt', 'scripts/backup-file.js', 'skills/demo/SKILL.md']) assert.equal(isPublicFile(good), true, good);
-  for (const bad of ['.qoder-work-queue.md', 'scripts/x.bak.1', 'scripts/credentials.json', 'scripts/x.pem', '.github/workflows/release.yml', 'scripts/../secret', 'scripts/./x.js', '/scripts/x.js', 'scripts\\x.js']) assert.equal(isPublicFile(bad), false, bad);
+  for (const bad of ['docs/private-design.md', '.qoder-work-queue.md', 'scripts/x.bak.1', 'scripts/credentials.json', 'scripts/x.pem', '.github/workflows/release.yml', 'scripts/../secret', 'scripts/./x.js', '/scripts/x.js', 'scripts\\x.js']) assert.equal(isPublicFile(bad), false, bad);
+});
+
+test('local design documents are ignored without ignoring source scripts', () => {
+  const ignored = spawnSync('git', ['check-ignore', '--no-index', '--', 'docs/private-design.md'], { cwd: source, encoding: 'utf8' });
+  assert.equal(ignored.status, 0, ignored.stderr);
+  assert.equal(ignored.stdout.trim(), 'docs/private-design.md');
+  const sourceFile = spawnSync('git', ['check-ignore', '--no-index', '--', 'scripts/convention-core.cjs'], { cwd: source, encoding: 'utf8' });
+  assert.equal(sourceFile.status, 1, sourceFile.stderr);
+  const router = fs.readFileSync(path.join(source, 'skills/skills-router/SKILL.md'), 'utf8');
+  assert.equal(router.includes('../../docs/'), false);
+  const cases = JSON.parse(fs.readFileSync(path.join(source, 'skills/verify-before-claim/references/adaptive-verification.cases.json'), 'utf8'));
+  assert.ok(fs.existsSync(path.join(source, 'skills/verify-before-claim/references', cases.basis)));
 });
 
 test('Windows line-ending conversion preserves GBK bytes', () => {

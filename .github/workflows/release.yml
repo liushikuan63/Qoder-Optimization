@@ -32,8 +32,10 @@ jobs:
         with:
           node-version: '24.16.0'
 
-      - name: Install locked document-test dependencies
-        run: npm ci --prefix skills/office-docs --ignore-scripts --no-audit --no-fund
+      - name: Install locked test dependencies
+        run: |
+          npm ci --prefix skills/office-docs --ignore-scripts --no-audit --no-fund
+          npm ci --prefix scripts/convention-runtime --ignore-scripts --no-audit --no-fund
 
       - name: Isolated self-tests and release contracts
         run: node .github/run-tests.js

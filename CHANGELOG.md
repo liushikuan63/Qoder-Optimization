@@ -6,8 +6,20 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.0.5] - 2026-10-30
+
+### Added
+- Opt-in project convention checks for internationalization, coding style, tools, dependencies and version constraints, with scoped source records and explicit task decisions.
+- Adaptive verification choices, manual verification handling and paired benchmark validation; source distribution does not enable live client workflows.
+
+### Fixed
+- Reject internationalization plans that omit files covered by a required convention instead of accepting incomplete coverage.
+- Preserve locked directory-based script dependencies during catalog installation, exclude installed modules and backups, and report separate third-party setup requirements.
+- Create and confirm draft releases by their REST release IDs rather than assuming drafts are visible through tag lookups.
+
 ### Changed
-- Release notes are taken from the matching `CHANGELOG.md` section when a release is created; generated notes remain the fallback.
+- Keep local `docs/` out of Git and release archives; distribute public usage contracts with the skills and installation guide.
+- Prepare the convention runtime from its lockfile in CI and extend the release and installation regression checks.
 
 ## [0.0.4] - 2026-10-29
 
@@ -66,7 +78,8 @@ During the 0.x line, minor versions may contain breaking changes.
 - De-identified memory export (`qoder-memory-export-generic.tar.gz`) and offline MCP assets.
 - MIT license.
 
-[Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.0.4...HEAD
+[Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.0.5...HEAD
+[0.0.5]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.5
 [0.0.4]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.4
 [0.0.3]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.3
 [0.0.2]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.2

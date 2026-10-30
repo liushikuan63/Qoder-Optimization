@@ -2,13 +2,13 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.0.4"
+  "version": "0.0.5"
  },
- "generated": "2026-10-29",
+ "generated": "2026-10-30",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 125,
-  "script": 90,
+  "script": 107,
   "command": 10,
   "agent": 2
  },
@@ -2038,6 +2038,153 @@
    ]
   },
   {
+   "id": "script:convention-benchmark.cjs",
+   "category": "script",
+   "name": "convention-benchmark.cjs",
+   "status": "shipped",
+   "source": "scripts/convention-benchmark.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:convention-core.cjs"
+   ]
+  },
+  {
+   "id": "script:convention-benchmark.test.js",
+   "category": "script",
+   "name": "convention-benchmark.test.js",
+   "status": "shipped",
+   "source": "scripts/convention-benchmark.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:convention-benchmark.cjs",
+    "script:convention-core.cjs"
+   ]
+  },
+  {
+   "id": "script:convention-core.cjs",
+   "category": "script",
+   "name": "convention-core.cjs",
+   "status": "shipped",
+   "source": "scripts/convention-core.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:convention-runtime"
+   ]
+  },
+  {
+   "id": "script:convention-core.test.js",
+   "category": "script",
+   "name": "convention-core.test.js",
+   "status": "shipped",
+   "source": "scripts/convention-core.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:convention-core.cjs"
+   ]
+  },
+  {
+   "id": "script:convention-engineering.cjs",
+   "category": "script",
+   "name": "convention-engineering.cjs",
+   "status": "shipped",
+   "source": "scripts/convention-engineering.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:convention-core.cjs"
+   ]
+  },
+  {
+   "id": "script:convention-engineering.test.js",
+   "category": "script",
+   "name": "convention-engineering.test.js",
+   "status": "shipped",
+   "source": "scripts/convention-engineering.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:convention-core.cjs",
+    "script:convention-engineering.cjs"
+   ]
+  },
+  {
+   "id": "script:convention-i18n.cjs",
+   "category": "script",
+   "name": "convention-i18n.cjs",
+   "status": "shipped",
+   "source": "scripts/convention-i18n.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:convention-core.cjs"
+   ]
+  },
+  {
+   "id": "script:convention-i18n.test.js",
+   "category": "script",
+   "name": "convention-i18n.test.js",
+   "status": "shipped",
+   "source": "scripts/convention-i18n.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:convention-core.cjs",
+    "script:convention-i18n.cjs"
+   ]
+  },
+  {
+   "id": "script:convention-runtime",
+   "category": "script",
+   "name": "convention-runtime",
+   "status": "shipped",
+   "source": "scripts/convention-runtime",
+   "install": {
+    "mode": "copy-directory"
+   },
+   "dependencies": []
+  },
+  {
+   "id": "script:convention-session.cjs",
+   "category": "script",
+   "name": "convention-session.cjs",
+   "status": "shipped",
+   "source": "scripts/convention-session.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:convention-core.cjs",
+    "script:convention-engineering.cjs",
+    "script:convention-i18n.cjs"
+   ]
+  },
+  {
+   "id": "script:convention-session.test.js",
+   "category": "script",
+   "name": "convention-session.test.js",
+   "status": "shipped",
+   "source": "scripts/convention-session.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:convention-core.cjs",
+    "script:convention-session.cjs"
+   ]
+  },
+  {
    "id": "script:cua-cursor-guard.js",
    "category": "script",
    "name": "cua-cursor-guard.js",
@@ -2459,6 +2606,7 @@
    "source": "scripts/pkg-catalog.cjs",
    "dependencies": [
     "script:client-root.js",
+    "script:pack-share-extras.cjs",
     "script:package-dependencies.cjs"
    ]
   },
@@ -2849,6 +2997,85 @@
    "dependencies": [
     "script:client-root.js",
     "skill:write-repowiki"
+   ]
+  },
+  {
+   "id": "script:verification-benchmark.cjs",
+   "category": "script",
+   "name": "verification-benchmark.cjs",
+   "status": "shipped",
+   "source": "scripts/verification-benchmark.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:verification-policy.cjs"
+   ]
+  },
+  {
+   "id": "script:verification-benchmark.test.js",
+   "category": "script",
+   "name": "verification-benchmark.test.js",
+   "status": "shipped",
+   "source": "scripts/verification-benchmark.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:verification-benchmark.cjs",
+    "script:verification-policy.cjs"
+   ]
+  },
+  {
+   "id": "script:verification-policy.cjs",
+   "category": "script",
+   "name": "verification-policy.cjs",
+   "status": "shipped",
+   "source": "scripts/verification-policy.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": []
+  },
+  {
+   "id": "script:verification-policy.test.js",
+   "category": "script",
+   "name": "verification-policy.test.js",
+   "status": "shipped",
+   "source": "scripts/verification-policy.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:verification-policy.cjs"
+   ]
+  },
+  {
+   "id": "script:verification-session.cjs",
+   "category": "script",
+   "name": "verification-session.cjs",
+   "status": "shipped",
+   "source": "scripts/verification-session.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:evidence-audit.cjs",
+    "script:verification-policy.cjs"
+   ]
+  },
+  {
+   "id": "script:verification-session.test.js",
+   "category": "script",
+   "name": "verification-session.test.js",
+   "status": "shipped",
+   "source": "scripts/verification-session.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:evidence-audit.cjs",
+    "script:verification-session.cjs"
    ]
   },
   {

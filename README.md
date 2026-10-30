@@ -3,7 +3,7 @@
 **An opt-in toolkit for making Qoder workflows more repeatable and verifiable.** It adds rules, on-demand skills, hooks, commands, scripts, and MCP templates through Qoder's extension points; it does not modify Qoder itself.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.0.4-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.0.5-blue.svg)](VERSION)
 [![Node](https://img.shields.io/badge/node-24-brightgreen.svg)](https://nodejs.org)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#requirements-and-limits)
 
@@ -22,6 +22,7 @@ No clone required — pick a version and download it. Every release carries a re
 
 | Version | Released | Highlights | Download |
 |---|---|---|---|
+| 0.0.5 | 2026-10-30 | Opt-in convention checks and adaptive verification | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.5/Qoder-Optimization-0.0.5.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.5) |
 | 0.0.4 | 2026-10-29 | Integrity fixes; optional offline bundle | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.4/Qoder-Optimization-0.0.4.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.4) |
 | 0.0.3 | 2026-10-28 | Slimmer rules (160 lines) with an over-budget index rule, plus two maintenance skills | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.3/Qoder-Optimization-0.0.3.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.3) |
 | 0.0.2 | 2026-10-28 | Installable catalog and verified release pipeline | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.2/Qoder-Optimization-0.0.2.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.2) |
@@ -37,10 +38,10 @@ AI coding assistants can lose track of process: a check may be claimed without e
 | Included | Count | Examples |
 |---|---:|---|
 | Skills | 125 | Verification, code review, delivery, databases, documents, desktop automation |
-| Scripts | 90 | Guardrails, self-tests, packaging, validation, tool helpers |
+| Scripts | 107 | Guardrails, self-tests, packaging, validation, tool helpers |
 | Commands | 10 | Clarification, checkpoints, skill search, cleanup |
 | Sub-agents | 2 | Runtime-truth and post-deployment verification |
-| Catalog entries | 227 | Skills, scripts, commands, and agents |
+| Catalog entries | 244 | Skills, scripts, commands, and agents |
 
 ### How it fits together
 
@@ -95,7 +96,7 @@ The first two checks should report a clean skill set and no trigger collisions. 
 
 ### Catalog snapshot
 
-In the catalog generated on 2026-10-29, 12 core skill descriptions total 2,645 characters; all 125 skill descriptions total 26,252 characters. The core descriptions are 10.1% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
+In the catalog generated on 2026-10-30, 12 core skill descriptions total 2,645 characters; all 125 skill descriptions total 26,252 characters. The core descriptions are 10.1% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
 
 ### Requirements and limits
 
@@ -109,7 +110,7 @@ In the catalog generated on 2026-10-29, 12 core skill descriptions total 2,645 c
 
 **Does this replace Qoder's built-in rules?** No. Add only the rules, skills, and guards you choose.
 
-**Should I install all 123 skills?** Usually not. Registered skill descriptions are injected into each turn; keep frequent, cross-domain skills resident and load specialized skills when needed.
+**Should I install all skills?** Usually not. Registered skill descriptions are injected into each turn; keep frequent, cross-domain skills resident and load specialized skills when needed.
 
 **Can I use only part of the package?** Yes. Catalog entries are independent, and rules, skills, hooks, and scripts can be adopted separately.
 
@@ -121,7 +122,7 @@ Issues and pull requests are welcome. New guards should include a case that must
 
 Maintain releases from a Git checkout, not from a downloaded zip. Fetch and merge the latest remote changes while preserving local work. The public repository is the distribution source; the metadata generator does not read your HOME or export private configuration. Preview metadata changes, back up existing files, then use `--apply` when the scope is correct. Keep VERSION, catalog, manifest, both language sections, counts and download links aligned.
 
-`npm ci --prefix skills/office-docs --ignore-scripts` prepares locked test dependencies; `node .github/run-tests.js` runs the isolated self-tests and release contracts. On Windows, set `RELEASE_TEST_HOME_PARENT` to a disposable parent outside paths classified as temporary, and keep TEMP/TMP in a separate test directory.
+Prepare locked test dependencies with `npm ci --prefix skills/office-docs --ignore-scripts` and `npm ci --prefix scripts/convention-runtime --ignore-scripts`, then run `node .github/run-tests.js` for isolated self-tests and release contracts. On Windows, set `RELEASE_TEST_HOME_PARENT` to a disposable parent outside paths classified as temporary, and keep TEMP/TMP in a separate test directory.
 
 The tag workflow validates and packages only approved committed files, then independently unpacks and compares their contents. Existing release assets are downloaded and compared before being retained; differing assets are not replaced. Finally, verify the actual CI run and download both published assets. A successful upload alone is not delivery verification.
 
@@ -142,6 +143,7 @@ MIT; see [LICENSE](LICENSE). This is an unofficial community project and is not 
 
 | 版本 | 发布日期 | 主要内容 | 下载 |
 |---|---|---|---|
+| 0.0.5 | 2026-10-30 | 按需采用项目约定检查与验证选档 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.5/Qoder-Optimization-0.0.5.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.5) |
 | 0.0.4 | 2026-10-29 | 完整性修复；离线附件按需下载 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.4/Qoder-Optimization-0.0.4.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.4) |
 | 0.0.3 | 2026-10-28 | 规则瘦身至 160 行 + 超红线转索引条款 + 两个维护技能 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.3/Qoder-Optimization-0.0.3.zip) · [说明](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.3) |
 | 0.0.2 | 2026-10-28 | 修复索引安装，补齐发布验证 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.2/Qoder-Optimization-0.0.2.zip) · [说明](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.2) |
@@ -159,10 +161,10 @@ AI 编码助手常见的问题包括：没有证据就声称验证通过、失�
 | 内容 | 数量 | 示例 |
 |---|---:|---|
 | 技能 | 125 | 验证、代码评审、交付、数据库、文档、桌面自动化 |
-| 脚本 | 90 | 守卫、自测、打包、校验与工具补强 |
+| 脚本 | 107 | 守卫、自测、打包、校验与工具补强 |
 | 命令 | 10 | 需求澄清、接续检查、技能检索、清理 |
 | 子智能体 | 2 | 运行期真值核验、部署后验收 |
-| 目录条目 | 227 | 技能、脚本、命令与子智能体 |
+| 目录条目 | 244 | 技能、脚本、命令与子智能体 |
 
 ### 工作方式
 
@@ -217,7 +219,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 
 ### 目录快照
 
-截至 2026-10-29 生成的目录，12 个常驻技能的描述共 2,645 字符；125 个技能的描述共 26,252 字符。常驻描述占全部技能描述文本的 10.1%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
+截至 2026-10-30 生成的目录，12 个常驻技能的描述共 2,645 字符；125 个技能的描述共 26,252 字符。常驻描述占全部技能描述文本的 10.1%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
 
 ### 环境与限制
 
@@ -231,7 +233,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 
 **会替换 Qoder 自带规则吗？** 不会。你可以逐项选择要启用的规则、技能和守卫。
 
-**应该安装全部 123 个技能吗？** 通常不需要。已注册技能的描述会进入每轮上下文；建议常驻高频、跨领域技能，其余按需加载。
+**应该安装全部技能吗？** 通常不需要。已注册技能的描述会进入每轮上下文；建议常驻高频、跨领域技能，其余按需加载。
 
 **可以只使用其中一部分吗？** 可以。目录条目相互独立，规则、技能、hooks 和脚本都可以分开采用。
 
@@ -243,7 +245,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 
 维护版本要使用 Git 源码仓库，不从下载的 ZIP 直接改出新版。先拉取并保留本地工作合并最新远端；公开仓库是交付源，元数据生成器不读取 HOME，也不导出私有配置。先预演和备份，确认范围后再加 `--apply`，同步 VERSION、catalog、manifest、双语文档、计数和下载链接。
 
-用 `npm ci --prefix skills/office-docs --ignore-scripts` 准备锁定的测试依赖，再运行 `node .github/run-tests.js`。Windows 上把 `RELEASE_TEST_HOME_PARENT` 指向不会被识别为临时路径的独立沙箱父目录，TEMP/TMP 使用另一测试目录。
+分别用 `npm ci --prefix skills/office-docs --ignore-scripts` 和 `npm ci --prefix scripts/convention-runtime --ignore-scripts` 准备锁定的测试依赖，再运行 `node .github/run-tests.js`。Windows 上把 `RELEASE_TEST_HOME_PARENT` 指向不会被识别为临时路径的独立沙箱父目录，TEMP/TMP 使用另一测试目录。
 
 标签工作流只校验和打包获准的已提交文件，并独立解包比对内容。已有同名资产下载比对后才保留，内容不一致时停止、不覆盖。最后核对真实 CI，并下载 ZIP 和校验文件复验；上传成功不能单独证明交付成功。
 
@@ -254,7 +256,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 <!-- offline-bundle:start -->
 ### Optional offline bundle / 可选离线附件
 
-The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.4/Qoder-Optimization-0.0.4-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
+The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.5/Qoder-Optimization-0.0.5-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
 
 核心包不含 MCP 离线二进制；需要时单独下载离线附件，核对各自的 .sha256 后解压到同一目录。无需离线组件时只取核心包；链接仅在对应版本发布后可用。
 <!-- offline-bundle:end -->

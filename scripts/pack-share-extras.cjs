@@ -41,6 +41,17 @@ function filesUnder(root, rel) {
   return result;
 }
 
+function scriptDirectoryFiles(root, rel) {
+  const files = filesUnder(root, rel);
+  for (const name of ['package.json', 'package-lock.json']) {
+    if (!files.includes(rel + '/' + name)) throw new Error('目录脚本缺少 ' + name + '：' + rel);
+  }
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, rel, 'package.json'), 'utf8'));
+  const main = manifest.main || 'index.js';
+  if (!/^[A-Za-z0-9_.-]+\.[cm]?js$/.test(main) || !files.includes(rel + '/' + main)) throw new Error('目录脚本入口无效：' + rel);
+  return files;
+}
+
 function descriptionOf(file) {
   const text = fs.readFileSync(file, 'utf8');
   const raw = (text.match(/^description:[ \t]*(.+)$/m) || [])[1];
@@ -83,12 +94,18 @@ function metadataFor(root, options = {}) {
       description: descriptionOf(path.join(dir, 'SKILL.md')), source: 'skills/' + skill, install: { mode: 'copy-skill', tier } });
   }
   for (const [category, dir] of Object.entries({ script: 'scripts', command: 'commands', agent: 'agents' })) {
-    for (const file of filesUnder(root, dir)) {
+    const sources = category === 'script'
+      ? fs.readdirSync(path.join(root, dir)).sort().map(name => dir + '/' + name).filter(file => !PRIVATE_FILE.test(file))
+      : filesUnder(root, dir);
+    for (const file of sources) {
       if (path.posix.dirname(file) !== dir) throw new Error('目录条目只支持直接文件：' + file);
+      const stat = fs.lstatSync(path.join(root, file));
+      if (stat.isSymbolicLink() || (!stat.isFile() && !stat.isDirectory())) throw new Error('无效目录条目：' + file);
+      if (stat.isDirectory()) scriptDirectoryFiles(root, file);
       if (category !== 'script' && !file.endsWith('.md')) throw new Error('命令和 agent 必须为 Markdown：' + file);
       const name = category === 'script' ? path.posix.basename(file) : path.posix.basename(file, '.md');
       const id = category + ':' + name;
-      entries.push({ ...oldEntries.get(id), id, category, name, status: 'shipped', source: file, install: { mode: 'copy-file' } });
+      entries.push({ ...oldEntries.get(id), id, category, name, status: 'shipped', source: file, install: { mode: stat.isDirectory() ? 'copy-directory' : 'copy-file' } });
     }
   }
   for (const entry of entries) entry.dependencies = dependenciesFor(root, entry);
@@ -187,7 +204,7 @@ function main(argv) {
   return check && changed.length ? 1 : 0;
 }
 
-module.exports = { PUBLIC_PATHS, PRIVATE_FILE, isPublicFile, filesUnder, descriptionOf, metadataFor };
+module.exports = { PUBLIC_PATHS, PRIVATE_FILE, isPublicFile, filesUnder, scriptDirectoryFiles, descriptionOf, metadataFor };
 if (require.main === module) {
   try { process.exitCode = main(process.argv.slice(2)); }
   catch (error) { console.error('PACKAGE_ERROR: ' + error.message); process.exitCode = 2; }

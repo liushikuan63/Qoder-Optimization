@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "basis": "adaptive-verification.md",
+  "scope": "Local implementation and isolated tests; live user and Agent validation remains unverified",
+  "protocol": {
+    "snapshotKind": "qoder.chatSession.read",
+    "toolName": "AskUserQuestion",
+    "answeredPrefix": "Your questions have been answered: ",
+    "answeredSuffix": ". You can now continue with these answers in mind.",
+    "unansweredOutput": "The user did not answer the questions.",
+    "observations": [
+      "A completed tool can contain an unanswered result.",
+      "Multiple user messages can share a turnId; bind request message and proposal.",
+      "The bounded snapshot exposes tool name/status/output, not stable tool_use_id or input.",
+      "A streaming assistant message can contain a completed native question result.",
+      "Explicit replies require the current complete displayed question before the real user message.",
+      "Later question events supersede earlier answers; an event ordinal is not a stable platform tool ID.",
+      "Snapshots are source evidence, not platform permission grants."
+    ]
+  },
+  "base": {
+    "schema": 1,
+    "taskId": "task-1",
+    "sessionId": "session-1",
+    "requestMessageId": "request-1",
+    "workspaceKey": "workspace-1",
+    "environmentKey": "isolated-local",
+    "facts": {
+      "action": "local",
+      "risk": "low",
+      "impact": "local",
+      "uncertainty": "low",
+      "reversible": true,
+      "sensitive": false,
+      "sourceRefs": ["request-1", "diff-1"]
+    },
+    "modelSuggestedTier": "light",
+    "userCheckIds": ["smoke"],
+    "baselineCheckIds": ["syntax", "smoke", "boundary", "regression"],
+    "baselineSourceRef": "independently-frozen-project-plan",
+    "checks": [
+      {"id":"syntax","fromTier":"light","mandatory":true,"evidenceType":"static","requirementIds":["syntax-valid"],"dependencies":[],"commandRef":"node-check","expectedOutcomeRef":"syntax-expectation","preconditions":[]},
+      {"id":"smoke","fromTier":"light","mandatory":false,"evidenceType":"runtime","requirementIds":["main-path"],"dependencies":["syntax"],"commandRef":"isolated-smoke","expectedOutcomeRef":"smoke-expectation","preconditions":[]},
+      {"id":"boundary","fromTier":"standard","mandatory":false,"evidenceType":"runtime","requirementIds":["edge-path"],"dependencies":["smoke"],"commandRef":"boundary-tests","expectedOutcomeRef":"boundary-expectation","preconditions":[]},
+      {"id":"regression","fromTier":"standard","mandatory":false,"evidenceType":"runtime","requirementIds":["existing-paths"],"dependencies":["syntax"],"commandRef":"related-regression","expectedOutcomeRef":"regression-expectation","preconditions":[]},
+      {"id":"review","fromTier":"deep","mandatory":false,"evidenceType":"static","requirementIds":["independent-review"],"dependencies":["boundary","regression"],"commandRef":"independent-review","expectedOutcomeRef":"review-expectation","preconditions":[]}
+    ]
+  },
+  "cases": [
+    {"id":"A01","area":"policy","positive":{"variant":"local-low","expectedRecommendation":"light"},"negative":{"variant":"unknown-facts","expectedRecommendation":"standard"},"requiresLive":false},
+    {"id":"A02","area":"policy","positive":{"variant":"sensitive","expectedRecommendation":"deep","expectedOptions":4},"negative":{"variant":"sensitive-user-light","expectedSelectedTier":"light","mustKeep":["syntax","smoke"]},"requiresLive":false},
+    {"id":"A03","area":"policy","positive":{"variant":"explicit-review","mustKeep":["review","syntax","smoke","boundary","regression"]},"negative":{"variant":"unknown-required-id","expectedError":"UNKNOWN_CHECK"},"requiresLive":false},
+    {"id":"A04","area":"audit","positive":{"variant":"matching-evidence","expectedVerdict":"PASS"},"negative":{"variant":"static-as-runtime","expectedVerdict":"FAIL"},"requiresLive":true},
+    {"id":"A05","area":"session","positive":{"variant":"four-options","expectedCount":4,"manualLast":true},"negative":{"variant":"unmeasured-cost","expectedMinutes":null},"requiresLive":true},
+    {"id":"A06","area":"session","positive":{"variant":"choose-light","expectedCheckIds":["smoke","syntax"]},"negative":{"variant":"omit-selected-extra","expectedVerdict":"FAIL"},"requiresLive":true},
+    {"id":"A07","area":"session","positive":{"variant":"manual","expectedState":"awaiting_manual","expectedAutomaticChecks":0},"negative":{"variant":"completed-without-answer","expectedState":"awaiting_choice"},"requiresLive":true},
+    {"id":"A08","area":"session","positive":{"variant":"deep-recommendation-light-choice","expectedState":"confirmed","expectedTier":"light"},"negative":{"variant":"unknown-option","expectedError":"UNKNOWN_OPTION"},"requiresLive":true},
+    {"id":"A09","area":"session","positive":{"variant":"same-answer-replay","expectedIdempotent":true},"negative":{"variant":"another-task-answer","expectedError":"SCOPE_MISMATCH"},"requiresLive":true},
+    {"id":"A10","area":"session","positive":{"variant":"authorized-context","expectedState":"confirmed"},"negative":{"variant":"grant-context-mismatch","expectedError":"AUTHORITY_MISMATCH"},"requiresLive":true},
+    {"id":"A11","area":"session","positive":{"variant":"same-boundary-new-content","expectedState":"confirmed"},"negative":{"variant":"changed-plan","expectedState":"awaiting_choice"},"requiresLive":true},
+    {"id":"A12","area":"audit","positive":{"variant":"current-revision","expectedVerdict":"PASS"},"negative":{"variant":"old-content-evidence","expectedVerdict":"INCOMPLETE"},"requiresLive":false},
+    {"id":"A13","area":"policy","positive":{"variant":"monotonic-closure","expectedMonotonic":true},"negative":{"variant":"cyclic-dependencies","expectedError":"CYCLIC_CHECKS"},"requiresLive":false},
+    {"id":"A14","area":"audit","positive":{"variant":"complete-evidence","expectedVerdict":"PASS"},"negative":{"variant":"skipped-record","expectedVerdict":"INCOMPLETE"},"requiresLive":false},
+    {"id":"A15","area":"audit","positive":{"variant":"scoped-success","expectedScope":"selected"},"negative":{"variant":"excluded-required-check","expectedVerdict":"PARTIAL"},"requiresLive":true},
+    {"id":"A16","area":"session","positive":{"variant":"shadow-light","expectedCheckIds":["boundary","regression","smoke","syntax"]},"negative":{"variant":"shadow-manual","expectedAutomaticChecks":0,"expectedVerdict":"INCOMPLETE"},"requiresLive":true},
+    {"id":"A17","area":"benchmark","positive":{"variant":"complete-measurements","expectedUsable":true},"negative":{"variant":"empty-measurements","expectedVerdict":"INCOMPLETE"},"requiresLive":false},
+    {"id":"A18","area":"benchmark","positive":{"variant":"independent-truth","expectedCompared":true},"negative":{"variant":"both-miss-known-defect-in-a-paired-round","expectedCandidateMisses":1,"expectedBaselineMisses":1,"expectedVerdict":"FAIL"},"requiresLive":true},
+    {"id":"A19","area":"benchmark","positive":{"variant":"separate-families","expectedUsable":true},"negative":{"variant":"leaked-family","expectedError":"SPLIT_LEAKAGE"},"requiresLive":true},
+    {"id":"A20","area":"benchmark","positive":{"variant":"paired-wall-clock","mustIncludeHumanWait":true},"negative":{"variant":"manual-zero-time","expectedVerdict":"INCOMPLETE","expectedManualTimeMs":null,"mustExcludeFromAutomaticCounts":true},"requiresLive":true},
+    {"id":"A21","area":"session","positive":{"variant":"isolated-state","expectedRoundTrip":true},"negative":{"variant":"path-traversal","expectedError":"INVALID_SCOPE_ID"},"requiresLive":false},
+    {"id":"A22","area":"audit","positive":{"variant":"legacy-audit","expectedLegacyUnchanged":true},"negative":{"variant":"changed-required-level","expectedVerdict":"FAIL"},"requiresLive":true},
+    {"id":"A23","area":"live","positive":{"variant":"real-ui-answer-and-execution","expectedEvidence":"runtime"},"negative":{"variant":"simulation-only","expectedVerdict":"INCOMPLETE"},"requiresLive":true},
+    {"id":"A24","area":"session","positive":{"variant":"isolated-trial-before-rollout","expectedState":"confirmed"},"negative":{"variant":"trial-authority-in-normal-task","expectedError":"AUTHORITY_MISMATCH"},"requiresLive":true},
+    {"id":"A25","area":"session","positive":{"variant":"native-answer","expectedState":"confirmed"},"negative":{"variant":"assistant-forged-user-answer","expectedError":"UNTRUSTED_ANSWER"},"requiresLive":true},
+    {"id":"A26","area":"session","positive":{"variant":"not-invoked","expectedWrites":0},"negative":{"variant":"manual-done-boolean","expectedVerdict":"INCOMPLETE"},"requiresLive":true}
+  ]
+}

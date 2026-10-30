@@ -12,6 +12,7 @@ const os = require('os');
 const path = require('path');
 const { clientRoot } = require('./client-root.js');
 const { dependenciesFor } = require('./package-dependencies.cjs');
+const { isPublicFile, scriptDirectoryFiles } = require('./pack-share-extras.cjs');
 const CLIENT_ROOT = clientRoot();
 const { spawnSync } = require('child_process');
 const { createHash } = require('crypto');
@@ -99,7 +100,13 @@ function localPresence(e) {
   if (!name || name === '.' || name === '..' || /[\\/:]/.test(name)) return { label: '本地状态未核验', present: null };
   const found = roots.filter(root => {
     const p = path.join(QODER, root, name, ...(e.category === 'skill' ? ['SKILL.md'] : []));
-    try { return fs.statSync(p).isFile(); } catch { return false; }
+    try {
+      if (e.category === 'script' && e.install?.mode === 'copy-directory') {
+        scriptDirectoryFiles(path.dirname(p), path.basename(p));
+        return true;
+      }
+      return fs.statSync(p).isFile();
+    } catch { return false; }
   });
   return { present: found.length > 0, label: found.length ? `本地文件已存在（${found.join(' + ')}；未验装载）` : '本地未发现' };
 }
@@ -200,10 +207,14 @@ function cmdInstall() {
     console.log('  ' + (e.install.note || '见 mcp/README-mcp.md'));
     return;
   }
-  const assertNoLinks = file => {
+  const assertNoLinks = (file, skipModules = false) => {
     const st = fs.lstatSync(file);
     if (st.isSymbolicLink()) fail(2, '安装路径不能含符号链接');
-    if (st.isDirectory()) for (const name of fs.readdirSync(file)) assertNoLinks(path.join(file, name));
+    if (st.isDirectory()) for (const name of fs.readdirSync(file)) {
+      // Excluded modules are never copied, and reused dependencies are not modified.
+      if (skipModules && name === 'node_modules') continue;
+      assertNoLinks(path.join(file, name), skipModules);
+    }
   };
   const fingerprint = file => {
     const hash = createHash('sha256');
@@ -240,8 +251,12 @@ function cmdInstall() {
     if (!expected || entry.source !== expected) fail(2, '条目的 source 与类别或名称不一致');
     const src = path.resolve(root, expected);
     if (!fs.existsSync(src) || !within(fs.realpathSync(root), fs.realpathSync(src))) fail(2, '安装源不存在或越界');
-    assertNoLinks(src);
-    if (entry.category === 'skill' ? !fs.statSync(src).isDirectory() || !fs.existsSync(path.join(src, 'SKILL.md')) || !fs.statSync(path.join(src, 'SKILL.md')).isFile() : !fs.statSync(src).isFile()) fail(2, '条目源类型或入口无效');
+    const directoryScript = entry.category === 'script' && entry.install?.mode === 'copy-directory';
+    assertNoLinks(src, directoryScript);
+    if (directoryScript) {
+      if (!fs.statSync(src).isDirectory()) fail(2, '目录脚本源类型无效');
+      scriptDirectoryFiles(root, expected);
+    } else if (entry.category === 'skill' ? !fs.statSync(src).isDirectory() || !fs.existsSync(path.join(src, 'SKILL.md')) || !fs.statSync(path.join(src, 'SKILL.md')).isFile() : !fs.statSync(src).isFile()) fail(2, '条目源类型或入口无效');
     let dependencies;
     try { dependencies = dependenciesFor(root, entry); } catch (error) { fail(2, error.message); }
     for (const id of dependencies) {
@@ -260,9 +275,12 @@ function cmdInstall() {
       }
     }
     if (fs.existsSync(t.target)) {
-      assertNoLinks(t.target);
+      assertNoLinks(t.target, directoryScript && entry !== e);
       if (entry === e && !FORCE) fail(1, `目标已存在：${t.target}（确需覆盖加 --force）`);
-      if (entry !== e) { visiting.delete(entry.id); visited.add(entry.id); return; }
+      if (entry !== e) {
+        if (directoryScript) scriptDirectoryFiles(path.dirname(t.target), path.basename(t.target));
+        visiting.delete(entry.id); visited.add(entry.id); return;
+      }
     }
     const previous = fs.existsSync(t.target);
     plan.push({ entry, src, target: t.target, previous, before: previous ? fingerprint(t.target) : null, owned: [], originalMoved: false });
@@ -282,7 +300,8 @@ function cmdInstall() {
       const item = plan[i];
       item.staged = path.join(stage, 'new-' + i);
       item.backup = path.join(stage, 'old-' + i);
-      fs.cpSync(item.src, item.staged, { recursive: true, force: false, errorOnExist: true });
+      fs.cpSync(item.src, item.staged, { recursive: true, force: false, errorOnExist: true,
+        filter: file => isPublicFile(path.relative(root, file).split(path.sep).join('/')) });
     }
     for (const item of plan) {
       fs.mkdirSync(path.dirname(item.target), { recursive: true });
@@ -295,8 +314,8 @@ function cmdInstall() {
       copyExclusive(item.staged, item.target, item.owned);
     }
     if (plan.some(item => item.entry.category === 'skill')) { indexAttempted = true; console.log('  ' + rebuildIndex()); }
-    console.log('  已安装全部依赖并通过入口校验。');
-    for (const item of plan) if (item.entry.category === 'skill' && fs.existsSync(path.join(item.target, 'package-lock.json'))) {
+    console.log('  已安装全部包内依赖并通过入口校验；第三方依赖与现役装载未验证。');
+    for (const item of plan) if (fs.statSync(item.target).isDirectory() && fs.existsSync(path.join(item.target, 'package-lock.json'))) {
       console.log('  第三方依赖需另行安装：npm ci --ignore-scripts --prefix ' + JSON.stringify(item.target));
     }
     if (plan.some(item => item.previous)) console.log('  原文件备份保留于：' + stage);

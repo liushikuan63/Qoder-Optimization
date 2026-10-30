@@ -1,4 +1,4 @@
-# Qoder-Optimization-0.0.4 安装说明
+# Qoder-Optimization-0.0.5 安装说明
 
 ## 包内容与落点
 
@@ -62,6 +62,15 @@
 
 按个人习惯启用：将《Qoder-AI编码通用规则.md》中「分级澄清与提示词优化」并入已有 rules/long-task.md（保留原内容），或按同章直接使用；commands/clarify.md 是薄入口，不要求另装澄清技能。
 明确需求直接交付，轻微歧义说明假设，关键歧义优先核心问题并保留其他阻塞项，回答后复核剩余条件；理解确认不等于执行授权，本次仅优化提示词时不沿用历史执行授权。只有本次明确要求执行或接续有效的同范围任务时才实施。契约检查：node scripts/clarify-contract.test.js（静态覆盖，不保证所有模型场景行为）。
+
+## 项目约定与验证选档
+
+这两套模块按需采用，分发源码不等于在现役客户端启用。根 `docs/` 是本地设计资料，不跟踪、不随包；公开调用说明保留在对应技能与源码测试中。
+
+- **项目约定**：检查国际化、编码风格、工具、依赖和版本约束，保留来源、范围与未知项。使用包内 `node scripts/pkg-catalog.cjs install script:convention-session.cjs` 预演，确认后加 `--apply`，安装器连同 `convention-runtime` 的入口和锁文件一起安装；第三方依赖仍需另行安装。
+- **验证选档**：用 `node scripts/pkg-catalog.cjs install script:verification-session.cjs` 预演，再按明确批准安装。该文件是宿主调用的 CommonJS 库，不是直接执行的检查命令；强化、标准、轻量和人工选项的绑定流程见 `skills/verify-before-claim/references/adaptive-verification.md`。
+- **第三方依赖**：对安装器实际打印的目录运行 `npm ci --ignore-scripts --prefix <客户端目录>/scripts/convention-runtime`。不随包复制 `node_modules`，安装器不自动联网、执行包脚本或改动现役接线。
+- **验证边界**：本地静态检查、模拟问答和依赖安装验收不代表真实 UI/Agent 试点。人工选项不自动执行；未答复不默认同意；发布前完整检验与平台审批要求不受选档影响。
 
 ## 收敛与优化（装好之后先跑一遍，之后定期跑）
 

@@ -11,6 +11,7 @@ desktop.ini
 *~
 *.log
 .qoder-work-queue.md
+/docs/
 
 # Node dependencies (this repository ships no node_modules)
 node_modules/

@@ -32,6 +32,23 @@ node ~/.qoder/scripts/skill-load.cjs "技能分层"
 
 命中后**Read 该 SKILL.md 再执行**。多关键词必须全部命中；无本地命中则查已登记的分享包目录，候选不等于已安装或授权安装。换同义词再查仍无相关候选，才说明能力缺口。
 
+## 首次业务操作前的项目约定
+
+- 普通小改动、工具操作和文档任务都先核对国际化、编码风格、工具选择、依赖管理、版本约束；架构、测试、数据、安全和交付按任务触发。明确规范直接继承，实质冲突才问；缺证据不能写成不适用。
+- 已获准使用约定机制且脚本与依赖已就绪时，先调用已核验脚本目录的 `convention-core.cjs discover --project <项目绝对路径>`；只读发现不执行项目配置，也不创建政策。再按下方[本地接口与边界](#本地接口与边界)解析来源、范围与逐维决定。
+- 在第一次业务命令或写入前冻结任务约定包，配套资源与检查一起规划；任务扩大或规则、工具、依赖变化后重新解析。基础只读预检不依赖这个包。
+- 实施范围按本地、隔离、指定项目、现役逐段选择；验证方式独立提供自动、分工、交由用户。已有明确选择不重复询问；仅在范围变化或下一段未获准时重新选择。人工模式不自动测试，保持未验证。
+- `convention-session.cjs prepare` 给出原生提问参数；真实问答与宿主批准分别绑定后才可 `run`。仓库自报批准、缓存选择和推荐项不能代替用户答复；回执只证明所选范围，不证明现役已启用。
+- 缺脚本/依赖时保留必要人工预检并报告能力缺口，不为了通过路由擅自安装、改设置或接线。仓库技能源码更新与现役装载是两件事。
+
+### 本地接口与边界
+
+- [convention-core.cjs](../../scripts/convention-core.cjs) 的 `resolve(request, authority)` 读取 `schema: 1`、绝对 `projectRoot`、`taskId`、`sessionId`、`mode`、`snapshotMode`、`files`、`applicability` 与 `rules`；来源按项目相对路径和 SHA-256 固定。规则只声明维度、范围、值与检查 ID，不执行其中命令。
+- `authority` 由获准宿主核对真实来源与批准，绑定任务、会话、工作树及范围；不得从仓库自报政策或示例 JSON 制造批准。返回 `decisions`、`requiredCheckIds`、`ready` 和 `packageDigest`；`ready: false` 必须补证或澄清，不能当通过。
+- [convention-session.cjs](../../scripts/convention-session.cjs) 的 `prepare(bundle, {requestMessageId, checks})` 要求每项提供 `id`、`phase`、`level`、`input`、独立 `expectationRef`；`questions()` 生成范围和验证方式的原生问题。`select()` 绑定当前真实问答快照及宿主授权解析器，`run()` 执行所选本地检查，`auditReceipt()` 复核内容与环境未变。
+- 国际化检查显式提供 `sourceRoots` 和 `catalog`（语言、默认语言、命名空间及资源路径），必须覆盖所有约定绑定文件。现有静态适配器只证明所支持的 JavaScript/HTML 与 JSON 资源检查；不支持的语法保持未验证，真实 UI/Agent 试点和现役接线均需另行批准。
+- 包内安装器可预演 `install script:convention-session.cjs`；确认后才加 `--apply`，并在实际安装目录对 `scripts/convention-runtime` 执行锁定的 `npm ci --ignore-scripts`。不复制 `node_modules`，不自动联网安装或启用。
+
 ## 索引与维护
 
 - 真源：两层实际 SKILL.md；`build-skills-index.cjs` 的扫描函数供检索与显式建索引共同使用。
