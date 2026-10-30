@@ -97,6 +97,78 @@ test('B02 switch var without reassignment retains the outer translator', t => {
   assert.equal(r.status, 'PASS');
   assert.equal(r.references, 3);
 });
+for (const statement of [
+  'switch (kind) { case 1: var t = custom; break; }',
+  'for (var t = custom; flag; ) {}',
+  'for (var t of callbacks) {}',
+  'for (var t in callbacks) {}',
+  'for (var {t} of callbacks) {}',
+  'for (var [t] of callbacks) {}',
+  'if (flag) { var t = custom; }',
+  'var t = custom;',
+]) {
+  for (const inFunction of [false, true]) {
+    test('B02 var initialization invalidates translators: ' + statement + '/' + inFunction, t => {
+      const f = fixture(t);
+      const code = "var {t} = require('i18next'); " + statement + " node.textContent = t('save');";
+      f.write('src/code.cjs', inFunction ? 'function render() {' + code + '}' : code);
+      const r = f.run();
+      assert.equal(r.status, 'UNVERIFIED');
+      assert.ok(r.unknown.some(i => i.code === 'TRANSLATOR_REASSIGNED'));
+    });
+  }
+}
+test('B02 namespace initialization and destructured writes invalidate translators', t => {
+  const f = fixture(t);
+  for (const code of [
+    "var i18next = require('i18next'); switch (kind) { case 1: var i18next = custom; } node.textContent = i18next.t('save');",
+    "var {t} = require('i18next'); ({t} = custom); node.textContent = t('save');",
+    "var {t} = require('i18next'); [t] = callbacks; node.textContent = t('save');",
+    "var {t} = require('i18next'); t++; node.textContent = t('save');",
+  ]) {
+    f.write('src/code.cjs', code);
+    const r = f.run();
+    assert.equal(r.status, 'UNVERIFIED', code);
+    assert.ok(r.unknown.some(i => i.code === 'TRANSLATOR_REASSIGNED'), code);
+  }
+});
+for (const statement of [
+  '[i.t] = [custom];',
+  '({translate: i.t} = custom);',
+  '[i.t = custom] = callbacks;',
+  '[...i.t] = callbacks;',
+  'for ([i.t] of callbacks) {}',
+]) {
+  test('B02 destructured namespace members invalidate translators: ' + statement, t => {
+    const f = fixture(t);
+    f.write('src/code.js', "import i from 'i18next'; " + statement + " node.textContent = i.t('save');");
+    const result = f.run();
+    assert.equal(result.status, 'UNVERIFIED');
+    assert.ok(result.unknown.some(item => item.code === 'TRANSLATOR_REASSIGNED'));
+  });
+}
+test('B02 destructuring reads and unrelated member writes retain translators', t => {
+  const f = fixture(t);
+  for (const statement of ["({[i.t('save')]: value} = custom);", '[other.t] = callbacks;']) {
+    f.write('src/code.js', "import i from 'i18next'; " + statement + " node.textContent = i.t('save');");
+    assert.equal(f.run().status, 'PASS', statement);
+  }
+});
+test('B02 ordinary initialization, empty var redeclarations and local functions remain valid', t => {
+  const f = fixture(t);
+  for (const code of [
+    "var {t} = require('i18next'); var t; node.textContent = t('save');",
+    "var {t} = require('i18next'); for (var t; flag; ) { node.textContent = t('save'); }",
+    "function render() { var {t} = require('i18next'); node.textContent = t('save'); }",
+    "var {t} = require('i18next'); function other() { var t = custom; } node.textContent = t('save');",
+    "var {t} = require('i18next'); { let t = custom; t = another; } node.textContent = t('save');",
+  ]) {
+    f.write('src/code.cjs', code);
+    const r = f.run();
+    assert.equal(r.status, 'PASS', code);
+    assert.equal(r.references, 2, code);
+  }
+});
 test('a shadowed require is not the real i18next import', t => {
   const f = fixture(t); f.write('src/code.cjs', "function render(require) { const {t} = require('i18next'); node.textContent = t('save'); }\n");
   assert.equal(f.run().status, 'UNVERIFIED');

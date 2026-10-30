@@ -62,14 +62,14 @@ function parseJavaScript(file, refs, issues, unknown) {
         if (node.source.value === 'i18next') kind = s.type === 'ImportSpecifier' && s.imported.name === 't' ? 'translate' : ['ImportDefaultSpecifier', 'ImportNamespaceSpecifier'].includes(s.type) ? 'namespace' : null;
         bind(s['local'], { kind });
       }
-      if (node.type === 'VariableDeclaration') for (const d of node.declarations) bind(d.id, { kind: null, init: d.init });
+      if (node.type === 'VariableDeclaration' && (hoist || node.kind !== 'var')) for (const d of node.declarations) bind(d.id, { kind: null, init: d.init });
       if (['FunctionDeclaration', 'ClassDeclaration'].includes(node.type)) bind(node.id);
     }
-    for (const node of nodes.filter(n => n.type === 'VariableDeclaration')) for (const d of node.declarations) {
+    for (const node of nodes.filter(n => n.type === 'VariableDeclaration' && (hoist || n.kind !== 'var'))) for (const d of node.declarations) {
       const init = d.init;
       if (!scope.has('require') && !outer.some(s => s.has('require')) && init?.type === 'CallExpression' && init.callee.name === 'require' && init.arguments.length === 1 && init.arguments[0].value === 'i18next') {
-        if (d.id.type === 'Identifier') scope.set(d.id.name, { kind: 'namespace' });
-        else if (d.id.type === 'ObjectPattern') for (const p of d.id.properties) if (!p.computed && (p.key.name || p.key.value) === 't' && p.value.type === 'Identifier') scope.set(p.value.name, { kind: 'translate' });
+        if (d.id.type === 'Identifier') scope.set(d.id.name, { kind: 'namespace', init });
+        else if (d.id.type === 'ObjectPattern') for (const p of d.id.properties) if (!p.computed && (p.key.name || p.key.value) === 't' && p.value.type === 'Identifier') scope.set(p.value.name, { kind: 'translate', init });
       }
     }
     return { scope, bind };
@@ -103,6 +103,26 @@ function parseJavaScript(file, refs, issues, unknown) {
     if (literal?.trim()) issues.push({ code: 'VISIBLE_LITERAL', ...loc(node), value: literal });
     else if (literal === null) unknown.push({ code: 'DYNAMIC_VISIBLE_TEXT', ...loc(node) });
   }
+  function markWrite(pattern, node, scopes, initializer) {
+    const names = [];
+    function collect(target) {
+      if (!target) return;
+      if (target.type === 'Identifier') names.push(target.name);
+      else if (target.type === 'MemberExpression') collect(target.object);
+      else if (target.type === 'RestElement') collect(target.argument);
+      else if (target.type === 'AssignmentPattern') collect(target.left);
+      else if (target.type === 'ArrayPattern') target.elements.forEach(collect);
+      else if (target.type === 'ObjectPattern') target.properties.forEach(property => collect(property.type === 'RestElement' ? property.argument : property.value));
+    }
+    collect(pattern);
+    for (const name of names) {
+      const binding = resolve(name, scopes);
+      if (!binding || (initializer && binding.init === initializer)) continue;
+      if (binding.kind) unknown.push({ code: 'TRANSLATOR_REASSIGNED', ...loc(node) });
+      binding.kind = null;
+      binding.mutated = true;
+    }
+  }
   function walk(node, scopes) {
     if (node.type === 'Program' || node.type === 'BlockStatement') {
       const local = scopeFor(node.body, scopes, [], node.type === 'Program'); scopes = [...scopes, local.scope];
@@ -112,18 +132,22 @@ function parseJavaScript(file, refs, issues, unknown) {
     else if (['ForStatement', 'ForOfStatement', 'ForInStatement'].includes(node.type)) {
       const declaration = node.type === 'ForStatement' ? node.init : node.left;
       if (declaration?.type === 'VariableDeclaration' && declaration.kind !== 'var') scopes = [...scopes, scopeFor([declaration], scopes).scope];
+      if (node.type !== 'ForStatement') {
+        walk(node.right, scopes);
+        markWrite(declaration.type === 'VariableDeclaration' ? declaration.declarations[0].id : declaration, node, scopes);
+        walk(node.left, scopes);
+        walk(node.body, scopes);
+        return;
+      }
     } else if (node.type === 'SwitchStatement') {
       walk(node.discriminant, scopes);
-      const local = scopeFor(node.cases.flatMap(branch => branch.consequent).filter(statement => statement.type !== 'VariableDeclaration' || statement.kind !== 'var'), scopes);
+      const local = scopeFor(node.cases.flatMap(branch => branch.consequent), scopes);
       for (const branch of node.cases) walk(branch, [...scopes, local.scope]);
       return;
     }
-    if (node.type === 'AssignmentExpression') {
-      const name = node.left.type === 'Identifier' ? node.left.name : node.left.type === 'MemberExpression' && node.left.object.type === 'Identifier' ? node.left.object.name : null;
-      const binding = name && resolve(name, scopes);
-      if (binding?.kind) unknown.push({ code: 'TRANSLATOR_REASSIGNED', ...loc(node) });
-      if (binding && node.left.type === 'Identifier') binding.mutated = true;
-    }
+    if (node.type === 'AssignmentExpression') markWrite(node.left, node, scopes);
+    if (node.type === 'UpdateExpression') markWrite(node.argument, node, scopes);
+    if (node.type === 'VariableDeclarator' && node.init) markWrite(node.id, node, scopes, node.init);
     if (translated(node, scopes)) {
       const key = node.arguments[0], params = options(node.arguments[1]);
       if (key?.type !== 'Literal' || typeof key.value !== 'string' || !params || node.arguments.length > 2) unknown.push({ code: 'DYNAMIC_TRANSLATION', ...loc(node) });
