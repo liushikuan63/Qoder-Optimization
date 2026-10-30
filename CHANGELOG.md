@@ -6,6 +6,17 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.0.7] - 2026-10-30
+
+### Fixed
+- Invalidate translator bindings after `var` initializers, implicit loop assignments and destructured namespace-member writes.
+- Fingerprint convention sources and declared check inputs from their raw bytes, including UTF-8 BOMs and staged Git blobs.
+- Recognize absolute Node executables and the release test entry point without accepting skipped branches, swallowed failures or here-document text as successful test evidence.
+
+### Scope
+- Ship the source-level fixes and updated usage contracts without enabling optional client workflows or changing permissions.
+- The live end-to-end pilot (B05) remains incomplete: real native choices, independent authorization binding, content-change and recovery flows, and screenshots still require separate evidence. Passing regression tests does not complete that pilot.
+
 ## [0.0.6] - 2026-10-30
 
 ### Fixed

@@ -43,7 +43,7 @@ const {
 | 未答复/取消 | `awaiting_choice` 或宿主暂停 | 不执行 |
 
 - `beginVerification()` 校验内容指纹、运行目录、前置与授权；复制并冻结 expectations 中的数组并保留 expectedOutcomeRef。轻量单检查可只给 positive，其余报告路径必须有正负独立期望。
-- `resolveAuthority` 必须由可信宿主核对原批准及 sourceRef、scopeDigest、mode、activationKind、policyVersion；模块只核对返回结构，不把自填 JSON、布尔、签名或函数返回值当权限凭证。实验授权不能移用于普通任务。
+- `resolveAuthority` 必须由可信宿主核对原批准及 sourceRef、scopeDigest、mode、activationKind、policyVersion；模块只核对返回结构，不把自填 JSON、布尔、签名或函数返回值当权限凭证，照抄提案字段返回不能替代独立批准核验。实验授权不能移用于普通任务。
 - `reassessSession()` 在内容变化时使旧证据失效，边界/政策变化才生成新提案。
 - 持久化显式传入获准绝对路径 stateDir，不存在 `--state-dir` CLI。缓存文件保存 choice/run，但 `loadSession` 清空可执行选择与运行，只返回 previousSelection 提示；恢复必须重新读取当前真实来源并核对授权。
 - 实际执行只用现有工具与项目命令；脚本不执行 JSON 里的命令字符串，不新增通用执行器。
@@ -57,6 +57,7 @@ node scripts/verification-benchmark.cjs <实验清单.json> --json
 
 - 直接 `node scripts/verification-session.cjs` 会给出库用法错误并退出2，不是成功的检查入口。
 - 报告恰好覆盖实际清单，正负期望匹配 begin 冻结值；报告绑定 proposal/choice/content 摘要，runDigest 检查运行记录未被替换。摘要只证明一致性，不证明来源真实。
+- 执行前与复审时分别从实际文件重算内容摘要，覆盖所选检查的实现、依赖和输入；不得把运行记录中的旧摘要原样回填为“当前”。正负对照执行相同检查清单，只改变声明的缺陷变量。
 - 记录用原 `evidence-audit.cjs` 审计，证据类型等于计划类型；未执行项只给 reason，保留原有 PARTIAL/INCOMPLETE，不编造正负记录补齐。
 - 轻量单判据的 direct 原始记录必须有明确绝对 cwd、当前 runId 和 proposalDigest/choiceDigest/contentDigest，不得只在包装器标“当前”；不强制双记录报告。
 - 汇报区分：所选范围通过、未执行的扩展覆盖、待人工验证项、未验证原因。不得写“所有场景全绿”。
@@ -74,4 +75,4 @@ node scripts/verification-benchmark.cjs <实验清单.json> --json
 
 - 本流程不覆盖推送/发布前的完整检验、UI 真跑截图、授权与备份纪律；选档不能替代它们。
 - 未启用时不改现役 hooks、提醒、settings；接入现役属单独批准，不随源码分发自动启用。
-- 真实端到端问答与截图证据需要另行批准的试点；仅单测通过不得宣称用户链路已验证。
+- 真实端到端试点须分别记录自动、人工、取消、内容变化与恢复的宿主事件及截图；人工和取消由用户操作，不能用更改快照或单测夹具代替。只验证其中一条路径不能宣称完整用户链路已验证。
