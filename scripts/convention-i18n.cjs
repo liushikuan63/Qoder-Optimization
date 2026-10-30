@@ -109,6 +109,15 @@ function parseJavaScript(file, refs, issues, unknown) {
     } else if (/Function(?:Declaration|Expression)$/.test(node.type) || node.type === 'ArrowFunctionExpression') {
       const local = scopeFor(node.body.body || [], scopes, [...node.params, ...(node.id ? [node.id] : [])], true); scopes = [...scopes, local.scope];
     } else if (node.type === 'CatchClause') { const local = scopeFor([], scopes, [node.param]); scopes = [...scopes, local.scope]; }
+    else if (['ForStatement', 'ForOfStatement', 'ForInStatement'].includes(node.type)) {
+      const declaration = node.type === 'ForStatement' ? node.init : node.left;
+      if (declaration?.type === 'VariableDeclaration' && declaration.kind !== 'var') scopes = [...scopes, scopeFor([declaration], scopes).scope];
+    } else if (node.type === 'SwitchStatement') {
+      walk(node.discriminant, scopes);
+      const local = scopeFor(node.cases.flatMap(branch => branch.consequent).filter(statement => statement.type !== 'VariableDeclaration' || statement.kind !== 'var'), scopes);
+      for (const branch of node.cases) walk(branch, [...scopes, local.scope]);
+      return;
+    }
     if (node.type === 'AssignmentExpression') {
       const name = node.left.type === 'Identifier' ? node.left.name : node.left.type === 'MemberExpression' && node.left.object.type === 'Identifier' ? node.left.object.name : null;
       const binding = name && resolve(name, scopes);

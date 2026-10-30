@@ -45,8 +45,8 @@ node ~/.qoder/scripts/skill-load.cjs "技能分层"
 
 - [convention-core.cjs](../../scripts/convention-core.cjs) 的 `resolve(request, authority)` 读取 `schema: 1`、绝对 `projectRoot`、`taskId`、`sessionId`、`mode`、`snapshotMode`、`files`、`applicability` 与 `rules`；来源按项目相对路径和 SHA-256 固定。规则只声明维度、范围、值与检查 ID，不执行其中命令。
 - `authority` 由获准宿主核对真实来源与批准，绑定任务、会话、工作树及范围；不得从仓库自报政策或示例 JSON 制造批准。返回 `decisions`、`requiredCheckIds`、`ready` 和 `packageDigest`；`ready: false` 必须补证或澄清，不能当通过。
-- [convention-session.cjs](../../scripts/convention-session.cjs) 的 `prepare(bundle, {requestMessageId, checks})` 要求每项提供 `id`、`phase`、`level`、`input`、独立 `expectationRef`；`questions()` 生成范围和验证方式的原生问题。`select()` 绑定当前真实问答快照及宿主授权解析器，`run()` 执行所选本地检查，`auditReceipt()` 复核内容与环境未变。
-- 国际化检查显式提供 `sourceRoots` 和 `catalog`（语言、默认语言、命名空间及资源路径），必须覆盖所有约定绑定文件。现有静态适配器只证明所支持的 JavaScript/HTML 与 JSON 资源检查；不支持的语法保持未验证，真实 UI/Agent 试点和现役接线均需另行批准。
+- [convention-session.cjs](../../scripts/convention-session.cjs) 的 `prepare(bundle, {requestMessageId, checks})` 要求每项提供 `id`、`phase`、`level`、`input`、独立 `expectationRef`；`questions()` 生成范围和验证方式的原生问题。`select()` 绑定当前真实问答快照及宿主授权解析器，`run()` 执行所选本地检查，`auditReceipt()` 只读复核内容与环境未变；环境指纹包含所选本地命令的可执行文件真实路径、字节及声明的 `inputs`，即使它们不在业务文件清单内，变化也使旧回执失效。
+- 国际化检查显式提供 `sourceRoots` 和 `catalog`（语言、默认语言、命名空间及资源路径），必须覆盖所有约定绑定文件。JavaScript 按词法作用域识别 i18next，循环或 switch 内的同名局部绑定不算翻译函数；无法静态确定的可见文本保持未验证。现有静态适配器只证明所支持的 JavaScript/HTML 与 JSON 资源检查；不支持的语法保持未验证，真实 UI/Agent 试点和现役接线均需另行批准。
 - 包内安装器可预演 `install script:convention-session.cjs`；确认后才加 `--apply`，并在实际安装目录对 `scripts/convention-runtime` 执行锁定的 `npm ci --ignore-scripts`。不复制 `node_modules`，不自动联网安装或启用。
 
 ## 索引与维护

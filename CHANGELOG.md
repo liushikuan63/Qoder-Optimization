@@ -6,6 +6,16 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.0.6] - 2026-10-30
+
+### Fixed
+- Require native verification answers to follow the complete displayed proposal and record the proposal source message.
+- Resolve i18next bindings by lexical scope in loops and switches, including `var` hoisting, without treating static-unknown text as translated.
+- Invalidate convention receipts when a selected local check executable or its declared inputs change, while keeping receipt audits read-only.
+
+### Changed
+- Report verification benchmark results per development and holdout split and require the light holdout plan to meet the speed threshold independently.
+
 ## [0.0.5] - 2026-10-30
 
 ### Added

@@ -3,7 +3,7 @@
 **An opt-in toolkit for making Qoder workflows more repeatable and verifiable.** It adds rules, on-demand skills, hooks, commands, scripts, and MCP templates through Qoder's extension points; it does not modify Qoder itself.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.0.5-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.0.6-blue.svg)](VERSION)
 [![Node](https://img.shields.io/badge/node-24-brightgreen.svg)](https://nodejs.org)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#requirements-and-limits)
 
@@ -22,6 +22,7 @@ No clone required — pick a version and download it. Every release carries a re
 
 | Version | Released | Highlights | Download |
 |---|---|---|---|
+| 0.0.6 | 2026-10-30 | Native answer binding, lexical i18n scopes and stronger receipt checks | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.6/Qoder-Optimization-0.0.6.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.6) |
 | 0.0.5 | 2026-10-30 | Opt-in convention checks and adaptive verification | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.5/Qoder-Optimization-0.0.5.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.5) |
 | 0.0.4 | 2026-10-29 | Integrity fixes; optional offline bundle | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.4/Qoder-Optimization-0.0.4.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.4) |
 | 0.0.3 | 2026-10-28 | Slimmer rules (160 lines) with an over-budget index rule, plus two maintenance skills | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.3/Qoder-Optimization-0.0.3.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.3) |
@@ -143,6 +144,7 @@ MIT; see [LICENSE](LICENSE). This is an unofficial community project and is not 
 
 | 版本 | 发布日期 | 主要内容 | 下载 |
 |---|---|---|---|
+| 0.0.6 | 2026-10-30 | 原生答复绑定、词法作用域与回执校验加固 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.6/Qoder-Optimization-0.0.6.zip) · [说明](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.6) |
 | 0.0.5 | 2026-10-30 | 按需采用项目约定检查与验证选档 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.5/Qoder-Optimization-0.0.5.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.5) |
 | 0.0.4 | 2026-10-29 | 完整性修复；离线附件按需下载 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.4/Qoder-Optimization-0.0.4.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.4) |
 | 0.0.3 | 2026-10-28 | 规则瘦身至 160 行 + 超红线转索引条款 + 两个维护技能 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.3/Qoder-Optimization-0.0.3.zip) · [说明](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.3) |
@@ -256,7 +258,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 <!-- offline-bundle:start -->
 ### Optional offline bundle / 可选离线附件
 
-The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.5/Qoder-Optimization-0.0.5-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
+The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.6/Qoder-Optimization-0.0.6-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
 
 核心包不含 MCP 离线二进制；需要时单独下载离线附件，核对各自的 .sha256 后解压到同一目录。无需离线组件时只取核心包；链接仅在对应版本发布后可用。
 <!-- offline-bundle:end -->

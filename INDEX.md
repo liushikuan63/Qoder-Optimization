@@ -1,4 +1,4 @@
-# Qoder-Optimization - 0.0.5
+# Qoder-Optimization - 0.0.6
 
 ## 分享包索引（按需加装）
 

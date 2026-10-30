@@ -130,6 +130,9 @@ function readChoice(session, snapshot, selector) {
     if (message.tools.some(t => typeof t?.output === 'string' && t.output.startsWith(prefix))) fail('UNTRUSTED_ANSWER', 'a later unanswered question invalidated the earlier result');
     return null;
   }
+  const display = displayQuestionFor(session);
+  if (!shown || shown.index > index || !['completed', 'streaming'].includes(shown.message.status)
+      || !shown.text.startsWith(display) || (shown.text.length > display.length && shown.text[display.length] !== '\n')) fail('UNTRUSTED_ANSWER', 'the current complete proposal was not displayed before this result');
   const previous = events.at(-2);
   if (!latest.tool.output.startsWith(prefix) || !latest.tool.output.endsWith(ANSWER_SUFFIX)
       || (previous?.message === message && previous.tool.status === 'completed' && previous.tool.output === latest.tool.output)) fail('UNTRUSTED_ANSWER', 'native answer is missing, ambiguous or truncated');
@@ -138,7 +141,7 @@ function readChoice(session, snapshot, selector) {
   catch { fail('UNTRUSTED_ANSWER', 'native answer is not a single complete selection'); }
   const option = session.proposal.options.find(o => o.label === label);
   if (!option) fail('UNKNOWN_OPTION', 'selected label is not part of this proposal');
-  return { optionId: option.optionId, sourceRef: message.id + '/question/' + fingerprint(question) + '/event/' + message.tools.indexOf(latest.tool), sourceKind: selector.kind };
+  return { optionId: option.optionId, sourceRef: message.id + '/question/' + fingerprint(question) + '/event/' + message.tools.indexOf(latest.tool), sourceKind: selector.kind, questionSourceRef: shown.message.id };
 }
 function applyChoice(session, snapshot, selector, resolveAuthority) {
   assertSession(session);

@@ -77,6 +77,56 @@ test('A17 complete paired measurements produce metrics from supplied simulation 
   assert.equal(report.metrics.baselineCaught, 15);
   assert.equal(report.metrics.bothMissedDefects, 0);
 });
+test('B04 development gains cannot hide zero improvement on the light holdout', () => {
+  const data = manifest(sample());
+  for (const item of data.tasks.filter(t => t.candidateTier === 'light' && t.split === 'holdout')) {
+    item.runs = item.runs.map(row => row.state === 'candidate' ? timed({ ...row, agentMs: 199, executeMs: 199 }) : row);
+  }
+  const report = summarize(data);
+  assert.equal(report.verdict, 'FAIL');
+  assert.match(report.issues.join(' '), /保留集.*p50.*20%/);
+  assert.ok(report.metrics.byTier.light.withHumanWait.medianReduction > 0.2);
+  assert.equal(report.metrics.byTier.light.bySplit.holdout.withHumanWait.medianReduction, 0);
+});
+test('B04 slower development baselines cannot hide a holdout tail regression', () => {
+  const data = manifest(sample());
+  for (const item of data.tasks.filter(t => t.candidateTier === 'light' && t.split === 'dev')) {
+    item.runs = item.runs.map(row => row.state === 'baseline' ? timed({ ...row, executeMs: 2000 }) : row);
+  }
+  const held = data.tasks.find(t => t.candidateTier === 'light' && t.split === 'holdout');
+  held.runs = held.runs.map(row => row.state === 'candidate' ? timed({ ...row, executeMs: 500 }) : row);
+  const report = summarize(data);
+  assert.equal(report.verdict, 'FAIL');
+  assert.match(report.issues.join(' '), /保留集.*p95/);
+  const combined = report.metrics.byTier.light.withHumanWait;
+  assert.ok(combined.candidateP95Ms < combined.baselineP95Ms);
+  assert.ok(report.metrics.byTier.light.bySplit.holdout.withHumanWait.medianReduction > 0.2);
+});
+for (const extra of [0, 0.01]) {
+  test('B04 holdout twenty-percent boundary with added cost ' + extra, () => {
+    const data = manifest(sample());
+    for (const item of data.tasks.filter(t => t.candidateTier === 'light' && t.split === 'holdout')) {
+      item.runs = item.runs.map(row => row.state === 'candidate' ? timed({ ...row, agentMs: 155.5, executeMs: 155.5 + extra }) : row);
+    }
+    const report = summarize(data);
+    assert.equal(report.verdict, extra === 0 ? 'PASS' : 'FAIL');
+    if (extra) assert.match(report.issues.join(' '), /保留集.*p50.*20%/);
+  });
+}
+test('B04 per-tier split metrics retain independent denominators and waiting costs', () => {
+  const report = summarize(manifest(sample()));
+  assert.equal(report.verdict, 'PASS');
+  for (const tier of ['light', 'standard', 'deep']) {
+    assert.ok(report.metrics.byTier[tier].bySplit);
+    const { dev, holdout } = report.metrics.byTier[tier].bySplit;
+    assert.equal(dev.taskCount, 6);
+    assert.equal(dev.pairedRounds, 18);
+    assert.equal(holdout.taskCount, 4);
+    assert.equal(holdout.pairedRounds, 12);
+    assert.equal(holdout.withHumanWait.candidateMedianMs, 137);
+    assert.equal(holdout.withoutHumanWait.candidateMedianMs, 117);
+  }
+});
 test('A17 empty, skipped or duplicated measurements never become zero-miss or zero-cost', () => {
   assert.equal(summarize(manifest([]), 3).verdict, 'INCOMPLETE');
   const skipped = manifest([task('T1', { runs: [{ ...run(1, 'baseline', []), termination: 'skipped' }] })]);

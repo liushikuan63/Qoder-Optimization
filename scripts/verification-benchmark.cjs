@@ -185,6 +185,11 @@ function summarize(data, minRounds = 3) {
       taskCount: tasks.length, devCount: tasks.length - held.length, holdoutCount: held.length,
       holdoutDefectTasks: held.filter(t => t.hasKnownDefect).length, holdoutNormalTasks: held.filter(t => !t.hasKnownDefect).length,
       pairedRounds: rows.length, withHumanWait: timeSummary(rows, true), withoutHumanWait: timeSummary(rows, false),
+      bySplit: Object.fromEntries(['dev', 'holdout'].map(split => {
+        const selected = rows.filter(row => row.split === split);
+        return [split, { taskCount: tasks.filter(task => task.split === split).length, pairedRounds: selected.length,
+          withHumanWait: timeSummary(selected, true), withoutHumanWait: timeSummary(selected, false) }];
+      })),
     }];
   }));
   const overhead = Object.fromEntries(['baseline', 'candidate'].map(state => [state, Object.fromEntries(TIME_FIELDS.map(key => [key, median(pairs.map(p => p[state][key]))]))]));
@@ -217,9 +222,10 @@ function summarize(data, minRounds = 3) {
     if (counts.taskCount !== 10 || counts.devCount !== 6 || counts.holdoutCount !== 4) admission.push(tier + ': 每档10个自动任务，开发6个、保留4个');
     if (counts.holdoutDefectTasks !== 2 || counts.holdoutNormalTasks !== 2) admission.push(tier + ': 保留集每档必须2个缺陷与2个正常场景');
   }
-  const light = byTier.light.withHumanWait;
-  if (light.medianReduction === null || light.medianReduction + 4 * Number.EPSILON < 0.2) admission.push('轻量端到端p50改善不足20%');
-  if (light.candidateP95Ms === null || light.baselineP95Ms === null || light.candidateP95Ms > light.baselineP95Ms) admission.push('轻量候选p95劣于基线');
+  for (const [label, light] of [['轻量', byTier.light.withHumanWait], ['轻量保留集', byTier.light.bySplit.holdout.withHumanWait]]) {
+    if (light.medianReduction === null || light.medianReduction + 4 * Number.EPSILON < 0.2) admission.push(label + '端到端p50改善不足20%');
+    if (light.candidateP95Ms === null || light.baselineP95Ms === null || light.candidateP95Ms > light.baselineP95Ms) admission.push(label + '候选p95劣于基线');
+  }
   if (measured.policyP95Ms > 100) admission.push('推荐器纯计算p95超过100ms');
   return result(quality.length ? 'FAIL' : pending.length ? 'INCOMPLETE' : admission.length ? 'FAIL' : 'PASS', [...quality, ...pending, ...admission], {
     warnings, tasks: data.tasks.length, metrics: measured,

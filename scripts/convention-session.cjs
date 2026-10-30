@@ -154,7 +154,15 @@ function currentState(session) {
   }
   const files = session.bundle.files.map(f => f.path);
   const current = core.snapshot(root, files, session.bundle.snapshotMode);
-  return { contentDigest: current.digest, environmentDigest: environment().digest };
+  const commands = selectedPlan(session).automatic.filter(c => c.phase === 'local').flatMap(c => c.input.commands || []).map(command => {
+    const commandDigest = engineering.commandDigest(command);
+    try {
+      if (!path.isAbsolute(command.executable || '') || !Array.isArray(command.inputs)) return { commandDigest, error: 'INVALID_COMMAND' };
+      const executable = fs.realpathSync.native(command.executable);
+      return { commandDigest, executable, sha256: core.hash(fs.readFileSync(executable)), inputs: command.inputs.map(source => core.snapshot(root, [source.path]).digest) };
+    } catch (error) { return { commandDigest, error: error.code || 'COMMAND_UNAVAILABLE' }; }
+  });
+  return { contentDigest: current.digest, environmentDigest: core.hash({ runtime: environment().digest, commands }) };
 }
 function run(session, resolveApproval, checkerAuthority = {}) {
   assertSession(session);

@@ -45,6 +45,58 @@ test('a same-name function and shadowed translation parameters are not accepted'
   f.write('src/code.js', "import {t} from 'i18next';\nfunction render(t) {node.textContent = t('save');}\n");
   assert.equal(f.run().status, 'UNVERIFIED');
 });
+for (const statement of [
+  "for (let t = custom; flag; ) node.textContent = t('save');",
+  "for (const t of callbacks) { node.textContent = t('save'); }",
+  "for (const t in callbacks) { node.textContent = t('save'); }",
+  "for (const {t} of callbacks) { node.textContent = t('save'); }",
+  "for (const [t] of callbacks) { node.textContent = t('save'); }",
+  "for (let t = custom; node.textContent = t('save'); ) {}",
+  "switch (kind) { case 1: let t = custom; break; default: node.textContent = t('save'); }",
+]) {
+  test('B02 lexical shadows cannot masquerade as translators: ' + statement, t => {
+    const f = fixture(t);
+    f.write('src/code.js', "import {t} from 'i18next'; " + statement + " node.textContent = t('save');");
+    const r = f.run();
+    assert.equal(r.status, 'UNVERIFIED');
+    assert.equal(r.references, 2);
+    assert.ok(r.unknown.some(i => i.code === 'DYNAMIC_VISIBLE_TEXT'));
+  });
+}
+test('B02 loop literals and namespace shadows keep their own bindings', t => {
+  const f = fixture(t);
+  f.write('src/code.js', "import {t} from 'i18next'; for (let t = 'Hardcoded'; flag; ) node.textContent = t; node.textContent = t('save');");
+  assert.equal(f.run().status, 'FAIL');
+  f.write('src/code.js', "import i18next from 'i18next'; for (const i18next of objects) node.textContent = i18next.t('save'); node.textContent = i18next.t('save');");
+  assert.equal(f.run().status, 'UNVERIFIED');
+  assert.equal(f.run().references, 2);
+});
+test('B02 unshadowed loop translators and outer switch discriminants remain valid', t => {
+  const f = fixture(t);
+  f.write('src/code.js', "import {t} from 'i18next'; for (let i = 0; i < 1; i++) node.textContent = t('save'); for (const item of items) node.textContent = t('save'); for (const key in items) node.textContent = t('save'); switch (t('save')) { case 'Save': let t = custom; break; } node.textContent = t('save');");
+  const r = f.run();
+  assert.equal(r.status, 'PASS');
+  assert.equal(r.references, 6);
+});
+for (const [declaration, name, call] of [['i18next', 'i18next', "i18next.t('save')"], ['{t}', 't', "t('save')"]]) {
+  for (const inFunction of [false, true]) {
+    test('B02 switch var redeclarations preserve reassignment detection: ' + name + '/' + inFunction, t => {
+      const f = fixture(t);
+      const source = "var " + declaration + " = require('i18next'); switch (kind) { case 1: var " + name + '; ' + name + " = custom; break; } node.textContent = " + call + ';';
+      f.write('src/code.cjs', inFunction ? 'function render() {' + source + '}' : source);
+      const r = f.run();
+      assert.equal(r.status, 'UNVERIFIED');
+      assert.ok(r.unknown.some(i => i.code === 'TRANSLATOR_REASSIGNED'));
+    });
+  }
+}
+test('B02 switch var without reassignment retains the outer translator', t => {
+  const f = fixture(t);
+  f.write('src/code.cjs', "var i18next = require('i18next'); switch (kind) { case 1: var i18next; node.textContent = i18next.t('save'); break; } node.textContent = i18next.t('save');");
+  const r = f.run();
+  assert.equal(r.status, 'PASS');
+  assert.equal(r.references, 3);
+});
 test('a shadowed require is not the real i18next import', t => {
   const f = fixture(t); f.write('src/code.cjs', "function render(require) { const {t} = require('i18next'); node.textContent = t('save'); }\n");
   assert.equal(f.run().status, 'UNVERIFIED');

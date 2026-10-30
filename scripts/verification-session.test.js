@@ -36,7 +36,7 @@ function snapshot(state, optionId = 'deep', direct = false) {
       ...(direct ? [{ id: 'shown-1', role: 'assistant', status: 'completed', text: displayedQuestion(state), tools: [{ name: 'AskUserQuestion', status: 'completed', output: fixture.protocol.unansweredOutput }] }] : []),
       direct
         ? { id: 'answer-1', role: 'user', status: 'completed', turnId: 'same-turn', text: '采用' + option.label.replace(' (Recommended)', '') }
-        : { id: 'answer-1', role: 'assistant', status: 'completed', turnId: 'same-turn', tools: [{ name: 'AskUserQuestion', status: 'completed', output }] },
+        : { id: 'answer-1', role: 'assistant', status: 'completed', turnId: 'same-turn', text: displayedQuestion(state), tools: [{ name: 'AskUserQuestion', status: 'completed', output }] },
     ],
   };
 }
@@ -69,6 +69,31 @@ test('A06 actual native light answer selects the light check set', () => {
   const f = setup(), selected = choose(f, 'light');
   assert.equal(selected.state, 'confirmed');
   assert.deepEqual(selectedPlan(selected).checkIds, contract('A06').positive.expectedCheckIds);
+});
+for (const variant of ['missing', 'heading-only', 'truncated', 'altered-option', 'trailing-text', 'later-display', 'failed-display']) {
+  test('B01 native answers reject a ' + variant + ' proposal display', () => {
+    const f = setup(), source = snapshot(f.state), answer = source.messages[1];
+    if (variant === 'missing') delete answer.text;
+    if (variant === 'heading-only') answer.text = questionFor(f.state).questions[0].question;
+    if (variant === 'truncated') answer.text = answer.text.slice(0, -1);
+    if (variant === 'altered-option') answer.text = answer.text.replace('交由人工验证', '自动通过');
+    if (variant === 'trailing-text') answer.text += 'altered';
+    if (variant === 'later-display' || variant === 'failed-display') {
+      const shown = { id: 'shown', role: 'assistant', status: variant === 'failed-display' ? 'failed' : 'completed', text: answer.text };
+      delete answer.text;
+      if (variant === 'later-display') source.messages.push(shown);
+      else source.messages.splice(1, 0, shown);
+    }
+    rejects(() => applyChoice(f.state, source, { kind: 'native-answer', messageId: 'answer-1' }, f.resolve), 'UNTRUSTED_ANSWER');
+  });
+}
+test('B01 native answers bind a complete proposal in an earlier assistant message', () => {
+  const f = setup(), source = snapshot(f.state), answer = source.messages[1];
+  source.messages.splice(1, 0, { id: 'shown', role: 'assistant', status: 'completed', text: answer.text });
+  delete answer.text;
+  const selected = applyChoice(f.state, source, { kind: 'native-answer', messageId: 'answer-1' }, f.resolve);
+  assert.equal(selected.state, 'confirmed');
+  assert.equal(selected.choice.questionSourceRef, 'shown');
 });
 test('A07 manual selection is not completion and does not produce automatic work', () => {
   const f = setup(), selected = choose(f, 'manual');
