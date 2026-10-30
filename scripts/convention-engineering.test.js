@@ -53,6 +53,24 @@ test('same-name replaced implementation is refused before execution', t => {
   assert.notEqual(engine.runTrusted(definition, f.context, authority).status, 'PASS');
   assert.equal(fs.existsSync(path.join(f.root, 'sentinel')), false);
 });
+test('B03 BOM changes require fresh input approval before the checker can run again', t => {
+  const f = fixture(t), { definition, authority } = command(f);
+  f.write('probe.cjs', "require('node:fs').appendFileSync('invocations', 'run\\n'); console.log('PROBE_OK');");
+  const file = path.join(f.root, 'probe.cjs'), original = fs.readFileSync(file);
+  definition.inputs[0].sha256 = core.hash(original);
+  authority.commandDigests = [engine.commandDigest(definition)];
+  assert.equal(engine.runTrusted(definition, f.context, authority).status, 'PASS');
+  fs.writeFileSync(file, Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), original]));
+  const denied = engine.runTrusted(definition, f.context, authority);
+  assert.equal(denied.status, 'UNVERIFIED');
+  assert.equal(denied.executed, false);
+  assert.deepEqual(denied.issues, ['SOURCE_CHANGED']);
+  assert.equal(fs.readFileSync(path.join(f.root, 'invocations'), 'utf8'), 'run\n');
+  definition.inputs[0].sha256 = core.hash(fs.readFileSync(file));
+  authority.commandDigests = [engine.commandDigest(definition)];
+  assert.equal(engine.runTrusted(definition, f.context, authority).status, 'PASS');
+  assert.equal(fs.readFileSync(path.join(f.root, 'invocations'), 'utf8'), 'run\nrun\n');
+});
 test('script entry cannot be left out of approved input fingerprints', t => {
   const f = fixture(t), { definition, authority } = command(f);
   definition.inputs = []; authority.commandDigests = [engine.commandDigest(definition)];

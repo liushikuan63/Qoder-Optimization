@@ -71,11 +71,11 @@ function projectFile(root, relative) {
   if (!contained(root, fs.realpathSync.native(cursor))) fail('PATH_SCOPE', 'file redirects outside the project');
   return target;
 }
-function git(root, args) {
+function git(root, args, encoding = 'utf8') {
   const env = {};
   for (const k of ['PATH', 'Path', 'SYSTEMROOT', 'SystemRoot', 'WINDIR', 'COMSPEC', 'ComSpec', 'HOME', 'USERPROFILE', 'TEMP', 'TMP']) if (process.env[k]) env[k] = process.env[k];
   env.GIT_OPTIONAL_LOCKS = '0';
-  const r = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', env, timeout: 15000, maxBuffer: 4 * MAX_BYTES, windowsHide: true });
+  const r = spawnSync('git', ['-C', root, ...args], { encoding, env, timeout: 15000, maxBuffer: 4 * MAX_BYTES, windowsHide: true });
   if (r.status !== 0 || r.error) fail('GIT_UNAVAILABLE', 'read-only Git operation failed');
   return r.stdout;
 }
@@ -98,22 +98,25 @@ function snapshot(root, files, mode = 'working-tree') {
   for (const name of [...files].sort()) {
     const file = projectFile(root, name);
     if (/(^|\/)(\.env(?:\..*)?|credentials[^/]*|[^/]+\.(?:pem|key))$/i.test(name)) fail('SENSITIVE_PATH', 'secret material is not an observation source');
-    let content = null;
+    let content = null, sha256 = null;
     if (mode === 'staged') {
       const entries = git(root, ['ls-files', '--stage', '-z', '--', name]).split('\0').filter(Boolean);
       if (entries.length) {
         const match = entries.length === 1 && entries[0].match(/^(100644|100755) ([a-f0-9]+) 0\t([\s\S]+)$/);
         if (!match || match[3] !== name) fail('GIT_SNAPSHOT', 'unmerged or redirected index entry');
-        content = git(root, ['cat-file', 'blob', match[2]]);
+        const bytes = git(root, ['cat-file', 'blob', match[2]], null);
+        sha256 = hash(bytes);
+        content = bytes.toString('utf8');
       }
     } else if (fs.existsSync(file)) {
       const stat = fs.statSync(file);
       if (!stat.isFile() || stat.size > MAX_BYTES) fail('INVALID_INPUT', 'snapshot entry must be a file of at most 2MiB');
       const bytes = fs.readFileSync(file);
       if (bytes.length > MAX_BYTES) fail('INVALID_INPUT', 'snapshot entry grew beyond the limit');
+      sha256 = hash(bytes);
       content = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
     }
-    records.push({ path: name, exists: content !== null, sha256: content === null ? null : hash(content), content });
+    records.push({ path: name, exists: content !== null, sha256, content });
   }
   const stamp = records.map(({ content, ...record }) => record);
   return { schema: 1, ...identity(root), mode, digest: hash(stamp), files: records };

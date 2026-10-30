@@ -96,6 +96,38 @@ test('source changes invalidate both policy and applicability', t => {
   const f = fixture(t); fs.writeFileSync(path.join(f.root, 'policy.json'), '{}');
   assert.throws(() => core.resolve(f.request), { code: 'SOURCE_CHANGED' });
 });
+test('B03 snapshot fingerprints raw bytes even when decoding removes a BOM', t => {
+  const f = fixture(t), file = path.join(f.root, 'policy.json');
+  const original = fs.readFileSync(file), before = core.snapshot(f.root, ['policy.json']);
+  const changed = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), original]);
+  fs.writeFileSync(file, changed);
+  const after = core.snapshot(f.root, ['policy.json']);
+  assert.equal(after.files[0].content, before.files[0].content);
+  assert.equal(after.files[0].sha256, core.hash(changed));
+  assert.notEqual(after.digest, before.digest);
+  assert.throws(() => core.verifySource(f.root, f.source), { code: 'SOURCE_CHANGED' });
+  assert.throws(() => JSON.parse(fs.readFileSync(file, 'utf8')), SyntaxError);
+  fs.writeFileSync(file, original);
+  assert.equal(core.snapshot(f.root, ['policy.json']).digest, before.digest);
+  assert.deepEqual(core.verifySource(f.root, f.source), f.source);
+});
+test('B03 staged source fingerprints retain exact blob bytes', t => {
+  const f = fixture(t), file = path.join(f.root, 'policy.json');
+  const run = args => { const r = spawnSync('git', ['-C', f.root, ...args], { encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); };
+  run(['init', '--quiet']);
+  fs.writeFileSync(path.join(f.root, '.gitattributes'), '*.json -text\n');
+  const bytes = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('{"label":"保存"}\r\n')]);
+  fs.writeFileSync(file, bytes); run(['add', '--', 'policy.json']);
+  const indexed = core.snapshot(f.root, ['policy.json'], 'staged');
+  assert.equal(indexed.files[0].sha256, core.hash(bytes));
+  assert.equal(core.snapshot(f.root, ['policy.json']).files[0].sha256, indexed.files[0].sha256);
+  fs.writeFileSync(file, '{"label":"changed"}');
+  assert.equal(core.snapshot(f.root, ['policy.json'], 'staged').digest, indexed.digest);
+  assert.notEqual(core.snapshot(f.root, ['policy.json']).digest, indexed.digest);
+  const nonUtf8 = Buffer.from([0x80, 0x0a]);
+  fs.writeFileSync(file, nonUtf8); run(['add', '--', 'policy.json']);
+  assert.equal(core.snapshot(f.root, ['policy.json'], 'staged').files[0].sha256, core.hash(nonUtf8));
+});
 test('JSON duplicate keys and executable syntax are rejected', () => {
   assert.throws(() => core.parseJson('{"x":1,"x":2}'), { code: 'DUPLICATE_KEY' });
   assert.throws(() => core.parseJson('{"x":{"y":1,"y":2}}'), { code: 'DUPLICATE_KEY' });

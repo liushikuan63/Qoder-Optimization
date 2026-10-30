@@ -132,7 +132,7 @@ function commandFixture(t, copiedExecutable = false) {
   const authority = { taskId: 't', worktreeId: f.bundle.project.worktreeId, commandDigests: [core.hash(command)] };
   return { ...f, ...choice, authority, command, script, data, executable };
 }
-for (const change of ['script', 'data', 'deleted-data', 'executable']) {
+for (const change of ['script', 'data', 'deleted-data', 'executable', 'bom-script', 'bom-data']) {
   test('B03 changing command ' + change + ' invalidates its receipt without rerunning it', t => {
     const f = commandFixture(t, change === 'executable');
     assert.ok(!f.bundle.files.some(file => file.path === 'checker.cjs' || file.path === 'checker-data.json'));
@@ -144,6 +144,11 @@ for (const change of ['script', 'data', 'deleted-data', 'executable']) {
     if (change === 'data') fs.writeFileSync(f.data, '{"valid":false}');
     if (change === 'deleted-data') fs.unlinkSync(f.data);
     if (change === 'executable') fs.appendFileSync(f.executable, 'changed');
+    if (change.startsWith('bom-')) {
+      const file = change === 'bom-script' ? f.script : f.data;
+      fs.writeFileSync(file, Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), fs.readFileSync(file)]));
+      if (change === 'bom-data') assert.throws(() => JSON.parse(fs.readFileSync(file, 'utf8')), SyntaxError);
+    }
     const audited = session.auditReceipt(f.selected, receipt, f.resolve);
     assert.equal(audited.status, 'UNVERIFIED');
     assert.equal(audited.code, 'STALE_RECEIPT');
