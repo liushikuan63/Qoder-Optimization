@@ -101,7 +101,7 @@ function verify(pkgDir, agentsPath) {
       skill: skillNames.length,
       command: fs.existsSync(path.join(pkgDir, 'commands')) ? fs.readdirSync(path.join(pkgDir, 'commands')).filter((f) => f.endsWith('.md')).length : 0,
       agent: fs.existsSync(path.join(pkgDir, 'agents')) ? fs.readdirSync(path.join(pkgDir, 'agents')).filter((f) => f.endsWith('.md')).length : 0,
-      script: fs.existsSync(path.join(pkgDir, 'scripts')) ? fs.readdirSync(path.join(pkgDir, 'scripts')).filter((f) => fs.statSync(path.join(pkgDir, 'scripts', f)).isFile()).length : 0,
+      script: fs.existsSync(path.join(pkgDir, 'scripts')) ? fs.readdirSync(path.join(pkgDir, 'scripts'), { withFileTypes: true }).filter((entry) => entry.isFile() || entry.isDirectory()).length : 0,
     };
     const bad = Object.keys(actual).filter((k) => (cat.counts || {})[k] !== actual[k]);
     bad.length
