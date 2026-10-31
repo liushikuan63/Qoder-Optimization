@@ -181,6 +181,54 @@ for (const [index, command] of [
   const file = transcript([user('执行回归'), tool('Bash', { command }, 'command exited 0'), asst(r9text)]);
   check('R9 未执行的Node测试文本不放行 ' + index, run({ transcript_path: file, session_id: id }, id).decision, 'block');
 }
+for (const [index, command] of [
+  'true # && "C:/Program Files/nodejs/node.exe" --test scripts/example.test.js',
+  ": 'npm test'",
+  'true || npm test',
+  'npm test || true',
+  'node --test scripts/jest.test.js || true',
+  'printf "%s" "pytest"',
+  "cat <<'EOF'\nnpm test\nEOF",
+  'exit 0 && npm test',
+  'echo ready && exit 0 && npm test',
+  'set -n && node --test scripts/example.test.js',
+  'command exit 0 && node --test scripts/example.test.js',
+  'mvn test -v',
+  'tsc -v',
+  'true # && mvn test',
+  'npm test &',
+  'mvn test | true',
+].entries()) {
+  const id = 'r9-command-boundary-' + index;
+  const file = transcript([user('执行回归'), tool('Bash', { command }, 'command exited 0'), asst(r9text)]);
+  check('R9 注释与旁路文本不作证据 ' + index, run({ transcript_path: file, session_id: id }, id).decision, 'block');
+}
+for (const [index, command] of [
+  'npm test # && ignored',
+  'node --test scripts/example.test.js # trailing comment',
+  'env NO_COLOR=1 npm test',
+  'true && npm test',
+  'npm test && node --version',
+  'npm test > "test;log.txt" 2>&1; status=$?; exit "$status"',
+  '"C:/tools/npm.cmd" run build',
+  'mvn --batch-mode verify',
+  './gradlew check',
+  'python -m pytest',
+  'go test ./...',
+  'go test -v ./...',
+  'pytest -v',
+  'python -m pytest -v',
+  'cargo test',
+  'cargo test -v',
+  'dotnet build',
+  'dotnet build -v minimal',
+].entries()) {
+  const id = 'r9-valid-command-' + index;
+  for (const failed of [false, true]) {
+    const file = transcript([user('执行回归'), tool('Bash', { command }, failed ? 'Exit code 1' : 'command exited 0', failed), asst(r9text)]);
+    check('R9 合法命令按结果判定 ' + index + '/' + failed, run({ transcript_path: file, session_id: id + failed }, id + failed).decision, failed ? 'block' : 'allow');
+  }
+}
 
 // R4 用户纠偏未落记忆
 const corr = '又停了？跟你说过不要停止任务，直接给弹窗让我选。';

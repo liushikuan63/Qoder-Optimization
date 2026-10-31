@@ -510,41 +510,64 @@ function editedUiFiles(ctx) {
   return out;
 }
 
-// "测试/构建全绿"类主张的证据面：本轮有成功跑过测试或构建命令的 Bash 调用。
-// （多行正则字面量不合法，拼成字符串再 new RegExp；单行写法在 review 时也更好核对。）
-const TEST_BUILD_CMD = new RegExp([
-  '\\b(?:npm|pnpm|yarn|bun)\\s+(?:run\\s+)?(?:test|build|ci|typecheck|lint|e2e)\\b',
-  '\\bmvn\\b[^|;&]*\\b(?:test|verify|package|install|compile|clean)\\b',
-  '\\bgradlew?\\b[^|;&]*\\b(?:test|build|check|assemble)\\b',
-  '\\bpytest\\b|\\btox\\b|\\bphpunit\\b|\\bgo\\s+test\\b|\\bcargo\\s+test\\b',
-  '\\bdotnet\\s+(?:test|build)\\b|\\bvitest\\b|\\bjest\\b|\\btsc\\b',
-].join('|'), 'i');
-function ranNodeTest(command) {
+function ranTestCommand(command) {
   const head = command.trim().replace(/;\s*([A-Za-z_][A-Za-z0-9_]*)=\$\?;\s*exit\s+(?:"\$\1"|\$\1)\s*$/, '');
   if (head.includes('<<') || head.includes('`') || head.includes('$(')) return false;
-  const tokens = head.match(/\d*[<>]&\d+|(?:[^\s"';&|]+|"(?:\\.|[^"\\])*"|'[^']*')+|[;&|\n]+/g) || [];
+  const lexer = /[ \t\r]+|#[^\n]*|\d*[<>]&\d+|\d*(?:>>?|<)|&&|(?:[^\s"';&|<>()[\]{}$`\\]+|"(?:\\.|[^"\\$`])*"|'[^']*')+/gy;
   const statements = [[]];
-  for (const token of tokens) {
-    if (token === '&&') statements.push([]);
-    else if (/^[;&|\n]+$/.test(token)) return false;
-    else statements[statements.length - 1].push(token);
+  let offset = 0;
+  while (offset < head.length) {
+    lexer.lastIndex = offset;
+    const match = lexer.exec(head);
+    if (!match) return false;
+    offset = lexer.lastIndex;
+    const token = match[0];
+    if (/^[ \t\r]+$/.test(token) || token.startsWith('#')) continue;
+    if (token === '&&') {
+      if (!statements.at(-1).length) return false;
+      statements.push([]);
+    } else statements.at(-1).push(token);
   }
+  if (statements.some(statement => !statement.length)) return false;
   const unquote = value => value.replace(/^(['"])([\s\S]*)\1$/, '$2');
-  if (statements.some(statement => /^(?:exit|return|exec)$/.test(unquote(statement[0] || '')))) return false;
-  return statements.some(statement => {
-    let index = statement[0] === 'env' ? 1 : 0;
-    while (/^[A-Za-z_][A-Za-z0-9_]*=/.test(statement[index] || '')) index++;
-    const executable = unquote(statement[index] || '').split(/[\\/]/).pop();
-    if (!/^node(?:\.exe)?$/i.test(executable)) return false;
-    const args = statement.slice(index + 1).map(unquote);
-    if (args.some(arg => ['--help', '-h', '--version', '-v', '--eval', '-e', '--print', '-p', '--check', '-c'].includes(arg))) return false;
-    return args[0] === '--test' || /\.test\.(?:js|cjs|mjs|sh)$/i.test(args[0] || '')
-      || /(?:^|[\\/])\.github[\\/]run-tests\.js$/.test(args[0] || '');
+  const commands = [];
+  for (const statement of statements) {
+    const words = [];
+    for (let i = 0; i < statement.length; i++) {
+      const token = statement[i];
+      if (/^\d*[<>]&\d+$/.test(token)) continue;
+      if (/^\d*(?:>>?|<)$/.test(token)) {
+        if (!statement[i + 1] || /^\d*[<>]/.test(statement[i + 1])) return false;
+        i++;
+      } else words.push(unquote(token));
+    }
+    let index = words[0] === 'env' ? 1 : 0;
+    while (/^[A-Za-z_][A-Za-z0-9_]*=/.test(words[index] || '')) index++;
+    const executable = (words[index] || '').split(/[\\/]/).pop();
+    if (!executable || /^(?:exit|return|exec|eval|trap|source|builtin|command|set|shopt|enable|alias|unalias|break|continue|if|then|for|while|until|case|do|else|fi|done|function|\.|!)$/.test(executable)) return false;
+    commands.push({ executable, args: words.slice(index + 1) });
+  }
+  return commands.some(({ executable, args }) => {
+    if (args.some(arg => ['--help', '-h', '--version'].includes(arg))) return false;
+    if (/^node(?:\.exe)?$/i.test(executable)) {
+      if (args.some(arg => ['-v', '--eval', '-e', '--print', '-p', '--check', '-c'].includes(arg))) return false;
+      return args[0] === '--test' || /\.test\.(?:js|cjs|mjs|sh)$/i.test(args[0] || '')
+        || /(?:^|[\\/])\.github[\\/]run-tests\.js$/.test(args[0] || '');
+    }
+    if (/^(?:npm|pnpm|yarn|bun)(?:\.cmd|\.exe)?$/i.test(executable)) return !args.includes('-v') && /^(?:test|build|ci|typecheck|lint|e2e)(?::[A-Za-z0-9_.-]+)?$/.test(args[0] === 'run' ? args[1] || '' : args[0] || '');
+    if (/^mvn(?:\.cmd|\.exe)?$/i.test(executable)) return !args.includes('-v') && args.some(arg => /^(?:test|verify|package|install|compile|clean)$/.test(arg));
+    if (/^gradlew?(?:\.bat|\.exe)?$/i.test(executable)) return !args.includes('-v') && args.some(arg => /^(?:test|build|check|assemble)$/.test(arg));
+    if (/^(?:pytest|tox|phpunit)(?:\.cmd|\.exe)?$/i.test(executable)) return true;
+    if (/^(?:vitest|jest|tsc)(?:\.cmd|\.exe)?$/i.test(executable)) return !args.includes('-v');
+    if (/^(?:python[0-9.]*|py)(?:\.exe)?$/i.test(executable)) return args[0] === '-m' && args[1] === 'pytest';
+    if (/^(?:go|cargo)(?:\.exe)?$/i.test(executable)) return args[0] === 'test';
+    if (/^dotnet(?:\.exe)?$/i.test(executable)) return ['test', 'build'].includes(args[0]);
+    return /^(?:bash|sh)(?:\.exe)?$/i.test(executable) && /\.test\.sh$/.test(args[0] || '');
   });
 }
 function ranGreenThisTurn(ctx) {
   return ctx.turnTools.some((tool) => tool.success && toolName(tool) === 'Bash'
-    && (TEST_BUILD_CMD.test(String(tool.input.command || '')) || ranNodeTest(String(tool.input.command || ''))));
+    && ranTestCommand(String(tool.input.command || '')));
 }
 
 // R6 的兜底：项目没有队列文件时，本轮创建却没关掉的 TaskList 条目同样算"还有能做的格子"。
