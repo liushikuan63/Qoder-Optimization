@@ -37,11 +37,12 @@ function parseJavaScript(file, refs, issues, unknown) {
   catch { unknown.push({ code: 'UNSUPPORTED_SYNTAX', file: file.path }); return false; }
   const loc = node => ({ file: file.path, line: node.loc.start.line });
   const children = node => Object.values(node).flatMap(value => Array.isArray(value) ? value.filter(v => v?.type) : value?.type ? [value] : []);
-  const scopeFor = (nodes, outer = [], initial = [], hoist = false) => {
+  const namespace = { valid: true };
+  const scopeFor = (nodes, initial = [], hoist = false) => {
     const scope = new Map();
-    function bind(pattern, value = null) {
+    function bind(pattern, value = { kind: null, init: null }) {
       if (!pattern) return;
-      if (pattern.type === 'Identifier') scope.set(pattern.name, value);
+      if (pattern.type === 'Identifier') scope.set(pattern.name, { ...value });
       else if (pattern.type === 'ObjectPattern') pattern.properties.forEach(p => bind(p.value || p.argument));
       else if (pattern.type === 'ArrayPattern') pattern.elements.forEach(p => bind(p));
       else if (pattern.type === 'AssignmentPattern') bind(pattern.left);
@@ -50,7 +51,7 @@ function parseJavaScript(file, refs, issues, unknown) {
     initial.forEach(pattern => bind(pattern));
     if (hoist) {
       const collect = node => {
-        if (/Function(?:Declaration|Expression)$/.test(node.type) || node.type === 'ArrowFunctionExpression' || node.type === 'ClassDeclaration') return;
+        if (/Function(?:Declaration|Expression)$/.test(node.type) || ['ArrowFunctionExpression', 'ClassDeclaration', 'ClassExpression', 'StaticBlock'].includes(node.type)) return;
         if (node.type === 'VariableDeclaration' && node.kind === 'var') node.declarations.forEach(d => bind(d.id));
         children(node).forEach(collect);
       };
@@ -60,24 +61,25 @@ function parseJavaScript(file, refs, issues, unknown) {
       if (node.type === 'ImportDeclaration') for (const s of node.specifiers) {
         let kind = null;
         if (node.source.value === 'i18next') kind = s.type === 'ImportSpecifier' && s.imported.name === 't' ? 'translate' : ['ImportDefaultSpecifier', 'ImportNamespaceSpecifier'].includes(s.type) ? 'namespace' : null;
-        bind(s['local'], { kind });
+        bind(s['local'], { kind, namespace: kind === 'namespace' ? namespace : null, initialized: true });
       }
-      if (node.type === 'VariableDeclaration' && (hoist || node.kind !== 'var')) for (const d of node.declarations) bind(d.id, { kind: null, init: d.init });
+      if (node.type === 'VariableDeclaration' && (hoist || node.kind !== 'var')) for (const d of node.declarations) bind(d.id);
       if (['FunctionDeclaration', 'ClassDeclaration'].includes(node.type)) bind(node.id);
-    }
-    for (const node of nodes.filter(n => n.type === 'VariableDeclaration' && (hoist || n.kind !== 'var'))) for (const d of node.declarations) {
-      const init = d.init;
-      if (!scope.has('require') && !outer.some(s => s.has('require')) && init?.type === 'CallExpression' && init.callee.name === 'require' && init.arguments.length === 1 && init.arguments[0].value === 'i18next') {
-        if (d.id.type === 'Identifier') scope.set(d.id.name, { kind: 'namespace', init });
-        else if (d.id.type === 'ObjectPattern') for (const p of d.id.properties) if (!p.computed && (p.key.name || p.key.value) === 't' && p.value.type === 'Identifier') scope.set(p.value.name, { kind: 'translate', init });
-      }
     }
     return { scope, bind };
   };
   const resolve = (name, scopes) => { for (const scope of [...scopes].reverse()) if (scope.has(name)) return scope.get(name); return undefined; };
   const memberName = node => node.computed ? node.property.type === 'Literal' && typeof node.property.value === 'string' ? node.property.value : null : node.property.name;
+  const namespaceBinding = (node, scopes) => node?.type === 'Identifier' && resolve(node.name, scopes)?.kind === 'namespace' ? resolve(node.name, scopes) : null;
   const translated = (node, scopes) => node?.type === 'CallExpression' && ((node.callee.type === 'Identifier' && resolve(node.callee.name, scopes)?.kind === 'translate')
-    || (node.callee.type === 'MemberExpression' && memberName(node.callee) === 't' && node.callee.object.type === 'Identifier' && resolve(node.callee.object.name, scopes)?.kind === 'namespace'));
+    || (node.callee.type === 'MemberExpression' && memberName(node.callee) === 't' && namespaceBinding(node.callee.object, scopes)?.namespace.valid));
+  function bindingValue(node, scopes) {
+    if (node?.type === 'Identifier') return resolve(node.name, scopes);
+    if (node?.type === 'CallExpression' && node.callee.type === 'Identifier' && node.callee.name === 'require' && resolve('require', scopes) === undefined
+        && node.arguments.length === 1 && node.arguments[0].value === 'i18next') return { kind: 'namespace', namespace };
+    if (node?.type === 'MemberExpression' && memberName(node) === 't' && namespaceBinding(node.object, scopes)?.namespace.valid) return { kind: 'translate' };
+    return null;
+  }
   function options(node) {
     if (!node) return { keys: [], namespace: null, plural: false };
     if (node.type !== 'ObjectExpression' || node.properties.some(p => p.type !== 'Property' || p.computed || p.method)) return null;
@@ -104,59 +106,87 @@ function parseJavaScript(file, refs, issues, unknown) {
     else if (literal === null) unknown.push({ code: 'DYNAMIC_VISIBLE_TEXT', ...loc(node) });
   }
   function markWrite(pattern, node, scopes, initializer) {
-    const names = [];
-    function collect(target) {
+    function collect(target, value = null, evaluate = false) {
       if (!target) return;
-      if (target.type === 'Identifier') names.push(target.name);
-      else if (target.type === 'MemberExpression') collect(target.object);
-      else if (target.type === 'RestElement') collect(target.argument);
-      else if (target.type === 'AssignmentPattern') collect(target.left);
-      else if (target.type === 'ArrayPattern') target.elements.forEach(collect);
-      else if (target.type === 'ObjectPattern') target.properties.forEach(property => collect(property.type === 'RestElement' ? property.argument : property.value));
+      if (target.type === 'Identifier') {
+        const binding = resolve(target.name, scopes);
+        if (!binding) return;
+        const first = node.type === 'VariableDeclarator' && !binding.initialized;
+        if (!first && binding.kind) unknown.push({ code: 'TRANSLATOR_REASSIGNED', ...loc(node) });
+        binding.kind = value?.kind || null;
+        binding.namespace = value?.namespace || null;
+        binding.init = first ? initializer : null;
+        binding.mutated = !first;
+        binding.initialized = true;
+      } else if (target.type === 'MemberExpression') {
+        if (evaluate) walk(target, scopes);
+        const binding = namespaceBinding(target.object, scopes);
+        if (binding && ['t', null].includes(memberName(target))) {
+          unknown.push({ code: 'TRANSLATOR_REASSIGNED', ...loc(node) });
+          binding.namespace.valid = false;
+        }
+      } else if (target.type === 'RestElement') collect(target.argument, null, true);
+      else if (target.type === 'AssignmentPattern') {
+        walk(target.right, scopes);
+        collect(target.left, value, true);
+      } else if (target.type === 'ArrayPattern') target.elements.forEach(element => collect(element, null, true));
+      else if (target.type === 'ObjectPattern') target.properties.forEach(property => {
+        if (property.computed) walk(property.key, scopes);
+        const translation = value?.kind === 'namespace' && value.namespace.valid && !property.computed && (property.key?.name || property.key?.value) === 't';
+        collect(property.type === 'RestElement' ? property.argument : property.value, translation ? { kind: 'translate' } : null, true);
+      });
     }
-    collect(pattern);
-    for (const name of names) {
-      const binding = resolve(name, scopes);
-      if (!binding || (initializer && binding.init === initializer)) continue;
-      if (binding.kind) unknown.push({ code: 'TRANSLATOR_REASSIGNED', ...loc(node) });
-      binding.kind = null;
-      binding.mutated = true;
-    }
+    collect(pattern, initializer ? bindingValue(initializer, scopes) : null);
   }
   function walk(node, scopes) {
-    if (node.type === 'Program' || node.type === 'BlockStatement') {
-      const local = scopeFor(node.body, scopes, [], node.type === 'Program'); scopes = [...scopes, local.scope];
+    if (['Program', 'BlockStatement', 'StaticBlock'].includes(node.type)) {
+      const local = scopeFor(node.body, [], node.type !== 'BlockStatement'); scopes = [...scopes, local.scope];
     } else if (/Function(?:Declaration|Expression)$/.test(node.type) || node.type === 'ArrowFunctionExpression') {
-      const local = scopeFor(node.body.body || [], scopes, [...node.params, ...(node.id ? [node.id] : [])], true); scopes = [...scopes, local.scope];
-    } else if (node.type === 'CatchClause') { const local = scopeFor([], scopes, [node.param]); scopes = [...scopes, local.scope]; }
+      const local = scopeFor(node.body.body || [], [...node.params, ...(node.id ? [node.id] : [])], true); scopes = [...scopes, local.scope];
+    } else if (node.type === 'CatchClause') { const local = scopeFor([], [node.param]); scopes = [...scopes, local.scope]; }
     else if (['ForStatement', 'ForOfStatement', 'ForInStatement'].includes(node.type)) {
       const declaration = node.type === 'ForStatement' ? node.init : node.left;
-      if (declaration?.type === 'VariableDeclaration' && declaration.kind !== 'var') scopes = [...scopes, scopeFor([declaration], scopes).scope];
+      if (declaration?.type === 'VariableDeclaration' && declaration.kind !== 'var') scopes = [...scopes, scopeFor([declaration]).scope];
       if (node.type !== 'ForStatement') {
         walk(node.right, scopes);
-        markWrite(declaration.type === 'VariableDeclaration' ? declaration.declarations[0].id : declaration, node, scopes);
-        walk(node.left, scopes);
+        const target = declaration.type === 'VariableDeclaration' ? declaration.declarations[0].id : declaration;
+        if (target.type === 'MemberExpression') walk(target, scopes);
+        markWrite(target, node, scopes);
         walk(node.body, scopes);
         return;
       }
     } else if (node.type === 'SwitchStatement') {
       walk(node.discriminant, scopes);
-      const local = scopeFor(node.cases.flatMap(branch => branch.consequent), scopes);
+      const local = scopeFor(node.cases.flatMap(branch => branch.consequent));
       for (const branch of node.cases) walk(branch, [...scopes, local.scope]);
       return;
     }
-    if (node.type === 'AssignmentExpression') markWrite(node.left, node, scopes);
-    if (node.type === 'UpdateExpression') markWrite(node.argument, node, scopes);
-    if (node.type === 'VariableDeclarator' && node.init) markWrite(node.id, node, scopes, node.init);
+    if (node.type === 'AssignmentExpression') {
+      const destructured = ['ArrayPattern', 'ObjectPattern'].includes(node.left.type);
+      if (!destructured) walk(node.left, scopes);
+      walk(node.right, scopes);
+      if (node.left.type === 'MemberExpression') {
+        const property = memberName(node.left);
+        if (['textContent', 'innerText', 'title', 'placeholder', 'ariaLabel'].includes(property)) checkVisible(node.right, node, scopes);
+        else if (property === 'innerHTML' || property === 'outerHTML' || property === null) unknown.push({ code: 'UNSUPPORTED_VISIBLE_SINK', ...loc(node) });
+      }
+      markWrite(node.left, node, scopes, node.operator === '=' ? node.right : null);
+      return;
+    }
+    if (node.type === 'VariableDeclarator' && node.init) {
+      walk(node.init, scopes);
+      markWrite(node.id, node, scopes, node.init);
+      return;
+    }
+    if (node.type === 'UpdateExpression') {
+      walk(node.argument, scopes);
+      markWrite(node.argument, node, scopes);
+      return;
+    }
     if (translated(node, scopes)) {
       const key = node.arguments[0], params = options(node.arguments[1]);
       if (key?.type !== 'Literal' || typeof key.value !== 'string' || !params || node.arguments.length > 2) unknown.push({ code: 'DYNAMIC_TRANSLATION', ...loc(node) });
       else refs.push({ key: key.value, ...params, ...loc(node) });
-    }
-    if (node.type === 'AssignmentExpression' && node.left.type === 'MemberExpression') {
-      const property = memberName(node.left);
-      if (['textContent', 'innerText', 'title', 'placeholder', 'ariaLabel'].includes(property)) checkVisible(node.right, node, scopes);
-      else if (property === 'innerHTML' || property === 'outerHTML' || property === null) unknown.push({ code: 'UNSUPPORTED_VISIBLE_SINK', ...loc(node) });
     }
     if (node.type === 'CallExpression') {
       if (node.callee.type === 'Identifier' && ['alert', 'confirm', 'prompt'].includes(node.callee.name) && resolve(node.callee.name, scopes) === undefined) checkVisible(node.arguments[0], node, scopes);

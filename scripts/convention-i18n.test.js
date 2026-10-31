@@ -169,6 +169,98 @@ test('B02 ordinary initialization, empty var redeclarations and local functions 
     assert.equal(r.references, 2, code);
   }
 });
+for (const declaration of ['var', 'let', 'const']) {
+  test('namespace writes through block imports are unverified: ' + declaration, t => {
+    const f = fixture(t);
+    f.write('src/code.cjs', "var i = require('i18next'); { " + declaration + " same = require('i18next'); same.t = custom; } node.textContent = i.t('save');");
+    const r = f.run();
+    assert.equal(r.status, 'UNVERIFIED');
+    assert.ok(r.unknown.some(i => i.code === 'TRANSLATOR_REASSIGNED'));
+  });
+}
+for (const setup of [
+  'const alias = i;',
+  'let alias; alias = i;',
+  'const middle = i; const alias = middle;',
+  "const alias = require('i18next');",
+]) {
+  test('namespace aliases propagate member writes: ' + setup, t => {
+    const f = fixture(t);
+    f.write('src/code.cjs', "const i = require('i18next'); " + setup + " alias.t = custom; node.textContent = i.t('save');");
+    const r = f.run();
+    assert.equal(r.status, 'UNVERIFIED');
+    assert.ok(r.unknown.some(i => i.code === 'TRANSLATOR_REASSIGNED'));
+  });
+}
+for (const statement of ['[alias.t] = callbacks;', 'for ([alias.t] of callbacks) {}']) {
+  test('destructured alias members invalidate the namespace: ' + statement, t => {
+    const f = fixture(t);
+    f.write('src/code.cjs', "const i = require('i18next'); const alias = i; " + statement + " node.textContent = i.t('save');");
+    assert.equal(f.run().status, 'UNVERIFIED');
+  });
+}
+for (const code of [
+  "var {t} = require('i18next'); class C { static { var t = custom; } } node.textContent = t('save');",
+  "var {t} = require('i18next'); class C { static { if (flag) { var t = custom; } } } node.textContent = t('save');",
+  "var {t} = require('i18next'); const C = class { static { var t = custom; } }; node.textContent = t('save');",
+]) {
+  test('static block var scopes do not mutate outer translators: ' + code, t => {
+    const f = fixture(t); f.write('src/code.cjs', code);
+    const r = f.run();
+    assert.equal(r.status, 'PASS');
+    assert.equal(r.references, 2);
+  });
+}
+test('static block hoisting shadows only its own translation calls', t => {
+  const f = fixture(t);
+  f.write('src/code.cjs', "var {t} = require('i18next'); class C { static { node.textContent = t('save'); var t = custom; } } node.title = t('save');");
+  const r = f.run();
+  assert.equal(r.status, 'UNVERIFIED');
+  assert.equal(r.references, 2);
+});
+for (const expression of ["t = t('missing')", "t += t('missing')", "({t} = {t: t('missing')})"]) {
+  test('assignment RHS translation keys are checked before writes: ' + expression, t => {
+    const f = fixture(t);
+    f.write('src/code.cjs', "var {t} = require('i18next'); " + expression + '; node.textContent = t;');
+    const r = f.run();
+    assert.equal(r.status, 'FAIL');
+    assert.equal(r.issues.filter(i => i.code === 'TRANSLATION_MISSING').length, 2);
+    assert.ok(r.unknown.some(i => i.code === 'TRANSLATOR_REASSIGNED'));
+  });
+}
+test('declarator RHS translation keys are checked before redeclarations', t => {
+  const f = fixture(t);
+  f.write('src/code.cjs', "var {t} = require('i18next'); if (flag) { var t = t('missing'); } node.textContent = t;");
+  assert.equal(f.run().status, 'FAIL');
+});
+for (const pattern of ["{t, [t('missing')]: value}", "{t: translate, [translate('missing')]: value}"]) {
+  test('destructuring initializes earlier bindings before computed keys: ' + pattern, t => {
+    const f = fixture(t);
+    f.write('src/code.cjs', 'const ' + pattern + " = require('i18next');");
+    const r = f.run();
+    assert.equal(r.status, 'FAIL');
+    assert.equal(r.issues.filter(i => i.code === 'TRANSLATION_MISSING').length, 2);
+  });
+}
+test('destructuring computes target keys after RHS side effects', t => {
+  const f = fixture(t);
+  f.write('src/code.cjs', "const i = require('i18next'); ({[i.t('missing')]: value} = (i.t = custom, object)); node.textContent = i.t('save');");
+  const r = f.run();
+  assert.equal(r.status, 'UNVERIFIED');
+  assert.ok(!r.issues.some(i => i.code === 'TRANSLATION_MISSING'));
+});
+test('namespace rebinds leave detached aliases intact', t => {
+  const f = fixture(t);
+  f.write('src/code.cjs', "let i = require('i18next'); const alias = i; i = custom; node.textContent = alias.t('missing');");
+  const r = f.run();
+  assert.equal(r.status, 'FAIL');
+  assert.equal(r.issues.filter(i => i.code === 'TRANSLATION_MISSING').length, 2);
+});
+test('unrelated alias objects cannot invalidate translators', t => {
+  const f = fixture(t);
+  f.write('src/code.cjs', "const i = require('i18next'); { const alias = custom; alias.t = another; } node.textContent = i.t('save');");
+  assert.equal(f.run().status, 'PASS');
+});
 test('a shadowed require is not the real i18next import', t => {
   const f = fixture(t); f.write('src/code.cjs', "function render(require) { const {t} = require('i18next'); node.textContent = t('save'); }\n");
   assert.equal(f.run().status, 'UNVERIFIED');
