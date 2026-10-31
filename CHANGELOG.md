@@ -17,6 +17,7 @@ During the 0.x line, minor versions may contain breaking changes.
 - Reject Node help and version queries with equals-sign values instead of recording them as successful test runs.
 - Keep dependency installation and standalone cleaning out of test/build evidence.
 - Deduplicate visible-literal issues by source node so repeated local calls do not inflate approved baseline debt.
+- Check complete short replies instead of treating them as missing text, while keeping failed outcomes distinct from successful verification claims.
 
 ### Scope
 - Ship reviewed source-level fixes and regression coverage without changing client permissions or enabling optional workflows.

@@ -237,6 +237,21 @@ for (const [index, command] of [
   }
 }
 
+for (const claim of ['测试通过。', '测试全绿']) {
+  for (const [command, expected] of [['node --test scripts/example.test.js', 'allow'], ['true # && node --test scripts/example.test.js', 'block']]) {
+    const id = 'r9-short-' + ++toolId;
+    const file = transcript([user('执行回归'), tool('Bash', { command }, 'command exited 0'), asst(claim)]);
+    check('R9 短回复也按证据核验 ' + id, run({ transcript_path: file, session_id: id }, id).decision, expected);
+  }
+}
+check('R3 短界面完成主张仍需证据', run({ last_assistant_message: 'UI已完成', session_id: 'short-ui' }, 'short-ui').decision, 'block');
+check('R5 短踢皮球回复仍须主张', run({ last_assistant_message: '都行', session_id: 'short-stance' }, 'short-stance').decision, 'block');
+for (const [claim, expected] of [['测试没通过。', 'allow'], ['测试没通过，但构建成功。', 'block']]) {
+  const id = 'r9-failure-' + ++toolId;
+  const file = transcript([user('执行回归'), tool('Bash', { command: 'npm test' }, 'FAIL', true), asst(claim)]);
+  check('R9 失败表述不误作成功 ' + id, run({ transcript_path: file, session_id: id }, id).decision, expected);
+}
+
 // R4 用户纠偏未落记忆
 const corr = '又停了？跟你说过不要停止任务，直接给弹窗让我选。';
 const r4 = '上面两个点等你确认后我再动手，这里先收尾。';
