@@ -251,6 +251,15 @@ for (const [claim, expected] of [['测试没通过。', 'allow'], ['测试没通
   const file = transcript([user('执行回归'), tool('Bash', { command: 'npm test' }, 'FAIL', true), asst(claim)]);
   check('R9 失败表述不误作成功 ' + id, run({ transcript_path: file, session_id: id }, id).decision, expected);
 }
+for (const [claim, expected] of [
+  ['测试没有不通过的。', 'block'], ['测试无一不通过。', 'block'], ['测试并非没通过。', 'block'], ['测试不是没通过。', 'block'], ['没有任何测试不通过。', 'block'], ['构建没有不成功的。', 'block'],
+  ['测试不是通过了吗？', 'block'], ['难道测试没通过', 'block'],
+  ['测试不是全部通过。', 'allow'], ['测试没有完全通过。', 'allow'], ['测试无法通过。', 'allow'], ['测试未完全通过。', 'allow'], ['测试不全是通过的。', 'allow'], ['测试都没通过，构建不成功。', 'allow'],
+]) {
+  const id = 'r9-negation-' + ++toolId;
+  const file = transcript([user('执行回归'), tool('Bash', { command: 'npm test' }, 'FAIL', true), asst(claim)]);
+  check('R9 双重否定仍是成功主张、失败说法不误拦 ' + id + ' ' + claim, run({ transcript_path: file, session_id: id }, id).decision, expected);
+}
 
 // R4 用户纠偏未落记忆
 const corr = '又停了？跟你说过不要停止任务，直接给弹窗让我选。';

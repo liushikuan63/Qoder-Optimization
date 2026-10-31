@@ -699,7 +699,10 @@ const RULES = [
     test: (t, ctx) => {
       if (ctx.scope.readOnly) return false;
       if (!ctx.turnTools.some((x) => toolName(x) === 'Bash')) return false;
-      const clean = stripQuoted(t).replace(/(?:没有|未能|没能|并非|未|没|不)(?:全部|都)?(?:通过|成功|全绿|全过|没问题)/g, '');
+      // 同一分句里前面已有否定或反问（没有不通过 / 无一不通过 / 难道没通过 / 不是通过了吗）仍是成功主张，不剥离
+      const clean = stripQuoted(t).replace(/(?:没有|未能|没能|不能|无法|没法|并非|不是|未|没|不)(?:完全|全部|全|都)?是?(?:通过|成功|全绿|全过|没问题)/g,
+        (match, offset, source) => (/[无没非不未岂]|难道/.test(source.slice(0, offset).split(/[。！？!?；;，,\n]/).pop())
+          || /[吗?？]/.test(source.slice(offset + match.length).split(/[。！!；;，,\n]/)[0]) ? match : ''));
       // 自己已经声明"未运行 / 未验证"的，不算虚假主张
       if (/(?:未|尚未|还没|没有)(?:运行|跑|执行|验证)(?:过)?|无法运行/.test(clean)) return false;
       const claim = /(?:测试|单测|用例|回归|构建|编译|\bbuild\b|\btest\b)[^。！？!?；;\n]{0,14}(?:全绿|全部通过|全过|通过|成功|没问题)|(?:全绿|全部通过|构建成功|编译通过|测试通过)/i;
