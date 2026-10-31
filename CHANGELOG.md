@@ -6,6 +6,26 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.0.9] - 2026-10-31
+
+### Fixed
+- Fix a 0.0.8 regression that let double-negative or rhetorical success wording pass without verification evidence; failed outcomes are now excluded only when the negation applies directly to the outcome.
+- Treat common failure wording such as "not all passed", "not fully passed" and "could not pass" as failed outcomes instead of unverified success claims.
+- Complete the 0.0.8 Chinese summary with its missing short-reply and failed-outcome entry.
+
+### Scope
+- Ship the verification-wording fix and its regression coverage without changing client permissions or enabling optional workflows.
+- B05 remains independently incomplete: real native choices, host authorization, content-change and recovery flows, and screenshots still need separate evidence.
+
+### 中文摘要
+- 修复 0.0.8 引入的回归：双重否定或反问形式的成功说法（如“没有不通过”“不是通过了吗”）不再无证据放行；只有否定直接作用于结果时才视为失败结果。
+- 把“不是全部通过”“没有完全通过”“无法通过”等常见失败说法识别为失败结果，不再误当成缺少证据的成功主张。
+- 补齐 0.0.8 中文摘要中缺失的短回复与失败结果条目。
+- 本版仅交付验证措辞识别修复与回归覆盖；B05 真实宿主问答和截图仍未完成，不改变现役权限或默认启用状态。
+
+### Contributors / 贡献者
+- @liushikuan63
+
 ## [0.0.8] - 2026-10-31
 
 ### Fixed
@@ -31,6 +51,7 @@ During the 0.x line, minor versions may contain breaking changes.
 - 统一测试与构建命令的边界识别，排除字符串、注释、未执行分支、拼接控制词和吞错，同时保留各运行器合法的详细输出参数。
 - 不把带等号值的 Node 帮助、版本查询当作成功测试，也不把依赖安装或单独清理当作测试、构建证据。
 - 按源码节点去重可见字面量问题，避免重复本地调用虚增已批准基线中的旧债。
+- 按完整短回复检查证据，不再当作缺失文本跳过；同时把失败结果与成功验证主张区分开。
 - 本版仅交付复审后的源码修复与回归覆盖；B05 真实宿主问答和截图仍未完成，不改变现役权限或默认启用状态。
 
 ### Contributors / 贡献者
