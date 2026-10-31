@@ -11,6 +11,7 @@ During the 0.x line, minor versions may contain breaking changes.
 ### Fixed
 - Fix a 0.0.8 regression that let double-negative or rhetorical success wording pass without verification evidence; failed outcomes are now excluded only when the negation applies directly to the outcome.
 - Treat common failure wording such as "not all passed", "not fully passed" and "could not pass" as failed outcomes instead of unverified success claims.
+- Keep headless or non-blocking modifiers and separately reported failures out of double-negation detection.
 - Complete the 0.0.8 Chinese summary with its missing short-reply and failed-outcome entry.
 
 ### Scope
@@ -20,6 +21,7 @@ During the 0.x line, minor versions may contain breaking changes.
 ### 中文摘要
 - 修复 0.0.8 引入的回归：双重否定或反问形式的成功说法（如“没有不通过”“不是通过了吗”）不再无证据放行；只有否定直接作用于结果时才视为失败结果。
 - 把“不是全部通过”“没有完全通过”“无法通过”等常见失败说法识别为失败结果，不再误当成缺少证据的成功主张。
+- 不把“无头”“非阻塞”等修饰词或分别报告的失败结果误当成双重否定。
 - 补齐 0.0.8 中文摘要中缺失的短回复与失败结果条目。
 - 本版仅交付验证措辞识别修复与回归覆盖；B05 真实宿主问答和截图仍未完成，不改变现役权限或默认启用状态。
 

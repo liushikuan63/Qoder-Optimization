@@ -260,6 +260,25 @@ for (const [claim, expected] of [
   const file = transcript([user('执行回归'), tool('Bash', { command: 'npm test' }, 'FAIL', true), asst(claim)]);
   check('R9 双重否定仍是成功主张、失败说法不误拦 ' + id + ' ' + claim, run({ transcript_path: file, session_id: id }, id).decision, expected);
 }
+for (const [claim, expected] of [
+  ['无头测试没通过。', 'allow'],
+  ['非阻塞测试未通过。', 'allow'],
+  ['不稳定测试没有通过。', 'allow'],
+  ['未缓存的构建不成功。', 'allow'],
+  ['测试没通过、构建不成功。', 'allow'],
+  ['测试没有通过且构建不成功。', 'allow'],
+  ['无头测试没有不通过的。', 'block'],
+  ['没有任何无头测试不通过。', 'block'],
+  ['测试没通过、构建成功。', 'block'],
+  ['测试没有通过、构建不是没成功。', 'block'],
+]) {
+  const id = 'r9-negation-scope-' + ++toolId;
+  const file = transcript([user('执行回归'), tool('Bash', { command: 'npm test' }, 'FAIL', true), asst(claim)]);
+  const result = run({ transcript_path: file, session_id: id }, id);
+  check('R9 否定作用域入口正常退出 ' + id, result.code, 0);
+  check('R9 修饰词与并列结果 ' + id + ' ' + claim, result.decision, expected);
+  if (expected === 'block') check('R9 否定作用域由R9拦截 ' + id, result.out.includes('R9-claim-without-run'), true);
+}
 
 // R4 用户纠偏未落记忆
 const corr = '又停了？跟你说过不要停止任务，直接给弹窗让我选。';
