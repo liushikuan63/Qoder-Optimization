@@ -529,7 +529,7 @@ function ranTestCommand(command) {
     } else statements.at(-1).push(token);
   }
   if (statements.some(statement => !statement.length)) return false;
-  const unquote = value => value.replace(/^(['"])([\s\S]*)\1$/, '$2');
+  const unquote = value => value.replace(/'([^']*)'|"((?:\\.|[^"\\])*)"/g, (_, single, double) => single === undefined ? double.replace(/\\([$`"\\\n])/g, '$1') : single);
   const commands = [];
   for (const statement of statements) {
     const words = [];
@@ -548,17 +548,20 @@ function ranTestCommand(command) {
     commands.push({ executable, args: words.slice(index + 1) });
   }
   return commands.some(({ executable, args }) => {
-    if (args.some(arg => ['--help', '-h', '--version'].includes(arg))) return false;
+    const separator = args.indexOf('--');
+    const options = args.slice(0, separator < 0 ? args.length : separator).map(arg => arg.split('=')[0]);
     if (/^node(?:\.exe)?$/i.test(executable)) {
-      if (args.some(arg => ['-v', '--eval', '-e', '--print', '-p', '--check', '-c'].includes(arg))) return false;
+      if (args[0] === '--test' && options.some(arg => ['--help', '-h', '--version', '-v', '--eval', '-e', '--print', '-p', '--check', '-c'].includes(arg))) return false;
       return args[0] === '--test' || /\.test\.(?:js|cjs|mjs|sh)$/i.test(args[0] || '')
         || /(?:^|[\\/])\.github[\\/]run-tests\.js$/.test(args[0] || '');
     }
-    if (/^(?:npm|pnpm|yarn|bun)(?:\.cmd|\.exe)?$/i.test(executable)) return !args.includes('-v') && /^(?:test|build|ci|typecheck|lint|e2e)(?::[A-Za-z0-9_.-]+)?$/.test(args[0] === 'run' ? args[1] || '' : args[0] || '');
-    if (/^mvn(?:\.cmd|\.exe)?$/i.test(executable)) return !args.includes('-v') && args.some(arg => /^(?:test|verify|package|install|compile|clean)$/.test(arg));
-    if (/^gradlew?(?:\.bat|\.exe)?$/i.test(executable)) return !args.includes('-v') && args.some(arg => /^(?:test|build|check|assemble)$/.test(arg));
+    if (options.some(arg => ['--help', '-h', '--version'].includes(arg))) return false;
+    if (/^npm(?:\.cmd|\.exe)?$/i.test(executable) && args[0] === 'ci') return false;
+    if (/^(?:npm|pnpm|yarn|bun)(?:\.cmd|\.exe)?$/i.test(executable)) return !options.includes('-v') && /^(?:test|build|ci|typecheck|lint|e2e)(?::[A-Za-z0-9_.-]+)?$/.test(args[0] === 'run' ? args[1] || '' : args[0] || '');
+    if (/^mvn(?:\.cmd|\.exe)?$/i.test(executable)) return !options.includes('-v') && args.some(arg => /^(?:test|verify|package|install|compile)$/.test(arg));
+    if (/^gradlew?(?:\.bat|\.exe)?$/i.test(executable)) return !options.includes('-v') && args.some(arg => /^(?:test|build|check|assemble)$/.test(arg));
     if (/^(?:pytest|tox|phpunit)(?:\.cmd|\.exe)?$/i.test(executable)) return true;
-    if (/^(?:vitest|jest|tsc)(?:\.cmd|\.exe)?$/i.test(executable)) return !args.includes('-v');
+    if (/^(?:vitest|jest|tsc)(?:\.cmd|\.exe)?$/i.test(executable)) return !options.includes('-v');
     if (/^(?:python[0-9.]*|py)(?:\.exe)?$/i.test(executable)) return args[0] === '-m' && args[1] === 'pytest';
     if (/^(?:go|cargo)(?:\.exe)?$/i.test(executable)) return args[0] === 'test';
     if (/^dotnet(?:\.exe)?$/i.test(executable)) return ['test', 'build'].includes(args[0]);
