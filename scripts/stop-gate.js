@@ -702,7 +702,9 @@ const RULES = [
       // “无头”等修饰词不是否定；已结束的并列结果不共享否定作用域。
       const clean = stripQuoted(t).replace(/(?:没有|未能|没能|不能|无法|没法|并非|不是|未|没|不)(?:完全|全部|全|都)?是?(?:通过|成功|全绿|全过|没问题)/g,
         (match, offset, source) => {
-          const prefix = source.slice(0, offset).split(/[。！？!?；;，,、\n]|(?:通过|成功|全绿|全过|没问题)了?(?:并且|而且|以及|但|且|也|又|和)/).pop();
+          const clausePrefix = source.slice(0, offset).split(/[。！？!?；;，,、\n]|(?:通过|成功|全绿|全过|没问题)了?(?:并且|而且|以及|但|且|也|又|和)/).pop();
+          const prefix = /(?:没有|没|无)(?:任何|一)/.test(clausePrefix) ? clausePrefix
+            : clausePrefix.replace(/^.*(?<!(?:没有|未能|没能|不能|无法|没法|并非|不是|不会|不可能|未必|[无没非不未])(?:会|再|曾|能)?)(?:导致|造成|使得|因此|所以|故而|因而|于是)/, '');
           const negated = /没有|未能|没能|不能|无法|没法|并非|不是|不会|不可能|未必|[无没](?:一|任何)|未(?:曾)?有|难道|岂|[无没非不未]$/.test(prefix);
           const question = /[吗?？]/.test(source.slice(offset + match.length).split(/[。！!；;，,\n]/)[0]);
           return negated || question ? match : '';
