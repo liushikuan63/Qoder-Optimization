@@ -6,6 +6,35 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.0.8] - 2026-10-31
+
+### Fixed
+- Preserve i18next namespace identity across aliases and block-scoped initializers instead of accepting overwritten methods as translation evidence.
+- Isolate static-block variable scopes and evaluate initializers, assignment operands and destructuring bindings in their JavaScript order.
+- Check captured translator bindings at supported local calls, retain coverage of uncalled function sources and report recursive call scopes as unverified.
+- Preserve the namespace object evaluated on a member assignment's left side even when its right side rebinds the variable.
+- Recognize supported test and build commands at command boundaries, rejecting quoted text, comments, skipped branches, concatenated control words and masked failures while preserving runner-specific verbosity arguments.
+- Reject Node help and version queries with equals-sign values instead of recording them as successful test runs.
+- Keep dependency installation and standalone cleaning out of test/build evidence.
+- Deduplicate visible-literal issues by source node so repeated local calls do not inflate approved baseline debt.
+
+### Scope
+- Ship reviewed source-level fixes and regression coverage without changing client permissions or enabling optional workflows.
+- B05 remains independently incomplete: real native choices, host authorization, content-change and recovery flows, and screenshots still need separate evidence.
+
+### 中文摘要
+- 修复命名空间别名和块内初始化后的翻译绑定识别，不再把改写过的方法当作已翻译证据。
+- 隔离类 static 块的变量作用域，并按 JavaScript 求值顺序处理初始化、赋值与逐项解构。
+- 按受支持的本地调用检查捕获的翻译绑定，保留未调用函数的源码覆盖，并将递归调用作用域明确标为未验证。
+- 成员赋值右侧重绑变量时，保留左侧已经求值的原命名空间对象。
+- 统一测试与构建命令的边界识别，排除字符串、注释、未执行分支、拼接控制词和吞错，同时保留各运行器合法的详细输出参数。
+- 不把带等号值的 Node 帮助、版本查询当作成功测试，也不把依赖安装或单独清理当作测试、构建证据。
+- 按源码节点去重可见字面量问题，避免重复本地调用虚增已批准基线中的旧债。
+- 本版仅交付复审后的源码修复与回归覆盖；B05 真实宿主问答和截图仍未完成，不改变现役权限或默认启用状态。
+
+### Contributors / 贡献者
+- @liushikuan63
+
 ## [0.0.7] - 2026-10-30
 
 ### Fixed
@@ -162,7 +191,8 @@ During the 0.x line, minor versions may contain breaking changes.
 ### Contributors / 贡献者
 - @liushikuan63
 
-[Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.0.7...HEAD
+[Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.0.8...HEAD
+[0.0.8]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.8
 [0.0.7]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.7
 [0.0.6]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.6
 [0.0.5]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.5
