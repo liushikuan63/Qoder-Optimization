@@ -2,13 +2,13 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.0.9"
+  "version": "0.0.10"
  },
  "generated": "2026-10-31",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 125,
-  "script": 107,
+  "script": 109,
   "command": 10,
   "agent": 2
  },
@@ -1573,7 +1573,7 @@
    "name": "verify-before-claim",
    "status": "shipped",
    "tier": "core",
-   "description": "验证证据纪律与通用检查排错：每条断言必须能失败；启动/HTTP 验收要有「不存在路径」对照组、本轮编译退出码入判据、请求打本轮独占端口；计数断言先列「会改世界的操作」；多出来的红先归因自己算错；拿不到可失败证据显式标注「未验证」；常驻进程「改了没生效/上次修过还是坏」先证运行态版本==磁盘（启动时间 vs mtime、健康端点 vs 文件 sha256）。用于通用检查排错、模型能力审查、证据审计，以及验收/测试/证据/判据/全绿/汇报已完成之前；区分静态、模拟、运行时与产物证据。不用于目标推进/接续（→goal-driven-execution）。",
+   "description": "验证证据纪律与复核：每条断言必须能失败；启动/HTTP 验收要有「不存在路径」对照组、本轮编译退出码入判据、请求打本轮独占端口；计数断言先列「会改世界的操作」；多出的红先归因自己；无证据须标「未验证」；常驻进程「改了没生效/上次修过还是坏」先证运行态版本==磁盘（启动时间 vs mtime、健康端点 vs 文件 sha256）；用户说再次检查/重复检查/循环检查时历史只作线索、按多路复核。用于检查排错、模型能力审查、证据审计及验收/测试/证据/判据/全绿前；区分静态、模拟、运行时与产物证据。不用于目标推进/接续（→goal-driven-execution）。",
    "install": {
     "mode": "copy-skill",
     "tier": "core"
@@ -2624,6 +2624,30 @@
    ]
   },
   {
+   "id": "script:recheck-protocol.cjs",
+   "category": "script",
+   "name": "recheck-protocol.cjs",
+   "status": "shipped",
+   "source": "scripts/recheck-protocol.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": []
+  },
+  {
+   "id": "script:recheck-protocol.test.js",
+   "category": "script",
+   "name": "recheck-protocol.test.js",
+   "status": "shipped",
+   "source": "scripts/recheck-protocol.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:recheck-protocol.cjs"
+   ]
+  },
+  {
    "id": "script:risky-match-guard.js",
    "category": "script",
    "name": "risky-match-guard.js",
@@ -2663,7 +2687,8 @@
    "source": "scripts/rules-reminder.js",
    "dependencies": [
     "script:client-root.js",
-    "script:hook-crash-guard.js"
+    "script:hook-crash-guard.js",
+    "script:recheck-protocol.cjs"
    ]
   },
   {

@@ -6,6 +6,32 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.0.10] - 2026-10-31
+
+### Added
+- Add a RECHECK protocol for renewed evidence gathering, independent methods, explicit verification gaps and coverage-based convergence.
+- Append bounded recheck guidance to supported repeated-check or review requests and challenges to a previous success report, while leaving ordinary reminder output unchanged.
+
+### Fixed
+- Distinguish real recheck requests from negations, definitions, examples, quoted text and code blocks; preserve questions about the outcome being checked and require a current failure before treating an ordinary contrast as a dispute.
+- Decode UTF-8 input across stream chunks so Chinese requests and their echoed text survive byte splits in both `prompt` and `user_prompt`.
+- Preserve existing same-scope authorization instead of requesting duplicate approval during an authorized repair loop.
+
+### Scope
+- Request detection and hook output are testable mechanics, not proof that a model performed the requested review or that all natural-language forms are recognized.
+- No live client configuration or permissions are changed. B05 remains independently incomplete and still requires real native interactions and screenshots.
+
+### 中文摘要
+- 新增 RECHECK 复核协议：重新取证、不同盲区的方法交叉核对、明确未验证项，并按覆盖范围收敛。
+- 对支持的再次检查、循环审查及旧成功结论质疑追加协议摘要；普通轮保持原有提醒输出。
+- 区分真实复核请求与否定、定义、例句、引文、代码块，保留对待验结果的疑问，并要求实际失败才能把普通转折判为质疑。
+- 修复标准输入按字节分块时中文被破坏的问题，覆盖 `prompt` 和 `user_prompt`，同时保持请求摘要完整。
+- 已有同范围修复授权继续有效，不重复索取批准；识别和注入通过不代表模型已实际完成复核，也不承诺无限自然语言覆盖。
+- 不改现役客户端配置与权限；B05 的真实原生交互和截图仍需独立验收。
+
+### Contributors / 贡献者
+- @liushikuan63
+
 ## [0.0.9] - 2026-10-31
 
 ### Fixed

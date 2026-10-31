@@ -1,6 +1,6 @@
 {
  "package_name": "Qoder-Optimization",
- "version": "0.0.9",
+ "version": "0.0.10",
  "generated": "2026-10-31",
  "skills": [
   {
@@ -561,7 +561,7 @@
   {
    "name": "verify-before-claim",
    "tier": "core",
-   "files": 3
+   "files": 4
   },
   {
    "name": "verify-ui-in-browser",

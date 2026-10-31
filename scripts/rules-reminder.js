@@ -14,6 +14,9 @@ const path = require('path');
 const { clientRoot } = require('./client-root.js');
 const CLIENT_ROOT = clientRoot();
 require('./hook-crash-guard.js').install('rules-reminder'); // 崩溃可见化：仍 fail-open，但写进 hooks-crash.log 供周检
+// 复核协议是可选增强：模块缺失或检测异常时只丢这段提示，不影响静态提醒与请求回注。
+let recheck = null;
+try { recheck = require('./recheck-protocol.cjs'); } catch {}
 
 // 路径从 HOME 派生，不写死用户名：否则换机器 / 换家目录直接失效，
 // 而且这种"个人绝对路径"会把导出包的门禁卡住（2026-09-19 出包时被扫描拦下才发现）。
@@ -118,14 +121,25 @@ function readPrompt() {
   return '';
 }
 
+// 只对明确复核请求追加；普通轮保持原有注入字节不变（模式隔离）。
+function recheckNoteFor(promptText) {
+  if (!recheck) return '';
+  try {
+    return recheck.detectRecheck(promptText).matched ? '\n' + recheck.buildRecheckNote() : '';
+  } catch {
+    return '';
+  }
+}
+
 function emit() {
   if (emitted) return;
   emitted = true;
   if (timer) clearTimeout(timer);
+  const prompt = readPrompt();
   const payload = JSON.stringify({
     hookSpecificOutput: {
       hookEventName: 'UserPromptSubmit',
-      additionalContext: REMINDER + suppressedNote() + requestEcho(readPrompt()),
+      additionalContext: REMINDER + suppressedNote() + recheckNoteFor(prompt) + requestEcho(prompt),
     },
   });
   process.stdout.write(payload + '\n', () => {
@@ -138,6 +152,7 @@ function emit() {
 
 // Buffer stdin (capped) so a large event payload can neither block the host on a
 // full pipe nor blow this process' memory.
+process.stdin.setEncoding('utf8');
 process.stdin.on('data', (chunk) => {
   if (raw.length < STDIN_MAX_BYTES) raw += chunk;
 });

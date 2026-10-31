@@ -12,7 +12,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { spawnSync } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 
 const SCRIPT = path.join(__dirname, 'rules-reminder.js');
 const SB = path.join(os.tmpdir(), `reminder-sb-${Date.now()}`);
@@ -100,7 +100,110 @@ const r11 = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: '�
 let ctx11 = '';
 try { ctx11 = JSON.parse(r11.stdout).hookSpecificOutput.additionalContext || ''; } catch {}
 check('⑪ 对照组：同一批抑制不重复提醒', r11.status === 0 && !ctx11.includes('抑制提醒'), '');
-try { fs.rmSync(SB, { recursive: true, force: true }); } catch {}
 
-console.log(fail ? `\n${fail} 项失败` : '\nALL PASS');
-process.exit(fail ? 1 : 0);
+// ⑫⑬⑭ 复核模式：触发词追加协议；首次检查与否定句不追加
+const P12 = '再次检查这个修复';
+const r12 = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: P12 }));
+let ctx12 = '';
+try { ctx12 = JSON.parse(r12.stdout).hookSpecificOutput.additionalContext || ''; } catch {}
+check('⑫ 复核触发词 → 追加复核协议摘要',
+  r12.status === 0 && ctx12.includes('【复核模式 · 已触发】') && ctx12.includes('历史资料分三类') && ctx12.includes(P12), `exit=${r12.status}`);
+
+const P13 = '检查一下这个文件';
+const r13 = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: P13 }));
+let ctx13 = '';
+try { ctx13 = JSON.parse(r13.stdout).hookSpecificOutput.additionalContext || ''; } catch {}
+check('⑬ 对照组：首次检查不追加复核协议',
+  r13.status === 0 && !ctx13.includes('【复核模式 · 已触发】') && ctx13.includes('【本轮请求摘要'), `exit=${r13.status}`);
+
+const P14 = '不用再次检查';
+const r14 = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: P14 }));
+let ctx14 = '';
+try { ctx14 = JSON.parse(r14.stdout).hookSpecificOutput.additionalContext || ''; } catch {}
+check('⑭ 否定句不触发复核模式', r14.status === 0 && !ctx14.includes('【复核模式 · 已触发】'), `exit=${r14.status}`);
+
+// ⑮⑯ 变异对照：摘掉复核调用后触发提示必须消失；非触发轮输出必须与变异体逐字节一致
+const MUT_DIR = path.join(SB, 'mutated');
+fs.mkdirSync(MUT_DIR, { recursive: true });
+for (const name of ['rules-reminder.js', 'client-root.js', 'hook-crash-guard.js', 'recheck-protocol.cjs']) {
+  fs.copyFileSync(path.join(__dirname, name), path.join(MUT_DIR, name));
+}
+const mutFile = path.join(MUT_DIR, 'rules-reminder.js');
+const mutSource = fs.readFileSync(mutFile, 'utf8');
+const mutText = mutSource.replace('+ recheckNoteFor(prompt)', "+ ''");
+const mutationApplied = mutText !== mutSource;
+if (mutationApplied) fs.writeFileSync(mutFile, mutText);
+check('⑮ 变异体已移除复核调用', mutationApplied, mutationApplied ? '' : '未找到可替换的调用点');
+const runMut = (input) => spawnSync(process.execPath, [mutFile], {
+  input,
+  encoding: 'utf8',
+  timeout: 15000,
+  env: { ...process.env, USERPROFILE: HOME, HOME },
+});
+const r15 = runMut(JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: P12 }));
+let ctx15 = '';
+try { ctx15 = JSON.parse(r15.stdout).hookSpecificOutput.additionalContext || ''; } catch {}
+check('⑮ 变异对照：移除复核调用后触发提示必须消失', r15.status === 0 && !ctx15.includes('【复核模式 · 已触发】'), `exit=${r15.status}`);
+
+const r16 = runMut(JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: P13 }));
+const r17 = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: P13 }));
+let ctx16 = '';
+let ctx17 = '';
+try { ctx16 = JSON.parse(r16.stdout).hookSpecificOutput.additionalContext || ''; } catch {}
+try { ctx17 = JSON.parse(r17.stdout).hookSpecificOutput.additionalContext || ''; } catch {}
+check('⑯ 模式隔离：非触发轮与变异体输出逐字节一致',
+  r16.status === 0 && r17.status === 0 && ctx16 === ctx17, `mut=${ctx16.length} orig=${ctx17.length}`);
+
+const P18 = '当我说“再次检查”时应该怎么处理';
+const r18 = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: P18 }));
+let ctx18 = '';
+try { ctx18 = JSON.parse(r18.stdout).hookSpecificOutput.additionalContext || ''; } catch {}
+check('⑱ 元提及 / 教学问句不触发', r18.status === 0 && !ctx18.includes('【复核模式 · 已触发】'), `exit=${r18.status}`);
+
+function runChunked(input, split) {
+  return new Promise(resolve => {
+    const source = `process.stdin.once('data', () => process.stderr.write('CHUNK_READY')); require(${JSON.stringify(SCRIPT)});`;
+    const child = spawn(process.execPath, ['-e', source], { env: { ...process.env, USERPROFILE: HOME, HOME } });
+    let stdout = '', stderr = '', error = null, sent = false;
+    const timer = setTimeout(() => child.kill(), 15000);
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', chunk => { stdout += chunk; });
+    child.stderr.on('data', chunk => {
+      stderr += chunk;
+      if (!sent && stderr.includes('CHUNK_READY')) {
+        sent = true;
+        child.stdin.end(input.subarray(split));
+      }
+    });
+    child.on('error', value => { error = value.message; });
+    child.stdin.on('error', value => { error = value.message; });
+    child.on('close', (status, signal) => {
+      clearTimeout(timer);
+      resolve({ status, signal, stdout, stderr, error, sent });
+    });
+    child.stdin.write(input.subarray(0, split));
+  });
+}
+
+(async () => {
+  try {
+    for (const field of ['prompt', 'user_prompt']) {
+      const prompt = '请再次检查是否有遗漏';
+      const input = Buffer.from(JSON.stringify({ [field]: prompt }));
+      const whole = run(input);
+      for (const bytes of [1, 2]) {
+        const split = input.indexOf(Buffer.from('再')) + bytes;
+        const chunked = await runChunked(input, split);
+        check(`UTF-8分块 ${field} 首字${bytes}字节后断开`,
+          whole.status === 0 && chunked.status === 0 && !chunked.signal && !chunked.error && chunked.sent &&
+          chunked.stdout === whole.stdout && chunked.stdout.includes('【复核模式 · 已触发】') && chunked.stdout.includes(prompt),
+          `whole=${whole.status} chunked=${chunked.status} signal=${chunked.signal} error=${chunked.error}`);
+      }
+    }
+  } finally {
+    try { fs.rmSync(SB, { recursive: true, force: true }); } catch {}
+  }
+  console.log(fail ? `\n${fail} 项失败` : '\nALL PASS');
+  process.exitCode = fail ? 1 : 0;
+})().catch(error => { console.error(error); process.exitCode = 1; });

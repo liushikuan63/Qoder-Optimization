@@ -1,4 +1,4 @@
-# Qoder-Optimization - 0.0.9 技能清单
+# Qoder-Optimization - 0.0.10 技能清单
 
 共 125 个源码随包技能：常驻 12 / 按需 113。机器可读版见 skills-manifest.json 与 catalog.json。
 
@@ -117,7 +117,7 @@
 - `typescript-pro`（按需）—— Implements advanced TypeScript type systems, creates custom type guards, utility types, and branded types, and configures tRPC for end-to-end type safety。中文触发：TypeScript 类型 泛型 配置
 - `umi3-to-umi4-upgrade`（按需）—— umi3 → umi4 / webpack5 升级后的回归排查与恢复流水线：document.ejs 模板被静默取消（用 headScripts/links 恢复、#root 动态注入与 loading 约定）、深 触发词：umi4 升级、umi3 升 umi4、document.ejs 失效、umi 样式回归、升级后白块、loading 不显示、headScripts、CSS module hash、webpack5 迁移、umi_locale_url_applied；不用于：部署后用户端未生效（user-side-deploy-verify）、一般构建报错、非 umi 框架的前端样式问题。
 - `user-side-deploy-verify`（按需）—— 部署自验全绿 ≠ 用户端生效的三道门：① 入口缓存头审计（首页与 fallback 必须 no-store；有 ETag 无 Cache-Control 即启发式缓存隐患）② 用户侧取证（access.log 按 UA 还原 document 链比对 bundle hash，旧 hash 不 404 时零报错）③ 冷环境复现（新 profile + 登录态 + 截图）。触发词：用户端没生效、复验全绿但用户还是旧版、缓存头、no-store、access.log UA。不用于：部署方自验（frontend-hash-deploy-verify）、浏览器打不开网页（edge-net-check）。
-- `verify-before-claim`（常驻）—— 验证证据纪律与通用检查排错：每条断言必须能失败；启动/HTTP 验收要有「不存在路径」对照组、本轮编译退出码入判据、请求打本轮独占端口；计数断言先列「会改世界的操作」；多出来的红先归因自己算错；拿不到可失败证据显式标注「未验证」；常驻进程「改了没生效/上次修过还是坏」先证运行态版本==磁盘（启动时间 vs mtime、健康端点 vs 文件 sha256）。用于通用检查排错、模型能力审查、证据审计，以及验收/测试/证据/判据/全绿/汇报已完成之前；区分静态、模拟、运行时与产物证据。不用于目标推进/接续（→goal-driven-execution）。
+- `verify-before-claim`（常驻）—— 验证证据纪律与复核：每条断言必须能失败；启动/HTTP 验收要有「不存在路径」对照组、本轮编译退出码入判据、请求打本轮独占端口；计数断言先列「会改世界的操作」；多出的红先归因自己；无证据须标「未验证」；常驻进程「改了没生效/上次修过还是坏」先证运行态版本==磁盘（启动时间 vs mtime、健康端点 vs 文件 sha256）；用户说再次检查/重复检查/循环检查时历史只作线索、按多路复核。用于检查排错、模型能力审查、证据审计及验收/测试/证据/判据/全绿前；区分静态、模拟、运行时与产物证据。不用于目标推进/接续（→goal-driven-execution）。
 - `verify-ui-in-browser`（常驻）—— 前台真实运行验收：网页/客户端/小程序/小游戏/App 的改动必须真跑 + 实际截图并比对预期才算完成，只过单测/构建不算。网页：dev server + 真实浏览器完整路径（含负向用例）、browser-use、SPA fallback 用 content-type 对照；小程序/小游戏：微信开发者工具实际点击 + 截图；App：模拟器/真机 + 截图；客户端：窗口截图。触发：前端验收、UI 验证、打开界面、dev server、playwright。
 - `verify-windows-cmd-tool`（按需）—— 改/验/发 Windows 纯批处理（.cmd/.bat）控制台工具的闭环：① GBK+CRLF 编辑链（UTF-8 副本 → CRLF → GBK → 装全部副本 → md5 比对）；② 真实控制台验收（start 启动；禁用 MCP launch_app，会剥 APPDATA 造成假故障；capture-window.ps1 截图；SendInput 每键 250–350ms）；③ 无键盘验收；④ cmd 陷阱（chcp 吞 stdin、rmdir 加 nul 断链、NT 路径前缀、选择器 1 基序号）；⑤ 打包后解压逐字节比对。触发：编辑/验收/打包 .cmd 工具。
 - `vibe-coding-workflow`（常驻）—— 大需求五阶段流程：需求、架构、模块、调试、迭代；检查阶段准入，已授权连续实施时不逐阶段重问。用于新项目或跨模块需求；用户明确设置的阶段批准继续保留。

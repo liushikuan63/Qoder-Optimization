@@ -11,7 +11,7 @@
 
 | 事件 | 脚本 | 超时(s) | 作用 |
 |---|---|---|---|
-| `UserPromptSubmit` | `rules-reminder.js` | 10 | 每轮注入精简纪律（最易被忽略的兜底）+ 回注本轮请求原文 |
+| `UserPromptSubmit` | `rules-reminder.js` | 10 | 每轮注入精简纪律（最易被忽略的兜底）+ 回注本轮请求原文；命中"再次检查 / 重复检查 / 循环检查"等复核词时追加复核协议摘要（`recheck-protocol.cjs`，普通轮不追加） |
 | `UserPromptSubmit` | `session-budget.js` | 10 | 上下文体积 / 压缩次数 / 接续队列分档提醒 |
 | `UserPromptSubmit` | `fact-ledger.cjs --hook` | 10 | 硬事实登记簿：把 ≤12 条长期硬约束按目录隔离注入每轮；无登记时**零输出**（不占 token）；`/fact` 增删查清 |
 | `Stop` | `stop-gate.js` | 10 | 收尾门禁：拦住"声明下一步却没做 / 该弹窗没弹 / 无视觉证据 / 明确记忆请求无成功证据 / 无主张踢皮球"；只读 / 交接 / 旧队列不催办 |
