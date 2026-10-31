@@ -261,6 +261,76 @@ test('unrelated alias objects cannot invalidate translators', t => {
   f.write('src/code.cjs', "const i = require('i18next'); { const alias = custom; alias.t = another; } node.textContent = i.t('save');");
   assert.equal(f.run().status, 'PASS');
 });
+for (const callable of [
+  "function render() { t('missing'); }",
+  "const render = () => t('missing');",
+  "const render = function() { t('missing'); };",
+]) {
+  test('captured translators are checked after module initialization: ' + callable, t => {
+    const f = fixture(t);
+    f.write('src/code.cjs', callable + " var {t} = require('i18next'); render();");
+    const r = f.run();
+    assert.equal(r.status, 'FAIL');
+    assert.equal(r.issues.filter(i => i.code === 'TRANSLATION_MISSING').length, 2);
+  });
+}
+test('captured namespaces are checked when called before their declaration', t => {
+  const f = fixture(t);
+  f.write('src/code.cjs', "render(); function render() { i.t('save'); } var i = require('i18next');");
+  assert.equal(f.run().status, 'UNVERIFIED');
+});
+test('repeated local calls do not duplicate static translation references', t => {
+  const f = fixture(t);
+  f.write('src/code.cjs', "function render() { t('save'); } var {t} = require('i18next'); render(); render();");
+  const r = f.run();
+  assert.equal(r.status, 'PASS');
+  assert.equal(r.references, 2);
+});
+test('empty var redeclarations do not erase hoisted function calls', t => {
+  const f = fixture(t);
+  f.write('src/code.cjs', "function render() { t('missing'); } var {t} = require('i18next'); render(); t = custom; var render;");
+  assert.equal(f.run().status, 'FAIL');
+});
+for (const callable of ["function render() { render(); t('save'); }", "const render = function self() { self(); t('save'); };"]) {
+  test('recursive call scopes remain explicitly unverified: ' + callable, t => {
+    const f = fixture(t);
+    f.write('src/code.cjs', callable + " var {t} = require('i18next'); render();");
+    const r = f.run();
+    assert.equal(r.status, 'UNVERIFIED');
+    assert.ok(r.unknown.some(i => i.code === 'RECURSIVE_CALL_SCOPE'));
+  });
+}
+test('uncalled function sources still receive static translation coverage', t => {
+  const f = fixture(t);
+  f.write('src/code.cjs', "function render() { t('missing'); } var {t} = require('i18next');");
+  assert.equal(f.run().status, 'FAIL');
+});
+test('repeated calls do not duplicate legacy visible-literal debt', t => {
+  const f = fixture(t);
+  f.write('src/code.cjs', "function render() { alert('Legacy'); } render();");
+  f.input.baseline = { ...core.snapshot(f.root, ['src/page.html', 'src/code.cjs', 'locales/en.json', 'locales/zh.json']), sourceFiles: ['src/page.html', 'src/code.cjs'] };
+  const authority = { baselineDigest: core.hash(f.input.baseline) };
+  f.write('src/code.cjs', "function render() { alert('Legacy'); } render(); render();");
+  const repeated = f.run(authority);
+  assert.equal(repeated.status, 'PASS');
+  assert.equal(repeated.existingIssues.length, 1);
+  f.write('src/code.cjs', "function render() { alert('Legacy'); alert('Legacy'); } render();");
+  const added = f.run(authority);
+  assert.equal(added.status, 'FAIL');
+  assert.equal(added.issues.length, 1);
+});
+test('member assignment retains the object evaluated before its RHS', t => {
+  const f = fixture(t);
+  f.write('src/code.cjs', "var i = require('i18next'), alias = i; i.t = (i = 0, custom); alias.t('missing');");
+  const r = f.run();
+  assert.equal(r.status, 'UNVERIFIED');
+  assert.ok(!r.issues.some(i => i.code === 'TRANSLATION_MISSING'));
+});
+test('member assignments cannot invalidate a different object introduced by the RHS', t => {
+  const f = fixture(t);
+  f.write('src/code.cjs', "let i = custom; i.t = (i = require('i18next'), another); i.t('missing');");
+  assert.equal(f.run().status, 'FAIL');
+});
 test('a shadowed require is not the real i18next import', t => {
   const f = fixture(t); f.write('src/code.cjs', "function render(require) { const {t} = require('i18next'); node.textContent = t('save'); }\n");
   assert.equal(f.run().status, 'UNVERIFIED');
