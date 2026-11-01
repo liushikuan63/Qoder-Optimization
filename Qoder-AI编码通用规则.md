@@ -3,7 +3,7 @@
 > 文档：Qoder AI 编码通用规则（可分享版）。
 > 版本：0.0.13；制作日期：2026-11-01。版本、计数与目录由公开包元数据同步；是否已发布以对应 Release 为准。
 > 内容：全局开发纪律 + 20 条领域 / 流程规则 + 可选能力目录。按使用者习惯取舍，不默认全装；材料不是授权来源。
-> 包内技能 132 个（12 常驻 + 120 按需），不等于接收者已安装数量。
+> 包内技能 125 个（12 常驻 + 113 按需），不等于接收者已安装数量。
 > 先读《Qoder-个人规则生成提示词.md》；catalog.json/INDEX.md 提供按需检索。任何权限、MCP、hook 接线变更仍按平台要求单独批准。
 
 ## 一、全局开发规则
@@ -240,7 +240,7 @@ description: 当任务需要操作本机图形界面时加载——点击/输入
 - **非必要不强制前台（2026-10-14 起默认纪律）**：用户原则＝"**不影响用户正常操作**"。launch 不激活（长后台任务加 `start_minimized:true`，窗口落任务栏）；输入走 background、读树与断言不要求前台；不为一瞥而还原最小化窗口（用 UIA 树 + 断言）；网页优先 `browser-use`（Chromium 键盘天然要求前台，走 CDP 可完全绕开）。**验收判据＝动作前后"真实光标 + 前台窗口"两项都没变**（只看截图会假绿）。**批量 / 脚本类新工具同受约束**：0.35.2 的 `run_steps`（顶层 `delivery_mode:foreground` / `foreground_fallback:true` / 步骤内嵌前台参数）与 `run_script`（脚本文本含 `delivery_mode:'foreground'`、`scope:'desktop'`、`bring_to_front`）会被"逐工具分类"漏掉——守卫已覆盖同一口径（自检 35→50 条），并**在真实客户端做了活体 deny 验证**。**升级后必须复查守卫是否覆盖新工具**（红线：只加严不放松）。
 - **送达阶梯不可颠倒**：优先 `element_index`（先 `get_window_state`，索引会被下一次快照顶替）→ 元素不可寻址（canvas / 视频 / 自绘）才 `x,y` 且保持 `background` → **只有驱动自己报 `background_unavailable`** 才对那一个动作补 `foreground`。不许凭"看起来像 GTK/Chromium"抢跑——**是驱动判断，不是 agent 猜**。例外：起点在标题栏 / 边框的 `drag`（移动 / 缩放窗口）本就无法后台送达。
 - **驱动不会自己还原光标**：文档说的 "restoring the prior foreground afterward" 还原的是**前台窗口**不是**指针位置**，二进制里没有任何 `cursor_restore` 符号 → 还原必须做成机制。`cua-cursor-guard.js` 挂 `hooks.PreToolUse`+`hooks.PostToolUse`，matcher `mcp_call|mcp__cua[_-]?driver__.*|^Bash$`（客户端按正则匹配工具名）：Pre 快照真实光标 + 拦高危参数与 shell 手搓 GUI 输入，Post 发现指针被搬走就**两跳还原**（driver 写入 → 沉降复读 → 未落位则 user32 兜底 → 再复读；两条都失败才提示人工确认——单写 + 立即复读会把异步落位误判成失败），台账 `tmp/cua-cursor-guard/decisions.log`。
-- **升级通道（含 github 直连被墙的走法）**：`cua-driver update --apply` 的下载走 github.com、被墙时会重试 3 次后失败；改走 **api.github.com 资产通道**下载 zip + `SHA256SUMS` + `.sigstore.json` 并 `sha256sum -c` 对齐官方清单，再给**官方安装器**打"本地资产"最小补丁（只把下载来源换成 `$env` 指向的本地目录，解压 / junction / 校验 / GC 全用官方代码）后 `-Release x.y.z -NoAutoStart` 运行（本机自启用启动文件夹 VBS，避免与计划任务双 daemon）；装完重启 daemon、`--version` + MCP 冒烟复验；旧 release 目录保留（GC 默认留 5 个版本）= 回滚点。**发现新版即升级**；周检把"有新版未升"报 warn。坑：官方安装器是 UTF-8 无 BOM，**往里面插中文注释会被 Windows PowerShell 按 GBK 读并吞字符**——补丁注释用纯 ASCII。
+- **升级通道（含 github 直连被墙的走法）**：`cua-driver update --apply` 的下载走 github.com、被墙时会重试 3 次后失败；改走 **api.github.com 资产通道**下载 zip + `SHA256SUMS` + `.sigstore.json` 并 `sha256sum -c` 对齐官方清单，再给**官方安装器**打"本地资产"最小补丁（只把下载来源换成 `$env` 指向的本地目录，解压 / junction / 校验 / GC 全用官方代码）后 `-Release x.y.z -NoAutoStart` 运行（本机自启用启动文件夹 VBS，避免与计划任务双 daemon）；装完重启 daemon、`--version` + MCP 冒烟复验；旧 release 目录保留（GC 默认留 5 个版本）= 回滚点。**升级限于已获批准的维护任务**；发现新版只报告，不把升级作为日常验收的前置；需停机、权限提升或改变审批流程时保留单独批准；周检把"有新版未升"报 warn。坑：官方安装器是 UTF-8 无 BOM，**往里面插中文注释会被 Windows PowerShell 按 GBK 读并吞字符**——补丁注释用纯 ASCII。
 - **接线最大的坑**：MCP 懒加载下真实 `tool_name` 是元工具 **`mcp_call`**（驱动名在 `tool_input.toolName`、参数在 `tool_input.arguments`，脚本要自己解包），且 server 名被规范化成**下划线** `mcp__cua_driver__…`。只按注册名写 `mcp__cua-driver__.*` 会**一个都不匹配**——脚本单测 18/18 全绿、实调却照样执行（假绿）。**验 matcher 用客户端同款算法** `new RegExp(m).test(真实工具名)`，且测试 payload 必须从 run 日志的 `hook_name=` 实际值取。
 - **放宽由用户拍板**：`<配置目录>/cua-cursor-guard.json` 的 `disabled` / `allow_foreground` / `allow_desktop_warp` / `allow_bring_to_front` / `allow_shell_gui` 是给**人**开的口子（客户端目录 = `QODER_CONFIG_DIR`，缺省 `~/.qoder`）；自动化不许自己绕过守卫，开了哪一项要在汇报里点名。自检 `node <配置目录>/scripts/cua-cursor-guard.test.js`（50 条：三条高危必拦〔含 0.35.2 新增 `run_steps` / `run_script` 的 7 条形态〕、安全路径必放行、`mcp_call` 包装必解包、非 CUA 调用与普通 Bash 必不受影响、还原兜底两跳与双失败留痕）。
 - **截图体积与"等它出现"都在脚本层解决（2026-10-27 实测）**：**两条 CUA 线要分开看**——Qoder 内置的 `computer_use`（本机 = `QoderComputerUse.exe`，stdio MCP、**无 CLI**）的 `get_window_state` 只有 `include_screenshot/include_text/max_tree_*`，**没有 region / scale 参数**；而 trycua `cua-driver` 线（本机 = `Quiet CUA`）**有原生旋钮**：`get_window_state` 的 `max_image_dimension`（长边像素上限，保比例）+ `screenshot_out_file`（图写文件、响应只回路径）+ `zoom`（按区域以原生分辨率重取，自动加 20% 边距、可 `from_zoom=true` 回映射坐标）+ `verify_state`（有界谓词轮询）。所以"整屏截图再让模型自己裁"在两条线上都不必。**computer_use 这一侧的体积只能脚本层控**，两个入口：
@@ -249,7 +249,7 @@ description: 当任务需要操作本机图形界面时加载——点击/输入
 - **cua-driver 0.38.0 实测的两个"别信"**（2026-10-27，CLI 走 `serve` daemon + `call`）：① `verify_state` 对 Qoder 自己的窗口返回 `status:"unknown"` + `unknown_reason:"untrusted_source"`，**真谓词（matches:3）也判不出 pass，且退出码恒 0**——它确实轮询（4 秒 22 次采样），但**不能当能失败的判据**；要"等到出现并据此判红"就用 `cua-wait.ps1`（超时退 1）。用 `verify_state` 必须自己解析 `status`，把 `unknown` 一律按未通过处理。② `cua-driver check-update` 自报 `latest_version:0.37.0 / update_available:false`，而 GitHub 上 stable 已是 0.38.0 ⇒ **判版本以 `gh api repos/trycua/cua/releases` 里带 `cua-driver-rs-*-windows-x86_64.zip` 资产的最新 tag + 二进制 `--version` 为准**，别拿自报当结论（周检"有新版未升"若接它的答案会误判）。
 - **本机 CUA 现状（2026-10-27）**：`Quiet CUA` 线 0.38.0 装在 `D:\Program Files\Quiet CUA\0.38.0`（zip 与 sigstore sidecar 均按 GitHub 公布的 digest 逐字节核过；`provenance.json` 记 9 个运行时文件哈希）；回滚点 `C:\Program Files\Quiet CUA\0.37.0` 原样未删；`background-only.rego` 是本机自加的非上游文件，随版本带过去。**两侧 `settings.json` 都已挂 MCP server `cua-computer-use`（`command=<exe>` + `args:["mcp"]`，官方 `mcp-config --client claude` 口径）**，与 Qoder 内置的 `computer-use` 并存——内置那个的 `get_window_state` 没有体积参数，要 `max_image_dimension` / `screenshot_out_file` / `zoom` 就走 `cua-computer-use`。守卫侧不用改：`cua-cursor-guard.js` 的判据是 `/cua/i.test(toolName)`（不是只认 `cua-driver`），新 server 名天然落进覆盖范围。**MCP 与 hook 一样要重启客户端才加载**，本会话里它不可调用，接线后的验收只能用 stdio 直跑 `cua-driver mcp` 做协议冒烟（initialize + tools/list，实测 63 工具、serverInfo 0.38.0）；daemon 平时不常驻（验证用 `serve --no-overlay` 起、完事 `stop`）。
 - **验收"没抢鼠标"要能失败**：动作前后各读一次真实光标坐标比对，且先证明测量工具读的是真实光标（warp 到探针点看它跟不跟）——只看截图会假绿。
-- **跨 CLI 调用 token 会失效**：`snapshot_id` / `capture_id` / `element_token` 只在同一 session 内有效，多步操作先 `start_session` 且每个调用带同一个 `session`；`kill_app` 标准模式只杀被证明由本会话启动的进程，否则用 `taskkill /PID`；自动化起的进程用完自己收尾。
+- **跨 CLI 调用 token 会失效**：`snapshot_id` / `capture_id` / `element_token` 只在同一 session 内有效，多步操作先 `start_session` 且每个调用带同一个 `session`；`kill_app` 标准模式只杀被证明由本会话启动的进程，不能证明归属时停止该动作并核对身份或申请批准，不得改用 `taskkill /PID` 绕过归属保护；仅清理本会话可确认归属的测试进程，服务停机仍按单独批准和人工执行要求处理。
 - **文档与实现冲突时以实现为准**（`move_cursor` 就是实例）：拿不准就实测一次再写进规则，别把厂商文档的承诺当事实传播。
 - **改完 hooks 不必重启**（实测：同会话内下一次工具调用即生效，被拦调用会在台账留 `deny` 行、安全调用留 `allow`——这就是"能失败"的验收）。**台账按客户端侧分目录**（脚本跟随 `QODER_CONFIG_DIR`：CN 写 `~/.qoder-cn/tmp/cua-cursor-guard/`，国际版写 `~/.qoder/tmp/…`）；查记录前先 `echo $QODER_CONFIG_DIR`，在错的侧找不到会误判成"守卫没跑"。
 
@@ -303,18 +303,18 @@ description: 当任务是评审 / 复核 / 验收方案文档（批次卡、技�
 - 复核清单逐条实测：文件 / 表 / 字段 / 接口 / 端口 / 行号是否真实存在，口径是否与现网一致；**"快照"与"现网实测"必须区分**（快照会漂移）。
 - 拿不到实测证据的结论显式标注"未验证 + 原因"，不写成确定事实。
 
-### 文档体系（repo wiki / 规格文档 / 多代理并行写长文）
+### 文档体系（repo wiki / 规格文档 / 多代理分工审阅）
 
 ```yaml
 trigger: model_decision
-description: 当任务要生成或大修文档体系（repo wiki、repowiki、知识卡、README、规格/需求文档、架构文档、YAML 配置）或多代理并行写长文时加载。文档、wiki、repowiki、知识卡、README、规格、PRD、架构文档、校对、解除页数上限。
+description: 当任务要生成或大修文档体系（repo wiki、repowiki、知识卡、README、规格/需求文档、架构文档、YAML 配置）或多代理分工审阅文档时加载。文档、wiki、repowiki、知识卡、README、规格、PRD、架构文档、校对、解除页数上限。
 ```
 
-- **有 wiki 先查、改完回写（铁律）**：仓库已有 `.qoder/repowiki/` 时——**先查 wiki 定位模块 / 入口 / 约定再动手**（别一上来通读源码）；代码产生改动后**同批回写**受影响页（含 `<cite>` 与 `file://#Lx-Ly` 行号）；wiki 与代码冲突**以代码为准**并就地修正、汇报里点出冲突。要新建 wiki 按四层标准 + 校验脚本 `validate-repowiki.js` / `fix-repowiki-toc.js` + 多写手流程（技能 `write-repowiki`）。**校验读数别自己猜**：`#L1-Ln` 整文件锚点越界只作计数说明，`lo>1` 的切片越界与 `#L31-L...` 这种残缺才报——判据写宽会一次刷出上百条噪声，噪声多就会被忽略。
-- **交付三件套（动工前就位）**：**事实源**（`_FACTS.md`：只放已核验事实 + 精确 `路径:行号` + 冲突裁决）→ **写手简报**（格式契约、禁编造清单、凭据一律 `<redacted>`）→ **校验脚本**（解析 YAML/JSON、引用路径存在性、`#Lx-Ly` 行号越界、内链可达、围栏闭合、疑似明文凭据、plan↔磁盘一致）；每完成一批跑一次，不靠通读。
+- **有 wiki 先查、改完回写（铁律）**：仓库已有 `.qoder/repowiki/` 时——**先查 wiki 定位模块 / 入口 / 约定再动手**（别一上来通读源码）；代码产生改动后**同批回写**受影响页（含 `<cite>` 与 `file://#Lx-Ly` 行号）；wiki 与代码冲突**以代码为准**并就地修正、汇报里点出冲突。要新建 wiki 按四层标准 + 校验脚本 `validate-repowiki.js` / `fix-repowiki-toc.js`，可参考技能 `write-repowiki`；研究可分工，写入遵守主会话串行落盘。**校验读数别自己猜**：`#L1-Ln` 整文件锚点越界只作计数说明，`lo>1` 的切片越界与 `#L31-L...` 这种残缺才报——判据写宽会一次刷出上百条噪声，噪声多就会被忽略。
+- **交付三件套（动工前就位）**：**事实源**（`_FACTS.md`：只放已核验事实 + 精确 `路径:行号` + 冲突裁决）→ **审阅简报**（格式契约、禁编造清单、凭据一律 `<redacted>`）→ **校验脚本**（解析 YAML/JSON、引用路径存在性、`#Lx-Ly` 行号越界、内链可达、围栏闭合、疑似明文凭据、plan↔磁盘一致）；每完成一批跑一次，不靠通读。
 - **结构约束**（`.qoder/repowiki/`）：四层结构（`wiki_plan.yaml` + `knowledge/zh/` 知识卡 + `zh/content/` 内容页）；`documents` 是**白名单＝上限**（≤50 页、仅 1 层嵌套，超出静默截断）——要更多页或两级子目录就**删掉 `documents`**，改用 notes 写章节地图，并让校验脚本切到"无白名单模式"（章节名单 + 索引页存在 + 每页被本目录索引提及）。
-- **多写手并行**：每个写手 ≤10 个文件、独占目录，prompt 明写"边写边落盘，不要先通读"；写手异常退出后**先做差集**（已落盘清单 vs 应该产出）再补缺口，禁止整批重跑。
-- **事实裁决与传播**：写手回报的分歧当线索不当结论，主会话亲自复验后再定性；结论定了按"事实源 → plan notes → 知识卡 → 各页"四处传播，改完 grep 复查旧说法残留。
+- **只读并行、串行写入**：每个审阅者 ≤10 个文件，返回证据与建议，由主会话串行落盘并逐批校验；异常退出后**先做差集**（已落盘清单 vs 应该产出）再补缺口，禁止整批重跑。
+- **事实裁决与传播**：审阅者回报的分歧当线索不当结论，主会话亲自复验后再定性；结论定了按"事实源 → plan notes → 知识卡 → 各页"四处传播，改完 grep 复查旧说法残留。
 - **收尾**：重写整套文档前先快照（`.qoder/repowiki.bak-<date>`，顺带脱敏明文口令）；判据是"校验脚本全绿 + 抽查读码"，未真实运行程序要明说。
 
 ---
@@ -587,7 +587,7 @@ glob: ["**/*.vue"]
 
 ## 三、推荐技能清单（按域速查）
 
-**其他**（50）：agent-client-network-triage、architecture-designer、async-python-patterns、audit-ci-cost-levers、awesome-design-md、byok-model-retry、cloudbase-wechat-integration、counterexample-driven-plan-review、deliver-prd、diagnose-github-actions-quota、diagnose-windows-webview2-blank-window、distinctive-design-systems、dsh-session-format-debug、encrypted-office-visual-inspection、frontend-design-ui-ux、frontend-development、game-designer-toolkit、game-numeric-design、global-config-smoke-runner、hid-device-protocol-probe、i-have-adhd、injected-context-slimming、large-sqlite-text-extraction、merge-inbound-qoder-package、minigame-dev-pro、miniprogram-development、mongodb-atlas-stream-processing、mongodb-connection、mongodb-mcp-setup、mongodb-natural-language-querying、mongodb-query-optimizer、mongodb-schema-design、mongodb-search-and-ai、mysql、nextjs-app-router-patterns、oauth-login-failure-triage、open-code-review-delegate、powershell-windows-display-interop、proxy-rule-surgery、react-modernization、safe-text-editing（常驻）、senior-devops、setup-windows-selfhosted-runner、share-package-release、svg-scene-animation、systemd-java-service-centos7、tailwindcss-animations、typescript-pro、wechat-miniprogram-dev、write-repowiki
+**其他**（44）：architecture-designer、async-python-patterns、audit-ci-cost-levers、awesome-design-md、byok-model-retry、cloudbase-wechat-integration、deliver-prd、diagnose-github-actions-quota、diagnose-windows-webview2-blank-window、distinctive-design-systems、dsh-session-format-debug、encrypted-office-visual-inspection、frontend-design-ui-ux、frontend-development、game-designer-toolkit、game-numeric-design、global-config-smoke-runner、hid-device-protocol-probe、i-have-adhd、injected-context-slimming、large-sqlite-text-extraction、merge-inbound-qoder-package、minigame-dev-pro、miniprogram-development、mongodb-atlas-stream-processing、mongodb-connection、mongodb-mcp-setup、mongodb-natural-language-querying、mongodb-query-optimizer、mongodb-schema-design、mongodb-search-and-ai、mysql、nextjs-app-router-patterns、open-code-review-delegate、powershell-windows-display-interop、react-modernization、safe-text-editing（常驻）、senior-devops、setup-windows-selfhosted-runner、systemd-java-service-centos7、tailwindcss-animations、typescript-pro、wechat-miniprogram-dev、write-repowiki
 
 **规则与技能治理**（18）：concurrent-edit-attribution-check（常驻）、continuation-state-audit（常驻）、goal-driven-execution（常驻）、mechanize-rule-into-hook-guard、memory-bank-divergence-repair、memory-entry-update、pause-writer-before-shared-file-edit、rules-conflict-audit、self-evolution（常驻）、skill-authoring-closure、skill-description-route-cue-rewrite、skill-reference-integrity-audit、skill-tiering-lazy-load、skill-trim-with-capability-transfer、skills-router（常驻）、structured-edit-safety（常驻）、vibe-coding-workflow（常驻）、vibecoding-doc（常驻）
 
@@ -595,7 +595,7 @@ glob: ["**/*.vue"]
 
 **后端 / 数据**（37）：java-architect、java-quality、kafka-best-practices、nginx-config-builder、nodejs-backend-patterns、oracledb、postgresql-optimization、postgresql-table-design、python-anti-patterns、python-backend-guidelines、python-dataviz、python-error-handling、python-performance-optimization、python-programmer、python-project-structure、python-testing-patterns、python-type-safety、rabbitmq-expert、redis-clustering、redis-connections、redis-core、redis-observability、redis-search、redis-security、redis-semantic-cache、spring-aop、spring-boot-actuator、spring-boot-cache、spring-boot-event-driven-patterns、spring-boot-resilience4j、spring-boot-rest-api-standards、spring-boot-test-patterns、spring-events、springboot-patterns、springboot-verification、umi3-to-umi4-upgrade、vue-expert
 
-**领域专用（本机形态样例）**（8）：local-api-contracts、local-browser-e2e、local-db-migrations、local-frontend-a11y、local-performance-evidence、local-reverse-proxy-triage、local-rust-engineering、local-spring-mybatis
+**领域专用（本机形态样例）**（7）：local-api-contracts、local-browser-e2e、local-db-migrations、local-frontend-a11y、local-performance-evidence、local-rust-engineering、local-spring-mybatis
 
 ## 四、背后的设计原则
 
