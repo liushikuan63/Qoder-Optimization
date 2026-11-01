@@ -6,15 +6,13 @@
 'use strict';
 require('./hook-crash-guard.js').install('global-config-guard'); // 崩溃可见化：仍 fail-open，但写进 hooks-crash.log 供周检
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const { clientRoot, counterpart } = require('./client-root.js');
 const CLIENT_ROOT = clientRoot();
 const { spawnSync } = require('child_process');
 
-const HOME = process.env.HOME || process.env.USERPROFILE || os.homedir();
 const A = CLIENT_ROOT;
-const B = counterpart(A) || path.join(HOME, '.qoder-cn');
+const B = counterpart(A);
 // bash 路径按候选表探测（可用 QODER_BASH 覆盖）：写死单一路径的版本在别人机器上会静默跑不起来，
 // 本机候选全落空时退回 PATH 里的 bash —— 与 hook 的 fail-open 语义一致，绝不因路径不对把体检变成崩溃。
 const BASH = (() => {
@@ -81,13 +79,13 @@ function danglingRefs() {
     } catch (e) {
       continue;
     }
-    for (const m of txt.matchAll(/`((?:(?:rules|memory|scripts|commands)\/[\w.\-]+|skills\/[\w.\-]+\/scripts\/[\w.\-]+)\.(?:md|sh|js|ps1))(?:\/\*)?`/g)) {
+    for (const m of txt.matchAll(/`((?:(?:rules|memory|scripts|commands)\/[\w.\-]+|skills\/[\w.\-]+\/scripts\/[\w.\-]+)\.(?:cjs|mjs|md|sh|js|ps1))(?:\/\*)?`/g)) {
       const rel = m[1];
       if (rel.endsWith('/*') || rel.includes('*')) continue;
       const inA = fs.existsSync(path.join(A, rel));
-      const inB = fs.existsSync(path.join(B, rel));
-      if (!inA) bad.push(rel + '（引用于 ' + path.basename(f) + '，两侧都找不到）');
-      else if (!inB) bad.push(rel + '（只在本侧，CN 侧缺）');
+      const inB = B ? fs.existsSync(path.join(B, rel)) : false;
+      if (!inA) bad.push(rel + '（引用于 ' + path.basename(f) + (inB ? '，本侧找不到）' : B ? '，两侧都找不到）' : '，本客户端找不到）'));
+      else if (B && !inB) bad.push(rel + '（只在本侧，另一客户端缺）');
     }
   }
   return bad;
@@ -97,7 +95,7 @@ function main() {
   readStdin();
   const problems = [];
 
-  const cfg = sh(path.join(A, 'scripts', 'sync-global-config.sh'), ['--check']);
+  const cfg = sh(path.join(__dirname, 'sync-global-config.sh'), ['--check']);
   if (cfg.code === 1) {
     const lines = cfg.out.split('\n').filter((x) => /^(DRIFT|MISSING)/.test(x));
     problems.push('AGENTS.md / rules / commands 两侧漂移: ' + (lines.join('; ') || '见 sync-global-config.sh --check'));
@@ -105,7 +103,7 @@ function main() {
     problems.push(notRun('sync-global-config.sh --check', cfg));
   }
 
-  const mem = sh(path.join(A, 'scripts', 'sync-memory.sh'), []);
+  const mem = sh(path.join(__dirname, 'sync-memory.sh'), []);
   if (mem.code === 1) {
     const lines = mem.out.split('\n').filter((x) => /索引不自洽|分叉（|only|只在|未进索引/.test(x)).slice(0, 3);
     problems.push('memory 检查异常: ' + (lines.join(' | ') || '跑 bash ~/.qoder/scripts/sync-memory.sh 看明细'));

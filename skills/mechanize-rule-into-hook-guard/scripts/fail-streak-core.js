@@ -15,7 +15,7 @@
 //   ③ 计的是**不同手段的个数**而非次数：同一命令形态重跑只刷新样本，不涨手段集（照用户口径「重跑同一手段不计」），
 //      distinct means 达 threshold（默认 3）即拦，此后 PreToolUse 拒绝该目标的任何新调用；
 //   ④ 目标同一性 = host[:port]；已拦目标**不因一次「看起来成功」自动解封**，解封只能走人工 `--clear`。
-// 关闭：~/.qoder/fail-streak-guard.json 写 {"disabled":true}；threshold/ttlHours/blockTtlHours 同文件可配
+// 关闭：~/.qoder/fail-streak-guard.json 写 {"disabled":true}；threshold/ttlHours 同文件可配
 // 状态与台账：~/.qoder/tmp/fail-streak-guard/{state.json,decisions.log}
 // 自测：node fail-streak-guard.test.js（红/对照双向）；变异：node fail-streak-merge-mutation.test.js
 'use strict';
@@ -24,16 +24,25 @@ const os = require('os');
 const path = require('path');
 
 const HOME = process.env.USERPROFILE || process.env.HOME || os.homedir();
-// 台账落在本机实际存在的客户端侧（只装 CN 时不新建 ~/.qoder）；client-root.js 缺失时退回旧口径
+// 台账落在本机实际存在的客户端侧（只装 CN 时不新建 ~/.qoder）。
+// 先找安装后同目录的 client-root.js，再找仓库技能目录的相对位置；两者都缺时按 HOME 现有侧兜底。
 const CLIENT_ROOT = (() => {
-  try { return require(path.join(__dirname, '..', '..', '..', 'scripts', 'client-root.js')).clientRoot(HOME); } catch (e) { return path.join(HOME, '.qoder'); }
+  if (process.env.QODER_HOME) return path.resolve(process.env.QODER_HOME);
+  for (const file of [path.join(__dirname, 'client-root.js'), path.join(__dirname, '..', '..', '..', 'scripts', 'client-root.js')]) {
+    try { return require(file).clientRoot(HOME); } catch (e) {}
+  }
+  const sides = ['.qoder', '.qoder-cn'].map((name) => path.join(HOME, name)).filter((p) => { try { return fs.existsSync(p); } catch (e) { return false; } });
+  return sides.length === 1 ? sides[0] : path.join(HOME, '.qoder');
 })();
 const CONFIG = process.env.FAIL_STREAK_CONFIG || path.join(CLIENT_ROOT, 'fail-streak-guard.json');
 const STATE_DIR = process.env.FAIL_STREAK_STATE_DIR || path.join(CLIENT_ROOT, 'tmp', 'fail-streak-guard');
 const STATE = path.join(STATE_DIR, 'state.json');
 const LEDGER = path.join(STATE_DIR, 'decisions.log');
 
-function cfg() { try { return JSON.parse(fs.readFileSync(CONFIG, 'utf8')); } catch (e) { return {}; } }
+function cfg() {
+  try { const value = JSON.parse(fs.readFileSync(CONFIG, 'utf8')); return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; }
+  catch (e) { return {}; }
+}
 function ledger(f) {
   // 台账是「守卫到底跑没跑」的唯一证据；传错类型**不能静默丢**（auth-lock 真机第一版就因 `f.join` 抛错
   // 被 catch 吞掉，台账整段为空＝假绿）。所以这里对数组/字符串都容错。
@@ -60,7 +69,7 @@ const TRANSPORT_FAIL = [
   /timed? out waiting/i,
 ];
 // 认证/锁定签名：**不计数**，由 auth-lock 负责。两条判据必须互斥（自测里有断言）。
-const AUTHISH = /password authentication failed|authentication failed|access denied for user|login failed for user|invalid username|ORA-01017|\b1045\b|WRONGPASS|NOAUTH|Too many invalid attempts|ORA-28000|account is (?:locked|expired)|401 Unauthorized|403 Forbidden|账号[\s\S]{0,6}锁/i;
+const AUTHISH = /password authentication failed|authentication failed|access denied for user|login failed for user|invalid username|ORA-01017|\bERROR[\s:-]*1045\b|\b1045\s*\(28000\)|WRONGPASS|NOAUTH|Too many invalid attempts|ORA-28000|account is (?:locked|expired)|401 Unauthorized|403 Forbidden|账号[\s\S]{0,6}锁/i;
 // 平台门禁/用户拒绝：不是目标失败，中性处理
 const GATED = /SKILL_CONFIRMATION_REQUIRED|permission denied by user|user (?:denied|rejected)|denied the tool call/i;
 
@@ -95,12 +104,12 @@ function load() { try { return JSON.parse(fs.readFileSync(STATE, 'utf8')); } cat
 function save(s) { try { fs.mkdirSync(STATE_DIR, { recursive: true }); fs.writeFileSync(STATE, JSON.stringify(s, null, 1)); } catch (e) {} }
 function prune(s, c) {
   const now = Date.now();
-  const ttl = (c.ttlHours || 24) * 3600e3, bttl = (c.blockTtlHours || 24) * 3600e3;
+  const ttl = (c.ttlHours || 24) * 3600e3;
   for (const k of Object.keys(s.entries)) {
     const e = s.entries[k];
     const ts = [e.at || 0].concat(Object.values(e.means || {}).map((m) => m.at || 0));
     const last = Math.max.apply(null, ts);
-    if (e.blocked ? now - last > bttl : now - last > ttl) delete s.entries[k];
+    if (!e.blocked && now - last > ttl) delete s.entries[k];
   }
   return s;
 }
@@ -110,7 +119,7 @@ const meansCount = (e) => Object.keys((e && e.means) || {}).length;
 function parse(payload) {
   if (!payload || typeof payload !== 'object') return null;
   const c = cfg();
-  if (c.disabled) return null;
+  if (c.disabled === true) return null;
   const rawTool = String(payload.tool_name || payload.toolName || '');
   let call = payload.tool_input || payload.toolInput || {};
   if (/^mcp_call$/i.test(rawTool) && call && typeof call === 'object') {
@@ -187,9 +196,10 @@ function status() { const s = prune(load(), cfg()); return { state: STATE, entri
 function clear(arg) {
   const s = load();
   let removed = 0;
-  if (!arg || arg === 'ALL') { removed = Object.keys(s.entries).length; s.entries = {}; }
-  else if (s.entries[arg]) { delete s.entries[arg]; removed = 1; }
-  save(s); ledger('clear|' + (arg || 'ALL') + '|' + removed);
+  if (arg === 'ALL') { removed = Object.keys(s.entries).length; s.entries = {}; }
+  else if (Object.prototype.hasOwnProperty.call(s.entries, arg)) { delete s.entries[arg]; removed = 1; }
+  if (removed) save(s);
+  ledger('clear|' + String(arg || '') + '|' + removed);
   return removed;
 }
 

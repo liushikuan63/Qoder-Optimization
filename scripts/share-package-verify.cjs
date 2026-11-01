@@ -12,7 +12,8 @@
  *   2. 无 .bak / .log / backups/ / node_modules / .export-* / .DS_Store / Thumbs.db
  *   3. 无零字节文件
  *   4. 必需件齐全（VERSION / catalog.json / skills-manifest.json / 规则文档 / README / INDEX）
- *   5. catalog 计数与目录实际数量一致（skill / command / agent / script）
+ *   5. catalog 计数与目录实际数量一致（skill / command / agent / script）；
+ *      shipped 条目的 source 必须存在且为包内相对路径，依赖 id 必须能在 catalog 中找到
  *   6. （可选）规则文档「一、全局开发规则」与 AGENTS.md 正文逐字节一致
  */
 'use strict';
@@ -107,6 +108,15 @@ function verify(pkgDir, agentsPath) {
     bad.length
       ? fails.push(`catalog 计数不符: ` + bad.map((k) => `${k} 标 ${cat.counts[k]} 实 ${actual[k]}`).join(', '))
       : passes.push(`catalog 计数一致 (${Object.entries(actual).map(([k, v]) => k + '=' + v).join(' ')})`);
+    const entries = Array.isArray(cat.entries) ? cat.entries.filter((e) => e && e.status === 'shipped') : [];
+    const unsafe = entries.filter((e) => typeof e.source !== 'string' || !e.source || path.isAbsolute(e.source) || e.source.split('/').includes('..'));
+    const absent = entries.filter((e) => !unsafe.includes(e) && !fs.existsSync(path.join(pkgDir, e.source)));
+    if (unsafe.length || absent.length) {
+      fails.push(`catalog 来源无效/缺失 ${unsafe.length + absent.length} 条: ` + [...unsafe, ...absent].slice(0, 5).map((e) => e.id || e.source).join(', '));
+    } else passes.push(`catalog 来源存在 (${entries.length} 条)`);
+    const ids = new Set((Array.isArray(cat.entries) ? cat.entries : []).map((e) => e && e.id));
+    const dangling = entries.flatMap((e) => (Array.isArray(e.dependencies) ? e.dependencies : []).filter((id) => !ids.has(id)).map((id) => `${e.id}->${id}`));
+    dangling.length ? fails.push(`catalog 依赖悬空 ${dangling.length} 条: ` + dangling.slice(0, 5).join(', ')) : passes.push('catalog 依赖齐全');
   } catch (e) {
     fails.push('catalog.json 解析失败: ' + e.message.split('\n')[0]);
   }
@@ -182,8 +192,22 @@ function selftest() {
   assert(r.status === 2 && r.stdout.includes('catalog 计数不符'), '计数不符应判红');
   console.log('  [负例·计数] exit=' + r.status);
 
+  // 负例 5：计数一致但来源缺失
+  const src = path.join(tmp, 'source'); base(src); mk(src, 'ok-skill', '短描述');
+  fs.writeFileSync(path.join(src, 'catalog.json'), JSON.stringify({ counts: { skill: 1, command: 0, agent: 0, script: 0 }, entries: [{ id: 'skill:ok-skill', status: 'shipped', source: 'skills/not-here' }] }));
+  r = run(src);
+  assert(r.status === 2 && r.stdout.includes('catalog 来源'), '来源缺失应判红');
+  console.log('  [负例·来源] exit=' + r.status);
+
+  // 负例 6：依赖悬空
+  const dep = path.join(tmp, 'dependency'); base(dep); mk(dep, 'ok-skill', '短描述');
+  fs.writeFileSync(path.join(dep, 'catalog.json'), JSON.stringify({ counts: { skill: 1, command: 0, agent: 0, script: 0 }, entries: [{ id: 'skill:ok-skill', status: 'shipped', source: 'skills/ok-skill', dependencies: ['script:missing'] }] }));
+  r = run(dep);
+  assert(r.status === 2 && r.stdout.includes('catalog 依赖悬空'), '依赖悬空应判红');
+  console.log('  [负例·依赖] exit=' + r.status);
+
   fs.rmSync(tmp, { recursive: true, force: true });
-  console.log(bad ? `SELFTEST=FAIL (${bad})` : 'SELFTEST=PASS (1 正例 / 4 负例)');
+  console.log(bad ? `SELFTEST=FAIL (${bad})` : 'SELFTEST=PASS (1 正例 / 6 负例)');
   return bad ? 2 : 0;
 }
 

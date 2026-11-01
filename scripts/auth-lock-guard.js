@@ -13,7 +13,7 @@
 //   ② 认证/锁定类签名才计数；连接被拒/超时＝中性（不计数也不清零）；普通 SQL 语法错＝凭据是通的 → 清零；
 //   ③ 同一目标累计 threshold（默认 3）次即拦，直到人工 `--clear`；出现锁定签名一次即拦；
 //   ④ 目标同一性 = srv / host / user 任一维度相同（宁可多拦一次问用户，也不能再赌一次锁定）。
-// 关闭：~/.qoder/auth-lock-guard.json 写 {"disabled":true}；threshold/dims/ttlHours/blockTtlHours 同文件可配
+// 关闭：~/.qoder/auth-lock-guard.json 写 {"disabled":true}；threshold/dims/ttlHours 同文件可配
 // 台账与状态：~/.qoder/tmp/auth-lock-guard/{decisions.log,state.json}
 // 自测：node auth-lock-guard.test.js（24 组红/对照双向；沙箱用 AUTH_LOCK_STATE_DIR 隔离）
 'use strict';
@@ -33,8 +33,11 @@ function readStdin() {
 const argv = process.argv.slice(2);
 if (argv.includes('--status')) { out(core.status()); process.exit(0); }
 if (argv.includes('--clear')) {
-  const i = argv.indexOf('--clear'), arg = argv[i + 1];
-  out({ cleared: core.clear(!arg || arg.startsWith('--') ? 'ALL' : arg) });
+  if (argv.length !== 2 || argv[0] !== '--clear' || !argv[1] || argv[1].startsWith('--')) {
+    console.error('用法: --clear <精确目标键|ALL>');
+    process.exit(2);
+  }
+  out({ cleared: core.clear(argv[1]) });
   process.exit(0);
 }
 

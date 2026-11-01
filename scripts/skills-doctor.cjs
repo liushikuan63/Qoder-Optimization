@@ -110,19 +110,19 @@ function readCited(o) {
 
 function analyze(o) {
   const cnRoot = o.CN, qRoot = o.Q;
-  if (!fs.existsSync(qRoot)) throw new Error('missing source root: ' + qRoot);
+  const hasQ = fs.existsSync(qRoot), hasCn = fs.existsSync(cnRoot);
+  if (!hasQ && !hasCn) throw new Error('no installed skill roots');
+  const singleSide = hasQ && hasCn ? null : hasQ ? 'Q' : 'CN';
   const cn = listDirs(cnRoot), q = listDirs(qRoot);
   const knownQ = new Set(q), knownC = new Set(cn);
   const cited = [...readCited(o)].filter((n) => knownQ.has(n));
-  // Default = full two-way parity (user 2026-10-07 chose "both sides get the union").
-  // --cited-only falls back to the narrower gate: only skills that rules/AGENTS.md cite must exist in CN.
-  const parity = o.parity !== false;
+  const parity = !singleSide && o.parity !== false;
   const r = {
     counts: { cn: cn.length, q: q.length },
-    parity,
-    missingInCn: parity ? q.filter((n) => !knownC.has(n)) : cited.filter((n) => !knownC.has(n)),
+    parity, singleSide,
+    missingInCn: singleSide ? [] : parity ? q.filter((n) => !knownC.has(n)) : cited.filter((n) => !knownC.has(n)),
     missingInIntl: parity ? cn.filter((n) => !knownQ.has(n)) : [],
-    citedMissing: cited.filter((n) => !knownC.has(n)),
+    citedMissing: singleSide ? [] : cited.filter((n) => !knownC.has(n)),
     citedTotal: cited.length,
     drift: [], descLong: [], descClues: [], colonHazard: [], dangling: [], missingSibling: [], siblingSeeAlso: [], bodyLong: [], noSkillMd: [], bakLeftover: [], needsDeps: [],
   };
@@ -140,7 +140,10 @@ function analyze(o) {
     for (const n of names) {
       const dir = path.join(root, n);
       const mdPath = path.join(dir, 'SKILL.md');
-      if (!fs.existsSync(mdPath)) continue;
+      if (!fs.existsSync(mdPath)) {
+        if (side === 'CN') r.noSkillMd.push(side + '/' + n);
+        continue;
+      }
       const md = fs.readFileSync(mdPath, 'utf8');
       const p = parse(md);
       const tag = side + '/' + n;
@@ -180,16 +183,17 @@ function analyze(o) {
 // long descriptions are reported as INFO: hand-trimming upstream packs forks them from source.
 const CN_ONLY_GATE = ['DESC-LONG', 'YAML-HAZARD'];
 const cnGate = (list) => list.filter((s) => s.startsWith('CN/'));
+const qualityGate = (r, list) => r.singleSide ? list.filter(s => s.startsWith(r.singleSide + '/')) : cnGate(list);
 
 function isRed(r) {
   return r.missingInCn.length + r.missingInIntl.length + r.drift.length +
-    cnGate(r.descLong).length + cnGate(r.colonHazard).length + r.descClues.length +
+    qualityGate(r, r.descLong).length + qualityGate(r, r.colonHazard).length + r.descClues.length +
     r.dangling.length + r.missingSibling.length + r.noSkillMd.length > 0;
 }
 
 function report(r) {
   const L = [];
-  L.push('SKILLS-DOCTOR  CN=' + r.counts.cn + '  INTL=' + r.counts.q + '  mode=' + (r.parity ? 'FULL-PARITY' : 'CITED-ONLY') + '  cited-in-rules=' + r.citedTotal);
+  L.push('SKILLS-DOCTOR  CN=' + r.counts.cn + '  INTL=' + r.counts.q + '  mode=' + (r.singleSide ? 'SINGLE-' + r.singleSide : r.parity ? 'FULL-PARITY' : 'CITED-ONLY') + '  cited-in-rules=' + r.citedTotal);
   const rows = [
     ['MISSING-IN-CN', r.missingInCn, r.parity ? 'skill exists only on the international side (full parity)' : 'rules cite a skill the CN client cannot load'],
     ['MISSING-IN-INTL', r.missingInIntl, 'skill exists only on the CN side - the international client cannot invoke it'],
@@ -203,7 +207,7 @@ function report(r) {
   ];
   for (const [k, v, why] of rows) {
     const gated = CN_ONLY_GATE.includes(k);
-    const shown = gated ? cnGate(v) : v;
+    const shown = gated ? qualityGate(r, v) : v;
     L.push((shown.length ? 'RED   ' : 'OK    ') + k + '=' + shown.length + '  # ' + why);
     shown.forEach((s) => L.push('        - ' + s));
     if (gated && v.length !== shown.length) L.push('INFO  ' + k + ' (other client only, not gated)=' + (v.length - shown.length));
@@ -325,7 +329,6 @@ function main() {
   const argv = process.argv.slice(2);
   if (argv[0] === '--selftest') process.exit(selftest());
   const o = { ...DEFAULTS, parity: !argv.includes('--cited-only') };
-  if (!fs.existsSync(o.CN)) { console.log('PRECOND: CN root absent (' + o.CN + ') - nothing to sync into'); fs.mkdirSync(o.CN, { recursive: true }); }
   let r;
   try { r = analyze(o); } catch (e) { console.log('ERROR ' + e.message); process.exit(2); }
   if (argv.includes('apply-sync')) {

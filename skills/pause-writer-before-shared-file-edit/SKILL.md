@@ -24,7 +24,7 @@ stat -c '%Y %s' <file>   # Linux/Git Bash
 # 或 PowerShell: (Get-Item <file>).LastWriteTime; (Get-Item <file>).Length
 ```
 
-若 `mtime` 在最近 5 分钟内且非本会话改动，或字节数与预期不符（如本轮剪到 298 字，3 分钟后变回 842），说明有别的写入方在动。**停下，不要继续编辑**。
+若 `mtime` 在最近 5 分钟内且非本会话改动，或字节数与预期不符（如本轮剪到 298 字，3 分钟后变回 842），说明有别的写入方在动。**停下，不要继续编辑**。`mtime` 与字节数只是线索，不能单独证明改动归属；要结合哈希、内容差异和本轮自己的写入记录判断。
 
 ### 2. 暂停写入方
 
@@ -58,7 +58,7 @@ sha256sum <file>
 
 ### 5. 恢复写入方
 
-编辑完成并确认无冲突后，恢复 self-evolution：
+编辑完成并确认无冲突后，恢复 self-evolution。**只恢复本轮由本技能亲自暂停的写入方**；若暂停状态不是本轮建立、或无法确认归属，保持暂停并报告，不得擅自 resume。
 
 ```bash
 node ~/.qoder/skills/self-evolution/scripts/evolution.js resume

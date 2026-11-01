@@ -45,7 +45,7 @@ A="/d/Program Files/<App>/resources/app.asar"
 node <patch-hygiene>/scripts/patch-hygiene.cjs survey "$A"
 ```
 
-live 与同目录 `*.bak-*` 的 SHA1 全等、marker 命中 0 ⇒ 出厂二进制未被改动，缺陷不在"补丁打歪了"这条线上（实测一份 121MB 包与两份 `.bak` 三码相同，直接省掉一轮怀疑）。**`.bak` 不一定是原版**，该技能已把这点写成判据，别自己拿 md5 比一份 `.bak` 就当 pristine。
+live 与同目录 `*.bak-*` 的 SHA1 全等、marker 命中 0，只能说明两者一致且当前未见已知补丁标记，**不能单独证明出厂原版**：如果两份都是改过的副本，结论会被带偏。需要再与官方安装包/发布哈希或独立来源比对；拿不出独立 pristine 时，只写"未发现补丁痕迹"，不写"出厂未被改动"。
 
 ### 1. 定位：搜字面量，不搜标识符
 

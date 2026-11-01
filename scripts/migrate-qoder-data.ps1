@@ -36,6 +36,7 @@ $units = @(
   @{ Side = 'qoder-cn'; Dir = 'logs'     },
   @{ Side = 'qoder-cn'; Dir = 'projects' }
 )
+$allowedDrives = @('D', 'E', 'F', 'G', 'H', 'I')
 function Src-Path($u) { Join-Path $env:USERPROFILE (".{0}\{1}" -f $u.Side, $u.Dir) }
 function Bak-Path($u) { (Src-Path $u) + '.bak-migrating' }
 function Dst-Path($u, $drive) { "{0}:\qoder-data\{1}\{2}" -f $drive, $u.Side, $u.Dir }
@@ -52,7 +53,7 @@ function Get-Stats($p) {
 # ---------------- rollback ----------------
 if ($Undo) {
   Say "=== rollback: remove junctions, restore *.bak-migrating ==="
-  foreach ($d in @('D', 'E', 'F', 'G')) {
+  foreach ($d in $allowedDrives) {
     foreach ($u in $units) {
       $dst = Dst-Path $u $d
       if (-not (Test-Path -LiteralPath $dst)) { continue }
@@ -74,7 +75,7 @@ if ($Undo) {
 # ---------------- preflight ----------------
 if (-not $To) { Fail "missing -To <drive letter>, e.g. -To D" }
 $drive = ($To -replace '[:\\]', '').ToUpper()
-if ($drive -notin @('D', 'E', 'F', 'G', 'H', 'I')) { Fail "refusing target drive '$drive' (A/B/C are system or removable)" }
+if ($drive -notin $allowedDrives) { Fail "refusing target drive '$drive' (A/B/C are system or removable)" }
 $vol = Get-PSDrive -Name $drive -ErrorAction SilentlyContinue
 if (-not $vol) { Fail "drive ${drive}: not found" }
 
@@ -145,7 +146,6 @@ foreach ($p in $plan) {
 
 Say ""
 Say ("=== finished: {0} migrated, {1} skipped/failed ===" -f $done, $bad)
-Say "Next: start Qoder and confirm history/logs look normal; after a few good days run:"
-Say "      powershell -NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -To $drive -Apply -Cleanup"
+Say "Next: start Qoder and confirm history/logs look normal; after a few good days, manually delete the *.bak-migrating copies (verify them first)."
 Say "Rollback any time:      ... -File `"$PSCommandPath`" -Undo -Apply"
 Say "log: $log"

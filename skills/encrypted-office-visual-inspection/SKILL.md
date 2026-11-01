@@ -138,7 +138,7 @@ powershell -NoProfile -Command '$e=New-Object -ComObject Excel.Application; $e.W
 
 ### S2 复制进项目授权目录再程序化读
 
-Office MCP 对项目目录外的路径一律拒绝。复制进项目内临时目录再读：
+Office MCP 对项目目录外的路径一律拒绝。仅对**用户已授权读取**的文件，复制进项目内临时目录再读；复制前确认文件敏感性，不得用这一步绕过平台对目录访问的审批。复制后按敏感文件管理：
 
 ```
 Copy-Item -LiteralPath "<S1得到的路径>" -Destination "<项目目录>\.tmp-doc\<文件名>" -Force

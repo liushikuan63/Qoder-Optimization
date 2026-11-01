@@ -1,6 +1,6 @@
 ---
 name: python-dataviz
-description: "Professional data visualization using Python (matplotlib, seaborn, plotly)。中文触发：Python 脚本 FastAPI 异步 类型注解 图表 可视化 matplotlib"
+description: "Professional data visualization using Python (matplotlib, seaborn, plotly)。中文触发：Python 图表、数据可视化、matplotlib、seaborn、plotly"
 ---
 
 # Python Data Visualization

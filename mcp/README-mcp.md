@@ -10,18 +10,21 @@
 
 > 很多人只需要 `computer-use` 插件就能做桌面自动化；`cua-driver` 是可选增强（daemon + 鼠标守卫），没有二进制时不要硬配。
 
-## 二、一键接入（推荐）
+## 二、本地安装助手
+
+本节适用于由用户手动管理本地配置文件的宿主，不代表 Qoder Desktop 的连接已被批准或装载。Agent 在 Qoder Desktop 中须使用平台管理通道及其确认流程，不得借本脚本直接写配置绕过审批。
 
 双击 `install-mcp.cmd`，或命令行：
 
 ```bat
-install-mcp.cmd --dry-run      :: 只预览，不改配置
+install-mcp.cmd --dry-run      :: 只预览，不运行组件/npm，不改配置
 install-mcp.cmd                :: 装 dbhub + 合并 context7/dbhub（已装 cua-driver 时一并注册）
-install-mcp.cmd --skip-cua     :: 不碰 cua-driver
+install-mcp.cmd --skip-cua     :: 不探测、安装或注册 cua-driver
 install-mcp.cmd --wire-guard   :: 同时接线鼠标抢占守卫（需先把 scripts/ 复制到 ~/.qoder/scripts/）
 ```
 
 - 幂等：已存在的条目不会覆盖；改 `settings.json` 前自动备份到 `<配置目录>/.backups/`。
+- 无效参数、损坏 JSON、非对象的配置根或 `mcpServers` 字段会在安装及写入前拒绝，保留原文件。
 - 生成 `dbhub.toml` 模板（连接串自己填，**只写本机**）。
 - 不写入任何凭据。
 
@@ -29,9 +32,13 @@ install-mcp.cmd --wire-guard   :: 同时接线鼠标抢占守卫（需先把 scr
 
 - **cua-driver**：`1) 用包内离线版本` / `2) 联网下载最新版` / `3) 跳过` / `4) 仅注册已安装的版本`。
 - **dbhub**：`1) 联网安装最新版` / `2) 用包内 tgz`（依赖仍需网络）/ `3) 跳过`。
+- 显式选择 `--dbhub tgz` 时，离线目录必须有唯一 tgz 和匹配的 SHA256；缺包、缺校验或字节不符会报错，不自动转为联网安装。预览也会校验该 tgz，但不执行 npm。
+- npm 由当前 Node 直接调用 `npm-cli.js`，参数不经过 shell；安装失败或入口文件缺失时退出非零，不写入 MCP 配置。
+- **cua-driver 安装**必须显式给 `--install-dir` 指定**非系统盘**本地空目录；不再默认回退到 `%LOCALAPPDATA%`。已有安装或非空目录不覆盖，缺目录、系统盘、网络盘路径、校验失败、归档缺可执行文件或版本不一致都会失败退出，且不写 `settings.json`。
+- 随包与官方 `cua-driver` 资产仅支持 **Windows x64**；其他平台会前置拒绝，不下载也不注册。
 - 核心 ZIP 不携带离线二进制。需要离线安装时，另取同版本 `Qoder-Optimization-<版本>-offline.zip` 及其 `.sha256`，校验后与核心包解压到同一目录；资产会落在 `mcp/offline/`。包含 cua-driver 0.38.0（MIT，含 `SHA256SUMS` 与许可证）和 dbhub tgz，安装前仍会校验组件 SHA256。
-- 联网安装走 GitHub release（`trycua/cua`），下载后同样校验 SHA256；GitHub 不通时直接选离线。
-- 无控制台 / 自动化：`install-mcp.cmd --yes --cua offline --dbhub skip --wire-guard`。
+- 联网安装走 GitHub release（`trycua/cua`），下载后同样校验 SHA256；GitHub 不通时直接选离线。联网失败不再静默跳过。
+- 无控制台 / 自动化示例：`install-mcp.cmd --yes --cua register --dbhub skip`（仅注册已装版本）；离线安装：`--yes --cua offline --install-dir D:\Program Files\Cua\cua-driver\bin --dbhub skip`。
 - 离线版装完会问「是否设置开机自启（启动文件夹 VBS）」；不自启就每次手动 `cua-driver serve`。
 
 ## 三、cua-driver（可选，桌面自动化增强）

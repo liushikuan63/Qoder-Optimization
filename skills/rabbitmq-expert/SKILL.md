@@ -1159,16 +1159,17 @@ channel.queue_declare(
 # ❌ DON'T: No connection recovery
 connection = pika.BlockingConnection(params)
 
-# ✅ DO: Implement retry logic
+# ✅ DO: retry transport failures only; authentication failures must stop immediately
 def create_connection():
-    retries = 0
-    while retries < 5:
+    for attempt in range(1, 4):
         try:
             return pika.BlockingConnection(params)
-        except Exception as e:
-            retries += 1
-            time.sleep(2 ** retries)
-    raise Exception("Failed to connect")
+        except pika.exceptions.ProbableAuthenticationError:
+            raise  # 认证失败立即停手：不重试、不换连接方式（避免把账号锁死）
+        except (pika.exceptions.AMQPConnectionError, OSError):
+            if attempt == 3:
+                raise
+            time.sleep(2 ** attempt)
 ```
 
 ---
@@ -1387,11 +1388,10 @@ class TestMessageFlow:
         pytest.skip("Requires manual broker restart")
 
     def test_consumer_prefetch(self, rabbitmq):
-        """Test prefetch limits unacked messages"""
+        """Test prefetch limits unacked messages (basic_consume, not basic_get)"""
         channel = rabbitmq
         channel.basic_qos(prefetch_count=2)
 
-        # Publish 5 messages
         for i in range(5):
             channel.basic_publish(
                 exchange='',
@@ -1399,19 +1399,27 @@ class TestMessageFlow:
                 body=f'msg-{i}'.encode()
             )
 
-        # Consumer should only get 2 at a time
-        received = []
-        for _ in range(2):
-            method, _, body = channel.basic_get('test_queue')
-            if method:
-                received.append(body)
-                # Don't ack yet
+        # basic_get ignores prefetch; use a real consumer to exercise the limit.
+        received, tags = [], []
+        def on_message(ch, method, properties, body):
+            received.append(body)
+            tags.append(method.delivery_tag)  # Deliberately do not ack yet.
 
-        # Third get should work since basic_get doesn't respect prefetch
-        # But basic_consume would respect it
+        consumer_tag = channel.basic_consume(
+            queue='test_queue', on_message_callback=on_message, auto_ack=False
+        )
+        deadline = time.time() + 5
+        while len(received) < 2 and time.time() < deadline:
+            channel.connection.process_data_events(time_limit=0.2)
         assert len(received) == 2
 
-        # Cleanup - ack remaining messages
+        # 2 delivered but unacked; the remaining 3 stay ready because prefetch=2 is exhausted.
+        state = channel.queue_declare(queue='test_queue', passive=True)
+        assert state.method.message_count == 3
+
+        channel.cancel(consumer_tag)
+        for tag in tags:
+            channel.basic_ack(delivery_tag=tag)
         while True:
             method, _, _ = channel.basic_get('test_queue')
             if not method:

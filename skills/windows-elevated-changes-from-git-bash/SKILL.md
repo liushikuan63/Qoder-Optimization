@@ -35,7 +35,7 @@ when_to_use: "需要管理员权限写 Windows（HKLM 注册表值 / 服务 Imag
 4. 从 bash 只调启动器。
 5. 看日志判成败，**不看** bash 侧 stdout（提权进程的输出到不了这里）。
 6. 独立复验：另开一条只读命令重读值 / `Get-Service` / `sc.exe qc <服务>` / 进程表。脚本自述的"已改成 X"不算证据。
-7. 服务类改动必须重启才生效：`Stop-Service -Force` → 短暂等待 → `Start-Service` → 读回 `Status`；只改值不重启等于没改。
+7. 服务类改动必须重启才生效，但**先拿到用户对服务启停的明确确认**；优先用 `Stop-Service`（不要默认 `-Force`，它会连带停止依赖服务）→ 短暂等待 → `Start-Service` → 读回 `Status`；只改值不重启等于没改。
 
 ## 为什么必须走日志文件
 
@@ -91,7 +91,8 @@ Say ('AFTER ImagePath = ' + $check)
 Say ('quotes preserved = ' + ($check -like '"*"'))
 
 # 5. a value change only takes effect after the service restarts
-Stop-Service -Name '<Service Name>' -Force -ErrorAction Continue
+# Stop-Service 不加 -Force：-Force 会连带停止依赖服务。执行前须已取得用户对服务启停的明确确认。
+Stop-Service -Name '<Service Name>' -ErrorAction Stop
 Start-Sleep -Seconds 2
 Start-Service -Name '<Service Name>'
 Start-Sleep -Seconds 4
@@ -128,7 +129,7 @@ if (Test-Path $log) { '--- elevated log ---'; Get-Content $log } else { 'no elev
 
 | 现象 | 含义 | 处置 |
 | --- | --- | --- |
-| `no elevated log produced` | UAC 被点"否"或授权窗口超时 | 重述改动目的与回滚，再弹一次；**不要**记成"脚本失败" |
+| `no elevated log produced` | UAC 被点"否"或授权窗口超时 | **停止本次操作并如实报告**；不得自动再弹 UAC。只有用户明确要求重试时才可再弹，并说明只为哪一处；**不要**记成"脚本失败" |
 | `LAUNCH-FAILED: ...` | 启动阶段抛异常（`-File` 路径不存在、`-ArgumentList` 不是数组） | 先 `Test-Path` 载荷路径 |
 | `exitcode=0` 但日志缺结论行 | cmdlet 非终止错误不会把退出码变成 1 | 按未成功处理；结论行缺失就是没做成 |
 | 日志有 `BEGIN` 无 `END` | 载荷中途遇终止错误 | 把出错行 `Say` 出来再定位；bash 侧拿不到提权进程的 stderr |
@@ -137,7 +138,8 @@ if (Test-Path $log) { '--- elevated log ---'; Get-Content $log } else { 'no elev
 
 ## 红线
 
-- 核心 / 生产服务的启停与配置：先给方案与回滚步骤，拿到用户确认再动。
+- 核心 / 生产服务的启停与配置：先给方案与回滚步骤，拿到用户确认再动；不要用 `-Force` 停服务。
+- UAC 被拒绝或超时：停止本次操作并报告，不得自动重新弹窗。
 - 只写目标值，**不删键**；`.reg` 备份与日志留在带时间戳工作目录，交回人工删。
 - 备份没落盘（`Test-Path` False）就中止，不带病继续。
 - 凭据、内网地址不写进日志——日志会被整份回读进上下文。

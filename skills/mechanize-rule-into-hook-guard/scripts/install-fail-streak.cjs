@@ -2,9 +2,11 @@
 // install-fail-streak.cjs —— 把 fail-streak 守卫接到现役强制层（流水线第 9 步的执行器）
 //
 // 默认 **dry-run**：只打印将要发生的改动，一个字节都不写。加 `--apply` 才写。
-// 写入顺序固定为「先备份 → 写临时文件 → node --check → 覆盖 → 复验幂等」，任一步失败即中止该侧。
-// 幂等：委托段带 `// <fail-streak-delegation>` 标记，settings.json 按命令里是否已含
-// `fail-streak-guard.js` 判断——重复执行不会产生第二份（第二份＝同一判据跑两遍＝计数翻倍＝误拦）。
+// 写入顺序固定为「先备份（且必须给出可用备份文件）→ 写临时文件 → node --check → 覆盖 → 复验幂等」；
+// 任一步失败即中止该侧，不再继续写后续文件（避免半套接线）。
+// 幂等：委托段必须同时有开/闭标记且指向 fail-streak-core 才算已安装；settings.json 必须是
+// 单条、路径/matcher/timeout 全部匹配的条目才算已接线——不一致一律拒绝，不静默当作完成。
+// 命令中的 Node 与守卫路径都加引号，路径含空格时也能被宿主正确解析。
 //
 // 用法：
 //   node install-fail-streak.cjs                       体检两侧（~/.qoder 与 ~/.qoder-cn），只打印计划
@@ -80,7 +82,14 @@ function hostPlan(root) {
   const target = path.join(root, 'scripts', HOST);
   if (!fs.existsSync(target)) return { target, action: 'abort', why: '宿主守卫不存在，Pre 半边无处可挂' };
   const before = fs.readFileSync(target, 'utf8');
-  if (before.includes(MARK_OPEN)) return { target, action: 'skip', why: '委托段已存在（幂等跳过；要重装先删掉标记之间那段）', before };
+  const open = before.split(MARK_OPEN).length - 1, close = before.split(MARK_CLOSE).length - 1;
+  if (open || close) {
+    const start = before.indexOf(MARK_OPEN), end = before.indexOf(MARK_CLOSE);
+    const valid = open === 1 && close === 1 && start >= 0 && end > start
+      && before.slice(start, end).includes("require('./fail-streak-core.js').preCheck");
+    if (valid) return { target, action: 'skip', why: '委托段完整且指向 fail-streak-core（幂等跳过）', before };
+    return { target, action: 'abort', why: `标记不完整或委托内容不符（open=${open} close=${close}）——拒绝当作已安装，请人工核对后再决定`, before };
+  }
   const iAuth = before.indexOf('auth-lock-pre-error');
   let iMf = before.indexOf('// 记忆优先门禁');
   if (iMf < 0) iMf = before.indexOf('const mfVerdict');
@@ -90,6 +99,14 @@ function hostPlan(root) {
   const lineStart = before.lastIndexOf('\n', iMf) + 1;
   const after = before.slice(0, lineStart) + DELEGATION + '\n' + before.slice(lineStart);
   return { target, action: 'insert', before, after, order: { authLock: iAuth, insertAt: lineStart, memoryFirst: iMf }, why: '插在 auth-lock 委托之后、记忆优先提醒之前' };
+}
+
+function guardPathFrom(command) {
+  const text = String(command || '');
+  const quoted = [...text.matchAll(/"([^"]+)"/g)].map((m) => m[1]).find((p) => /fail-streak-guard\.js$/i.test(p));
+  if (quoted) return quoted;
+  const m = text.match(/(?:[A-Za-z]:)?[^\s"']*fail-streak-guard\.js/i);
+  return m ? m[0] : null;
 }
 
 function settingsPlan(root, opts) {
@@ -105,9 +122,15 @@ function settingsPlan(root, opts) {
   // 和现役条目（一律写真源路径）不一致 —— sync-global-config.sh --check 会把它判成接线漂移。
   let scriptsDir = path.join(root, 'scripts');
   try { scriptsDir = fs.realpathSync(scriptsDir); } catch (e) {}
-  const command = `${slash(opts.node)} ${slash(path.join(scriptsDir, GUARD))}`;
-  if (post.some((en) => (en.hooks || []).some((h) => /fail-streak-guard\.js/.test(String(h.command || ''))))) {
-    return { target, action: 'skip', why: 'PostToolUse 已有 fail-streak 条目（幂等）', before, entriesBefore: post.length };
+  const expectedGuard = path.join(scriptsDir, GUARD);
+  const command = `"${slash(opts.node)}" "${slash(expectedGuard)}"`;
+  const existing = post.filter((en) => (en.hooks || []).some((h) => /fail-streak-guard\.js/.test(String(h.command || ''))));
+  if (existing.length) {
+    const match = existing.length === 1 && (existing[0].hooks || []).length === 1
+      && existing[0].matcher === opts.matcher && existing[0].hooks[0].timeout === opts.timeout
+      && (() => { const p = guardPathFrom(existing[0].hooks[0].command); return p && path.resolve(p).toLowerCase() === path.resolve(expectedGuard).toLowerCase(); })();
+    if (match) return { target, action: 'skip', why: 'PostToolUse 已有与期望一致的 fail-streak 条目（幂等）', before, entriesBefore: post.length };
+    return { target, action: 'abort', why: `已有 ${existing.length} 条 fail-streak 条目但与期望不一致（路径/matcher/timeout）——拒绝重复接线，请人工核对`, before, entriesBefore: post.length };
   }
   const next = JSON.parse(before);
   next.hooks = next.hooks || {};
@@ -131,7 +154,9 @@ function backup(target, opts, log) {
   if (fs.existsSync(opts.backup)) {
     const r = spawnSync(process.execPath, [opts.backup, target], { encoding: 'utf8', timeout: 30000 });
     if (r.status !== 0) throw new Error('backup-file.js 失败（' + r.status + '）：' + String(r.stderr || r.stdout).slice(0, 200));
-    return (String(r.stdout || '').match(/\[备份\]\s*(.+)/) || [, '<未知>'])[1].trim();
+    const reported = (String(r.stdout || '').match(/\[备份\]\s*(.+)/) || [, ''])[1].trim();
+    if (!reported || !fs.existsSync(reported) || !fs.statSync(reported).isFile()) throw new Error('backup-file.js 未给出可用的备份文件，拒绝写入');
+    return reported;
   }
   const alt = target + '.bak-' + new Date().toISOString().replace(/[:.]/g, '-');
   fs.copyFileSync(target, alt);
@@ -144,23 +169,30 @@ function applyPlan(plan, opts) {
   if (plan.aborts.length) { out.errors.push('中止：' + plan.aborts.map((r) => path.basename(r.target) + ' → ' + r.why).join(' | ')); return out; }
   for (const row of plan.writes) {
     const log = [];
+    let tmp = null;
     try {
       // 临时文件必须**保住原扩展名**：`node --check x.js.fail-streak-new` 会因扩展名未知直接抛
       // ERR_UNKNOWN_FILE_EXTENSION，看起来像"语法坏了"，其实是在校验器自己身上。
-      const tmp = path.join(path.dirname(row.target), '.fail-streak-tmp-' + path.basename(row.target));
+      tmp = path.join(path.dirname(row.target), '.fail-streak-tmp-' + path.basename(row.target));
       fs.writeFileSync(tmp, row.after);
       if (/\.(js|cjs|mjs)$/.test(row.target)) {
         const chk = spawnSync(process.execPath, ['--check', tmp], { encoding: 'utf8', timeout: 30000 });
-        if (chk.status !== 0) { fs.rmSync(tmp, { force: true }); throw new Error('语法校验未过，已放弃写入：' + String(chk.stderr || '').slice(0, 200)); }
+        if (chk.status !== 0) throw new Error('语法校验未过，已放弃写入：' + String(chk.stderr || '').slice(0, 200));
       } else {
         JSON.parse(row.after);
       }
       const bak = backup(row.target, opts, log);
       if (bak) out.backups.push(bak);
       fs.renameSync(tmp, row.target);
+      tmp = null;
       out.done.push(row.action + ' → ' + row.target);
-    } catch (e) { out.errors.push(row.target + ' :: ' + e.message); }
+    } catch (e) {
+      out.errors.push(row.target + ' :: ' + e.message);
+    } finally {
+      if (tmp) { try { fs.rmSync(tmp, { force: true }); } catch (e) {} }
+    }
     out.done.push(...log);
+    if (out.errors.length) break;
   }
   return out;
 }
@@ -290,4 +322,4 @@ function main() {
   return rc;
 }
 if (require.main === module) process.exit(main());
-module.exports = { planFor, hostPlan, settingsPlan, filePlans, DELEGATION, MARK_OPEN, MARK_CLOSE };
+module.exports = { planFor, hostPlan, settingsPlan, filePlans, applyPlan, DELEGATION, MARK_OPEN, MARK_CLOSE };

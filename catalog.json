@@ -2,9 +2,9 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.0.10"
+  "version": "0.0.11"
  },
- "generated": "2026-10-31",
+ "generated": "2026-11-01",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 125,
@@ -75,7 +75,7 @@
    "name": "byok-model-retry",
    "status": "shipped",
    "tier": "library",
-   "description": "\"模型请求失败/重试诊断：401/403/429、配置/网络/协议/流式终包/代理对照；默认只读、鉴权失败不重试。Qoder BYOK outerProvider/customModels、general.maxAttempts 次数可配、间隔不可配、QODER_DISABLE_MODEL_RETRY_PAYLOAD_GUARD/QODER_CONFIG_MODEL_RETRY_AFTER_PAYLOAD",
+   "description": "模型请求失败/重试诊断：401/403/429、配置/网络/协议/流式终包/代理对照；默认只读、鉴权失败不重试。Qoder BYOK outerProvider/customModels、general.maxAttempts 次数可配、间隔不可配、QODER_DISABLE_MODEL_RETRY_PAYLOAD_GUARD/QODER_CONFIG_MODEL_RETRY_AFTER_PAYLOAD",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -215,7 +215,7 @@
    "name": "dsh-session-format-debug",
    "status": "shipped",
    "tier": "library",
-   "description": "\"取证 dsh（DeepSeek Harness，~/.dsh）会话轮次反复失败的固定流程，报错特征为 format v4 message requires a producer-owned source kind。六步——从 ~/.dsh/logs 锁定失败 session id；按 zstd 帧魔数 28 B5 2F FD 逐帧解 session.v4.jsonl.zstd；按事件类型统计 source.kind 并用两遍独立扫描对账覆盖度；从 app.asar 现抽校验器跑消息形状矩阵",
+   "description": "取证 dsh（DeepSeek Harness，~/.dsh）会话轮次反复失败的固定流程，报错特征为 format v4 message requires a producer-owned source kind。六步——从 ~/.dsh/logs 锁定失败 session id；按 zstd 帧魔数 28 B5 2F FD 逐帧解 session.v4.jsonl.zstd；按事件类型统计 source.kind 并用两遍独立扫描对账覆盖度；从 app.asar 现抽校验器跑消息形状矩阵",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -607,7 +607,7 @@
    "name": "memory-entry-update",
    "status": "shipped",
    "tier": "library",
-   "description": "更新单条已有长期记忆的可复现流程：Read 正文与 MEMORY.md 两个载体 → 各跑 backup-file.js → Edit 三处成对改动（正文 / frontmatter description / 索引行）→ 四条能失败的验收（含周检 0 告警，[INFO] 不算告警）→ 区分已验证与未验证。触发词：更新记忆、记忆索引同步、改 MEMORY.md、记忆维护。不用于：新建记忆（self-evolution）、链接与凭据审计。",
+   "description": "在用户明确要求更新特定长期信息时，同步已有记忆正文、description 与 MEMORY.md 索引并验证。触发：更新记忆、记忆索引同步、记忆维护。只读审阅仅给差异；不用于新增条目、临时进度、排错配方或代码结构。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -621,7 +621,7 @@
    "name": "merge-inbound-qoder-package",
    "status": "shipped",
    "tier": "library",
-   "description": "将外部 Qoder 分享包、回流包或配置包安全并入本机真源：非系统盘隔离解压、与本机基线做逐文件哈希三分类、卫生与敏感信息预检、realpath/junction 归属判位、dry-run、backup-file.js、逐文件定点合并、三方冲突保留本机独有内容、索引与全局冒烟收口。触发词：回流包、入站分享包、并入本机、三方冲突、对方包丢能力；不用于首次安装未知第三方包（先走 inspect-untrusted-tool-package）或普通技能精简。",
+   "description": "审阅或按本轮批准范围合并 Qoder 分享包、回流包和配置包：隔离解压、哈希三分类、敏感信息预检、真源定位、逐文件合并与回滚。触发：回流包、入站分享包、并入本机、三方冲突、对方包丢能力；只改包内不写现役。未知第三方包先审查，不直接安装；不用于普通技能精简。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -943,7 +943,7 @@
    "name": "python-dataviz",
    "status": "shipped",
    "tier": "library",
-   "description": "Professional data visualization using Python (matplotlib, seaborn, plotly)。中文触发：Python 脚本 FastAPI 异步 类型注解 图表 可视化 matplotlib",
+   "description": "Professional data visualization using Python (matplotlib, seaborn, plotly)。中文触发：Python 图表、数据可视化、matplotlib、seaborn、plotly",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1111,7 +1111,7 @@
    "name": "redis-observability",
    "status": "shipped",
    "tier": "library",
-   "description": "\"Redis observability guidance — which metrics to monitor (memory, connections, hit ratio, ops/sec, rejected connections), which built-in commands to reach for during incident triage (SLOWLOG, INFO, MEMORY DOCTOR, CLIENT LIST, FT.PROFILE), and when to use the Redis Insight GUI。",
+   "description": "Redis observability guidance — which metrics to monitor (memory, connections, hit ratio, ops/sec, rejected connections), which built-in commands to reach for during incident triage (SLOWLOG, INFO, MEMORY DOCTOR, CLIENT LIST, FT.PROFILE), and when to use the Redis Insight GUI。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1223,7 +1223,7 @@
    "name": "setup-windows-selfhosted-runner",
    "status": "shipped",
    "tier": "library",
-   "description": "\"在 Windows 上安装、注册、验证并持久化 GitHub Actions 自托管 runner 的完整链与九类实测坑避坑顺序。用于要装 self-hosted runner、把门禁挪到本机跑以省 GitHub Free 的 2000 分钟/月、job 在含空格的 runner 目录下秒红（/usr/bin/bash 报 D:\\\\Program 无此文件）、runner 随会话结束即停或开机弹常驻终端、硬杀 listener 后报 A session for this runner already exists。",
+   "description": "在 Windows 上安装、注册、验证并持久化 GitHub Actions 自托管 runner 的完整链与九类实测坑避坑顺序。用于要装 self-hosted runner、把门禁挪到本机跑以省 GitHub Free 的 2000 分钟/月、job 在含空格的 runner 目录下秒红（/usr/bin/bash 报 D:\\Program 无此文件）、runner 随会话结束即停或开机弹常驻终端、硬杀 listener 后报 A session for this runner already exists。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -2383,7 +2383,9 @@
    "source": "scripts/global-config-guard.js",
    "dependencies": [
     "script:client-root.js",
-    "script:hook-crash-guard.js"
+    "script:hook-crash-guard.js",
+    "script:sync-global-config.sh",
+    "script:sync-memory.sh"
    ]
   },
   {
@@ -2433,7 +2435,9 @@
     "mode": "copy-file"
    },
    "source": "scripts/hook-crash-guard.test.js",
-   "dependencies": []
+   "dependencies": [
+    "script:hook-crash-guard.js"
+   ]
   },
   {
    "id": "script:huge-output-guard.js",

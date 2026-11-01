@@ -1,6 +1,6 @@
 ---
 name: dsh-session-format-debug
-description: "取证 dsh（DeepSeek Harness，~/.dsh）会话轮次反复失败的固定流程，报错特征为 format v4 message requires a producer-owned source kind。六步——从 ~/.dsh/logs 锁定失败 session id；按 zstd 帧魔数 28 B5 2F FD 逐帧解 session.v4.jsonl.zstd；按事件类型统计 source.kind 并用两遍独立扫描对账覆盖度；从 app.asar 现抽校验器跑消息形状矩阵
+description: "取证 dsh（DeepSeek Harness，~/.dsh）会话轮次反复失败的固定流程，报错特征为 format v4 message requires a producer-owned source kind。六步——从 ~/.dsh/logs 锁定失败 session id；按 zstd 帧魔数 28 B5 2F FD 逐帧解 session.v4.jsonl.zstd；按事件类型统计 source.kind 并用两遍独立扫描对账覆盖度；从 app.asar 现抽校验器跑消息形状矩阵"
 ---
 
 # DSH 会话格式失败取证

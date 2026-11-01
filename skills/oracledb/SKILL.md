@@ -3,6 +3,11 @@ name: oracledb
 description: Use these skills to manage and monitor Oracle databases by executing SQL statements, exploring schema metadata, analyzing query performance, monitoring active sessions and resource consumption, and managing storage and object health.
 ---
 
+## Prerequisites
+
+- Node.js 18+ and the `oracledb` package must be available to the skill (installed in the skill directory or globally). If the package or the referenced scripts are missing, report the exact gap and install command; do not fabricate query results.
+- Connection settings come from the user's existing environment / `.env` files. Never print passwords or connection strings. On an authentication failure, stop after the first failure, check for CRLF/whitespace in the credential, and do not exceed 3 distinct attempts.
+
 ## Usage
 
 All scripts can be executed using Node.js. Replace `<param_name>` and `<param_value>` with actual values.
@@ -13,7 +18,7 @@ All scripts can be executed using Node.js. Replace `<param_name>` and `<param_va
 **PowerShell:**
 `node <skill_dir>/scripts/<script_name>.js '{\"<param_name>\": \"<param_value>\"}'`
 
-Note: The scripts automatically load the environment variables from various .env files. Do not ask the user to set vars unless skill executions fails due to env var absence.
+Note: The scripts automatically load environment variables from existing `.env` files. If a required variable is absent, ask the user for the variable name only — never echo its value.
 
 
 ## Scripts

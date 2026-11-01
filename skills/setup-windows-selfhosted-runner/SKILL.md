@@ -1,6 +1,6 @@
 ---
 name: setup-windows-selfhosted-runner
-description: "在 Windows 上安装、注册、验证并持久化 GitHub Actions 自托管 runner 的完整链与九类实测坑避坑顺序。用于要装 self-hosted runner、把门禁挪到本机跑以省 GitHub Free 的 2000 分钟/月、job 在含空格的 runner 目录下秒红（/usr/bin/bash 报 D:\\Program 无此文件）、runner 随会话结束即停或开机弹常驻终端、硬杀 listener 后报 A session for this runner already exists。
+description: "在 Windows 上安装、注册、验证并持久化 GitHub Actions 自托管 runner 的完整链与九类实测坑避坑顺序。用于要装 self-hosted runner、把门禁挪到本机跑以省 GitHub Free 的 2000 分钟/月、job 在含空格的 runner 目录下秒红（/usr/bin/bash 报 D:\\Program 无此文件）、runner 随会话结束即停或开机弹常驻终端、硬杀 listener 后报 A session for this runner already exists。"
 ---
 
 # Windows 自托管 GitHub Actions Runner
@@ -44,10 +44,10 @@ gh api repos/actions/runner/releases/latest \
   --jq '.assets[] | select(.name|startswith("actions-runner-win-x64")) | .browser_download_url'
 ```
 
-下载目标放**非系统盘**，安装包也不落 C。若本机有 hosts 型加速器（Watt Toolkit / Steam++ 那类把 github.com 指回 127.0.0.1:443 的），curl 需要 `-k --ssl-no-revoke`；没有加速器就别加，加了反而绕过正常校验。
+下载目标放**非系统盘**，安装包也不落 C。优先让系统信任加速器证书或直接走可验证的官方下载。默认保持完整 TLS 校验；若加速器证书链导致吊销检查失败，可单独加 `--ssl-no-revoke`（仍校验证书链）。**不要用 `-k`**；确需关闭校验证书时必须先取得用户明确批准，并在下载后核对官方 SHA256 与来源。
 
 ```bash
-curl -k -L --ssl-no-revoke -sS -o /d/tmp/actions-runner-win-x64.zip "<browser_download_url>" \
+curl -L -sS -o /d/tmp/actions-runner-win-x64.zip "<browser_download_url>" \
   -w "HTTP=%{http_code} size=%{size_download}\n"
 ```
 
@@ -212,7 +212,8 @@ rm "$APPDATA/Microsoft/Windows/Start Menu/Programs/Startup/GitHub-Actions-Runner
 gh api repos/<owner>/<repo>/actions/runners --jq '.runners[] | "\(.id) \(.name)"'
 gh api -X DELETE repos/<owner>/<repo>/actions/runners/<id>
 # 3) 停进程 + 删目录；车道 workflow 文件回滚 = 恢复推送前的备份
-powershell -NoProfile -Command "Get-Process | Where-Object { \$_.ProcessName -like 'Runner.*' } | Stop-Process -Force"
+# 先按安装目录锁定 Runner.Listener 的 PID，核对命令行后再停；禁止按 Runner.* 名称批量强杀。
+powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name='Runner.Listener.exe'\" | Where-Object { \$_.ExecutablePath -like '<安装目录>*' } | Select-Object ProcessId,ExecutablePath"
 ```
 
 推送 / 注册前先备份被改的 workflow（`cp .github/workflows/ci.yml /d/tmp/ci.yml.bak-<ts>`）——本链路的每一步都能单独回退，**唯一不可逆的是已消耗的托管分钟**（那条本来就不该出现在这里，因为自托管不计费）。

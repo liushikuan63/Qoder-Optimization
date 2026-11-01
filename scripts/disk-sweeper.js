@@ -275,7 +275,7 @@ function archiveFiles(files, destBase) {
     }
   }
   if (moved.length) {
-    fs.writeFileSync(path.join(runDir, 'manifest.json'), JSON.stringify({ moved, failed, at: new Date().toISOString() }, null, 2))
+    fs.writeFileSync(path.join(runDir, 'manifest.json'), JSON.stringify({ kind: 'qoder-disk-archive', schema: 1, moved, failed, at: new Date().toISOString() }, null, 2))
     const bytes = moved.reduce((n, m) => n + m.bytes, 0)
     const lines = [
       `# 归档清单 ${stamp}`,
@@ -310,9 +310,27 @@ function archiveFiles(files, destBase) {
   return { runDir, moved, failed }
 }
 
+/** 清理归档副本前的边界校验：只允许清理本工具生成、且所有归档项都落在该目录内的清单。 */
+function archiveBoundary(manifestPath, m) {
+  const dir = path.resolve(path.dirname(manifestPath))
+  if (path.basename(manifestPath) !== 'manifest.json') return { ok: false, why: '清单文件名不是 manifest.json' }
+  if (m.kind !== undefined && m.kind !== 'qoder-disk-archive') return { ok: false, why: '清单标记不符' }
+  if (m.kind === undefined && !/^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}$/.test(path.basename(dir))) return { ok: false, why: '旧清单所在目录不像归档目录' }
+  if (!Array.isArray(m.moved) || !m.moved.length) return { ok: false, why: '清单没有可核对的归档项' }
+  for (const e of m.moved) {
+    const fromAbsolute = typeof e?.from === 'string' && (path.win32.isAbsolute(e.from) || path.posix.isAbsolute(e.from))
+    if (!fromAbsolute || typeof e.to !== 'string' || !Number.isFinite(e.bytes) || e.bytes < 0) return { ok: false, why: '清单条目字段无效' }
+    const to = path.resolve(e.to)
+    if (to !== dir && !to.startsWith(dir + path.sep)) return { ok: false, why: '归档路径不在清单目录内' }
+  }
+  return { ok: true }
+}
+
 /** 回取：复制回原路径，**默认不动归档副本**（回取往往正因为还要用）。 */
 function restoreFiles(manifestPath, purge) {
   const m = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+  const boundary = archiveBoundary(manifestPath, m)
+  if (purge && !boundary.ok) throw new Error('拒绝清理：' + boundary.why)
   const restored = []
   const failed = []
   for (const e of (m.moved || [])) {
@@ -327,6 +345,7 @@ function restoreFiles(manifestPath, purge) {
       failed.push({ to: e.to, error: err.message })
     }
   }
+  if (purge && failed.length) throw new Error('有 ' + failed.length + ' 个文件未回取成功，拒绝清理归档副本')
   if (purge && restored.length) {
     fs.rmSync(path.dirname(manifestPath), { recursive: true, force: true })
   }

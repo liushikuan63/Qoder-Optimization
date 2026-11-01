@@ -119,4 +119,4 @@ node ~/.qoder/skills-library/global-config-smoke-runner/scripts/smoke-runner.cjs
 
 ## 资源
 
-- `scripts/smoke-runner.cjs`：枚举、执行、日志、汇总；只读执行器，不传 `fix` / `--apply`。
+- `scripts/smoke-runner.cjs`：枚举、执行、日志、汇总；**不修改客户端配置**，也不传 `fix` / `--apply`。它会在日志目录写 `summary.json` / `summary.md` 与单项日志，这些是取证产物，不等于"零写入"。

@@ -24,7 +24,10 @@ const check = (l, ok, d) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${l}${d ? ' 
 function reset() {
   SB = fs.mkdtempSync(path.join(os.tmpdir(), 'gcg-audit-'));
   sandboxes.push(SB);
-  fs.mkdirSync(path.join(SB, '.qoder', 'scripts'), { recursive: true });
+  const scripts = path.join(SB, '.qoder', 'scripts');
+  fs.mkdirSync(scripts, { recursive: true });
+  fs.copyFileSync(SCRIPT, path.join(scripts, 'global-config-guard.js'));
+  for (const file of ['client-root.js', 'hook-crash-guard.js']) fs.copyFileSync(path.join(__dirname, file), path.join(scripts, file));
 }
 
 /** 造一个假检查脚本：`exit <code>` 之前可以先 sleep 若干秒。 */
@@ -36,10 +39,10 @@ function fake(name, code, sleepSec) {
 
 function run(env) {
   const t0 = Date.now();
-  const r = spawnSync(NODE, [SCRIPT], {
+  const r = spawnSync(NODE, [path.join(SB, '.qoder', 'scripts', 'global-config-guard.js')], {
     encoding: 'utf8',
     input: JSON.stringify({ hook_event_name: 'SessionStart', session_id: 'gcg-test', cwd: SB }),
-    env: Object.assign({}, process.env, { HOME: SB, USERPROFILE: SB }, env || {}),
+    env: Object.assign({}, process.env, { HOME: SB, USERPROFILE: SB, QODER_HOME: path.join(SB, '.qoder') }, env || {}),
     timeout: 60000,
   });
   return { ms: Date.now() - t0, out: (r.stdout || '') + (r.stderr || ''), code: r.status };
@@ -121,6 +124,23 @@ for (const side of ['.qoder', '.qoder-cn']) {
 fs.writeFileSync(path.join(SB, '.qoder', 'AGENTS.md'), '引用 `skills/foo/scripts/present.js`\n');
 r = run();
 check('两侧都在的 skills 引用不算悬空（零输出）', r.out.trim() === '' && r.code === 0, `退${r.code} 输出 ${r.out.length}B`);
+
+reset();
+fake('sync-global-config.sh', 0, 0);
+fake('sync-memory.sh', 0, 0);
+fs.writeFileSync(path.join(SB, '.qoder', 'scripts', 'present.js'), '');
+fs.writeFileSync(path.join(SB, '.qoder', 'AGENTS.md'), '引用 `scripts/present.js`\n');
+r = run();
+check('单端已有引用不误报另一端缺失', r.code === 0 && r.out.trim() === '' && !fs.existsSync(path.join(SB, '.qoder-cn')), r.out.slice(0, 180));
+
+for (const extension of ['cjs', 'mjs']) {
+  reset();
+  fake('sync-global-config.sh', 0, 0);
+  fake('sync-memory.sh', 0, 0);
+  fs.writeFileSync(path.join(SB, '.qoder', 'AGENTS.md'), '引用 `scripts/missing.' + extension + '`\n');
+  r = run();
+  check('遗漏的' + extension + '引用必须报出', r.code === 0 && ctxOf(r).includes('missing.' + extension), r.out.slice(0, 180));
+}
 
 for (const dir of sandboxes) {
   try { fs.rmSync(dir, { recursive: true, force: true }); } catch { console.log('测试沙箱仍被超时子进程占用，暂保留：' + dir); }

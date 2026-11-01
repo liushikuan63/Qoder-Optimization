@@ -17,10 +17,13 @@ try {
   const cg = require(path.join(__dirname, 'hook-crash-guard.js'));
   cg.install('fail-streak-guard');
 } catch (e) {
-  try {
-    const alt = path.join(process.env.USERPROFILE || process.env.HOME || os.homedir(), '.qoder', 'scripts', 'hook-crash-guard.js');
-    require(alt).install('fail-streak-guard');
-  } catch (e2) {}
+  for (const side of ['.qoder', '.qoder-cn']) {
+    try {
+      const alt = path.join(process.env.USERPROFILE || process.env.HOME || os.homedir(), side, 'scripts', 'hook-crash-guard.js');
+      require(alt).install('fail-streak-guard');
+      break;
+    } catch (e2) {}
+  }
 }
 const core = require('./fail-streak-core.js');
 
@@ -38,8 +41,11 @@ const argv = process.argv.slice(2);
 if (argv.includes('--status')) { out(core.status()); process.exit(0); }
 if (argv.includes('--paths')) { out(core.paths()); process.exit(0); }
 if (argv.includes('--clear')) {
-  const i = argv.indexOf('--clear'), arg = argv[i + 1];
-  out({ cleared: core.clear(!arg || arg.startsWith('--') ? 'ALL' : arg) });
+  if (argv.length !== 2 || argv[0] !== '--clear' || !argv[1] || argv[1].startsWith('--')) {
+    console.error('用法: --clear <精确目标键|ALL>');
+    process.exit(2);
+  }
+  out({ cleared: core.clear(argv[1]) });
   process.exit(0);
 }
 

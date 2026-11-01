@@ -20,7 +20,7 @@ node ~/.qoder/skills-library/large-sqlite-text-extraction/scripts/scan-binary-te
 ## 处理顺序
 
 1. 取全文 → 2. 按主题分组（同域合并成一个）→ 3. 通用化拆分 → 4. 走 `skill-authoring-closure` 第 4–8 步。
-2. 已处理过的建议记进状态文件（建议用 `~/.qoder/evolution/suggestion-scan-state.json`，字段：`processed: [{name, at, skill}]`），下轮跳过。
+2. 已处理过的建议记进状态文件（建议用 `~/.qoder/evolution/suggestion-scan-state.json`，字段：`processed: [{id, name, at, skill}]`）。去重**先按 id**；只有旧记录没有 id 时才用 name + 主题兜底。新 id 即使同名也不得跳过。
 
 ## 本机已处理的批次
 

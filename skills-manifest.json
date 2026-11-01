@@ -1,12 +1,12 @@
 {
  "package_name": "Qoder-Optimization",
- "version": "0.0.10",
- "generated": "2026-10-31",
+ "version": "0.0.11",
+ "generated": "2026-11-01",
  "skills": [
   {
    "name": "architecture-designer",
    "tier": "library",
-   "files": 1
+   "files": 6
   },
   {
    "name": "async-python-patterns",
@@ -46,7 +46,7 @@
   {
    "name": "deliver-prd",
    "tier": "library",
-   "files": 2
+   "files": 4
   },
   {
    "name": "desktop-update-push-triage",
@@ -121,7 +121,7 @@
   {
    "name": "github-accelerator",
    "tier": "library",
-   "files": 2
+   "files": 4
   },
   {
    "name": "global-config-smoke-runner",
@@ -151,7 +151,7 @@
   {
    "name": "java-architect",
    "tier": "library",
-   "files": 1
+   "files": 6
   },
   {
    "name": "java-quality",
@@ -236,12 +236,12 @@
   {
    "name": "mongodb-atlas-stream-processing",
    "tier": "library",
-   "files": 1
+   "files": 7
   },
   {
    "name": "mongodb-connection",
    "tier": "library",
-   "files": 1
+   "files": 2
   },
   {
    "name": "mongodb-mcp-setup",
@@ -256,17 +256,17 @@
   {
    "name": "mongodb-query-optimizer",
    "tier": "library",
-   "files": 1
+   "files": 5
   },
   {
    "name": "mongodb-schema-design",
    "tier": "library",
-   "files": 1
+   "files": 21
   },
   {
    "name": "mongodb-search-and-ai",
    "tier": "library",
-   "files": 1
+   "files": 6
   },
   {
    "name": "mysql",
@@ -336,7 +336,7 @@
   {
    "name": "python-dataviz",
    "tier": "library",
-   "files": 4
+   "files": 12
   },
   {
    "name": "python-error-handling",
@@ -381,37 +381,37 @@
   {
    "name": "redis-clustering",
    "tier": "library",
-   "files": 1
+   "files": 3
   },
   {
    "name": "redis-connections",
    "tier": "library",
-   "files": 1
+   "files": 6
   },
   {
    "name": "redis-core",
    "tier": "library",
-   "files": 1
+   "files": 3
   },
   {
    "name": "redis-observability",
    "tier": "library",
-   "files": 1
+   "files": 3
   },
   {
    "name": "redis-search",
    "tier": "library",
-   "files": 1
+   "files": 23
   },
   {
    "name": "redis-security",
    "tier": "library",
-   "files": 1
+   "files": 4
   },
   {
    "name": "redis-semantic-cache",
    "tier": "library",
-   "files": 1
+   "files": 3
   },
   {
    "name": "rules-conflict-audit",
@@ -546,7 +546,7 @@
   {
    "name": "typescript-pro",
    "tier": "library",
-   "files": 1
+   "files": 6
   },
   {
    "name": "umi3-to-umi4-upgrade",
@@ -586,7 +586,7 @@
   {
    "name": "vue-expert",
    "tier": "library",
-   "files": 1
+   "files": 8
   },
   {
    "name": "wechat-miniprogram-dev",

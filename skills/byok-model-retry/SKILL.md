@@ -1,6 +1,6 @@
 ---
 name: byok-model-retry
-description: "模型请求失败/重试诊断：401/403/429、配置/网络/协议/流式终包/代理对照；默认只读、鉴权失败不重试。Qoder BYOK outerProvider/customModels、general.maxAttempts 次数可配、间隔不可配、QODER_DISABLE_MODEL_RETRY_PAYLOAD_GUARD/QODER_CONFIG_MODEL_RETRY_AFTER_PAYLOAD
+description: "模型请求失败/重试诊断：401/403/429、配置/网络/协议/流式终包/代理对照；默认只读、鉴权失败不重试。Qoder BYOK outerProvider/customModels、general.maxAttempts 次数可配、间隔不可配、QODER_DISABLE_MODEL_RETRY_PAYLOAD_GUARD/QODER_CONFIG_MODEL_RETRY_AFTER_PAYLOAD"
 ---
 
 # 模型访问诊断与 Qoder 版本参考
