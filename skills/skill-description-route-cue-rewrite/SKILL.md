@@ -78,6 +78,16 @@ node scripts/check-description.cjs --file <SKILL.md> --groups <spec.json> --base
 - 长度对比取各 baseline 中最长者（即旧原版）；无 baseline 时跳过比例判断。
 - 固定输出逐组 PASS/MISS ＋ `[判定]` 行，整段贴进汇报。
 
+**只补路由线索、不做瘦身时**（description 变长是预期）：
+
+- `--max-ratio` 的合法范围是 `(0,1)`；传 `1.2` 会被检查器直接拒绝，不要指望放宽到 1 以上。
+- 省略 `--baseline`，让检查器走内置剥短语变异对照：把新增短语从目标 description 剥掉后必须全 MISS；同时确认原有短语组仍命中。
+- 目标是“新增专有触发词且不丢旧线索”，不是“总长度下降”；不要为了过比例断言而删旧线索。
+
+```
+node scripts/check-description.cjs --file <SKILL.md> --groups <spec.json>
+```
+
 ## 第 6 步：复验
 
 - 写完重新 `Read` 实际文件核对——Edit 成功 ≠ 核验成功；检查器的 `len=` 数字即最终长度证据。

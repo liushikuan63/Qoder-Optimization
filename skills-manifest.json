@@ -1,8 +1,13 @@
 {
  "package_name": "Qoder-Optimization",
- "version": "0.0.12",
+ "version": "0.0.13",
  "generated": "2026-11-01",
  "skills": [
+  {
+   "name": "agent-client-network-triage",
+   "tier": "library",
+   "files": 2
+  },
   {
    "name": "architecture-designer",
    "tier": "library",
@@ -26,7 +31,7 @@
   {
    "name": "byok-model-retry",
    "tier": "library",
-   "files": 1
+   "files": 3
   },
   {
    "name": "cloudbase-wechat-integration",
@@ -42,6 +47,11 @@
    "name": "continuation-state-audit",
    "tier": "core",
    "files": 2
+  },
+  {
+   "name": "counterexample-driven-plan-review",
+   "tier": "library",
+   "files": 1
   },
   {
    "name": "deliver-prd",
@@ -86,12 +96,12 @@
   {
    "name": "electron-asar-code-forensics",
    "tier": "library",
-   "files": 1
+   "files": 2
   },
   {
    "name": "electron-tray-icon-diagnosis",
    "tier": "library",
-   "files": 1
+   "files": 4
   },
   {
    "name": "encrypted-office-visual-inspection",
@@ -194,6 +204,11 @@
    "files": 4
   },
   {
+   "name": "local-reverse-proxy-triage",
+   "tier": "library",
+   "files": 2
+  },
+  {
    "name": "local-rust-engineering",
    "tier": "library",
    "files": 4
@@ -289,6 +304,11 @@
    "files": 1
   },
   {
+   "name": "oauth-login-failure-triage",
+   "tier": "library",
+   "files": 2
+  },
+  {
    "name": "office-docs",
    "tier": "library",
    "files": 8
@@ -322,6 +342,11 @@
    "name": "powershell-windows-display-interop",
    "tier": "library",
    "files": 1
+  },
+  {
+   "name": "proxy-rule-surgery",
+   "tier": "library",
+   "files": 2
   },
   {
    "name": "python-anti-patterns",
@@ -439,6 +464,11 @@
    "files": 1
   },
   {
+   "name": "share-package-release",
+   "tier": "library",
+   "files": 2
+  },
+  {
    "name": "ship-clean-pr",
    "tier": "core",
    "files": 1
@@ -534,6 +564,11 @@
    "files": 3
   },
   {
+   "name": "svg-scene-animation",
+   "tier": "library",
+   "files": 1
+  },
+  {
    "name": "systemd-java-service-centos7",
    "tier": "library",
    "files": 1
@@ -566,7 +601,7 @@
   {
    "name": "verify-ui-in-browser",
    "tier": "core",
-   "files": 2
+   "files": 3
   },
   {
    "name": "verify-windows-cmd-tool",

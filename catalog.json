@@ -2,17 +2,31 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.0.12"
+  "version": "0.0.13"
  },
  "generated": "2026-11-01",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
-  "skill": 125,
+  "skill": 132,
   "script": 109,
   "command": 10,
   "agent": 2
  },
  "entries": [
+  {
+   "id": "skill:agent-client-network-triage",
+   "category": "skill",
+   "name": "agent-client-network-triage",
+   "status": "shipped",
+   "tier": "library",
+   "description": "AI 编码客户端（Electron+Node SDK）网络异常的分层排查。触发词：Qoder 连不上服务、ECONNRESET、networkMode、httpdns、resolved-ip 直连失败、fake-ip、TUN 代理、webview 面板打不开、QODER_HTTPDNS。含按日志 IP 与按域名的成功率矩阵、代理规则与出站归属、用户级环境变量修复。不用于浏览器网页（edge-net-check）或 OAuth 换证（oauth-login-failure-triage）。",
+   "source": "skills/agent-client-network-triage",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "dependencies": []
+  },
   {
    "id": "skill:architecture-designer",
    "category": "skill",
@@ -75,7 +89,7 @@
    "name": "byok-model-retry",
    "status": "shipped",
    "tier": "library",
-   "description": "模型请求失败/重试诊断：401/403/429、配置/网络/协议/流式终包/代理对照；默认只读、鉴权失败不重试。Qoder BYOK outerProvider/customModels、general.maxAttempts 次数可配、间隔不可配、QODER_DISABLE_MODEL_RETRY_PAYLOAD_GUARD/QODER_CONFIG_MODEL_RETRY_AFTER_PAYLOAD",
+   "description": "诊断和验收模型/BYOK 请求失败、Qoder CN 自定义模型保存校验与本地中转接入：401/403/429、输出上限/maxOutputTokens、配置落盘负对照、网络/协议/流式终包/代理对照、UA 指纹、首包超时与重试。默认只读，鉴权失败不重试，密钥只报掩码；覆盖 providers.qoder-custom-*、openai-responses、general.maxAttempts 与本地反代运行态。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -117,12 +131,26 @@
    "name": "continuation-state-audit",
    "status": "shipped",
    "tier": "core",
-   "description": "Audit continuation queues/goal files before resuming，claimed done vs real artifacts，detect stale items；Qoder 异常会话恢复（定位会话、最小窗口读取、单次结构化恢复消息、终态回调＝成功判据）。触发：接续/继续上次/看队列/核对上次完成状态/上次说做完了但没生效/会话恢复/异常会话。Not for goal tracking/checkpoint writes（→goal-driven-execution）。",
+   "description": "Audit continuation queues/goal files before resuming，claimed done vs real artifacts，detect stale items；也核对当前会话交付结论与原始验收逐项对账。Qoder 异常会话恢复（定位会话、最小窗口读取、单次结构化恢复消息、终态回调＝成功判据）。触发：接续/继续上次/看队列/核对上次完成状态/上次说做完了但没生效/交付结论复核/原始验收对账/会话恢复/异常会话。Not for goal tracking/checkpoint writes（→goal-driven-execution）。",
    "install": {
     "mode": "copy-skill",
     "tier": "core"
    },
    "source": "skills/continuation-state-audit",
+   "dependencies": []
+  },
+  {
+   "id": "skill:counterexample-driven-plan-review",
+   "category": "skill",
+   "name": "counterexample-driven-plan-review",
+   "status": "shipped",
+   "tier": "library",
+   "description": "反例驱动的只读方案审查。触发词：审方案、任务卡、判据反证、关键词假通过、同源证据冒充复核、固定轮数冒充收敛、计划被当成实施授权。用零写入纯函数探针构造正负反例，核对命令适用性、依赖闭包与验收层级，输出收敛后的任务卡。不用于代码实现或正式验收（verify-before-claim）。",
+   "source": "skills/counterexample-driven-plan-review",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
    "dependencies": []
   },
   {
@@ -546,6 +574,20 @@
    "dependencies": []
   },
   {
+   "id": "skill:local-reverse-proxy-triage",
+   "category": "skill",
+   "name": "local-reverse-proxy-triage",
+   "status": "shipped",
+   "tier": "library",
+   "description": "本机常驻 HTTP/SSE 代理的改动安全与真实验收。触发词：代理加开关、多实例抢端口、EADDRINUSE、SSE 回归、首包超时、健康端点版本不一致、错杀别人的监听、假装上游。含基线逐字节对照、假慢上游夹具、透明 SSE 协议判据、按精确 PID 启停与外来监听负对照。不用于改写上游 UA（byok-model-retry）或分流规则（proxy-rule-surgery）。",
+   "source": "skills/local-reverse-proxy-triage",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "dependencies": []
+  },
+  {
    "id": "skill:local-rust-engineering",
    "category": "skill",
    "name": "local-rust-engineering",
@@ -812,6 +854,20 @@
    "dependencies": []
   },
   {
+   "id": "skill:oauth-login-failure-triage",
+   "category": "skill",
+   "name": "oauth-login-failure-triage",
+   "status": "shipped",
+   "tier": "library",
+   "description": "OAuth/SSO 登录失败的分层排查。触发词：Google 登录失败、OAuth 回调、换证接口 400/403、Turnstile 人机验证、登录页能打开但登录不了、跨出口分流。区分网络不可达与授权成功但换证失败，给出统一出口/换节点/邮箱密码登录三类修复。不用于普通网页打不开（edge-net-check）或客户端网络层（agent-client-network-triage）。",
+   "source": "skills/oauth-login-failure-triage",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "dependencies": []
+  },
+  {
    "id": "skill:office-docs",
    "category": "skill",
    "name": "office-docs",
@@ -901,12 +957,26 @@
    "name": "powershell-windows-display-interop",
    "status": "shipped",
    "tier": "library",
-   "description": "用 PowerShell Add-Type P-Invoke 读或改 Windows 显示栈——EDID 块、HDR 与自动色彩管理、当前分辨率、刷新率、像素时钟、位深、显示器友好名。用于 DisplayConfigGetDeviceInfo 或 EnumDisplaySettings 返回 TRUE 或 hr=0 却字段全空、设备信息调用对每种类型都回 hr=0x1F 或 0x7A、EDID 扩展块解析成乱码、Add-Type 编不过内联 C#（CS0266、ToString 字符字面量、缺 Desktop 程序集）、模式或路径结构体读回全 0。",
+   "description": "用 PowerShell Add-Type P-Invoke 读或改 Windows 显示栈——EDID 块、HDR 与自动色彩管理、HDR 状态取证、当前分辨率、刷新率、像素时钟、位深、显示器友好名。用于 DisplayConfigGetDeviceInfo 或 EnumDisplaySettings 返回 TRUE 或 hr=0 却字段全空、设备信息调用对每种类型都回 hr=0x1F 或 0x7A、EDID 扩展块解析成乱码、Add-Type 编不过内联 C#（CS0266、ToString 字符字面量、缺 Desktop 程序集）、模式或路径结构体读回全 0。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
    },
    "source": "skills/powershell-windows-display-interop",
+   "dependencies": []
+  },
+  {
+   "id": "skill:proxy-rule-surgery",
+   "category": "skill",
+   "name": "proxy-rule-surgery",
+   "status": "shipped",
+   "tier": "library",
+   "description": "批量、持久地修改 FlClash/mihomo 分流规则并证明生效。触发词：FlClash 规则、mihomo 分流、config.yaml 被覆盖、rules 表、database.sqlite、按进程名杀被拦、出口 IP 对比、cdn-cgi/trace。含备份、按 schema 写入、精确 PID 重启、UI 启动兜底与负对照。不用于本机自建反代（local-reverse-proxy-triage）。",
+   "source": "skills/proxy-rule-surgery",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
    "dependencies": []
   },
   {
@@ -1232,6 +1302,20 @@
    "dependencies": []
   },
   {
+   "id": "skill:share-package-release",
+   "category": "skill",
+   "name": "share-package-release",
+   "status": "shipped",
+   "tier": "library",
+   "description": "分享包/配置包从组装、改名、发版门禁到发布后远端资产与包内成员逐字节核验的闭环。触发词：分享包发版、改包名、改名冲突、VERSION、catalog、manifest、发布门禁、发布说明、tag 后 publish 失败、Release 资产核验、解压逐字节比对、已发布包审计。不用于普通 PR 交付（ship-clean-pr）或仅打包前校验（/verify-package）。",
+   "source": "skills/share-package-release",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "dependencies": []
+  },
+  {
    "id": "skill:ship-clean-pr",
    "category": "skill",
    "name": "ship-clean-pr",
@@ -1265,7 +1349,7 @@
    "name": "skill-authoring-closure",
    "status": "shipped",
    "tier": "library",
-   "description": "把进化建议落成技能，或新增 / 改名 / 上收技能后的闭环：同域判重合并 → 通用 SKILL.md + references/<产品>.md → carrier-preflight 定级 → 校验元数据 → 重建索引 → 三组查询验收路由 → skills-doctor 收口。触发词：自进化建议、把自进化建议合并成技能、合并成技能、标记 evolved、技能上线、skill-load 检索不到。不用于：单技能从零编写（skill-creator）、分层迁移（skill-tiering-lazy-load）、描述瘦身（skill-description-route-cue-rewrite）。",
+   "description": "技能落地闭环：同域判重合并 → 通用 SKILL.md + references/<产品>.md → carrier-preflight 定级 → 校验元数据 → 重建索引 → 三组查询验收路由 → 双客户端 parity → skills-doctor 收口。触发词：把自进化建议合并成技能、自进化建议、标记 evolved、技能上线、双客户端上线、CN 侧技能同步、skill-load 检索不到。不用于：单技能从零编写（skill-creator）、分层迁移（skill-tiering-lazy-load）、描述瘦身（skill-description-route-cue-rewrite）。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1498,6 +1582,20 @@
    "dependencies": []
   },
   {
+   "id": "skill:svg-scene-animation",
+   "category": "skill",
+   "name": "svg-scene-animation",
+   "status": "shipped",
+   "tier": "library",
+   "description": "单文件 HTML+SVG+CSS keyframes 的 2D 循环场景动画交付与真机取证。触发词：SVG 动画、CSS keyframes、轮速与地面速度、视差平铺、旋转轴心、dashoffset、连杆 IK、相位贴合、animation-play-state、reduced-motion、Playwright、animationName/animationDuration 断言。含静态图纸清单与引擎级负对照。不用于 SMIL、视频生成或普通页面动效。",
+   "source": "skills/svg-scene-animation",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "dependencies": []
+  },
+  {
    "id": "skill:systemd-java-service-centos7",
    "category": "skill",
    "name": "systemd-java-service-centos7",
@@ -1573,7 +1671,7 @@
    "name": "verify-before-claim",
    "status": "shipped",
    "tier": "core",
-   "description": "验证证据纪律与复核：每条断言必须能失败；启动/HTTP 验收要有「不存在路径」对照组、本轮编译退出码入判据、请求打本轮独占端口；计数断言先列「会改世界的操作」；多出的红先归因自己；无证据须标「未验证」；常驻进程「改了没生效/上次修过还是坏」先证运行态版本==磁盘（启动时间 vs mtime、健康端点 vs 文件 sha256）；用户说再次检查/重复检查/循环检查时历史只作线索、按多路复核。用于检查排错、模型能力审查、证据审计及验收/测试/证据/判据/全绿前；区分静态、模拟、运行时与产物证据。不用于目标推进/接续（→goal-driven-execution）。",
+   "description": "验证证据纪律与复核：每条断言必须能失败；启动/HTTP 验收要有「不存在路径」对照组、本轮编译退出码入判据、请求打本轮独占端口；计数断言先列「会改世界的操作」；多出的红先归因自己；无证据须标「未验证」；流式分块/UTF-8 走专项反例矩阵；常驻进程「改了没生效」先证运行态版本==磁盘（启动时间/健康端点）；用户说再次检查/重复检查/循环检查时历史只作线索、按多路复核。用于检查排错、模型能力审查、证据审计及验收/测试/证据/判据/全绿前；区分静态、模拟、运行时与产物证据。不用于目标推进/接续（→goal-driven-execution）。",
    "install": {
     "mode": "copy-skill",
     "tier": "core"

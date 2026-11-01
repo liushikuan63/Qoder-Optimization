@@ -1,4 +1,4 @@
-# Qoder-Optimization-0.0.12 安装说明
+# Qoder-Optimization-0.0.13 安装说明
 
 ## 包内容与落点
 
@@ -44,7 +44,7 @@
 - 重建索引：任何增删移技能后显式跑 `node ~/.qoder/scripts/build-skills-index.cjs`；`skill-load` 只读扫描实际文件，不在查询时写盘，包候选不等于已安装或已授权安装
 - **新增技能先判层级**：元/跨域高频或被 AGENTS·rules 硬引用（引用处未注明按需检索）→ `skills/`；单领域专用 → `skills-library/`；拿不准默认进库。创建前用 `node ~/.qoder/scripts/carrier-preflight.cjs --type skill --name <名> --path ~/.qoder/skills-library/<名>/SKILL.md` 预检——会列出两层同名/同类候选、提示本次拟入层与常驻预算（40 软 / 60 硬）
 
-包内实物：125 个技能（12 常驻 + 113 按需）；常驻描述 2651 字符，全部技能描述 26039 字符，占比 10.2%。按 catalog 计算，不是接收者的已安装数量。
+包内实物：132 个技能（12 常驻 + 120 按需）；常驻描述 2675 字符，全部技能描述 27477 字符，占比 9.7%。按 catalog 计算，不是接收者的已安装数量。
 
 ## 按需加装（分享包索引）
 

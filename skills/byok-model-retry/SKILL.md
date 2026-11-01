@@ -1,6 +1,6 @@
 ---
 name: byok-model-retry
-description: "模型请求失败/重试诊断：401/403/429、配置/网络/协议/流式终包/代理对照；默认只读、鉴权失败不重试。Qoder BYOK outerProvider/customModels、general.maxAttempts 次数可配、间隔不可配、QODER_DISABLE_MODEL_RETRY_PAYLOAD_GUARD/QODER_CONFIG_MODEL_RETRY_AFTER_PAYLOAD"
+description: "诊断和验收模型/BYOK 请求失败、Qoder CN 自定义模型保存校验与本地中转接入：401/403/429、输出上限/maxOutputTokens、配置落盘负对照、网络/协议/流式终包/代理对照、UA 指纹、首包超时与重试。默认只读，鉴权失败不重试，密钥只报掩码；覆盖 providers.qoder-custom-*、openai-responses、general.maxAttempts 与本地反代运行态。"
 ---
 
 # 模型访问诊断与 Qoder 版本参考
@@ -30,6 +30,8 @@ node D:/qoder-data/qoder/tools/model-access-check/model-access-check.test.cjs
 将 401、HTTP 200 内错误、空响应、HTML、缺终包、断流分别分类；本地 `/_health` 或文件已修改不证明上游/生成/客户端成功。对照成功只能缩小边界，不证明连接池等具体根因。
 
 [Qoder 现场与历史版本参考](D:/qoder-data/qoder/tools/model-access-check/qoder-runtime-reference.md) 保留重试机制、outerProvider/customModels 等专用能力。下方历史内容与并行会话补充原样保留，但旧版本样本、提前响应头、心跳和“已修”字样不能代替本轮真实验收；执行授权与诊断口径以通用流程为准。
+
+新增/编辑 Qoder CN 自定义模型、判断“校验通过”是否有区分力，或接入需要改写 UA/header 的本地中转时，先读 [Qoder CN 自定义模型接入与保存验收](references/qoder-cn-custom-model-onboarding.md)。
 
 ## Qoder 专用历史内容（按版本核对）
 
@@ -248,7 +250,7 @@ headers['user-agent'] = 'claude-cli/1.0.60 (external, cli)';
 
 1. 先按 §3.5 做 UA 对照，确认是客户端指纹还是 Key 失效；**不要**把无 Key 请求的 401 当 Key 证据（指纹判定在鉴权之前）。
 2. 本机回环反代改写 UA，provider 的 `baseUrl` 指到该端口；密钥留在凭据文件，不入脚本、日志与汇报。
-3. 常驻自启属独立变更，需单独批准，流程见 `windows-hidden-autostart-daemon`；不要顺手写 Startup。
+3. 常驻自启属独立变更，需单独批准；进程归属与精确 PID 停启见 `local-reverse-proxy-triage`，不要顺手写 Startup。
 4. 按模型切协议（§3.5 连带坑），鉴权与协议两类故障分开判。
 5. 四段验收缺一不可：**正例问答 / 错 Key 负控（必须仍 401，证明反代没放行一切）/ 流式（首包与正常终态）/ 工具调用（参数完整、有终态）**。只跑通正例不得报"接入完成"。
 6. 核对真实存储：provider 以 `settings.json` 的 `providers` 为准，`uid_customs` 为空是常态，不能据其判"没配上"；UI 编辑态禁选 API 类型是客户端限制，不是配置损坏。**禁止**写 `modelConfigs.customModels`（§2.4）。
@@ -262,6 +264,29 @@ headers['user-agent'] = 'claude-cli/1.0.60 (external, cli)';
 ### 3.9 独立 HTTP/SSE 代理的审查与回归
 
 无 Git 的独立脚本不套基于 diff 的评审：全文独立审阅 + 真实夹具回归。夹具用隔离的可信本地 TLS 上游与独占端口，先跑原版负向对照（原版必须判红），最小修复后跑同套断言。专项覆盖：压缩字节与 `Content-Encoding`、逐跳头剥离、DNS / 响应头 / 空闲超时、上传与响应取消、流中途失败、重定向、日志脱敏；模型 POST 不自动重试。
+
+### 3.10 provider 调用链定位（客户端日志 → 复现 → 负对照）
+
+“加了 provider 但用不了”按下面顺序取证据，不要只看界面回显：
+
+1. 两侧 `settings.json` 逐 provider 导出（字段见 §2.6），`apiKey` 只打 head+len；同时检测**跨 provider 同名 model**（选择器里会重复，容易选错）。
+2. 到 `~/.qoder/logs/runs/<ts>/qodercli.log` grep `[qoder-server-request]` 的 `-->` / `<--` 行，拿客户端真实 HTTP 状态与 URL；**界面回显不算证据**。日志时间戳是 UTC、本地 +8，按时间戳归因，不按 id；grep 要排除 `performance snapshot` 噪声。
+3. 自己复现同一路径、同一种鉴权头；探针的 `max_output_tokens` 必须 ≥16，否则上游回 400 参数错——而 400 恰是“已过鉴权”的正证据，别读成模型坏了。先做无凭据负对照（如公开 `/models` 可 200），再解释带凭据的 200/401。
+4. 按 401 / 403 / 404 / 429 分诊；401 先区分 Key 失效、UA 指纹（§3.5，同 Key 只换 User-Agent 的判别实验）与令牌种类错误（§3.11）。
+5. 查 `config.cmd` 的 `BYOK_UA_PROXY_UPSTREAM` 确认代理指向；产出一个只读复验脚本交给用户，不代改配置；认证失败累计 3 次即停手，避免锁号。
+
+### 3.11 凭据形态无损鉴定
+
+不能看明文时，用无泄漏指标判断“是不是对的那类东西”：
+
+- 只打印 `head(4-8)`、`len`、`sha256` 前 12 位、字符类别计数、前缀语义（`sk-` / `user_` / `eyJ…` JWT 段数）、是否含 `:` / 空格 / `\r\n`。
+- 所有回显与日志做 `KEY→***` 反向替换。
+- 区分 API Key / 登录令牌 / 用户名口令对；面板登录令牌不是 API Key。
+- 从配置读取的值先校验 CRLF：尾部 `\r` 会让所有请求表现为“密码错误”。
+
+### 3.12 双客户端配置块同步
+
+同机两个客户端的 provider 配置需要同步时，按 [references/dual-client-config-sync.md](references/dual-client-config-sync.md)：掩码盘点 → 编码/行尾核对 → 备份 → dry-run/`--apply` 深拷贝合并（同 id 冲突不覆盖）→ 逐字段复扫 → 端到端凭据探针 → 安装包特征串确认。
 
 ---
 
@@ -399,6 +424,19 @@ Set-ItemProperty -Path $k -Name 'QODER_CONFIG_MODEL_RETRY_AFTER_PAYLOAD'  -Value
 ### 4.6 管不到的一类
 
 `empty_assistant_completion` 类错误（`EmptyAssistantCompletionError`，自带 `retryable=!0`）走**另一条分支**，硬上限 **2 次**，`R9i()` 管不到。判断方法：日志里 `emptyAssistantCompletion.reason` 字段有值即是这一类。
+
+### 4.7 抬 maxOutputTokens 后的行为验收
+
+只把配置数字改大是假绿，按四步验收：
+
+1. **先探上游**：用最小请求确认旧值不是硬限制（如 8192 / 32768 / 65536 各发一次，看是否 200 completed）。
+2. **改配置**：`backup-file.js --label` 留快照 → 逐行锚定正则 dry-run 报命中数 + 负对照 → 保 EOL 定点替换；**禁止整文件 JSON 往返**（会改缩进/尾换行）。
+3. **配置层复验**：`JSON.parse` 通过、目标值全中且旧值零残留、与备份逐行 diff 只剩预期行、总行数不变。
+4. **行为层复验**：发一次真实请求，产出**超过旧上限**的输出（如 `output_tokens=23893 > 8192` 且 `incomplete_details=null`），才算消掉原失败模式。
+
+同一套口径可套到连接池、超时、分页 size：先证明旧值不是硬限制，再改，再用一次跨过旧上限的真实请求收口。
+
+**8192 是客户端固定值时的 A/B 定性**：直连 `max_tokens=8192` 应得 `finish_reason=length`；抬到 65536 应得 `stop`；省略字段不截断 ⇒ 上限来自客户端。修复走本地代理路由表改写时，验收看代理日志 `REWRITE field=… from=8192 to=65536`，且 `/_health` 的 `version` == 磁盘 sha256 前 12 位。`settings.json` 改动用 JSON 往返恒等 + 只允许 1 行 diff 断言，写后看 mtime 是否被运行中客户端回写；改 `baseUrl` 必须重启客户端才生效，本会话无法前台验证时如实声明。另：`/models` 不带 `Authorization` 也回 200 且响应体逐字节相同 ⇒ 公开端点，禁止当密钥有效的证据；端口 `18765/18766/18767` 都要查，可能存在第三实例。
 
 ---
 

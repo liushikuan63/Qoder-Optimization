@@ -36,7 +36,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<技能目录>/scripts/tray
 | 2 tray host windows | 目标进程有没有 `Electron_NotifyIconHostWindow` | 没有 ⇒ 这个实例根本没走到建托盘的代码（早退、单实例转交、托盘建在已退出的进程里），Windows 无责 |
 | 3 GetRect sweep | `registered=` / `withRect=` / `noRect=` 计数 | `withRect=0 noRect=0` ⇒ 注册从未到达 shell；`noRect>0` ⇒ shell 认了但没画（溢出面板/默认隐藏）；`withRect>0` **只证明注册成功，不证明在任务栏上看得见**（见 Step 3 的截图反证） |
 | 4 registry | `HKCU\Control Panel\NotifyIconSettings` 的 `uid` / `tipLen` / `IconSnapshot` 尺寸 / `lastWrite`，以及 `UIOrderList` 成员 | 见 Step 5 的读法 |
-| 5 UIA | 可见托盘里的具名按钮节点 | 溢出面板没展开时这里看不到图标属正常，脚本会打 `NO-RUN for this section` |
+| 5 UIA | 可见托盘里的具名按钮节点；溢出面板先在 UIA 里找 `TopLevelWindowForOverflowXamlIsland` | 溢出面板没展开时该岛不可见，脚本会打 `NO-RUN`；要枚举溢出项先点任务栏 chevron（`^`）展开，再重跑。可见区与溢出区要分两批取，别把“未展开时看不到”判成图标缺失 |
 
 退出码：`0` 未见缺陷形状 / `1` 判红（IL 不匹配、NOT-REGISTERED、NO-HOST-WINDOW）/ `2` NO-RUN（参数或环境不足）/ `5` 结构体漂移。
 
@@ -147,6 +147,7 @@ EnableLUA=0（UAC 整体关闭）
 - `NIM_ADD` 的 `uFlags`：`NIF_GUID(0x20)` 配零 GUID、或 `NIF_MESSAGE(0x1)` 配未注册的窗口消息，都会让 `NIM_ADD` **直接返回 FALSE**（本机实测），别把它读成「shell 拒收图标」。
 - 托盘状态的键只在进程注册期间存在；用 `RegistryKey.Handle`（.NET 4.x 是 `SafeRegistryHandle`，不是 `IntPtr`）取 `RegQueryInfoKeyW` 的写入时间，比手拼 64 位 `HKCU` 常量安全——手拼漏了符号扩展会得到 `ERROR_FILE_NOT_FOUND(2)`，长得像「这个 exe 没有托盘状态」。FILETIME 本身就是 100ns 刻度，再除 10 会把日期算到 1643 年。
 - 跨完整性级别读别的进程：`PROCESS_QUERY_INFORMATION(0x400)` 会被拒，`PROCESS_QUERY_LIMITED_INFORMATION(0x1000)` 通常可以——两个都试，否则 explorer 读成 `no-handle` 就像「shell 不见了」。
+- `GetTokenInformation(TokenIntegrityLevel)` 返回的 `TOKEN_MANDATORY_LABEL` 里 **SID 指针偏移随构建变化**（本机该构建在偏移 0）；不要写死，先用自己的 token 校准一次再读目标进程，否则会把 IL 读成乱值。
 - PS 里取正则捕获组**别写 `[int]$Matches[1]`**：实测会把整个 SID 串当整数转换，报「无法将值 S-1-16-8192 转换为 System.Int32」并在进程表中途崩掉；改成 `-replace` 去前缀 + `[int]::TryParse`。
 - **与 `/windows-ui-forensics-powershell` 的一处实测分歧（未裁定）**：该手册 §2 记「`Shell_TrayWnd` 下 23 个 Button 的 `Current.Name` 全为空」；本技能 2026-10-07 同机同小时实测同一棵子树**同样是 23 个 Button，但 20 个有名字**（显示桌面 / 通知 / 时间 / 网络 / 输入法…，名字为中文）。差异最可能出在控制台码页——名字先被判成空、多半是输出编码伪装的假阴性（本技能脚本因此强制 `[Console]::OutputEncoding=UTF8`）。按对方的夹具跑之前先核这一条；两边都别拿"名字为空"直接当"图标不存在"的判据。
 

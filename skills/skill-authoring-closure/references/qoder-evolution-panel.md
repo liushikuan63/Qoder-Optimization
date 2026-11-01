@@ -6,6 +6,14 @@
 - 数据目录真实路径见 `~/.qoder/desktop/storage/stable/location.v1.json`；本机为 `D:\qoder-data\appdata-roaming\com.qoder.app.stable`。
 - 记录格式：`<建议名>create<完整描述>`；同一建议可能在索引表、记录体、会话 payload 里各出现一次。
 
+## 不生成建议的头号原因：skills 目录是 junction（2026-10-24 实测）
+
+- 非 CN 客户端：`~/.qoder/skills` 是 junction → `D:\UserData\.qoder\skills` 时，CLI 审核帧已返回 `status:"suggested"` + 合法建议，桌面端仍只写 `skill_evolution_attempts`，`skill_evolution_suggestions` 永远 0 行，日志无任何记录。
+- 把 `skills` 换成**同内容 C 盘实体目录**后，同一条建议立即落库（`realpath-probe` pending 0.9）。⇒ **非 CN 的 `~/.qoder/skills` 必须保持实体目录**。
+- junction 不影响 CLI 读取技能（`skill_listing` 仍列出 53 个），失败点在桌面端落库前的路径校验。
+- 同一次审核里的 **update 建议仍会被桌面端丢弃**（只有 create 落库），原因未查。
+- 取证手法：`NODE_OPTIONS` 会被桌面 `buildEnv()` 剥掉，需临时在 worker 运行时顶部插 stdout 捕获（改前备份、用完按 sha256 还原），或直接对比 DB 行数与面板。
+
 ## 取全文
 
 ```bash
@@ -33,6 +41,10 @@ node ~/.qoder/skills-library/large-sqlite-text-extraction/scripts/scan-binary-te
 | 2026-10-27（第 5 批） | 3 条（单点变异对照 1 / 本机 SSE 反代 1 / 门禁有效性审计 1） | 新建 `mutation-control-verification`（常驻，+references/checker-suite-recipes.md）与 `rule-enforcement-effectiveness-audit`（按需库，+references/local-enforcement-layer.md）；`local-sse-proxy-triage` 已由 `local-reverse-proxy-triage` 覆盖，仅登记不新建 |
 
 | 2026-10-27（第 5 批） | 15 条（图像验收 1 / 证据先行 1 / 家族审计 1 / 产物审计 2 / 会话恢复 2 / vibecoding 校验 1 / 合同对账 2 / 中断修复 1 / SQL 预演 2 / 配置根 2 / 目标主机 1） | 新建 7 库技能（`image-result-visual-verify` / `evidence-first-skill-redesign` / `generated-artifact-content-audit` / `interrupted-test-repair` / `mapper-sql-live-dry-run` / `single-client-config-root` / `target-host-verification`）＋扩展 4 既有（`continuation-state-audit` 会话恢复分支 / `rules-conflict-audit` 家族一致性节 / `vibecoding-doc` §11.1–11.4 / `contract-docx-gap-analysis` 合规对账节）；2 条同名对已系统过期（contract-clause / mapper-rehearsal） |
+
+| 2026-11-01（第 6 批） | 非 CN 37 条 + CN 14 条（含处理期间新生成的 4 条） | 新建 7 个按需技能：`share-package-release` / `local-reverse-proxy-triage` / `oauth-login-failure-triage` / `proxy-rule-surgery` / `svg-scene-animation` / `agent-client-network-triage` / `counterexample-driven-plan-review`；扩展 13 个既有载体（`continuation-state-audit` / `verify-before-claim` / `ship-clean-pr` / `safe-text-editing` / `verify-ui-in-browser` / `byok-model-retry` / `desktop-update-push-triage` / `disk-junction-migration` / `electron-asar-code-forensics` / `mechanize-rule-into-hook-guard` / `skill-authoring-closure` / `skill-description-route-cue-rewrite` / `memory-entry-update`）；51 条全部标 `evolved`，双侧索引重建、`skills-doctor=CLEAN`、触发重叠 0 |
+
+| 2026-11-01（补处理） | CN 8 条历史 `evolving`（10-04~10-07 创建，载体已存在但未收口） | 逐条复核到既有载体：`electron-tray-icon-diagnosis`（同域吸收 `windows-tray-icon-diagnosis`）、`dsh-session-format-debug`、`windows-relocated-install-path-repair`、`windows-elevated-changes-from-git-bash`、`powershell-windows-display-interop`（同域吸收 `windows-hdr-state-audit`）、`electron-app-stuck-spinner-triage`、`diagnose-github-actions-quota`；补写托盘溢出区 UIA 枚举、TokenIntegrityLevel SID 偏移、HDR TrueHDR 与 Display 4125；8 条全部 `evolving→evolved` |
 
 标记动作用 `--ids`（同名多行）与 `--backup-dir`（备份出 C 盘），见 SKILL.md 第 11 步；已处理名同步进 `~/.qoder/evolution/suggestion-scan-state.json`。
 

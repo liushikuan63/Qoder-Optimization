@@ -30,6 +30,25 @@ argument-hint: "<asar-or-bundle-path> <literal-or-identifier>"
 2. grep 退出码 **0=匹配、1=确无匹配、>=2=根本没跑**；exit 2 时 stdout 也是空的，形状与 1 完全一样，只能靠码区分。
 3. 需要跨行上下文或字节偏移，一律走本技能的 `find`，不要拼 grep/sed/awk。
 
+### 单行混淆 bundle 的 Node 索引探针
+
+`app.asar.unpacked` 下的 `*.obf.mjs` 常是上千万字符的单行文件。**不要**用 `grep -o -E ".{N}pat.{M}"`：会超时或被 huge-output-guard 拦，而且拿不到定义处。
+
+改用一次性 Node 探针（落 `D:\tmp\probe-*.cjs`，用 `process.env.TEMP` 兼容 Windows）：
+
+```js
+const fs = require('fs');
+const s = fs.readFileSync(p, 'latin1');
+let i = -1, n = 0;
+while ((i = s.indexOf(pat, i + 1)) >= 0 && n++ < 20) {
+  console.log(n, i, s.slice(Math.max(0, i - 160), i + 240));
+}
+```
+
+- 先按导出别名反查真实名：找 `exportsAlias:()=>varName`，再找 `varName=Dr("XXX")` 及其前缀函数展开（如 `prefix=Es?"QODERCN_":"QODER_"`），得到最终字符串。
+- 对“值开关”查映射表（如 `new Map([["1",true],["off",false],...])`）确认可接受取值，并追 `isEnabledByEnv()` 的三段回落（env → remote gate → 默认），确认关闭后真的走目标分支。
+- 改代码路径前先读路由/调用点，确认关闭后的候选顺序；只看变量名就下结论会改错层。
+
 ## 步骤
 
 助手脚本 `scripts/asar-peek.cjs`（Node 18+；退出码 0 通过 / 1 判红或缺失 / 2 参数与前置失败）。路径先存变量（Git Bash，安装包目录常含空格）：

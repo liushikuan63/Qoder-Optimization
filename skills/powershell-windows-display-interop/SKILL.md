@@ -1,6 +1,6 @@
 ---
 name: powershell-windows-display-interop
-description: "用 PowerShell Add-Type P-Invoke 读或改 Windows 显示栈——EDID 块、HDR 与自动色彩管理、当前分辨率、刷新率、像素时钟、位深、显示器友好名。用于 DisplayConfigGetDeviceInfo 或 EnumDisplaySettings 返回 TRUE 或 hr=0 却字段全空、设备信息调用对每种类型都回 hr=0x1F 或 0x7A、EDID 扩展块解析成乱码、Add-Type 编不过内联 C#（CS0266、ToString 字符字面量、缺 Desktop 程序集）、模式或路径结构体读回全 0。"
+description: "用 PowerShell Add-Type P-Invoke 读或改 Windows 显示栈——EDID 块、HDR 与自动色彩管理、HDR 状态取证、当前分辨率、刷新率、像素时钟、位深、显示器友好名。用于 DisplayConfigGetDeviceInfo 或 EnumDisplaySettings 返回 TRUE 或 hr=0 却字段全空、设备信息调用对每种类型都回 hr=0x1F 或 0x7A、EDID 扩展块解析成乱码、Add-Type 编不过内联 C#（CS0266、ToString 字符字面量、缺 Desktop 程序集）、模式或路径结构体读回全 0。"
 ---
 
 # Windows 显示栈 PowerShell interop
@@ -172,6 +172,8 @@ function Get-EdidBlocks($bytes) {
 | HDR 开关（临时，可被驱动覆盖） | type 10 `SET_ADVANCED_COLOR_STATE`，`+20` 置 1 | 需提权；本机恒 `0x7A` |
 | HDR / 色彩管理持久真相 | `MonitorDataStore`（`HDREnabled`、`AutoColorManagementSupported/Enabled`）、`DisplayFeatureSetUsage` | **最可靠读写面**，非提权可读 |
 | Auto HDR 全局与每游戏 | `HKCU:\...\DirectXUserGlobalSettings` 的 `AutoHDREnable=`；每游戏子键同名串 | 拼接串，改写要整串回写 |
+| NVIDIA TrueHDR 旁证 | NVIDIA 类键里的 `_User_Global_*_TrueHDR` | 只作旁证，必须与 `MonitorDataStore` / `AutoHDREnable` 交叉核对，不单独定性 |
+| Auto HDR 是否真的生效 | 事件查看器的 Display 事件 **4125** | 有 4125 才说明 Auto HDR 实际启用；只看到 `AutoHDREnable=1` 不等于生效 |
 | EDID | `HKLM:\SYSTEM\CurrentControlSet\Enum\DISPLAY\<mon>\<inst>\Device Parameters\EDID` | 分块见上 |
 
 | hr | 名 | 判读 |

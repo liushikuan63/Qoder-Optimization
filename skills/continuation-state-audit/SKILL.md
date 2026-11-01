@@ -1,6 +1,6 @@
 ---
 name: continuation-state-audit
-description: "Audit continuation queues/goal files before resuming，claimed done vs real artifacts，detect stale items；Qoder 异常会话恢复（定位会话、最小窗口读取、单次结构化恢复消息、终态回调＝成功判据）。触发：接续/继续上次/看队列/核对上次完成状态/上次说做完了但没生效/会话恢复/异常会话。Not for goal tracking/checkpoint writes（→goal-driven-execution）。"
+description: "Audit continuation queues/goal files before resuming，claimed done vs real artifacts，detect stale items；也核对当前会话交付结论与原始验收逐项对账。Qoder 异常会话恢复（定位会话、最小窗口读取、单次结构化恢复消息、终态回调＝成功判据）。触发：接续/继续上次/看队列/核对上次完成状态/上次说做完了但没生效/交付结论复核/原始验收对账/会话恢复/异常会话。Not for goal tracking/checkpoint writes（→goal-driven-execution）。"
 ---
 
 # Continuation State Audit
@@ -13,6 +13,7 @@ Verify that "done" in the queue actually means done in the filesystem, git, and 
 - Restoring from an archived session
 - Taking over another session's `.qoder-work-queue.md` or goal files
 - Suspicion that queue status drifted from reality
+- User asks to re-check the **current session's delivery conclusion** ("真的做完了吗 / 按原验收逐项对一下"), even when no queue exists
 
 ## What Existing Skills Don't Cover
 
@@ -75,6 +76,17 @@ For each red breakpoint:
 
 Call `checkpoint` skill to write the next continuation point, including this round's reconciliation evidence.
 
+## 当前会话交付结论复核（无队列时）
+
+用户要求复核“本轮交付是否真的完整”，但队列已删除或从未建立时，不要因为没有队列就跳过：
+
+1. **从原始要求提取判据**：回到获准的计划 / 任务卡 / 用户原话，逐条列出验收项；不要用技能自己的检查表替代原始要求。
+2. **逐项对账五类证据**：源码与工作树、安装副本、真实调用、授权来源、产物证据。缺哪类就标哪类未验证，不用另一类顶替。
+3. **区分“审计通过”与“验收完整”**：审查报告通过只说明审过的项没问题，不说明原始验收项都做了。单次标准档问答、代码审阅或静态核对，不能扩大成完整验收。
+4. **不加新门槛**：复核只对照原始判据；不要把本轮临时想到的检查追加成“必须完成”。
+5. **只读边界**：只读复核不得自动修复、更新队列状态或调用 `checkpoint`；发现缺口先报告，整改需另行授权。
+6. **结论写法**：逐项写“已验/未验/不适用”，并给出每项的证据位置；最后一句明确“交付完整 / 尚缺 N 项”。
+
 ## Qoder 注册会话故障审计与恢复分支
 
 场景：用户要求「接续/恢复某个 Qoder 会话」，但会话异常终止或续接失败。本分支审计注册会话状态并做一次受控恢复。
@@ -91,6 +103,25 @@ Call `checkpoint` skill to write the next continuation point, including this rou
 |---|---|
 | 上一工具正常返回判红（有完整工具结果） | 正常执行路径的问题，按返回内容处理 |
 | 后续助手空响应且零工具调用 | **执行前失败**（请求没跑起来），不是业务红——恢复动作不同 |
+
+### 会话 transcript 反查（截图/标题 → 原始记录）
+
+- `list_chat_sessions` 按标题/时间定位 sessionId；`read_chat_session` 取回合与工具状态。
+- 原始记录在 `~/.qoder/logs/sessions/<客户端 cwd-slug>/<sessionId>/segments/*.jsonl`。目录键是**客户端安装目录**（如 `D--Program-Files-Qoder`），不是会话 cwd；猜错会零命中，用 `grep -rl <uuid> ~/.qoder/logs/sessions` 反查。
+- 取错误链：`grep -n "stop_reason\|model.request.attempt_failed"`，读 `error_code`、`retryable`、`error_cause_chain`。
+- 把 `model` 与 `output_tokens` 和 `settings.json` 的 `providers.*.models[].maxOutputTokens` 对号，识别“配置钉死”还是“任务本身难”。
+- 用同任务的**成功会话**做对照组，比较 `stop_reason` 分布；单会话的失败不足以定性。
+- Windows 下临时文件用 `process.env.TEMP`，不要写死 `/tmp`。
+
+### 正在写入的日志：避免自命中
+
+日志会把本会话的 `tool.requested` / `tool.shell.started` 原文（包括你刚敲的 grep 关键词与脚本正文）记进去，按自由文本检索必然命中自己：
+
+1. 先用**结构锚点**：`error_name=`、`status=`、`finish_reason=`、`request_id=`，不用错误字符串本身。
+2. 排除自身来源行：`grep -vE 'tool\.(requested|shell)|permission|hook\.'`。
+3. 按 `session=<id>` 与 `turn=<id>` 收窄到目标会话。
+4. 打印命中行时间戳，与“本轮开始时刻”比对；晚于自己查询的一律不算证据。
+5. 需要完整字段时按 `request_id` 反查上下文，不要用 `grep -n` 行号 ±N（日志继续追加会让行号漂移）。
 
 ### 受监督会话的终态取证
 

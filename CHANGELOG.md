@@ -6,6 +6,32 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.0.13] - 2026-11-01
+
+### Added
+- Add seven on-demand skills for recurring delivery and triage work: share-package release and live sync, local reverse-proxy change verification, OAuth/SSO login triage, proxy rule surgery, SVG/CSS scene animation, AI-client network triage, and counterexample-driven plan review.
+- Extend existing skills with release evidence binding, streaming/chunked UTF-8 acceptance, dual-client rollout and parity, BYOK provider/credential/cap checks, desktop update ACL diagnosis, junction-to-directory replacement, minified-bundle probes, prompt-triggered hook rollout, description route-cue branches, and memory-divergence handling.
+- Restore companion scripts and references for Electron tray/asar forensics, CUA guardrails, and BYOK CN onboarding/dual-client config sync.
+
+### Fixed
+- Remove dangling skill references and point process ownership/stop-start guidance at `local-reverse-proxy-triage`.
+- Correct share-package release script paths to `.github/build-release.js`, `.github/verify-delivery.js`, and `.github/run-tests.js`.
+- Keep the packaged rule-document reference valid where the source `rules/` directory is not shipped, and preserve the repository's newer recheck and memory-update authorization guidance during the merge.
+
+### Validation
+- Isolated Linux suite (Node 24.16): all four checks exit 0, 214/214 contracts. Windows-only MCP/Cua fixtures that place the Cua install directory on the system drive fail identically on clean HEAD and are not caused by this change.
+- Windows local: all non-MCP/Cua suites pass; skills-doctor CLEAN, trigger overlap 0 among changed carriers, and all seven new skills route first on generic and product-specific queries.
+- The tag workflow regenerates and verifies the committed package, scans the actual distribution, and compares remote assets byte-for-byte before publishing.
+
+### 中文摘要
+- 新增 7 个按需技能：分享包发布与现役同步、本机反代改动验证、OAuth/SSO 登录排查、分流规则手术、SVG/CSS 场景动画、客户端网络排查、反例驱动方案审查。
+- 扩展 15 个既有技能：发布证据绑定、流式分块 UTF-8 验收、双客户端上线 parity、BYOK provider/凭据/上限检查、桌面更新 ACL、junction 反向替换、混淆 bundle 探针、提示词触发 hook、描述路由线索分支、记忆真分叉处理。
+- 修复悬空技能引用、发布脚本路径与分享包内不存在的 `rules/` 路径；保留仓库较新的 recheck 与记忆更新授权口径。
+- 验证：Linux 隔离套件 4 项检查全退出 0、214/214 契约通过；Windows 本地除 3 个既有 MCP/Cua 夹具外全绿，`skills-doctor` CLEAN、触发重叠 0、新技能路由第一命中。
+
+### Contributors / 贡献者
+- @liushikuan63
+
 ## [0.0.12] - 2026-11-01
 
 ### Added

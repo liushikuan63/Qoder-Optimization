@@ -1,6 +1,6 @@
 ---
 name: skill-authoring-closure
-description: 把进化建议落成技能，或新增 / 改名 / 上收技能后的闭环：同域判重合并 → 通用 SKILL.md + references/<产品>.md → carrier-preflight 定级 → 校验元数据 → 重建索引 → 三组查询验收路由 → skills-doctor 收口。触发词：自进化建议、把自进化建议合并成技能、合并成技能、标记 evolved、技能上线、skill-load 检索不到。不用于：单技能从零编写（skill-creator）、分层迁移（skill-tiering-lazy-load）、描述瘦身（skill-description-route-cue-rewrite）。
+description: 技能落地闭环：同域判重合并 → 通用 SKILL.md + references/<产品>.md → carrier-preflight 定级 → 校验元数据 → 重建索引 → 三组查询验收路由 → 双客户端 parity → skills-doctor 收口。触发词：把自进化建议合并成技能、自进化建议、标记 evolved、技能上线、双客户端上线、CN 侧技能同步、skill-load 检索不到。不用于：单技能从零编写（skill-creator）、分层迁移（skill-tiering-lazy-load）、描述瘦身（skill-description-route-cue-rewrite）。
 ---
 
 # 技能落地上线闭环
@@ -146,6 +146,18 @@ node "$S" --db "$DB" --names "建议A,建议B" --reason "..." --apply           
 4. 收口跑 `rules-weekly-audit.js --no-fix`。
 
 三个坑：`carrier-preflight` 对「更新既有载体」会因同名已存在判 BLOCK（要归因，不要改描述绕过）；任务前提说"文件缺失"而现场已存在时**不得静默覆盖**（保留旧版独有内容为附节并如实标注）；预览/匹配类操作先列命中再动手。
+
+## 14. 双客户端技能上线与能力滚动
+
+本机同时有国际版（`~/.qoder`）与 CN 版（`~/.qoder-cn`），技能目录是各自实体；脚本目录 CN 侧可能是 junction。上线时：
+
+1. **显式选根**：跑 `skill-load` / `build-skills-index` / `skills-doctor` 前设 `QODER_HOME=~/.qoder-cn`（或脚本支持的 `--home`），否则脚本默认选 `.qoder`，CN 查询会 NO_MATCH。
+2. **路由查询按 token 设计**：`skill-load` 要求查询里每个空格分隔的 token 都出现在名称+description 中；整句自然语言容易假红，改成 2–4 个关键词组再测。
+3. **常驻技能双侧 parity**：新建/改名的常驻技能要同时落到两侧 `skills/`，同名文件逐字节一致；只落一侧会让 `skills-doctor` 判 `MISSING-IN-CN/INTL` 或 `DRIFT`。
+4. **按需技能双侧同步**：`skills-library` 两侧各写一次（各自 junction 指向不同物理目录）；新技能先落国际版，再复制到 CN，哈希比对一致。
+5. **两侧索引都重建**：各自 `build-skills-index.cjs`；只重建一侧会让检索结果漂移。
+6. **能力滚动发布**：规则条款、技能协议、提示词触发与测试一起推双端时，顺序是备份 → 安装器依赖闭包 → CN 技能与索引同步 → `AGENTS.md` 两侧一致 → `config-doctor` 的 `HOOK-DIFF` 与 `--agents` 校验 → 隔离消费者安装 → 全量回归。`config-doctor` 整体 RED 但 `HOOK-DIFF` OK 时，先归因到插件/MCP 的平台差异，不要把整体红当接线失败。
+7. **不改权限与审批边界**：双端同步只搬已批准的内容；需要扩大拦截范围或改审批流程时单独批准。
 
 ## 定期处理建议
 

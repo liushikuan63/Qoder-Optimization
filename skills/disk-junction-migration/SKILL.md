@@ -98,6 +98,22 @@ Qoder数据目录迁移.cmd --cleanup --apply       # 平稳几天后删 *.bak-m
 - 回退不依赖 `*.bak-migrating`：没有备份时工具自动改走「从联接目标复原」（复制到 `<原路径>.restore` → 校文件数 → `rmdir` 断链 → 改名）。
 - 迁移前脚本用 `tasklist` 枚举进程确认客户端已退出；**取不到进程列表就中止**（fail-closed），不要为了跑通而关掉这个检查。
 
+## 步骤 5b · 把 junction 换回真实目录（反向操作）
+
+需要取消链接、让原路径变回实体目录时：
+
+1. 先确认链接目标数据完好并备份/记录目标路径。
+2. 用 `[System.IO.Directory]::Delete($path,$false)` 断链（第二个参数 `$false`：不递归）。断链只删链接，不删目标数据。
+3. 原地 `New-Item -ItemType Directory` 建真实目录。
+4. 断言：`Get-Item $path | Select LinkType,Target` 不再显示链接；原目标目录与文件仍在；新目录可写。
+5. 回滚：真目录里若已写入新内容，先复制回目标；需要恢复链接时重新 `mklink /J`（见步骤 5）。
+
+**三种失败手法的替代路径**（都实测过）：
+
+- `cmd //c` 里变量转义被吞 → 改用 PowerShell 完整路径。
+- `cmd rmdir '<带引号路径>'` 单引号路径被拆 → 用 `Directory.Delete`。
+- PowerShell 5.1 `Remove-Item` 对 junction 可能抛 `NullReferenceException`，但仍回显“已完成”（假成功），且 `Get-Item` 仍能解析路径 → 不要用 `Remove-Item` 删链接；用 `Directory.Delete` 并复查重解析属性。
+
 ## 步骤 6 · 迁移后复验
 
 四条都要有能失败的判据：

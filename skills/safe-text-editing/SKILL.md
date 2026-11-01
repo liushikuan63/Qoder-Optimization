@@ -41,7 +41,17 @@ node ~/.qoder/skills/safe-text-editing/scripts/text-check.js --selftest
 - 内容类：**"新片段在"** 与 **"旧片段不在"** 两条都要断言（只查前者会被残留内容蒙混）。
 - 编码类：`--encoding gbk|utf8`、`--eol crlf|lf`、`--bom`（工具给退出码，不给"看起来对"）。
 
-## 四、边界
+## 四、长单文件分块写入（输出预算不够时）
+
+长 HTML / SVG / 文档一次写不完时，按“骨架 + 唯一占位标记”分块：
+
+1. 先 Write 完整骨架，在待填位置留唯一标记（如 `<!--SVG-->`）。
+2. 每块用 Edit 把标记替换成「本块内容 + 下一个唯一标记」；`old_string` 必须是完整标记串，不能只写 `<!--` 之类前缀，避免误命中。
+3. 收尾用 Edit 删掉最后一个标记。
+4. 每块写完不复述已写内容（省预算），只做增量定位。
+5. 收尾跑结构自检：残留占位符为 0、标签配平、引用存在。**结构自检只证明文件结构完整，不证明画面/行为正确**；无渲染验收时汇报里必须写“未做视觉验证 + 原因”。
+
+## 五、边界
 
 - **本类问题已有门禁**：`win-path-guard.js`（PreToolUse，matcher `^Bash$`）拦三种形态——`node -e/--eval/-p` 负载里的盘符+反斜杠路径、`node -e` 里拼 VBS 三引号、经 heredoc/echo 往 `.js/.cjs/.mjs/.vbs/.ps1` 写单反斜杠盘符路径。被拦不是误报，按提示改写法；确实要放行时写 `~/.qoder/win-path-guard.json` 的 `{"mode":"warn"}` 或 `{"disabled":true}`（自测：`node ~/.qoder/scripts/win-path-guard.test.js`）。
 - 别为了"让检查通过"绕过守卫（`huge-output-guard` / `edit-guard`）：它们的判据都是踩过的坑，被拦就改写法。
