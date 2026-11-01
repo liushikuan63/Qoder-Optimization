@@ -292,8 +292,11 @@ async function main() {
     }
   }
   let cuaExe = existing;
-  if ((cuaChoice === 'offline' || cuaChoice === 'online') && (process.platform !== 'win32' || process.arch !== 'x64'))
-    throw new Error('包内与官方 cua-driver 资产仅支持 Windows x64；当前平台未安装');
+  const unsupportedCuaPlatform = process.platform !== 'win32' || process.arch !== 'x64';
+  if ((cuaChoice === 'offline' || cuaChoice === 'online') && unsupportedCuaPlatform) {
+    if (DRY) log('- [预览] 当前平台不是 Windows x64；执行阶段将拒绝安装 cua-driver');
+    else throw new Error('包内与官方 cua-driver 资产仅支持 Windows x64；当前平台未安装');
+  }
   if (cuaChoice === 'offline') {
     if (!b) throw new Error('包内没有离线 cua-driver；不自动改用联网安装');
     if (existing && existingVersion === b.version) { log(`- 已安装同版本 ${b.version}，跳过`); cuaExe = existing; }

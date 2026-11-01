@@ -650,6 +650,39 @@ for (const scenario of ['missing-archive', 'corrupt-archive', 'register-missing'
   }));
 }
 
+test('Cua preview reports platform limits without installing on unsupported hosts', () => fixture(f => {
+  fs.mkdirSync(f.client, { recursive: true });
+  const settings = path.join(f.client, 'settings.json');
+  const before = '{"preserved":true}';
+  fs.writeFileSync(settings, before);
+  const install = path.join(f.base, 'driver');
+  fs.mkdirSync(install);
+  fs.writeFileSync(path.join(install, 'cua-driver.exe'), 'fixture');
+  const stub = path.join(f.base, 'nonwindows.cjs');
+  fs.writeFileSync(stub, "Object.defineProperty(process,'platform',{value:'linux'});Object.defineProperty(process,'arch',{value:'x64'});require('child_process').spawnSync=()=>{throw new Error('Unexpected subprocess');};require('https').get=()=>{throw new Error('Network forbidden');};");
+  const r = spawnSync(process.execPath, ['--require', stub, path.join(source, 'mcp/install-mcp.cjs'), '--yes', '--skip-dbhub', '--cua', 'offline', '--install-dir', install, '--dry-run'], { env: f.env, encoding: 'utf8', timeout: 20000 });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /不是 Windows x64/);
+  assert.equal(fs.readFileSync(settings, 'utf8'), before);
+  assert.equal(fs.existsSync(path.join(f.client, '.backups')), false);
+}));
+
+test('Cua installation still refuses unsupported hosts before effects', () => fixture(f => {
+  fs.mkdirSync(f.client, { recursive: true });
+  const settings = path.join(f.client, 'settings.json');
+  const before = '{"preserved":true}';
+  fs.writeFileSync(settings, before);
+  const install = path.join(f.base, 'driver');
+  fs.mkdirSync(install);
+  const stub = path.join(f.base, 'nonwindows-apply.cjs');
+  fs.writeFileSync(stub, "Object.defineProperty(process,'platform',{value:'linux'});Object.defineProperty(process,'arch',{value:'x64'});require('child_process').spawnSync=()=>{throw new Error('Unexpected subprocess');};require('https').get=()=>{throw new Error('Network forbidden');};");
+  const r = spawnSync(process.execPath, ['--require', stub, path.join(source, 'mcp/install-mcp.cjs'), '--yes', '--skip-dbhub', '--cua', 'offline', '--install-dir', install], { env: f.env, encoding: 'utf8', timeout: 20000 });
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stderr, /仅支持 Windows x64/);
+  assert.equal(fs.readFileSync(settings, 'utf8'), before);
+  assert.equal(fs.existsSync(path.join(f.client, '.backups')), false);
+}));
+
 const mechanizeScripts = path.join(source, 'skills/mechanize-rule-into-hook-guard/scripts');
 const failStreakGuard = path.join(mechanizeScripts, 'fail-streak-guard.js');
 const failStreakInstaller = require(path.join(mechanizeScripts, 'install-fail-streak.cjs'));

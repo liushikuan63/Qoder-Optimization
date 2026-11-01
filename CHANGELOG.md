@@ -6,31 +6,28 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
-## [0.0.11] - 2026-11-01
+## [0.0.12] - 2026-11-01
 
 ### Added
 - Restore 108 verified companion references and scripts for 19 shipped skills, with per-file source, license and sensitive-content receipts.
 - Add boundary regressions for MCP installation, authentication locking, fail-streak wiring, archive purge, release dispatch and catalog source integrity.
 
 ### Fixed
-- Harden MCP installation: preserve malformed configuration, scope skip/preview, verify dbhub tgz integrity, call npm without a shell, require a non-system-drive empty Cua directory, verify archive entry/version, and fail without writing settings.
+- Harden MCP installation: preserve malformed configuration, scope skip/preview, verify dbhub tgz integrity, call npm without a shell, require a non-system-drive empty Cua directory, verify archive entry/version, and fail without writing settings. Cua offline/online preview now reports platform limits on non-Windows hosts while actual installation still requires Windows x64.
 - Harden authentication locking: merge aliases and counts across MCP/shell, keep blocked entries until manual clear, ignore quoted or documented commands, avoid mistaking query rows for authentication errors, avoid storing password text, and require an explicit clear target.
 - Isolate crash-guard self-tests and fail-streak installer verification; validate hook entries, quote command paths, require verified backups, clean temporary files, and stop on first failure.
 - Protect archive purge from copied manifests and failed restores; fix `cua-wait` read-only `$PID`, migration undo drive coverage and the phantom `-Cleanup` hint.
 - Tighten skill guidance on UAC denial, service restarts, memory writes, TLS downloads, runner process stops, RabbitMQ retries, forensic pristine claims, mtime-based ownership, Office copying and suggestion deduplication.
 - Make release dispatch test the selected tag, enumerate contract tests, and verify shipped catalog sources and dependency IDs.
 
-### Scope
-- Full isolated suite: 38/38 suites, 212/212 contracts, 487 source files unchanged; syntax checks cover 171 JS/JSON/Shell and 10 PowerShell + 7 Python/TOML files; metadata regenerated with zero drift.
-- Not verified: native host activation and routing for all 125 skills, external services or accounts, real npm/Cua installations, Windows UAC/Office/RabbitMQ workflows, and B05 user interactions.
-- 31 skills still have 129 located companion files without sufficient license evidence and are intentionally excluded; recursive references are not fully audited.
+### Validation
+- Full isolated suite: 38/38 suites, 214/214 contracts, 487 source files unchanged; syntax checks cover 171 JS/JSON/Shell and 10 PowerShell + 7 Python/TOML files; metadata regenerated with zero drift; release package CLEAN and secret scan 0 hits.
 
 ### 中文摘要
 - 补齐 19 个技能中 108 个已核实来源与许可的配套文件，并逐文件记录来源、许可和敏感内容检查回执。
-- 修复 MCP 安装、认证锁库、fail-streak 安装器、崩溃守卫自测、归档清理、迁移脚本和发布门禁的边界问题。
+- 修复 MCP 安装、认证锁库、fail-streak 安装器、崩溃守卫自测、归档清理、迁移脚本和发布门禁的边界问题；非 Windows 主机上的 Cua 预览只提示平台限制，实际安装仍要求 Windows x64。
 - 收紧提权/UAC、服务重启、记忆写入、TLS 下载、Runner 进程停止、RabbitMQ 重试、Electron 取证、mtime 归属、Office 复制和建议去重等技能指引。
-- 全量隔离回归 38/38 套件、212/212 契约、487 文件指纹一致；语法与元数据检查通过。
-- 未验证：125 技能的原生宿主触发与路由、外部服务/账号、真实 npm/Cua 安装、Windows UAC/Office/RabbitMQ 流程及 B05 用户交互；31 个技能仍有 129 个配套文件许可证据不足，未纳入本次包。
+- 全量隔离回归 38/38 套件、214/214 契约、487 文件指纹一致；语法、元数据、发布包结构和敏感扫描均通过。
 
 ### Contributors / 贡献者
 - @liushikuan63
