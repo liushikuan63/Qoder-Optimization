@@ -181,11 +181,20 @@ function installTarget(e, root) {
   return null;
 }
 
-function rebuildIndex() {
+function rebuildIndex(output) {
   const script = path.join(QODER, 'scripts', 'build-skills-index.cjs');
   if (!fs.existsSync(script)) return '索引未重建（build-skills-index.cjs 不在 ~/.qoder/scripts）';
-  const r = spawnSync(process.execPath, [script], { encoding: 'utf8', timeout: 60000 });
+  // The builder exports a read-only collector. Invoke that API in a child so a
+  // failed/older builder cannot commit an index that the installer cannot own.
+  const runner = "const fs=require('fs'),builder=require(process.argv[1]);" +
+    "if(typeof builder.collectSkills!=='function')throw new Error('builder lacks collectSkills');" +
+    "const entries=builder.collectSkills();if(!Array.isArray(entries))throw new Error('invalid skill index entries');" +
+    "fs.writeFileSync(process.argv[2],JSON.stringify({generated_at:new Date().toISOString(),count:entries.length,entries},null,1),{flag:'wx'});";
+  const r = spawnSync(process.execPath, ['-e', runner, script, output], { encoding: 'utf8', timeout: 60000, env: { ...process.env, QODER_HOME: QODER } });
   if (r.status !== 0) throw new Error(`索引重建失败（exit=${r.status}）：${(r.stderr || '').slice(0, 200)}`);
+  if (!fs.existsSync(output) || !fs.lstatSync(output).isFile() || fs.lstatSync(output).isSymbolicLink()) throw new Error('索引重建未生成可提交的普通文件');
+  const index = readJson(output);
+  if (!Array.isArray(index.entries) || index.count !== index.entries.length) throw new Error('重建的技能索引格式无效');
   return '索引已重建';
 }
 
@@ -292,10 +301,21 @@ function cmdInstall() {
   fs.mkdirSync(QODER, { recursive: true });
   const stage = fs.mkdtempSync(path.join(QODER, '.pkg-install-'));
   const indexPath = path.join(QODER, 'skills-index.json');
-  const indexBefore = fs.existsSync(indexPath) ? fs.readFileSync(indexPath) : null;
+  const indexBackup = path.join(stage, 'old-index.json');
+  const stagedIndex = path.join(stage, 'new-index.json');
+  const indexSnapshot = file => {
+    let st;
+    try { st = fs.lstatSync(file); } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+    if (!st.isFile() || st.isSymbolicLink()) throw new Error('技能索引不是普通文件，拒绝修改');
+    return { ino: st.ino, dev: st.dev, hash: createHash('sha256').update(fs.readFileSync(file)).digest('hex') };
+  };
+  const sameIndex = (a, b) => !a || !b ? a === b : a.ino === b.ino && a.dev === b.dev && a.hash === b.hash;
   const applied = [];
-  let restored = false, indexAttempted = false;
+  const rebuildSkills = plan.some(item => item.entry.category === 'skill');
+  let restored = false, indexBefore, indexMoved = false;
+  const indexOwned = [];
   try {
+    if (rebuildSkills) indexBefore = indexSnapshot(indexPath);
     for (let i = 0; i < plan.length; i++) {
       const item = plan[i];
       item.staged = path.join(stage, 'new-' + i);
@@ -313,7 +333,22 @@ function cmdInstall() {
       }
       copyExclusive(item.staged, item.target, item.owned);
     }
-    if (plan.some(item => item.entry.category === 'skill')) { indexAttempted = true; console.log('  ' + rebuildIndex()); }
+    if (rebuildSkills) {
+      const message = rebuildIndex(stagedIndex);
+      if (fs.existsSync(stagedIndex)) {
+        if (!sameIndex(indexSnapshot(indexPath), indexBefore)) throw new Error('技能索引在安装期间已变化，保留其他写入者的内容');
+        if (indexBefore) {
+          fs.renameSync(indexPath, indexBackup);
+          indexMoved = true;
+          // A writer may have changed the path between comparison and rename.
+          // Keep the actual moved file so rollback restores those newer bytes.
+          if (!sameIndex(indexSnapshot(indexBackup), indexBefore)) throw new Error('技能索引在提交时已变化，保留实际移入备份的内容');
+        }
+        // Exclusive creation protects a concurrently recreated index path.
+        copyExclusive(stagedIndex, indexPath, indexOwned);
+      }
+      console.log('  ' + message);
+    }
     console.log('  已安装全部包内依赖并通过入口校验；第三方依赖与现役装载未验证。');
     for (const item of plan) if (fs.statSync(item.target).isDirectory() && fs.existsSync(path.join(item.target, 'package-lock.json'))) {
       console.log('  第三方依赖需另行安装：npm ci --ignore-scripts --prefix ' + JSON.stringify(item.target));
@@ -341,9 +376,20 @@ function cmdInstall() {
           else copyExclusive(item.backup, item.target, []);
         }
       }
-      if (indexAttempted) {
-        if (indexBefore) fs.writeFileSync(indexPath, indexBefore);
-        else if (fs.existsSync(indexPath)) fs.unlinkSync(indexPath);
+      if (indexOwned.length) {
+        const owned = indexOwned[0];
+        let current;
+        try { current = indexSnapshot(indexPath); } catch { conflict = true; }
+        if (current) {
+          if (sameIndex(current, owned)) fs.unlinkSync(indexPath);
+          else conflict = true;
+        }
+      }
+      if (indexMoved) {
+        // Linking is exclusive: restoring a backup must never replace a path
+        // created by another writer while skill-file rollback was running.
+        try { fs.linkSync(indexBackup, indexPath); }
+        catch (restoreError) { if (restoreError.code === 'EEXIST') conflict = true; else throw restoreError; }
       }
       if (conflict) throw new Error('目标内容或归属变化，未完整回滚；保留文件与备份供核对：' + stage);
       restored = true;

@@ -24,7 +24,7 @@ install-mcp.cmd --wire-guard   :: 同时接线鼠标抢占守卫（需先把 scr
 ```
 
 - 幂等：已存在的条目不会覆盖；改 `settings.json` 前自动备份到 `<配置目录>/.backups/`。
-- 无效参数、损坏 JSON、非对象的配置根或 `mcpServers` 字段会在安装及写入前拒绝，保留原文件。
+- 无效参数、损坏 JSON、非对象的配置根、`mcpServers` / `hooks` 或非数组的 hook 事件会在安装及写入前拒绝，保留原文件。`--wire-guard` 只接受完整 Node/守卫两参数命令、正确 type、matcher 与 timeout 的唯一接线；仅含脚本名、错误命令或重复条目会作为冲突拒绝，无关 hook 保留。
 - 生成 `dbhub.toml` 模板（连接串自己填，**只写本机**）。
 - 不写入任何凭据。
 

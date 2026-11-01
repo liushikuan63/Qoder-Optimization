@@ -37,17 +37,18 @@ const PLACEHOLDER_APPID = /^wx(?:([0-9a-f])\1{15}|x{1,16}|0123456789abcdef|12345
 
 // 文档里的 `password = <占位>` / `api_key: os.environ[...]` 是示例，不是外泄；
 // 只有"像真值"的才判硬命中：够长、字母数字混合、不是环境变量/占位写法。
-function looksRealSecret(text, at, v) {
+function looksRealSecret(v, literal = true) {
   if (!v || v.length < 12) return false;
   if (!/[A-Za-z]/.test(v) || !/[0-9]/.test(v)) return false;
   if (!/^[A-Za-z0-9_\-/.+=:]+$/.test(v)) return false;
   if (/(your|example|placeholder|dummy|sample|changeme|secret|token|password|apikey|api_key|xxxx)/i.test(v)) return false;
-  const ctx = at < 0 ? '' : text.slice(Math.max(0, at - 60), at);
-  return !/process\.env|os\.environ|getenv|dotenv|config\.|settings\.|<|\{\{|\$\{/.test(ctx);
+  // Exempt the unquoted value expression itself. Nearby comments or markup
+  // cannot turn a literal password into an environment lookup.
+  return literal || !/^(?:process\.env(?:\.|\[)|os\.environ(?:\.|\[)|getenv\b|dotenv\.|config\.|settings\.)/.test(v);
 }
 const HARD = {
   '真实微信AppID': /\bwx[0-9a-f]{16}\b/gi,
-  '凭据键值': /\b(password|passwd|pwd|secret|api[_-]?key|access[_-]?key|token)["']?\s*[:=]\s*["']?([^\s"',;)}]{6,})/gi,
+  '凭据键值': /\b(password|passwd|pwd|secret|api[_-]?key|access[_-]?key|token)["']?\s*[:=]\s*(["']?)([^\s"',;)}]{6,})/gi,
 };
 const SOFT = {
   '私网IP示例': /\b(?:10\.\d{1,3}|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}\b/g,
@@ -66,7 +67,7 @@ function scanText(text) {
       const node = pending.pop();
       if (!node || typeof node !== 'object') continue;
       for (const [key, val] of Object.entries(node)) {
-        if (/^(password|passwd|pwd|secret|api[_-]?key|access[_-]?key|token)$/i.test(key) && typeof val === 'string' && looksRealSecret('', -1, val)) bump('凭据键值', 1);
+        if (/^(password|passwd|pwd|secret|api[_-]?key|access[_-]?key|token)$/i.test(key) && typeof val === 'string' && looksRealSecret(val)) bump('凭据键值', 1);
         if (val && typeof val === 'object') pending.push(val);
       }
     }
@@ -76,12 +77,12 @@ function scanText(text) {
     const g = new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g');
     bump(label, [...text.matchAll(g)].filter(match => {
       const m = match[0];
-      // Keep each occurrence's offset and captured value: a repeated assignment
-      // must not inherit an earlier exemption or lose '=' characters in its value.
-      const v = label === '凭据键值' ? match[2] : m;
+      // Keep each occurrence's quote and value; JSON strings and quoted source
+      // values are literals, even when their text resembles an env expression.
+      const v = label === '凭据键值' ? match[3] : m;
       if (PLACEHOLDER.test(v) || /^\d+$/.test(v)) return false;
       if (label === '真实微信AppID') return !PLACEHOLDER_APPID.test(String(m).toLowerCase());
-      if (label === '凭据键值') return looksRealSecret(text, match.index, v);
+      if (label === '凭据键值') return looksRealSecret(v, !!match[2]);
       return true;
     }).length);
   }
@@ -102,6 +103,14 @@ function walk(p, out = []) {
   return out;
 }
 function isHard(k) { return WORDS[k] !== undefined || HARD[k] !== undefined; }
+
+function decodeText(bytes) {
+  // Windows PowerShell may write UTF-16 text. Only a declared BOM opts into
+  // UTF-16 decoding; unmarked binary files retain the existing NUL exclusion.
+  const encoding = bytes[0] === 0xff && bytes[1] === 0xfe ? 'utf-16le'
+    : bytes[0] === 0xfe && bytes[1] === 0xff ? 'utf-16be' : null;
+  return encoding ? new TextDecoder(encoding, { fatal: true }).decode(bytes) : bytes.toString('utf8');
+}
 
 function selftest() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'secretscan-'));
@@ -141,7 +150,7 @@ for (const t of targets) {
         for (const member of members) inspect(name + '!/' + member.name, member.data, depth + 1);
         return;
       }
-      const text = bytes.toString('utf8');
+      const text = decodeText(bytes);
       if (/\0/.test(text.slice(0, 8000))) return;
       files++;
       const hits = scanText(text);

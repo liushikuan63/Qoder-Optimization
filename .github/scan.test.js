@@ -41,6 +41,65 @@ test('scanner still rejects a credential-like value and does not disclose it', (
   assert.equal((result.stdout + result.stderr).includes(value), false);
 }));
 
+for (const encoding of ['utf16le', 'utf16be']) {
+  test('scanner decodes BOM-marked ' + encoding + ' text instead of silently skipping it', () => fixture(f => {
+    const value = ['R4nd0m', 'Value42Plus'].join('');
+    const body = Buffer.from('password = "' + value + '"', 'utf16le');
+    if (encoding === 'utf16be') body.swap16();
+    const bom = Buffer.from(encoding === 'utf16be' ? [0xfe, 0xff] : [0xff, 0xfe]);
+    fs.writeFileSync(f.input, Buffer.concat([bom, body]));
+    fs.writeFileSync(path.join(f.dir, 'clean.txt'), 'clean sibling');
+    const result = f.run(f.dir);
+    assert.equal(result.status, 2, result.stdout + result.stderr);
+    assert.ok(result.stdout.includes('凭据键值=1'), result.stdout);
+    assert.equal((result.stdout + result.stderr).includes(value), false);
+  }));
+}
+
+for (const prefix of ['// read process.env first\n', '<section>\n', '// config.password is documented here\n']) {
+  test('nearby comments and markup do not exempt a following literal assignment: ' + prefix.trim(), () => fixture(f => {
+    const value = ['R4nd0m', 'Value42Plus'].join('');
+    fs.writeFileSync(f.input, prefix + 'password = "' + value + '"');
+    const result = f.run(f.input);
+    assert.equal(result.status, 2, result.stdout + result.stderr);
+    assert.ok(result.stdout.includes('凭据键值=1'), result.stdout);
+    assert.equal((result.stdout + result.stderr).includes(value), false);
+  }));
+}
+
+test('an unquoted environment expression is not a literal credential', () => fixture(f => {
+  fs.writeFileSync(f.input, 'password = process.env.CREDENTIAL42');
+  const result = f.run(f.input);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+}));
+
+for (const json of [false, true]) {
+  test('quoted environment-shaped values remain literal strings: json=' + json, () => fixture(f => {
+    const value = ['process.env.', 'CREDENTIAL42'].join('');
+    fs.writeFileSync(f.input, json ? JSON.stringify({ password: value }) : 'password = "' + value + '"');
+    const result = f.run(f.input);
+    assert.equal(result.status, 2, result.stdout + result.stderr);
+    assert.ok(result.stdout.includes('凭据键值=1'), result.stdout);
+    assert.equal((result.stdout + result.stderr).includes(value), false);
+  }));
+}
+
+test('a truncated BOM-marked UTF-16 file fails beside clean text', () => fixture(f => {
+  fs.writeFileSync(f.input, Buffer.from([0xff, 0xfe, 0x61]));
+  fs.writeFileSync(path.join(f.dir, 'clean.txt'), 'clean sibling');
+  const result = f.run(f.dir);
+  assert.equal(result.status, 2, result.stdout + result.stderr);
+  assert.ok(result.stdout.includes('不可读 1'), result.stdout);
+}));
+
+test('unmarked binary data containing NUL bytes remains excluded', () => fixture(f => {
+  fs.writeFileSync(f.input, Buffer.from([0, 1, 2, 3, 0, 4]));
+  fs.writeFileSync(path.join(f.dir, 'clean.txt'), 'clean sibling');
+  const result = f.run(f.dir);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.ok(result.stdout.includes('扫描 1 个文件'), result.stdout);
+}));
+
 for (const exemptFirst of [true, false]) {
   test('identical credential assignments use each occurrence context: exemptFirst=' + exemptFirst, () => fixture(f => {
     const value = ['R4nd0m', 'Value42Plus'].join('');
@@ -50,7 +109,7 @@ for (const exemptFirst of [true, false]) {
     fs.writeFileSync(f.input, lines.join('\n' + 'padding '.repeat(20) + '\n'));
     const result = f.run(f.input);
     assert.equal(result.status, 2, result.stdout + result.stderr);
-    assert.ok(result.stdout.includes('凭据键值=1'), result.stdout);
+    assert.ok(result.stdout.includes('凭据键值=2'), result.stdout);
     assert.equal((result.stdout + result.stderr).includes(value), false);
   }));
 }

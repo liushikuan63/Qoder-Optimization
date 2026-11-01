@@ -6,6 +6,37 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.0.15] - 2026-11-01
+
+### Fixed
+- Classify retry budgets by the executed program and its operation, without treating command-like argument text as test/build evidence. Exclude Node help/version queries, including equals-sign forms, and keep remote invocations with different destinations in separate budgets.
+- Reject missing or flag-shaped handoff/import target arguments before selecting a default or writing files.
+- Decode BOM-marked UTF-16LE/BE during credential scanning and report truncated encodings. Limit environment-expression exemptions to unquoted values; nearby comments and markup cannot exempt literal credentials.
+- Stage memory imports and track file identity plus confirmed writes during rollback. Preserve concurrent edits/replacements and complete staged input with a recovery receipt instead of deleting another writer's data.
+- Build skill indexes in staging and publish with identity/content checks and exclusive creation. Failed installation no longer overwrites or removes a concurrently changed index.
+- Validate MCP hook structure and complete Cua guard commands before installation or configuration writes. Preserve conflicting wiring for review instead of declaring it correctly connected.
+- Repair fail-streak installer self-tests to load the complete dependency closure, isolate the client root and require real subprocess success with no crash log.
+- Make memory synchronization report copy failures and verify copied bytes; return nonzero when data migration or its read-back probe fails. Before copying, reject destination links (including existing ancestors and nested links) and conflicting destination data; reuse a nonempty destination only when its full file proof already matches. Verify relative paths and streaming SHA256 before cutover; bind rollback to its receipt, backup, actual junction destination and an unchanged destination tree while the client is stopped.
+- Make memory-sync self-tests select their actual repository/installed companions, use disposable clients on both Windows and Linux, and reject a nonzero guard exit even when stdout is empty.
+- Reject links and output paths inside the input tree in the generic ZIP packer, and clamp implicit filesystem timestamps to ZIP's supported date range. Explicit invalid reproducibility timestamps still fail.
+- Serialize manual completion and tag-triggered publication of the same release under one concurrency group.
+
+### Compatibility and recovery
+- Build/test directory scopes remain compatible with 0.0.14. Remote invocation keys now include their full arguments except known verbosity flags; older remote keys are retained without migration because their destination provenance was incomplete.
+- A rollback conflict intentionally leaves the changed target and recovery material in place and reports failure. Resolve the recorded conflict before retrying; a failure is not reported as a clean rollback.
+- Legacy migrations without a receipt require manual recovery review. If destination data has changed since migration, automatic Undo keeps the junction and asks for reconciliation instead of activating a stale backup. No user data migration is executed as part of release acceptance.
+- Tests and package acceptance use isolated clients. Native Qoder routing/UI, real external accounts/services, Cua installation/autostart and the separately incomplete B05 acceptance remain unverified.
+
+### 中文摘要
+- 修复命令参数污染连败类别、帮助/版本查询误计数和远端目标串账；拒绝交接/导入命令的缺值参数。
+- 敏感扫描支持明确 BOM 的 UTF-16 文本，并收窄环境表达式豁免，防止邻近注释或标记掩盖明文。
+- 记忆导入和技能索引采用暂存与归属核对；失败回滚保留并发变更及恢复资料，不覆盖其他写入者。
+- 修复 MCP hook 结构/完整接线误判、fail-streak 自检依赖缺失，以及同步/迁移失败仍返回成功的问题。
+- 修复通用 ZIP 打包器的链接、输出目录与时间范围边界；同一标签的手动与推送发布统一串行。
+
+### Contributors / 贡献者
+- @liushikuan63
+
 ## [0.0.14] - 2026-11-01
 
 ### Fixed

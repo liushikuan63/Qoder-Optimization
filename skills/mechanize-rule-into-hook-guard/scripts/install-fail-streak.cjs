@@ -219,24 +219,30 @@ function printPlan(plan, opts) {
 
 // ---- 沙箱端到端：证明「接上去真的会拦」，且这条绿能被摘掉委托段判红 ----
 function selftest(opts) {
-  const real = path.join(HOME, '.qoder', 'scripts');
+  const deps = [HOST, 'hook-crash-guard.js', 'auth-lock-core.js', 'attempt-lock-core.js', 'client-root.js'];
+  const candidates = [path.resolve(SRC, '../../../scripts'), path.join(HOME, '.qoder', 'scripts'), path.join(HOME, '.qoder-cn', 'scripts')];
+  const real = candidates.find(dir => deps.every(name => fs.existsSync(path.join(dir, name))));
+  if (!real) { console.error('自检缺少宿主依赖闭包（' + deps.join(', ') + '），未执行安装'); return 1; }
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-install-'));
   const root = path.join(dir, 'qoder');
   fs.mkdirSync(path.join(root, 'scripts'), { recursive: true });
-  const deps = [HOST, 'hook-crash-guard.js', 'auth-lock-core.js'];
-  for (const d of deps) { if (fs.existsSync(path.join(real, d))) fs.copyFileSync(path.join(real, d), path.join(root, 'scripts', d)); }
+  for (const d of deps) fs.copyFileSync(path.join(real, d), path.join(root, 'scripts', d));
   fs.writeFileSync(path.join(root, 'settings.json'), JSON.stringify({ hooks: { PreToolUse: [{ hooks: [{ type: 'command', command: opts.node + ' ' + slash(path.join(root, 'scripts', HOST)) }] }], PostToolUse: [] } }, null, 2) + '\n');
 
   let fail = 0;
   const check = (label, ok, detail) => { console.log((ok ? 'PASS' : 'FAIL') + '  ' + label + (detail ? ' :: ' + String(detail).replace(/\s+/g, ' ').slice(0, 170) : '')); if (!ok) fail++; };
   const st = path.join(dir, 'state');
   const env = Object.assign({}, process.env, {
+    QODER_HOME: root,
     FAIL_STREAK_STATE_DIR: path.join(st, 'fs'), FAIL_STREAK_CONFIG: path.join(dir, 'no-config.json'),
     RISKY_MATCH_STATE_DIR: path.join(st, 'risky'), AUTH_LOCK_STATE_DIR: path.join(st, 'auth'),
     AUTH_LOCK_CONFIG: path.join(dir, 'no-auth-config.json'), HOOK_CRASH_LOG: path.join(dir, 'crash.log'),
   });
   const run = (script, payload) => {
     const r = spawnSync(process.execPath, [script], { input: JSON.stringify(payload), encoding: 'utf8', timeout: 20000, env });
+    const crash = fs.existsSync(env.HOOK_CRASH_LOG) && fs.statSync(env.HOOK_CRASH_LOG).size > 0;
+    check('自检子进程健康 ' + path.basename(script), !r.error && r.status === 0 && !crash,
+      'exit=' + r.status + (r.error ? ' ' + r.error.message : '') + (crash ? ' hook crash log is not empty' : ''));
     let d = {}; try { d = JSON.parse(r.stdout || '{}'); } catch (e) {}
     return { code: r.status, out: r.stdout || '', decision: d.decision, reason: d.reason || '' };
   };
@@ -273,14 +279,14 @@ function selftest(opts) {
   ];
   posts.forEach(([c, resp]) => run(G, { hook_event_name: 'PostToolUse', session_id: 'fs-selftest', tool_name: 'Bash', tool_input: { command: c }, tool_response: resp }));
   const pre = run(path.join(root, 'scripts', HOST), { hook_event_name: 'PreToolUse', session_id: 'fs-selftest', tool_name: 'Bash', tool_input: { command: 'wget -q -O - http://' + T + '/x' } });
-  check('自检9 真跑宿主 Pre：第四种手段被 [fail-streak] 拦下', pre.decision === 'block' && /\[fail-streak\]/.test(pre.reason), 'decision=' + pre.decision + ' reason=' + pre.reason.slice(0, 90));
+  check('自检9 真跑宿主 Pre：第四种手段被 [fail-streak] 拦下', pre.code === 0 && pre.decision === 'block' && /\[fail-streak\]/.test(pre.reason), 'decision=' + pre.decision + ' reason=' + pre.reason.slice(0, 90));
 
   // 负对照：摘掉委托段的宿主副本，同一序列不得再出现 [fail-streak]（证明自检9 不是恒绿）
   const stripped = path.join(root, 'scripts', 'host-no-delegation.js');
   const seg = hostAfter.indexOf(MARK_OPEN), segEnd = hostAfter.indexOf(MARK_CLOSE) + MARK_CLOSE.length;
   fs.writeFileSync(stripped, hostAfter.slice(0, seg) + hostAfter.slice(segEnd));
   const pre2 = run(stripped, { hook_event_name: 'PreToolUse', session_id: 'fs-selftest-2', tool_name: 'Bash', tool_input: { command: 'wget -q -O - http://' + T + '/x' } });
-  check('自检10 负对照：摘掉委托段后不再出现 [fail-streak]（绿不是恒真）', !/\[fail-streak\]/.test(pre2.reason), 'decision=' + pre2.decision + ' reason=' + pre2.reason.slice(0, 70));
+  check('自检10 负对照：摘掉委托段后不再出现 [fail-streak]（绿不是恒真）', pre2.code === 0 && !/\[fail-streak\]/.test(pre2.reason), 'decision=' + pre2.decision + ' reason=' + pre2.reason.slice(0, 70));
 
   const ledgerTxt = (() => { try { return fs.readFileSync(path.join(st, 'fs', 'decisions.log'), 'utf8'); } catch (e) { return ''; } })();
   check('自检11 台账含 streak-new×3 与 block（守卫真跑过）', (ledgerTxt.match(/streak-new\|198\.51\.100\.77/g) || []).length === 3 && /block\|198\.51\.100\.77/.test(ledgerTxt));

@@ -38,19 +38,37 @@ function ledger(v) {
 function load() { try { return JSON.parse(fs.readFileSync(STATE, 'utf8')); } catch (e) { return { entries: {} }; } }
 function save(s) { try { fs.mkdirSync(STATE_DIR, { recursive: true }); fs.writeFileSync(STATE, JSON.stringify(s, null, 1)); } catch (e) {} }
 
-// 分类顺序：test → build → deploy（`mvn test` 归 test；`ssh`/`rsync` 归 deploy）
-const TEST_CMD = /\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:test|e2e)\b|\bmvn\b[^|;&]*\b(?:test)\b|\bgradlew?\b[^|;&]*\b(?:test|check)\b|\bpytest\b|\btox\b|\bphpunit\b|\bnode\s+--test\b|\bgo\s+test\b|\bcargo\s+test\b|\bdotnet\s+test\b|\bvitest\b|\bjest\b/i;
-const BUILD_CMD = /\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:build|ci)\b|\bmvn\b[^|;&]*\b(?:package|install|compile|verify|install)\b|\bgradlew?\b[^|;&]*\b(?:build|assemble)\b|\bcargo\s+build\b|\bgo\s+build\b|\bdotnet\s+build\b|\btsc\b|\bmake\b/i;
-const DEPLOY_CMD = /\b(?:ssh|scp|sftp|rsync|pscp|plink)\b|\bsystemctl\s+(?:restart|start|stop|reload)\b|\bdocker\s+compose\s+(?:up|restart)\b/i;
-
 function familyOfWords(words) {
-  // 只把真正的命令入口当作执行；echo/rg 中引用的命令不能消费失败预算。
   const executable = path.basename(String(words[0] || '').replace(/\\/g, '/')).replace(/\.(?:exe|cmd|bat)$/i, '').toLowerCase();
-  if (!/^(?:npm|pnpm|yarn|bun|mvn|gradle|gradlew|pytest|tox|phpunit|node|go|cargo|dotnet|vitest|jest|tsc|make|ssh|scp|sftp|rsync|pscp|plink|systemctl|docker)$/.test(executable)) return null;
-  const c = [executable, ...words.slice(1)].join(' ');
-  if (TEST_CMD.test(c)) return 'test';
-  if (BUILD_CMD.test(c)) return 'build';
-  if (DEPLOY_CMD.test(c)) return 'deploy';
+  const separator = words.indexOf('--');
+  const args = words.slice(1, separator < 0 ? undefined : separator);
+  if (args.some(arg => /^(?:--(?:help|version)(?:=.*)?|-h|-V)$/.test(arg))) return null;
+  // Classify the executed program's operation, never command-like text in its
+  // arguments. In particular, an SSH remote command is still a deployment call.
+  if (/^(?:ssh|scp|sftp|rsync|pscp|plink)$/.test(executable)) return 'deploy';
+  if (/^(?:pytest|tox|phpunit|vitest|jest)$/.test(executable)) return 'test';
+  if (/^(?:tsc|make)$/.test(executable)) return 'build';
+  if (executable === 'node') return args.includes('--test') && !args.some(arg => /^(?:-v$|-e(?:=|$)|--eval(?:=|$)|-p(?:=|$)|--print(?:=|$))/.test(arg)) ? 'test' : null;
+  if (/^(?:npm|pnpm|yarn|bun)$/.test(executable)) {
+    const operation = args.filter(arg => !/^(?:--silent|--quiet|--verbose|--if-present|-s|-q)$/.test(arg));
+    const task = operation[0] === 'run' ? operation[1] : operation[0];
+    if (/^(?:test|e2e)$/.test(task || '')) return 'test';
+    if (/^(?:build|ci)$/.test(task || '')) return 'build';
+    return null;
+  }
+  if (/^(?:go|cargo|dotnet)$/.test(executable)) return args[0] === 'test' ? 'test' : args[0] === 'build' ? 'build' : null;
+  if (executable === 'systemctl') return /^(?:restart|start|stop|reload)$/.test(args[0] || '') ? 'deploy' : null;
+  if (executable === 'docker') return args[0] === 'compose' && /^(?:up|restart)$/.test(args[1] || '') ? 'deploy' : null;
+  if (/^(?:mvn|gradle|gradlew)$/.test(executable)) {
+    const goals = [];
+    for (let i = 0; i < args.length; i++) {
+      const arg = args[i];
+      if (/^(?:-f|--file|-s|--settings|-gs|--global-settings|-P|--activate-profiles|-b|--build-file|-c|--settings-file|-I|--init-script|-g|--gradle-user-home|-p|--project-dir|--include-build)$/.test(arg)) { i++; continue; }
+      if (!arg.startsWith('-')) goals.push(arg.split(':').pop());
+    }
+    if (goals.some(goal => /^(?:test|check)$/.test(goal))) return 'test';
+    if (goals.some(goal => /^(?:package|install|compile|verify|build|assemble)$/.test(goal))) return 'build';
+  }
   return null;
 }
 
@@ -171,7 +189,14 @@ function keyOf(family, cmd, cwd) {
   const target = commandTargets(cmd, cwd).find(t => t.family === family);
   if (!target) return null;
   const sig = target.words.filter(t => t && t.charAt(0) !== '-').slice(0, 3).join(' ').toLowerCase();
-  const scope = crypto.createHash('sha256').update(JSON.stringify([target.directory, target.selectors])).digest('hex').slice(0, 16);
+  // Remote destinations often follow multiple option/value pairs. Retain the
+  // complete invocation in its digest so different hosts cannot share a key.
+  // Only known verbosity switches are ignored; other remote arguments remain
+  // part of the operation rather than guessing each client's option grammar.
+  const remote = family === 'deploy' ? target.words.filter(word => !/^(?:-v+|-q|--verbose|--quiet)$/.test(word)) : [];
+  const scopeParts = [target.directory, target.selectors];
+  if (remote.length) scopeParts.push(remote);
+  const scope = crypto.createHash('sha256').update(JSON.stringify(scopeParts)).digest('hex').slice(0, 16);
   return family + '@' + sig + '#' + scope;
 }
 

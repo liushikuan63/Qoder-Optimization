@@ -89,8 +89,20 @@ done
 
 # ── 3) --copy-missing：只补单边文件（分叉文件不动）──
 if [ "$MODE" = "--copy-missing" ] && [ $((only_a + only_b)) -gt 0 ]; then
-  for f in "${files_a[@]}"; do [ -n "${seen_b[$f]:-}" ] || cp "$A/$f" "$B/"; done
-  for f in "${files_b[@]}"; do [ -n "${seen_a[$f]:-}" ] || cp "$B/$f" "$A/"; done
+  copy_missing() {
+    # A failed copy may leave a truncated destination. Keep both files as evidence
+    # and stop before clearing drift counts or reporting the directories in sync.
+    if ! cp -n -- "$1" "$2"; then
+      echo "[memory-sync] COPY-FAIL: $1 -> $2（源和部分目标已保留，请核对后恢复）" >&2
+      return 1
+    fi
+    if ! cmp -s -- "$1" "$2"; then
+      echo "[memory-sync] COPY-FAIL: $1 -> $2（复制后字节不一致，或无法完整校验；文件已保留）" >&2
+      return 1
+    fi
+  }
+  for f in "${files_a[@]}"; do [ -n "${seen_b[$f]:-}" ] || copy_missing "$A/$f" "$B/$f" || exit 1; done
+  for f in "${files_b[@]}"; do [ -n "${seen_a[$f]:-}" ] || copy_missing "$B/$f" "$A/$f" || exit 1; done
   echo "[memory-sync] 已把只在一侧的文件补到另一侧（分叉文件未动）"
   only_a=0; only_b=0
   files_a=(); for p in "$A"/*.md; do files_a+=("${p##*/}"); done

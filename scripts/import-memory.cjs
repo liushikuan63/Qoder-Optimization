@@ -24,15 +24,60 @@ function importMemory(file, root, apply = false) {
   if (!apply || !fresh.length) return;
   if (fs.existsSync(memory) && fs.lstatSync(memory).isSymbolicLink()) throw new Error('记忆目标不能是符号链接');
   fs.mkdirSync(memory, { recursive: true });
+  const stage = fs.mkdtempSync(path.join(memory, '.import-memory-'));
   const written = [];
   try {
+    // Keep complete input bytes until publication and rollback have finished.
+    // Staging failures never expose a partial final memory file.
     for (const e of fresh) {
-      fs.writeFileSync(e.target, e.data, { flag: 'wx' });
-      written.push(e.target);
+      e.staged = path.join(stage, e.name);
+      fs.writeFileSync(e.staged, e.data, { flag: 'wx' });
+      if (!fs.readFileSync(e.staged).equals(e.data)) throw new Error('导入暂存字节校验失败');
+    }
+    for (const e of fresh) {
+      const fd = fs.openSync(e.target, 'wx');
+      try {
+        const stat = fs.fstatSync(fd);
+        const owned = { target: e.target, ino: stat.ino, dev: stat.dev, data: e.data, bytes: 0 };
+        written.push(owned);
+        // Record each successful write before the next one can fail. A disk-full
+        // error may leave a prefix, which belongs to this transaction only while
+        // both its file identity and confirmed bytes still match.
+        while (owned.bytes < e.data.length) {
+          const count = fs.writeSync(fd, e.data, owned.bytes, e.data.length - owned.bytes, null);
+          if (!Number.isInteger(count) || count <= 0 || count > e.data.length - owned.bytes) throw new Error('导入写入未取得进展');
+          owned.bytes += count;
+        }
+      } finally { fs.closeSync(fd); }
       if (!fs.readFileSync(e.target).equals(e.data)) throw new Error('导入字节校验失败');
     }
+    fs.rmSync(stage, { recursive: true, force: true });
   } catch (error) {
-    for (const file of written.reverse()) fs.unlinkSync(file);
+    const conflicts = [];
+    for (const owned of written.reverse()) {
+      try {
+        const stat = fs.lstatSync(owned.target);
+        if (stat.isSymbolicLink() || !stat.isFile() || stat.ino !== owned.ino || stat.dev !== owned.dev
+            || !fs.readFileSync(owned.target).equals(owned.data.subarray(0, owned.bytes))) {
+          conflicts.push(owned.target); continue;
+        }
+        fs.unlinkSync(owned.target);
+      } catch (rollbackError) {
+        if (rollbackError.code !== 'ENOENT') conflicts.push(owned.target);
+      }
+    }
+    if (conflicts.length) {
+      try {
+        fs.writeFileSync(path.join(stage, 'RECOVERY.json'), JSON.stringify({
+          sourceArchive: path.resolve(file), firstError: { message: error.message, code: error.code || null },
+          conflicts,
+        }, null, 2) + '\n', { flag: 'wx' });
+      } catch {} // A full disk must not hide the original failure or recovery path.
+      error.message += '；回滚遇到并发变更或无法安全删除的文件，已保留目标；恢复资料：' + stage;
+    } else {
+      try { fs.rmSync(stage, { recursive: true, force: true }); }
+      catch { error.message += '；暂存目录未能清理，恢复资料：' + stage; }
+    }
     throw error;
   }
 }
@@ -45,7 +90,11 @@ if (require.main === module) {
     while (args.length) {
       const flag = args.shift();
       if (flag === '--apply') apply = true;
-      else if (flag === '--client-root' && args.length) root = path.resolve(args.shift());
+      else if (flag === '--client-root') {
+        const value = args.shift();
+        if (!value || !value.trim() || value.startsWith('-')) throw new Error('--client-root 需要一个明确目录路径');
+        root = path.resolve(value);
+      }
       else throw new Error('未知或缺值参数');
     }
     if (!file) throw new Error('用法：node import-memory.cjs <归档> [--client-root <客户端目录>] [--apply]');

@@ -5,7 +5,11 @@
 #       空目录 / 前置不全 / 真实目录冒烟 / guard 端到端（植入分叉必报、干净必静默）/ 量具缺失必报红
 set -uo pipefail
 S="${SUT:-$HOME/.qoder/scripts/sync-memory.sh}"      # SUT=... 可指定被测脚本
-G_JS="$HOME/.qoder/scripts/global-config-guard.js"
+SCRIPTS="$(cd "$(dirname "$S")" && pwd)"
+G_JS="${GUARD_SUT:-$SCRIPTS/global-config-guard.js}"
+if [ ! -f "$S" ] || [ ! -f "$G_JS" ] || [ ! -f "$SCRIPTS/sync-global-config.sh" ]; then
+  echo 'test prerequisites missing: select the repository or a complete installed script set' >&2; exit 2
+fi
 T="$(mktemp -d)"
 pass=0; fail=0
 
@@ -41,6 +45,25 @@ printf '%s\n' '- [Gamma](gamma.md) — z' >> "$T/t3/home/.qoder/memory/MEMORY.md
 out=$(HOME="$T/t3/home" bash "$S" --copy-missing); chk "T3b 补单边后一致" 0 "已把只在一侧的文件补到另一侧" "$?" "$out"
 if cmp -s "$T/t3/home/.qoder/memory/gamma.md" "$B3/gamma.md"; then ok "T3c 拷贝内容一致"; else bad "T3c 拷贝内容一致" "cmp非0" "cmp=0" "" ""; fi
 
+echo "== T3d cp 写到一半失败：必须保留首红和部分文件，不能宣称一致"
+mkdir -p "$T/t3d/home/.qoder/memory" "$T/t3d/home/.qoder-cn/memory"
+printf '# complete index\n' > "$T/t3d/home/.qoder/memory/MEMORY.md"
+out=$(HOME="$T/t3d/home" bash -c 'cp() { while [[ "$1" == -* ]]; do shift; done; target="$2"; [ ! -d "$target" ] || target="$target/${1##*/}"; printf "partial" > "$target"; printf "cp: simulated disk full\n" >&2; return 17; }; export -f cp; exec bash "$1" --copy-missing' -- "$S" 2>&1); rc=$?
+if [ "$rc" = 1 ] && [[ "$out" == *"COPY-FAIL"* ]] && [[ "$out" != *"两侧一致"* ]] && [[ "$out" != *"已把只在一侧"* ]]; then
+  ok "T3d 部分复制失败不能假绿"
+else bad "T3d 部分复制失败不能假绿" "$rc" "1" "COPY-FAIL 且不报一致" "$out"; fi
+if [ "$(<"$T/t3d/home/.qoder/memory/MEMORY.md")" = '# complete index' ] && [ "$(<"$T/t3d/home/.qoder-cn/memory/MEMORY.md")" = 'partial' ]; then
+  ok "T3e 失败后源和部分目标均保留供核查"
+else bad "T3e 失败证据保留" "内容变化" "原样保留" "" ""; fi
+
+echo "== T3f cp 退出0但目标不完整：逐字节复核仍须判红"
+mkdir -p "$T/t3f/home/.qoder/memory" "$T/t3f/home/.qoder-cn/memory"
+printf '# complete index\n' > "$T/t3f/home/.qoder/memory/MEMORY.md"
+out=$(HOME="$T/t3f/home" bash -c 'cp() { while [[ "$1" == -* ]]; do shift; done; target="$2"; [ ! -d "$target" ] || target="$target/${1##*/}"; printf "partial" > "$target"; return 0; }; export -f cp; exec bash "$1" --copy-missing' -- "$S" 2>&1); rc=$?
+if [ "$rc" = 1 ] && [[ "$out" == *"COPY-FAIL"* ]] && [[ "$out" != *"两侧一致"* ]]; then
+  ok "T3f 复制后的字节复核能判红"
+else bad "T3f 复制后字节复核" "$rc" "1" "COPY-FAIL 且不报一致" "$out"; fi
+
 echo "== T4 索引不自洽：A 侧漏掉 Beta 行"
 reset "$T/t4"
 printf '%s\n' '# 索引' '- [Alpha](alpha.md) — x' > "$T/t4/home/.qoder/memory/MEMORY.md"
@@ -62,26 +85,29 @@ echo "== T7b 真前置不全（连 ~/.qoder 都没有）：应 exit 2"
 rm -rf "$T/t7b"; mkdir -p "$T/t7b/home"
 out=$(HOME="$T/t7b/home" bash "$S" 2>&1); chk "T7b 前置不全" 2 "目录不全" "$?" "$out"
 
-echo "== T8 真实目录冒烟（只验性能与不崩，判定正确性交给脚本本身）"
-t0=$(date +%s%N); out=$(bash "$S"); rc=$?; t1=$(date +%s%N)
+echo "== T8 独立目录冒烟（不读取现役 HOME）"
+reset "$T/t8"
+t0=$(date +%s%N); out=$(HOME="$T/t8/home" bash "$S"); rc=$?; t1=$(date +%s%N)
 ms=$(( (t1 - t0) / 1000000 ))
 echo "      输出: $out   [${ms}ms]"
 if [ "$rc" -le 1 ] && [ "$ms" -lt 5000 ]; then ok "T8 真实目录 ${ms}ms（rc=$rc）"; else bad "T8 真实目录" "rc=$rc ms=$ms" "rc≤1 且 <5000ms" "" "$out"; fi
-
-echo "== T9 guard 真跑（真实 HOME）冒烟：应 <8s 内正常退出"
-t0=$(date +%s%N); out=$(node "$G_JS" < /dev/null); rc=$?; t1=$(date +%s%N)
-ms=$(( (t1 - t0) / 1000000 ))
-echo "      guard 输出: [$out]   [${ms}ms]"
-if [ "$rc" = 0 ] && [ "$ms" -lt 8000 ]; then ok "T9 guard 冒烟 ${ms}ms"; else bad "T9 guard 冒烟" "rc=$rc ms=$ms" "rc=0 且 <8000ms" "" ""; fi
 
 mkfake() { # $1=根；建一套假 HOME（两侧 AGENTS.md/rules 一致 + 空记忆目录 + 真脚本副本）
   local G="$1"
   mkdir -p "$G/.qoder/rules" "$G/.qoder/scripts" "$G/.qoder/memory" "$G/.qoder-cn/rules" "$G/.qoder-cn/memory"
   printf '# 假 AGENTS（无引用）\n' > "$G/.qoder/AGENTS.md"
   cp "$G/.qoder/AGENTS.md" "$G/.qoder-cn/AGENTS.md"
-  cp "$HOME/.qoder/scripts/sync-memory.sh" "$HOME/.qoder/scripts/sync-global-config.sh" "$G/.qoder/scripts/"
+  cp "$S" "$SCRIPTS/sync-global-config.sh" "$G/.qoder/scripts/"
 }
-run_guard() { HOME="$(cygpath -m "$1")" node "$G_JS" < /dev/null; }
+host_path() { if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s\n' "$1"; fi; }
+run_guard() { local fixtureHome; fixtureHome="$(host_path "$1")"; HOME="$fixtureHome" USERPROFILE="$fixtureHome" QODER_HOME="$fixtureHome/.qoder" node "$G_JS" < /dev/null; }
+
+echo "== T9 guard 独立 HOME 冒烟：应 <8s 内正常退出"
+mkfake "$T/g9"
+t0=$(date +%s%N); out=$(run_guard "$T/g9"); rc=$?; t1=$(date +%s%N)
+ms=$(( (t1 - t0) / 1000000 ))
+echo "      guard 输出: [$out]   [${ms}ms]"
+if [ "$rc" = 0 ] && [ "$ms" -lt 8000 ]; then ok "T9 guard 冒烟 ${ms}ms"; else bad "T9 guard 冒烟" "rc=$rc ms=$ms" "rc=0 且 <8000ms" "" ""; fi
 
 echo "== T10 guard 端到端（假 HOME + 植入记忆分叉）：必须报出来"
 mkfake "$T/g10"
@@ -102,8 +128,8 @@ mkfake "$T/g12"
 printf '%s\n' '# 索引' '- [M](m.md) — m' > "$T/g12/.qoder/memory/MEMORY.md"
 printf 'm body\n' > "$T/g12/.qoder/memory/m.md"
 cp "$T/g12/.qoder/memory/MEMORY.md" "$T/g12/.qoder/memory/m.md" "$T/g12/.qoder-cn/memory/"
-out=$(run_guard "$T/g12")
-if [ -z "$out" ]; then ok "T12 guard 干净时静默"; else bad "T12 guard 干净时静默" "有输出" "空" "" "$out"; fi
+out=$(run_guard "$T/g12"); rc=$?
+if [ "$rc" = 0 ] && [ -z "$out" ]; then ok "T12 guard 干净时静默"; else bad "T12 guard 干净时静默" "rc=$rc 输出=$out" "exit 0 且空输出" "" "$out"; fi
 
 rm -rf "$T"
 echo "───────────────"

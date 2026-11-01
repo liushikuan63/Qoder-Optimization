@@ -1,4 +1,4 @@
-# Qoder-Optimization-0.0.14 安装说明
+# Qoder-Optimization-0.0.15 安装说明
 
 ## 包内容与落点
 
@@ -52,11 +52,13 @@
 
 - 登记位置（一次）：`node ~/.qoder/scripts/pkg-catalog.cjs register <分享包目录>`
 - 检索：`node ~/.qoder/scripts/pkg-catalog.cjs search "<关键词>"`，或 `/pkg-find "<关键词>"`
-- 安装：`install <id>` 先预演依赖闭包，确认后加 `--apply`；技能按 manifest/catalog 的 tier 落点安装。另一层已有同名技能时拒绝写入，迁移请使用 tier-skills；失败会回滚本批文件与索引。
+- 安装：`install <id>` 先预演依赖闭包，确认后加 `--apply`；技能按 manifest/catalog 的 tier 落点安装。另一层已有同名技能时拒绝写入，迁移请使用 tier-skills；索引先暂存再以归属/内容核对和独占创建提交。失败只回滚本批仍属本事务且未变化的文件；检测到并发修改时保留目标与备份目录、明确报告未完整回滚，先裁决再重试。
 - 插件 / 社区技能 / MCP：只给官方安装命令与合并说明，不代装、不转发源码
 - 兜底：`skill-load` 查不到时，会自动到已登记的包内索引里找，并给出加装命令
 
 索引：`catalog.json`（机器可读）/ `INDEX.md`（人读），状态区分随包 / 外部 / 模板 / 已停用。
+
+记忆归档导入使用 `node scripts/import-memory.cjs <归档> [--client-root <客户端目录>]` 预演，批准后加 `--apply`。导入先暂存完整输入；失败遇到并发改写时保留目标、暂存内容与可写入时生成的 `RECOVERY.json`，错误中给出恢复目录。不要把该目录当垃圾清理；核对首次错误和冲突后再处理。
 
 ## 需求澄清与提示词优化
 

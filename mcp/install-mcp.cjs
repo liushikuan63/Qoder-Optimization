@@ -64,6 +64,41 @@ function readJson(p, fallback) {
   try { return JSON.parse(text); }
   catch { throw new Error('配置 JSON 无效，原文件未修改: ' + p); }
 }
+function validateHooks(hooks) {
+  if (hooks === undefined) return;
+  const object = value => value && typeof value === 'object' && !Array.isArray(value);
+  if (!object(hooks)) throw new Error('hooks 必须是对象，原文件未修改');
+  for (const [event, entries] of Object.entries(hooks)) {
+    if (!Array.isArray(entries) || entries.some(entry => !object(entry) || !Array.isArray(entry.hooks) || entry.hooks.some(hook => !object(hook)))) {
+      throw new Error('hooks.' + event + ' 必须是包含 hooks 数组的条目数组，原文件未修改');
+    }
+  }
+}
+const CUA_GUARD_MATCHER = 'mcp_call|mcp__cua[_-]?driver__.*|^Bash$';
+function guardCommandPaths(command) {
+  const match = String(command || '').match(/^\s*(?:"([^"\r\n]+)"|([^\s"'`|&;<>$()]+))\s+(?:"([^"\r\n]+)"|([^\s"'`|&;<>$()]+))\s*$/);
+  return match ? [match[1] || match[2], match[3] || match[4]] : null;
+}
+function sameGuardPath(actual, expected) {
+  const canonical = value => { const resolved = path.resolve(value); try { return fs.realpathSync(resolved); } catch { return resolved; } };
+  const left = canonical(actual), right = canonical(expected);
+  return process.platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right;
+}
+function guardWiring(settings, guard) {
+  return ['PreToolUse', 'PostToolUse'].map(event => {
+    const entries = settings.hooks?.[event] || [];
+    const existing = entries.filter(entry => entry.hooks.some(hook => /cua-cursor-guard\.js/i.test(String(hook.command || ''))));
+    if (existing.length) {
+      const entry = existing[0], hook = entry.hooks[0];
+      const paths = guardCommandPaths(hook.command);
+      const valid = existing.length === 1 && entry.hooks.length === 1 && entry.matcher === CUA_GUARD_MATCHER
+        && hook.type === 'command' && hook.timeout === 10 && paths
+        && sameGuardPath(paths[0], process.execPath) && sameGuardPath(paths[1], guard);
+      if (!valid) throw new Error('hooks.' + event + ' 已有 cua-cursor-guard 条目但 type/完整命令/matcher/timeout 不匹配，原配置未修改');
+    }
+    return { event, exists: existing.length === 1 };
+  });
+}
 function backup(p) {
   const dir = path.join(CONFIG, '.backups');
   fs.mkdirSync(dir, { recursive: true });
@@ -265,8 +300,14 @@ async function main() {
 
   const settings = readJson(SETTINGS, {});
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new Error('settings.json 必须是对象，原文件未修改');
+  // Validate before installers, template generation or backups can write anything.
+  // Arrays accept named properties in memory, but JSON.stringify drops them.
+  validateHooks(settings.hooks);
   if (settings.mcpServers === undefined) settings.mcpServers = {};
   if (!settings.mcpServers || typeof settings.mcpServers !== 'object' || Array.isArray(settings.mcpServers)) throw new Error('mcpServers 必须是对象，原文件未修改');
+  const guardPath = path.join(CONFIG, 'scripts', 'cua-cursor-guard.js');
+  // Explicit wiring conflicts must be rejected before dependency installation or template writes.
+  if (WIRE_GUARD && fs.existsSync(guardPath)) guardWiring(settings, guardPath);
   const planned = [];
   const skipCua = SKIP_CUA || CUA_MODE === 'skip';
   const skipDbhub = SKIP_DBHUB || DBHUB_MODE === 'skip';
@@ -393,15 +434,14 @@ async function main() {
     guardChoice = /^y/i.test(a);
   }
   if (guardChoice) {
-    const guard = path.join(CONFIG, 'scripts', 'cua-cursor-guard.js');
+    const guard = guardPath;
     if (!fs.existsSync(guard)) warn(`守卫脚本不存在: ${guard}（先把包内 scripts/ 复制过去）`);
     else {
       settings.hooks = settings.hooks || {};
-      const matcher = 'mcp_call|mcp__cua[_-]?driver__.*|^Bash$';
-      for (const evt of ['PreToolUse', 'PostToolUse']) {
+      for (const { event: evt, exists } of guardWiring(settings, guard)) {
         settings.hooks[evt] = settings.hooks[evt] || [];
-        if (!settings.hooks[evt].some((h) => JSON.stringify(h).includes('cua-cursor-guard.js'))) {
-          settings.hooks[evt].push({ matcher, hooks: [{ type: 'command', command: `"${process.execPath}" "${guard}"`, timeout: 10 }] });
+        if (!exists) {
+          settings.hooks[evt].push({ matcher: CUA_GUARD_MATCHER, hooks: [{ type: 'command', command: `"${process.execPath}" "${guard}"`, timeout: 10 }] });
           planned.push(`hooks.${evt}（cua-cursor-guard）`);
         } else log(`- hooks.${evt} 已接线，跳过`);
       }

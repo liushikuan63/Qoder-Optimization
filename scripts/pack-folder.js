@@ -36,6 +36,11 @@ function crc32(buf) {
 function dosDateTime(mtime) {
   const d = new Date(fixedTime === null ? mtime : fixedTime);
   const get = name => d[(fixedTime === null ? 'get' : 'getUTC') + name]();
+  // Files generated with an epoch mtime are common. ZIP can represent only
+  // 1980..2107; clamp implicit filesystem dates, while explicit epochs stay strict.
+  const year = get('FullYear');
+  if (year < 1980) return { time: 0, date: (1 << 5) | 1 };
+  if (year > 2107) return { time: (23 << 11) | (59 << 5) | 29, date: (127 << 9) | (12 << 5) | 31 };
   const time = (get('Hours') << 11) | (get('Minutes') << 5) | Math.floor(get('Seconds') / 2);
   const date = ((get('FullYear') - 1980) << 9) | ((get('Month') + 1) << 5) | get('Date');
   return { time, date };
@@ -51,14 +56,34 @@ function walk(dir, base, entries) {
     if (SKIP.test(name)) { console.error(`[skip] 备份/临时件不入包：${base ? base + '/' : ''}${name}`); continue; }
     const full = path.join(dir, name);
     const rel = base ? base + '/' + name : name;
-    const st = fs.statSync(full);
+    const st = fs.lstatSync(full);
+    if (st.isSymbolicLink()) throw new Error('不打包符号链接或 junction：' + rel);
     if (st.isDirectory()) {
       entries.push({ name: rel + '/', isDir: true, mtime: st.mtimeMs });
       walk(full, rel, entries);
-    } else {
-      entries.push({ name: rel, isDir: false, mtime: st.mtimeMs, full });
-    }
+    } else if (st.isFile()) {
+      entries.push({ name: rel, isDir: false, mtime: st.mtimeMs, full, stat: st });
+    } else throw new Error('不打包非常规文件：' + rel);
   }
+}
+
+function sameSource(actual, expected) {
+  return actual.isFile() && ['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs'].every(key => actual[key] === expected[key]);
+}
+
+function readEntry(entry) {
+  // Bind the read to the object observed by walk, rather than following a path
+  // again after a parent directory may have been replaced with a junction.
+  // Nonblocking open also avoids hanging if a regular file is replaced by a FIFO.
+  const flags = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0) | (fs.constants.O_NONBLOCK || 0);
+  const fd = fs.openSync(entry.full, flags);
+  try {
+    const before = fs.fstatSync(fd);
+    if (!sameSource(before, entry.stat)) throw new Error('源文件在扫描后已变化：' + entry.name);
+    const data = fs.readFileSync(fd);
+    if (data.length !== before.size || !sameSource(fs.fstatSync(fd), before)) throw new Error('源文件在读取期间已变化：' + entry.name);
+    return data;
+  } finally { fs.closeSync(fd); }
 }
 
 function buildZip(entries) {
@@ -74,7 +99,7 @@ function buildZip(entries) {
     let method = 0;
 
     if (!e.isDir) {
-      data = fs.readFileSync(e.full);
+      data = readEntry(e);
       compressed = zlib.deflateRawSync(data, { level: 9 });
       method = 8;
     }
@@ -144,12 +169,30 @@ if (!folder) {
   process.exit(1);
 }
 const abs = path.resolve(folder);
-if (!fs.existsSync(abs) || !fs.statSync(abs).isDirectory()) {
+if (!fs.existsSync(abs) || !fs.lstatSync(abs).isDirectory()) {
   console.error('错误: 文件夹不存在: ' + abs);
   process.exit(1);
 }
 const folderName = path.basename(abs);
-const out = process.argv[3] || path.join(path.dirname(abs), folderName + '.zip');
+const out = path.resolve(process.argv[3] || path.join(path.dirname(abs), folderName + '.zip'));
+// Resolve the output's existing ancestor as well as the source. An external
+// junction can otherwise put the output back inside the tree being archived.
+let parent = path.dirname(out);
+const tail = [path.basename(out)];
+while (!fs.existsSync(parent)) {
+  tail.unshift(path.basename(parent));
+  const next = path.dirname(parent);
+  if (next === parent) throw new Error('无法定位输出目录的已有父级');
+  parent = next;
+}
+const realOutput = path.resolve(fs.realpathSync(parent), ...tail);
+const relative = path.relative(fs.realpathSync(abs), realOutput);
+if (!relative || (!relative.startsWith('..' + path.sep) && !path.isAbsolute(relative))) {
+  throw new Error('输出 ZIP 必须在待打包文件夹之外');
+}
+try {
+  if (fs.lstatSync(out).isSymbolicLink()) throw new Error('输出 ZIP 不能是符号链接');
+} catch (error) { if (error.code !== 'ENOENT') throw error; }
 
 const entries = [{ name: folderName + '/', isDir: true, mtime: fs.statSync(abs).mtimeMs }];
 walk(abs, folderName, entries);

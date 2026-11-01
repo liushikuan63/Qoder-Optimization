@@ -127,10 +127,22 @@ function selftest() {
 }
 
 // ── main ─────────────────────────────────────────────────────────────────
-if (process.argv.includes('--selftest')) process.exit(selftest());
-const fi = process.argv.indexOf('--file');
-const explicit = fi >= 0 ? process.argv[fi + 1] : null;
-const asJson = process.argv.includes('--json');
+let explicit = null, asJson = false, runSelftest = false;
+try {
+  const args = process.argv.slice(2);
+  for (let i = 0; i < args.length; i++) {
+    const flag = args[i];
+    if (flag === '--json') asJson = true;
+    else if (flag === '--selftest') runSelftest = true;
+    else if (flag === '--file') {
+      const value = args[++i];
+      if (explicit !== null || !value || !value.trim() || value.startsWith('--')) throw new Error('--file 需要一个明确路径');
+      explicit = value;
+    } else throw new Error('未知参数：' + flag);
+  }
+  if (runSelftest && (explicit !== null || asJson)) throw new Error('--selftest 不能与其它模式混用');
+} catch (error) { console.error('参数错误：' + error.message); process.exit(2); }
+if (runSelftest) process.exit(selftest());
 const file = findQueue(explicit);
 if (!file) {
   console.log('未找到 ' + QUEUE_NAME + '（没有队列，视为无需接续）');
