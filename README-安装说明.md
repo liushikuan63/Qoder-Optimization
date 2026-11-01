@@ -1,4 +1,4 @@
-# Qoder-Optimization-0.0.13 安装说明
+# Qoder-Optimization-0.0.14 安装说明
 
 ## 包内容与落点
 
@@ -96,7 +96,7 @@
 - `node ~/.qoder/scripts/tmp-sweeper.js` —— 临时产物清理（默认 dry-run，加 `--apply` 才真删）
 - `node ~/.qoder/scripts/disk-sweeper.js` —— C 盘水位三档报告与清理（默认只列，`--apply` 才删；配套指令 `/clean-disk`）
 - `node ~/.qoder/scripts/stop-gate.js` / `rules-reminder.js` / `huge-output-guard.js` / `session-budget.js` / `edit-guard.js` / `global-config-guard.js` / `commit-scope-guard.js` / `rules-weekly-audit.js` —— 规则强制层与守卫脚本，**需要在 `~/.qoder/settings.json` 的 `hooks` 里自行接线**才生效（说明见 `scripts/README-rule-enforcement.md`）
-- `node ~/.qoder/scripts/work-queue-check.js` —— 接续队列可恢复性校验（四要素齐不齐 / 阻塞有没有理由 / 关键入口路径还在不在；退出码 3 = 没有队列文件）；配套指令 `/checkpoint` 与 stop-gate 的 R6c 门禁
+- `node ~/.qoder/scripts/work-queue-check.js` —— 接续队列可恢复性校验（四要素齐不齐 / 阻塞有没有理由 / 关键入口路径还在不在；相对入口以队列所在目录为基准，`--file` 可检查其它目录的队列；退出码 3 = 没有队列文件）；配套指令 `/checkpoint` 与 stop-gate 的 R6c 门禁
 - `node ~/.qoder/scripts/skills-doctor.cjs` / `config-doctor.cjs` / `skill-collisions.cjs` —— 技能门禁（描述长度 / 悬空引用 / 两侧可见性）、配置面对齐（插件 / hooks / MCP / 安全开关）、技能撞名扫描；均带 `--selftest`
 - `node ~/.qoder/scripts/edge-net-check.cjs [--fix]` / `gh-accel-plan.cjs` —— 浏览器打不开网页的定性诊断与"该不该交还直连"的六桶清单；配套指令 `/edge-net-check`
 - `node ~/.qoder/scripts/pack-folder.js <目录> <zip>` —— 生成 Unix 来源 zip（中文文件名在 unzip 下不乱码）

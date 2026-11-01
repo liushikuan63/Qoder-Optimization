@@ -37,12 +37,11 @@ const PLACEHOLDER_APPID = /^wx(?:([0-9a-f])\1{15}|x{1,16}|0123456789abcdef|12345
 
 // 文档里的 `password = <占位>` / `api_key: os.environ[...]` 是示例，不是外泄；
 // 只有"像真值"的才判硬命中：够长、字母数字混合、不是环境变量/占位写法。
-function looksRealSecret(text, m, v) {
+function looksRealSecret(text, at, v) {
   if (!v || v.length < 12) return false;
   if (!/[A-Za-z]/.test(v) || !/[0-9]/.test(v)) return false;
   if (!/^[A-Za-z0-9_\-/.+=:]+$/.test(v)) return false;
   if (/(your|example|placeholder|dummy|sample|changeme|secret|token|password|apikey|api_key|xxxx)/i.test(v)) return false;
-  const at = text.indexOf(m);
   const ctx = at < 0 ? '' : text.slice(Math.max(0, at - 60), at);
   return !/process\.env|os\.environ|getenv|dotenv|config\.|settings\.|<|\{\{|\$\{/.test(ctx);
 }
@@ -67,19 +66,22 @@ function scanText(text) {
       const node = pending.pop();
       if (!node || typeof node !== 'object') continue;
       for (const [key, val] of Object.entries(node)) {
-        if (/^(password|passwd|pwd|secret|api[_-]?key|access[_-]?key|token)$/i.test(key) && typeof val === 'string' && looksRealSecret('', '', val)) bump('凭据键值', 1);
+        if (/^(password|passwd|pwd|secret|api[_-]?key|access[_-]?key|token)$/i.test(key) && typeof val === 'string' && looksRealSecret('', -1, val)) bump('凭据键值', 1);
         if (val && typeof val === 'object') pending.push(val);
       }
     }
   } catch {}
   for (const [label, re] of Object.entries(HARD)) {
     if (parsedJson && label === '凭据键值') continue;
-    const g = re.source.includes('gi') || String(re.flags).includes('g') ? re : new RegExp(re.source, re.flags + 'g');
-    bump(label, (text.match(g) || []).filter(m => {
-      const v = m.replace(/.*[:=]\s*["']?/, '');
+    const g = new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g');
+    bump(label, [...text.matchAll(g)].filter(match => {
+      const m = match[0];
+      // Keep each occurrence's offset and captured value: a repeated assignment
+      // must not inherit an earlier exemption or lose '=' characters in its value.
+      const v = label === '凭据键值' ? match[2] : m;
       if (PLACEHOLDER.test(v) || /^\d+$/.test(v)) return false;
       if (label === '真实微信AppID') return !PLACEHOLDER_APPID.test(String(m).toLowerCase());
-      if (label === '凭据键值') return looksRealSecret(text, m, v);
+      if (label === '凭据键值') return looksRealSecret(text, match.index, v);
       return true;
     }).length);
   }
@@ -94,7 +96,7 @@ function scanText(text) {
 function walk(p, out = []) {
   const st = fs.statSync(p);
   if (st.isDirectory()) {
-    if (/node_modules|backups|\.git$/.test(path.basename(p))) return out;
+    if (/^(?:node_modules|backups|\.git)$/.test(path.basename(p))) return out;
     for (const n of fs.readdirSync(p)) { const q = path.join(p, n); if (fs.statSync(q).isDirectory()) walk(q, out); else out.push(q); }
   } else out.push(p);
   return out;

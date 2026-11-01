@@ -6,6 +6,29 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.0.14] - 2026-11-01
+
+### Fixed
+- Scope build, test and deployment retry budgets by working directory and explicit workspace selectors. Equivalent tool cwd, `cd` and package-manager directory options share a budget; separate projects do not. Quoted build commands in `echo` or `rg` no longer consume retries.
+- Validate fail-streak installer arguments before inspecting targets. Reject missing values, unknown flags and invalid timeouts instead of falling back to a default client directory. Existing hook wiring is considered equivalent only when the hook type, complete Node/guard command, matcher and timeout match.
+- Resolve relative handoff entry paths against the queue file's directory, including when `--file` itself is relative; check Unix absolute paths as well.
+- Use each credential assignment's own offset and captured value during distribution scanning, preserving `=` characters. Scan legitimate directory names containing `backups`, `node_modules` or a `.git` suffix; exclude only the exact reserved directory names.
+
+### Compatibility and limits
+- Legacy retry keys lack project provenance and remain in state without matching new scoped calls. Mixed historical counts cannot be assigned safely to a project, so they are not migrated.
+- Retry command parsing covers direct commands, quoting, separators, directory changes and explicit target options; variable expansion, shell functions and complete shell control flow are outside its coverage.
+- No live client configuration is changed. Isolated installation and regression evidence does not establish native Qoder routing, external-account/service behavior or the separately incomplete B05 acceptance.
+
+### 中文摘要
+- 修复跨项目与 workspace 连败计数串账；同一目标的等价目录写法仍累计，`echo` / `rg` 引用构建命令不再消耗失败预算。
+- 修复安装器漏参数时回落默认目录的问题；严格核对 hook 类型、完整 Node/守卫命令、matcher 与 timeout，拒绝把错误解释器或 `--clear ALL` 误判为正确接线。
+- 交接队列相对入口改按队列所在目录检查，并补查 Unix 绝对路径。
+- 修复敏感扫描重复文本上下文串用、含 `=` 值漏检及合法目录名被误跳过的问题。
+- 旧版无项目归属的计数不迁移；本轮不改现役配置，也不将隔离测试等同于原生宿主、真实服务或 B05 完整验收。
+
+### Contributors / 贡献者
+- @liushikuan63
+
 ## [0.0.13] - 2026-11-01
 
 ### Added

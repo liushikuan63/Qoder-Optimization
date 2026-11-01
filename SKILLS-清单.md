@@ -1,4 +1,4 @@
-# Qoder-Optimization - 0.0.13 技能清单
+# Qoder-Optimization - 0.0.14 技能清单
 
 共 132 个源码随包技能：常驻 12 / 按需 120。机器可读版见 skills-manifest.json 与 catalog.json。
 

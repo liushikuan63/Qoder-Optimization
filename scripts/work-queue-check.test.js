@@ -18,7 +18,7 @@ fs.mkdirSync(SB, { recursive: true });
 
 let fail = 0;
 const check = (label, ok, detail) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? ' :: ' + detail : ''}`); if (!ok) fail++; };
-const run = (args) => spawnSync(process.execPath, [SCRIPT, ...args], { encoding: 'utf8', timeout: 30000 });
+const run = (args, cwd) => spawnSync(process.execPath, [SCRIPT, ...args], { cwd, encoding: 'utf8', timeout: 30000 });
 const detail = (r) => `exit=${r.status}${r.error ? ' err=' + r.error.message : ''}`;
 
 // ① 自带 selftest
@@ -48,6 +48,35 @@ check('③ 独立正例：四要素齐全 → exit 0', r3.status === 0, `exit=${
 // ④ 没队列时退 3
 const r4 = run(['--file', path.join(SB, 'no-such-file.md')]);
 check('④ 没有队列文件 → exit 3（与"坏了"区分）', r4.status === 3, `exit=${r4.status}`);
+
+// 队列常由其它目录的接续方校验；相对入口必须绑定队列，而非调用者 cwd。
+const queueDir = path.join(SB, 'queue', 'nested');
+const callerDir = path.join(SB, 'caller');
+fs.mkdirSync(queueDir, { recursive: true });
+fs.mkdirSync(callerDir);
+const relativeQueue = path.join(queueDir, 'handoff.md');
+const queueWith = (entryPath) => [
+  '## 当前状态', '- 已完成基线检查', '',
+  '## 下一步', '- [ ] 读取入口文件后继续修复', '',
+  '## 阻塞点', '- 无', '', '## 关键入口', `- \`${entryPath}\``, '',
+].join('\n');
+fs.writeFileSync(path.join(queueDir, 'local.md'), 'queue-owned entry');
+fs.writeFileSync(relativeQueue, queueWith('./local.md'));
+const relativeGood = run(['--file', relativeQueue], callerDir);
+check('⑤ 外部队列中的 ./入口按队列目录解析', relativeGood.status === 0, detail(relativeGood));
+fs.writeFileSync(path.join(callerDir, 'caller-only.md'), 'not a queue entry');
+fs.writeFileSync(relativeQueue, queueWith('./caller-only.md'));
+const relativeBad = run(['--file', relativeQueue], callerDir);
+check('⑥ 调用者目录同名文件不能掩盖缺失入口', relativeBad.status === 1, detail(relativeBad));
+fs.writeFileSync(path.join(queueDir, '..', 'parent.md'), 'parent entry');
+fs.writeFileSync(relativeQueue, queueWith('../parent.md'));
+const parentGood = run(['--file', path.relative(callerDir, relativeQueue)], callerDir);
+check('⑦ 相对 --file 与 ../入口分别以调用者和队列为基准', parentGood.status === 0, detail(parentGood));
+if (process.platform !== 'win32') {
+  fs.writeFileSync(relativeQueue, queueWith(path.join(SB, 'absent-absolute.md')));
+  const absoluteBad = run(['--file', relativeQueue], callerDir);
+  check('⑧ Unix 绝对入口不存在时不能跳过', absoluteBad.status === 1, detail(absoluteBad));
+}
 
 try { fs.rmSync(SB, { recursive: true, force: true }); } catch {}
 

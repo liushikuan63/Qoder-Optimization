@@ -45,7 +45,7 @@ function expand(p) {
   return p;
 }
 
-function checkText(text) {
+function checkText(text, baseDir) {
   const errors = [], warns = [];
   const lines = text.split(/\r?\n/);
 
@@ -75,9 +75,10 @@ function checkText(text) {
       if (PENDING_MARK.test(line)) continue;
       for (const m of line.matchAll(/`([^`]+)`/g)) {
         const raw = m[1].trim();
-        if (!/^(~[\\/]|\.{1,2}[\\/]|[A-Za-z]:[\\/])/.test(raw)) continue; // 只查明显是路径的
+        if (!/^(~[\\/]|\.{1,2}[\\/]|[A-Za-z]:[\\/]|\/)/.test(raw)) continue; // 只查明显是路径的
         if (/[*?<>]/.test(raw)) continue;                                  // 通配/占位不查
-        const p = expand(raw);
+        // 入口属于队列；从其它 cwd 运行 --file 不应改变检查结果。
+        const p = path.resolve(baseDir, expand(raw));
         if (!fs.existsSync(p)) errors.push(`第 ${i + 1} 行：关键入口指向的路径不存在 → ${raw}`);
       }
     }
@@ -135,7 +136,7 @@ if (!file) {
   console.log('未找到 ' + QUEUE_NAME + '（没有队列，视为无需接续）');
   process.exit(3);
 }
-const { errors, warns } = checkText(fs.readFileSync(file, 'utf8'));
+const { errors, warns } = checkText(fs.readFileSync(file, 'utf8'), path.dirname(path.resolve(file)));
 if (asJson) console.log(JSON.stringify({ file, ok: errors.length === 0, errors, warns }, null, 2));
 else {
   console.log('检查 ' + file);

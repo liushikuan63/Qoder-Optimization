@@ -5,7 +5,7 @@
 // 写入顺序固定为「先备份（且必须给出可用备份文件）→ 写临时文件 → node --check → 覆盖 → 复验幂等」；
 // 任一步失败即中止该侧，不再继续写后续文件（避免半套接线）。
 // 幂等：委托段必须同时有开/闭标记且指向 fail-streak-core 才算已安装；settings.json 必须是
-// 单条、路径/matcher/timeout 全部匹配的条目才算已接线——不一致一律拒绝，不静默当作完成。
+// 单条、type/完整命令/matcher/timeout 全部匹配的条目才算已接线——不一致一律拒绝，不静默当作完成。
 // 命令中的 Node 与守卫路径都加引号，路径含空格时也能被宿主正确解析。
 //
 // 用法：
@@ -51,17 +51,20 @@ const DELEGATION = [
 
 function parseArgs(argv) {
   const a = { node: process.execPath, matcher: '^Bash$|mcp_call', timeout: 10, backup: path.join(HOME, '.qoder', 'scripts', 'backup-file.js') };
+  const values = new Set(['--home', '--second', '--node', '--matcher', '--timeout', '--backup']);
   for (let i = 0; i < argv.length; i++) {
-    const t = argv[i];
-    if (t === '--apply') a.apply = true;
-    else if (t === '--selftest') a.selftest = true;
-    else if (t === '--home') { a.home = argv[++i]; }
-    else if (t === '--second') a.second = argv[++i];
-    else if (t === '--node') a.node = argv[++i];
-    else if (t === '--matcher') a.matcher = argv[++i];
-    else if (t === '--timeout') a.timeout = Number(argv[++i]) || 10;
-    else if (t === '--backup') a.backup = argv[++i];
+    const flag = argv[i];
+    if (flag === '--apply') a.apply = true;
+    else if (flag === '--selftest') a.selftest = true;
+    else {
+      if (!values.has(flag)) throw new Error('未识别的选项：' + flag);
+      const value = argv[++i];
+      if (!value || !value.trim() || value.startsWith('--')) throw new Error(flag + ' 缺少值');
+      a[flag.slice(2)] = value;
+    }
   }
+  a.timeout = Number(a.timeout);
+  if (!Number.isFinite(a.timeout) || a.timeout <= 0) throw new Error('--timeout 必须是有限正数（秒）');
   return a;
 }
 const slash = (p) => String(p).replace(/\\/g, '/');
@@ -101,12 +104,17 @@ function hostPlan(root) {
   return { target, action: 'insert', before, after, order: { authLock: iAuth, insertAt: lineStart, memoryFirst: iMf }, why: '插在 auth-lock 委托之后、记忆优先提醒之前' };
 }
 
-function guardPathFrom(command) {
-  const text = String(command || '');
-  const quoted = [...text.matchAll(/"([^"]+)"/g)].map((m) => m[1]).find((p) => /fail-streak-guard\.js$/i.test(p));
-  if (quoted) return quoted;
-  const m = text.match(/(?:[A-Za-z]:)?[^\s"']*fail-streak-guard\.js/i);
-  return m ? m[0] : null;
+function commandPaths(command) {
+  // Only a Node executable and the guard itself may run here. Looking for the
+  // guard anywhere in a shell command also accepts `echo` and `--clear ALL`.
+  const token = '(?:"([^"\\r\\n]+)"|([^\\s"\'`|&;<>$()]+))';
+  const match = String(command || '').match(new RegExp('^\\s*' + token + '\\s+' + token + '\\s*$'));
+  return match ? [match[1] || match[2], match[3] || match[4]] : null;
+}
+
+function sameCommandPath(actual, expected) {
+  const left = path.resolve(actual), right = path.resolve(expected);
+  return process.platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right;
 }
 
 function settingsPlan(root, opts) {
@@ -124,13 +132,14 @@ function settingsPlan(root, opts) {
   try { scriptsDir = fs.realpathSync(scriptsDir); } catch (e) {}
   const expectedGuard = path.join(scriptsDir, GUARD);
   const command = `"${slash(opts.node)}" "${slash(expectedGuard)}"`;
-  const existing = post.filter((en) => (en.hooks || []).some((h) => /fail-streak-guard\.js/.test(String(h.command || ''))));
+  const existing = post.filter((en) => (en.hooks || []).some((h) => /fail-streak-guard\.js/i.test(String(h.command || ''))));
   if (existing.length) {
     const match = existing.length === 1 && (existing[0].hooks || []).length === 1
       && existing[0].matcher === opts.matcher && existing[0].hooks[0].timeout === opts.timeout
-      && (() => { const p = guardPathFrom(existing[0].hooks[0].command); return p && path.resolve(p).toLowerCase() === path.resolve(expectedGuard).toLowerCase(); })();
+      && existing[0].hooks[0].type === 'command'
+      && (() => { const paths = commandPaths(existing[0].hooks[0].command); return paths && sameCommandPath(paths[0], opts.node) && sameCommandPath(paths[1], expectedGuard); })();
     if (match) return { target, action: 'skip', why: 'PostToolUse 已有与期望一致的 fail-streak 条目（幂等）', before, entriesBefore: post.length };
-    return { target, action: 'abort', why: `已有 ${existing.length} 条 fail-streak 条目但与期望不一致（路径/matcher/timeout）——拒绝重复接线，请人工核对`, before, entriesBefore: post.length };
+    return { target, action: 'abort', why: `已有 ${existing.length} 条 fail-streak 条目但与期望不一致（type/完整命令/matcher/timeout）——拒绝重复接线，请人工核对`, before, entriesBefore: post.length };
   }
   const next = JSON.parse(before);
   next.hooks = next.hooks || {};
@@ -244,7 +253,7 @@ function selftest(opts) {
   check('自检3 委托段插入且只有一份', marks === 1 && hostAfter.includes(MARK_CLOSE), 'marks=' + marks);
   check('自检4 顺序：硬停在提醒之前', hostAfter.indexOf('auth-lock-pre-error') < hostAfter.indexOf(MARK_OPEN) && hostAfter.indexOf(MARK_OPEN) < hostAfter.indexOf('// 记忆优先门禁'));
   const settings = JSON.parse(fs.readFileSync(path.join(root, 'settings.json'), 'utf8'));
-  const fsEntries = (settings.hooks.PostToolUse || []).filter((en) => (en.hooks || []).some((h) => /fail-streak-guard\.js/.test(String(h.command || ''))));
+  const fsEntries = (settings.hooks.PostToolUse || []).filter((en) => (en.hooks || []).some((h) => /fail-streak-guard\.js/i.test(String(h.command || ''))));
   check('自检5 settings.json 新增且只有 1 条 fail-streak 条目', fsEntries.length === 1 && fsEntries[0].matcher === opts.matcher && fsEntries[0].hooks[0].timeout === opts.timeout);
   check('自检6 四个脚本已落到 scripts/', FILES.every((f) => fs.existsSync(path.join(root, 'scripts', f))));
   check('自检7 备份真实存在（改前可回滚）', applied.backups.length >= 1, applied.backups.join(', '));
@@ -252,7 +261,7 @@ function selftest(opts) {
   const againPlan = planFor(root, opts);
   const again = applyPlan(againPlan, opts);
   const hostAgain = fs.readFileSync(path.join(root, 'scripts', HOST), 'utf8');
-  const entriesAgain = (JSON.parse(fs.readFileSync(path.join(root, 'settings.json'), 'utf8')).hooks.PostToolUse || []).filter((en) => (en.hooks || []).some((h) => /fail-streak-guard\.js/.test(String(h.command || '')))).length;
+  const entriesAgain = (JSON.parse(fs.readFileSync(path.join(root, 'settings.json'), 'utf8')).hooks.PostToolUse || []).filter((en) => (en.hooks || []).some((h) => /fail-streak-guard\.js/i.test(String(h.command || '')))).length;
   check('自检8 重复执行幂等（不产生第二份委托/条目）', hostAgain === hostAfter && entriesAgain === 1 && againPlan.writes.length === 0 && again.errors.length === 0, 'writes=' + againPlan.writes.length + ' entries=' + entriesAgain + ' errors=' + again.errors.join('|'));
 
   const T = '198.51.100.77';
@@ -283,7 +292,9 @@ function selftest(opts) {
 }
 
 function main() {
-  const opts = parseArgs(process.argv.slice(2));
+  let opts;
+  try { opts = parseArgs(process.argv.slice(2)); }
+  catch (error) { console.error('[错误] 无效参数: ' + error.message); return 2; }
   if (opts.selftest) return selftest(opts);
   const roots = [];
   if (opts.home) roots.push(path.resolve(opts.home));

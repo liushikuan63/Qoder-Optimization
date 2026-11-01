@@ -771,6 +771,82 @@ test('fail-streak installer validates existing entries and quotes paths', () => 
   assert.equal(failStreakInstaller.settingsPlan(root, opts).action, 'skip');
 }));
 
+test('fail-streak installer rejects a different executable, extra argv and non-command hooks', () => fixture(f => {
+  const root = path.join(f.base, 'install-root exact command');
+  fs.mkdirSync(path.join(root, 'scripts'), { recursive: true });
+  const settings = path.join(root, 'settings.json');
+  const opts = { node: process.execPath, matcher: '^Bash$|mcp_call', timeout: 10 };
+  fs.writeFileSync(settings, JSON.stringify({ hooks: { PostToolUse: [] } }));
+  const next = JSON.parse(failStreakInstaller.settingsPlan(root, opts).after);
+  const expected = next.hooks.PostToolUse[0].hooks[0];
+  const wrongNode = path.join(f.base, 'missing node', 'node.exe').replace(/\\/g, '/');
+  const variants = [
+    { ...expected, command: expected.command.replace(/^"[^"]+"/, '"' + wrongNode + '"') },
+    { ...expected, command: expected.command + ' --clear ALL' },
+    { ...expected, command: 'echo ' + expected.command },
+    { ...expected, command: expected.command + ' && echo ignored' },
+    { ...expected, type: 'prompt' },
+    { ...expected, type: undefined },
+  ];
+  for (const hook of variants) {
+    next.hooks.PostToolUse[0].hooks[0] = hook;
+    fs.writeFileSync(settings, JSON.stringify(next));
+    const before = fs.readFileSync(settings);
+    assert.equal(failStreakInstaller.settingsPlan(root, opts).action, 'abort', JSON.stringify(hook));
+    assert.deepEqual(fs.readFileSync(settings), before);
+  }
+}));
+
+test('fail-streak installer compares full command paths using platform semantics', () => fixture(f => {
+  const root = path.join(f.base, 'install-root command paths');
+  fs.mkdirSync(path.join(root, 'scripts'), { recursive: true });
+  const settings = path.join(root, 'settings.json');
+  const opts = { node: process.execPath, matcher: '^Bash$|mcp_call', timeout: 10 };
+  fs.writeFileSync(settings, JSON.stringify({ hooks: { PostToolUse: [] } }));
+  const next = JSON.parse(failStreakInstaller.settingsPlan(root, opts).after);
+  const hook = next.hooks.PostToolUse[0].hooks[0];
+  if (process.platform === 'win32') hook.command = hook.command.toUpperCase().replace(/\//g, '\\');
+  fs.writeFileSync(settings, JSON.stringify(next));
+  assert.equal(failStreakInstaller.settingsPlan(root, opts).action, 'skip');
+  if (process.platform !== 'win32') {
+    hook.command = hook.command.toUpperCase();
+    fs.writeFileSync(settings, JSON.stringify(next));
+    assert.equal(failStreakInstaller.settingsPlan(root, opts).action, 'abort');
+  }
+}));
+
+for (const args of [
+  ['--apply', '--home'], ['--apply', '--second'], ['--apply', '--node'], ['--apply', '--matcher'],
+  ['--apply', '--timeout'], ['--apply', '--backup'], ['--apply', '--home', '--selftest'],
+  ['--apply', '--unknown'], ['--apply', 'unexpected'], ['--apply', '--timeout', '0'],
+  ['--apply', '--timeout', '-1'], ['--apply', '--timeout', 'NaN'], ['--apply', '--timeout', 'Infinity'],
+]) {
+  test('fail-streak installer rejects invalid arguments before default-client writes: ' + args.join(' '), () => fixture(f => {
+    const scripts = path.join(f.client, 'scripts');
+    fs.mkdirSync(scripts, { recursive: true });
+    fs.copyFileSync(path.join(source, 'scripts/risky-match-guard.js'), path.join(scripts, 'risky-match-guard.js'));
+    const settings = path.join(f.client, 'settings.json');
+    fs.writeFileSync(settings, '{}\n');
+    const before = fs.readFileSync(settings);
+    const r = spawnSync(process.execPath, [path.join(mechanizeScripts, 'install-fail-streak.cjs'), ...args], { env: f.env, encoding: 'utf8', timeout: 15000 });
+    assert.equal(r.status, 2, r.stdout + r.stderr);
+    assert.match(r.stderr, /无效参数/);
+    assert.deepEqual(fs.readFileSync(settings), before);
+    assert.deepEqual(fs.readdirSync(scripts), ['risky-match-guard.js']);
+  }));
+}
+
+test('fail-streak installer accepts explicit paths with spaces and positive fractional timeouts', () => fixture(f => {
+  const root = path.join(f.base, 'selected client');
+  const args = ['--home', root, '--node', process.execPath, '--backup', path.join(f.base, 'backup with spaces.js'), '--matcher', '^Bash$|mcp_call', '--timeout', '2.5'];
+  const r = spawnSync(process.execPath, [path.join(mechanizeScripts, 'install-fail-streak.cjs'), ...args], { env: f.env, encoding: 'utf8', timeout: 15000 });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.ok(r.stdout.includes(root));
+  assert.match(r.stdout, /timeout=2\.5/);
+  assert.equal(fs.existsSync(root), false);
+  assert.equal(fs.existsSync(f.client), false);
+}));
+
 test('fail-streak installer refuses unverified backup and stops after failure', () => fixture(f => {
   const root = path.join(f.base, 'install-root 3');
   fs.mkdirSync(root);

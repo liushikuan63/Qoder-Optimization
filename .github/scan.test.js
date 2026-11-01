@@ -41,6 +41,60 @@ test('scanner still rejects a credential-like value and does not disclose it', (
   assert.equal((result.stdout + result.stderr).includes(value), false);
 }));
 
+for (const exemptFirst of [true, false]) {
+  test('identical credential assignments use each occurrence context: exemptFirst=' + exemptFirst, () => fixture(f => {
+    const value = ['R4nd0m', 'Value42Plus'].join('');
+    const assignment = `token = "${value}"`;
+    const exempt = '// process.env documentation: ' + assignment;
+    const lines = exemptFirst ? [exempt, assignment] : [assignment, exempt];
+    fs.writeFileSync(f.input, lines.join('\n' + 'padding '.repeat(20) + '\n'));
+    const result = f.run(f.input);
+    assert.equal(result.status, 2, result.stdout + result.stderr);
+    assert.ok(result.stdout.includes('凭据键值=1'), result.stdout);
+    assert.equal((result.stdout + result.stderr).includes(value), false);
+  }));
+}
+
+test('environment expressions and placeholder credentials remain clean', () => fixture(f => {
+  fs.writeFileSync(f.input, 'token = process.env.API_TOKEN\npassword = <从凭据文件取>\napi_key = "your_api_key"\n');
+  const result = f.run(f.input);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+}));
+
+test('credential values retain equals signs instead of treating them as assignment delimiters', () => fixture(f => {
+  const value = ['R4nd0m', 'Value42Plus', '='].join('');
+  fs.writeFileSync(f.input, `api_key = "${value}"`);
+  const result = f.run(f.input);
+  assert.equal(result.status, 2, result.stdout + result.stderr);
+  assert.ok(result.stdout.includes('凭据键值=1'), result.stdout);
+  assert.equal((result.stdout + result.stderr).includes(value), false);
+}));
+
+for (const name of ['backups-helper', 'node_modules-helper', 'client.git']) {
+  test('legitimate directory names containing exclusion words are scanned: ' + name, () => fixture(f => {
+    const value = ['R4nd0m', 'Value42Plus'].join('');
+    const dir = path.join(f.dir, 'skills', name);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(f.input, 'clean sibling');
+    fs.writeFileSync(path.join(dir, 'SKILL.md'), `token = "${value}"`);
+    const result = f.run(f.dir);
+    assert.equal(result.status, 2, result.stdout + result.stderr);
+    assert.ok(result.stdout.includes('凭据键值=1'), result.stdout);
+    assert.equal((result.stdout + result.stderr).includes(value), false);
+  }));
+}
+
+test('exact dependency, backup and Git directories remain excluded', () => fixture(f => {
+  fs.writeFileSync(f.input, 'clean sibling');
+  for (const name of ['node_modules', 'backups', '.git']) {
+    const dir = path.join(f.dir, name);
+    fs.mkdirSync(dir);
+    fs.writeFileSync(path.join(dir, 'private.txt'), `token = "${['R4nd0m', 'Value42Plus'].join('')}"`);
+  }
+  const result = f.run(f.dir);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+}));
+
 test('scanner fails for missing targets and an empty input set', () => fixture(f => {
   assert.equal(f.run(f.input).status, 2);
   assert.equal(f.run(f.dir).status, 2);

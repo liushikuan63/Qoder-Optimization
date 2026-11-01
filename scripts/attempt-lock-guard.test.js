@@ -88,10 +88,75 @@ const cleared = spawnSync(process.execPath, [POST_SCRIPT, '--clear', 'ALL'], {
 check('⑧ --clear ALL 之后恢复放行', /cleared/.test(cleared.stdout) && !pre('npm run build').blocked);
 
 // —— 复合命令的键 ——
-const { keyOf } = require('./attempt-lock-core.js');
+const { keyOf, familyOf } = require('./attempt-lock-core.js');
 check('⑨ 复合命令的键取真正命中的那一段',
-  keyOf('build', 'cd /d/tmp 2>/dev/null; npm run build') === 'build@npm run build',
+  keyOf('build', 'cd /d/tmp 2>/dev/null; npm run build') === keyOf('build', 'npm run build', '/d/tmp'),
   keyOf('build', 'cd /d/tmp 2>/dev/null; npm run build'));
+
+// 同一个全局 hook 会接收多个仓库；失败预算只属于实际命令目标。
+reset();
+const projectA = path.join(SB, 'project-a'), projectB = path.join(SB, 'project-b');
+for (let i = 0; i < 3; i++) post('npm run build', FAILOUT, { cwd: projectA });
+check('项目 A 连败仍拦本项目', pre('npm run build', { cwd: projectA }).blocked);
+check('项目 A 连败不拦项目 B', !pre('npm run build', { cwd: projectB }).blocked);
+check('tool_input.workdir 与 payload.cwd 指向同项目时共用预算',
+  pre('npm run build', { tool_input: { command: 'npm run build', workdir: projectA } }).blocked);
+check('tool_input.cwd 优先于 hook cwd，独立项目不串账',
+  !pre('npm run build', { cwd: projectA, tool_input: { command: 'npm run build', cwd: projectB } }).blocked);
+
+reset();
+for (let i = 0; i < 3; i++) post(`cd "${projectA}"; npm run build`, FAILOUT);
+check('shell cd 与工具 cwd 指向同项目时共用预算', pre('npm run build', { cwd: projectA }).blocked);
+check('shell cd 到另一个项目不串账', !pre(`cd "${projectB}"; npm run build`).blocked);
+check('npm --prefix 与工具 cwd 指向同项目时共用预算', pre(`npm --prefix "${projectA}" run build`).blocked);
+check('npm --prefix 到另一个项目不串账', !pre(`npm --prefix "${projectB}" run build`).blocked);
+check('包管理器 -C 指定同项目时共用预算', pre(`npm -C "${projectA}" run build`).blocked);
+
+reset();
+for (let i = 0; i < 3; i++) post('npm run build --workspace package-a', FAILOUT, { cwd: projectA });
+check('workspace 不同不串账', !pre('npm run build --workspace package-b', { cwd: projectA }).blocked);
+check('workspace 相同、无关参数变化仍累计', pre('npm --workspace=package-a run build --verbose', { cwd: projectA }).blocked);
+check('workspace 相同、短参数写法仍累计', pre('npm -w package-a run build', { cwd: projectA }).blocked);
+check('workspace 名称保留大小写，不与其他包串账', !pre('npm -w Package-A run build', { cwd: projectA }).blocked);
+check('脚本参数中的 workspace 不改变包管理器目标',
+  keyOf('build', 'npm run build -- --workspace package-a', projectA) === keyOf('build', 'npm run build', projectA));
+check('带空格目录的 cd 与工具 cwd 指向相同目标',
+  keyOf('build', `cd "${path.join(SB, 'project with spaces')}"; npm run build`) === keyOf('build', 'npm run build', path.join(SB, 'project with spaces')));
+check('Windows cwd 斜杠与大小写别名共用预算',
+  keyOf('build', 'npm run build', 'D:\\Project-A') === keyOf('build', 'npm run build', 'd:/project-a/.'));
+check('POSIX 风格 cwd 仍区分不同项目',
+  keyOf('build', 'npm run build', '/repo-a') !== keyOf('build', 'npm run build', '/repo-b'));
+check('重复 prefix 采用最后一个值，并相对命令 cwd 解析',
+  keyOf('build', 'npm --prefix a --prefix b run build', projectA) === keyOf('build', 'npm --prefix b run build', projectA));
+check('workspaces=false 与根项目共用预算',
+  keyOf('build', 'npm run build --workspaces=false', projectA) === keyOf('build', 'npm run build', projectA));
+check('workspaces=false 与 workspaces=true 不串账',
+  keyOf('build', 'npm run build --workspaces=false', projectA) !== keyOf('build', 'npm run build --workspaces=true', projectA));
+
+// HEAD 支持的真实包装入口不能在收窄 echo/rg 误识别时丢掉。
+for (const [command, family, direct] of [
+  ['npx vitest run', 'test', 'vitest run'],
+  ['npx --yes --package vitest@4 vitest run', 'test', 'vitest run'],
+  ['npx --package=typescript -- tsc --noEmit', 'build', 'tsc --noEmit'],
+  ['npm exec -- vitest run', 'test', 'vitest run'],
+  ['npm exec --package=typescript -- tsc --noEmit', 'build', 'tsc --noEmit'],
+  ['python -m pytest tests/', 'test', 'pytest tests/'],
+  ['python3 -m pytest tests/', 'test', 'pytest tests/'],
+  ['uv run pytest tests/', 'test', 'pytest tests/'],
+  ['sudo systemctl restart app', 'deploy', 'systemctl restart app'],
+]) {
+  check(`包装命令保留实际执行分类：${command}`, familyOf(command) === family);
+  check(`包装命令与直接入口共用预算：${command}`, keyOf(family, command, projectA) === keyOf(family, direct, projectA));
+}
+check('npx help 不消费构建或测试预算', familyOf('npx --help vitest') === null);
+check('python -c 中的 pytest 文本不消费预算', familyOf('python -c "print(\'pytest\')"') === null);
+check('command -v 查询不消费预算', familyOf('command -v pytest') === null);
+
+reset();
+for (let i = 0; i < 3; i++) post('echo "npm run build"', FAILOUT);
+check('引用构建命令的 echo 不建账', !pre('echo "npm run build"').blocked && !pre('npm run build').blocked);
+for (let i = 0; i < 3; i++) post('rg "npm run build" README.md', { exitCode: 1 });
+check('搜索构建命令的 rg 不建账', !pre('rg "npm run build" README.md').blocked);
 
 // —— 沙箱隔离 ——
 check('⑩ 沙箱自测没有写进真机状态目录', snapReal() === REAL_BEFORE);

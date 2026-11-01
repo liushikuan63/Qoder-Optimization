@@ -178,6 +178,6 @@ node ~/.qoder/scripts/carrier-preflight.cjs --type hook --name <守卫名>
 
 ## Resources
 
-见上表。`hook-gap-scan.cjs`：`--home <目录>` 换体检根、`--json` 机器可读、`--pattern` / `--discipline` 换关键词与目标纪律口径、`--no-follow` 关顺 require、`--selftest` 自检。`install-fail-streak.cjs`：默认 dry-run 一个字节都不写，`--apply` 才落盘；`--home` / `--second` 指定目标侧，`--node` / `--matcher` / `--timeout` / `--backup` 覆盖命令路径、matcher、超时与备份器；`--selftest` 全程在临时体检根里跑，不碰生产配置。
+见上表。`hook-gap-scan.cjs`：`--home <目录>` 换体检根、`--json` 机器可读、`--pattern` / `--discipline` 换关键词与目标纪律口径、`--no-follow` 关顺 require、`--selftest` 自检。`install-fail-streak.cjs`：默认 dry-run 一个字节都不写，`--apply` 才落盘；`--home` / `--second` 指定目标侧，`--node` / `--matcher` / `--timeout` / `--backup` 覆盖命令路径、matcher、超时与备份器；未知选项、缺值或非正有限超时退 2，且在探测目标前停止。幂等检查要求 `type=command`、完整 Node 与守卫两参数命令、matcher 和 timeout 一致；错误解释器、额外参数（包括 `--clear ALL`）及 shell 包裹均作为冲突保留供人工核对。`--selftest` 全程在临时体检根里跑，不碰生产配置。
 
 **本样板当前状态（2026-10-22）**：四套都真跑过——自测 22 组、变异 9 项、缺口扫描自检 9 项、安装器自检 12 项，均 EXIT=0；TEST-NET 逻辑探针在真实台账留下 `streak-new`×3 + `block`，`--clear ALL` 后放行。**但真机接线未做**：`--apply`（复制脚本 + 宿主委托段 + 两侧 settings.json）属拦截范围变更，需使用者明确批准并亲自在终端执行。在那之前，「Pre 半边在真实宿主里生效」只在沙箱体检根验证过；跑完 `--apply` 必须按 §9 复验：`node scripts/fail-streak-guard.test.js --installed`、`config-doctor.cjs` 的 `HOOK-DIFF` 行、`rules-weekly-audit.js --no-fix`、`hook-gap-scan.cjs`（缺口判定应从「成立」翻成「已有机制」）。

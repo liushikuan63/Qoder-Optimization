@@ -10,7 +10,7 @@
 //   ② 失败判定只认**明确信号**：is_error / 非零 exitCode / BUILD FAILURE / npm ERR! /
 //      "Tests failed" / "error TS1234"；拿不到明确信号的返回记为 neutral（不计数也不清零）；
 //   ③ 成功判定同样只认明确信号（exit code 0 / BUILD SUCCESS / BUILD SUCCESSFUL / Tests passed / PASS）；
-//   ④ 同一目标（family + 去掉开关后的前三个词）连续失败达到阈值（默认 3）⇒ 该目标下一次调用被拦，
+//   ④ 同一目标（工作目录 / workspace + family + 命令签名）连续失败达到阈值（默认 3）⇒ 该目标下一次调用被拦，
 //      直到人工 `--clear`。成功一次即清零（"连续"语义，不是累计）。
 // 关闭：~/.qoder/attempt-lock.json 写 {"disabled":true}；threshold/ttlHours/blockTtlHours 同文件可配
 // 状态与台账：~/.qoder/tmp/attempt-lock/{state.json,decisions.log}
@@ -18,6 +18,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const crypto = require('crypto');
 const { clientRoot } = require('./client-root.js');
 const CLIENT_ROOT = clientRoot();
 
@@ -42,21 +43,136 @@ const TEST_CMD = /\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:test|e2e)\b|\bmvn\b[^|
 const BUILD_CMD = /\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:build|ci)\b|\bmvn\b[^|;&]*\b(?:package|install|compile|verify|install)\b|\bgradlew?\b[^|;&]*\b(?:build|assemble)\b|\bcargo\s+build\b|\bgo\s+build\b|\bdotnet\s+build\b|\btsc\b|\bmake\b/i;
 const DEPLOY_CMD = /\b(?:ssh|scp|sftp|rsync|pscp|plink)\b|\bsystemctl\s+(?:restart|start|stop|reload)\b|\bdocker\s+compose\s+(?:up|restart)\b/i;
 
-function familyOf(cmd) {
-  const c = String(cmd || '');
+function familyOfWords(words) {
+  // 只把真正的命令入口当作执行；echo/rg 中引用的命令不能消费失败预算。
+  const executable = path.basename(String(words[0] || '').replace(/\\/g, '/')).replace(/\.(?:exe|cmd|bat)$/i, '').toLowerCase();
+  if (!/^(?:npm|pnpm|yarn|bun|mvn|gradle|gradlew|pytest|tox|phpunit|node|go|cargo|dotnet|vitest|jest|tsc|make|ssh|scp|sftp|rsync|pscp|plink|systemctl|docker)$/.test(executable)) return null;
+  const c = [executable, ...words.slice(1)].join(' ');
   if (TEST_CMD.test(c)) return 'test';
   if (BUILD_CMD.test(c)) return 'build';
   if (DEPLOY_CMD.test(c)) return 'deploy';
   return null;
 }
-// 目标键：family + **真正命中那一段**去开关后的前三个词。
-// 不能直接取整条命令的前三个词：`cd /d/tmp; npm run build` 会把键取成 `build@cd /d/tmp`，
-// 换个前缀目录就是另一个键，连败永远累计不起来（2026-10-27 真机探针发现）。
-function keyOf(family, cmd) {
-  const segs = String(cmd || '').split(/[;&|]+/).map((s) => s.trim()).filter(Boolean);
-  const seg = segs.find((s) => familyOf(s) === family) || String(cmd || '');
-  const sig = seg.split(/\s+/).filter((t) => t && t.charAt(0) !== '-').slice(0, 3).join(' ');
-  return family + '@' + sig.toLowerCase();
+
+// 只解析直接命令、引号、分隔符和 cd；不猜测变量展开、函数或完整 shell 控制流。
+function commandWords(command) {
+  const segments = [], words = [];
+  let word = '', quote = '', active = false;
+  const flushWord = () => { if (active) words.push(word); word = ''; active = false; };
+  const flushCommand = () => { flushWord(); if (words.length) segments.push(words.splice(0)); };
+  const text = String(command || '');
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quote) {
+      if (ch === quote) { quote = ''; continue; }
+      if (ch === '\\' && quote === '"' && /["\\]/.test(text[i + 1] || '')) { word += text[++i]; continue; }
+      word += ch; continue;
+    }
+    if (ch === '"' || ch === "'") { quote = ch; active = true; continue; }
+    if (ch === '\\' && /[\s'";&|]/.test(text[i + 1] || '')) { word += text[++i]; active = true; continue; }
+    if (ch === '#' && !active) { while (i < text.length && text[i] !== '\n') i++; flushCommand(); continue; }
+    if (/[;&|\n\r]/.test(ch)) { flushCommand(); continue; }
+    if (/\s/.test(ch)) { flushWord(); continue; }
+    word += ch; active = true;
+  }
+  if (quote) return [];
+  flushCommand();
+  return segments;
+}
+function directoryOf(base, value) {
+  const win = /^[A-Za-z]:[\\/]|^\\\\/.test(String(value || '')) || /^[A-Za-z]:[\\/]|^\\\\/.test(base);
+  const api = win ? path.win32 : path;
+  const resolved = api.resolve(base, value || '.');
+  return win ? resolved.toLowerCase() : resolved;
+}
+const executableOf = word => path.basename(String(word || '').replace(/\\/g, '/')).replace(/\.(?:exe|cmd|bat)$/i, '').toLowerCase();
+// 只展开已知的直接执行包装形态；帮助、查询、-c 文本和未知选项不按真实目标猜测。
+function unwrapWords(input, packages = true) {
+  let words = [...input];
+  for (let depth = 0; depth < 5; depth++) {
+    while (/^[A-Za-z_][A-Za-z0-9_]*=/.test(words[0] || '')) words.shift();
+    const executable = executableOf(words[0]);
+    if (/^(?:env|sudo|command|exec|nohup)$/.test(executable)) {
+      let i = 1;
+      for (; i < words.length; i++) {
+        const arg = words[i];
+        if (arg === '--') { i++; break; }
+        if (executable === 'env' && /^[A-Za-z_][A-Za-z0-9_]*=/.test(arg)) continue;
+        if (!arg.startsWith('-')) break;
+        if (executable === 'sudo' && /^(?:-u|-g|--user|--group)$/.test(arg)) { i++; continue; }
+        if (executable === 'env' && /^(?:-u|--unset)$/.test(arg)) { i++; continue; }
+        if (executable === 'sudo' && /^(?:-[nEHSkb]|--non-interactive|--preserve-env|--user=.+|--group=.+)$/.test(arg)) continue;
+        if (executable === 'env' && /^(?:-i|--ignore-environment|--unset=.+)$/.test(arg)) continue;
+        if (executable === 'command' && arg === '-p') continue;
+        return [];
+      }
+      words = words.slice(i); continue;
+    }
+    if (packages && (executable === 'npx' || /^(?:npm|pnpm|yarn)$/.test(executable) && words[1] === 'exec')) {
+      let i = executable === 'npx' ? 1 : 2;
+      for (; i < words.length; i++) {
+        const arg = words[i];
+        if (arg === '--') { i++; break; }
+        if (!arg.startsWith('-')) break;
+        if (/^(?:--package|-p)$/.test(arg)) { i++; continue; }
+        if (/^(?:--package=.+|--yes|--no|--no-install|--offline|-y)$/.test(arg)) continue;
+        return [];
+      }
+      words = words.slice(i); continue;
+    }
+    if (/^(?:python(?:\d+(?:\.\d+)*)?|py)$/.test(executable)) {
+      let i = 1;
+      while (/^-(?:I|B|E|s|S|u|2|3)$/.test(words[i] || '')) i++;
+      if (words[i] === '-m' && /^(?:pytest|tox)$/.test(words[i + 1] || '')) { words = words.slice(i + 1); continue; }
+    }
+    if (executable === 'uv' && words[1] === 'run' && words[2] && !words[2].startsWith('-')) { words = words.slice(2); continue; }
+    return words;
+  }
+  return [];
+}
+function commandTargets(command, cwd) {
+  let directory = directoryOf(process.cwd(), cwd || process.cwd());
+  const targets = [];
+  for (const original of commandWords(command)) {
+    const words = unwrapWords(original, false);
+    if (/^(?:cd|chdir|set-location)$/i.test(words[0] || '')) {
+      const dir = words.slice(1).filter(w => !/^(?:\/d|--|-literalpath|-path)$/i.test(w))[0];
+      if (dir) directory = directoryOf(directory, dir);
+      continue;
+    }
+    let targetDirectory = directory;
+    const selectors = [], filtered = [words[0]];
+    const executable = path.basename(String(words[0] || '').replace(/\\/g, '/')).replace(/\.(?:exe|cmd|bat)$/i, '').toLowerCase();
+    const manager = /^(?:npm|pnpm|yarn|bun|make|gradle|gradlew|mvn)$/.test(executable);
+    for (let i = 1; i < words.length; i++) {
+      // -- 后是脚本参数，不再把其中的 --prefix/--workspace 解释为包管理器目标。
+      if (words[i] === '--') { filtered.push(...words.slice(i)); break; }
+      const match = manager && words[i].match(/^(--prefix|--cwd|--dir|-C|--workspace|--workspaces|-w|--filter|-F|-pl|--projects)(?:=(.*))?$/);
+      if (!match) { filtered.push(words[i]); continue; }
+      if (match[1] === '--workspaces') { if (!/^(?:false|0)$/i.test(match[2] || 'true')) selectors.push('--workspaces'); continue; }
+      const value = match[2] !== undefined ? match[2] : words[++i];
+      if (!value) continue;
+      if (/^(?:--prefix|--cwd|--dir|-C)$/.test(match[1])) targetDirectory = directoryOf(directory, value);
+      else selectors.push(value);
+    }
+    const command = unwrapWords(filtered);
+    const family = familyOfWords(command);
+    if (family) targets.push({ family, words: command, directory: targetDirectory, selectors: [...new Set(selectors)].sort() });
+  }
+  return targets;
+}
+function familyOf(cmd) {
+  const targets = commandTargets(cmd);
+  return ['test', 'build', 'deploy'].find(family => targets.some(t => t.family === family)) || null;
+}
+// 目录/workspace 入键，避免全局 hook 把不同项目的 npm run build 误当成同一目标。
+// 路径只存摘要；同一目标换 verbosity 等无关参数仍共用预算。旧版无作用域键不再匹配新调用。
+function keyOf(family, cmd, cwd) {
+  const target = commandTargets(cmd, cwd).find(t => t.family === family);
+  if (!target) return null;
+  const sig = target.words.filter(t => t && t.charAt(0) !== '-').slice(0, 3).join(' ').toLowerCase();
+  const scope = crypto.createHash('sha256').update(JSON.stringify([target.directory, target.selectors])).digest('hex').slice(0, 16);
+  return family + '@' + sig + '#' + scope;
 }
 
 const FAIL = [
@@ -97,7 +213,7 @@ function parse(p) {
   const cmd = String(input.command || '');
   const family = familyOf(cmd);
   if (!family) return null;
-  return { family, key: keyOf(family, cmd), cmd, config: c };
+  return { family, key: keyOf(family, cmd, input.cwd || input.workdir || p.cwd || process.cwd()), cmd, config: c };
 }
 
 function prune(s, c) {
