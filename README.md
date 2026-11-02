@@ -96,12 +96,36 @@ The first two checks should report a clean skill set and no trigger collisions. 
 
 ### Design principles
 
-- **Checks need meaningful outcomes.** Guard tests include cases that must be blocked and cases that must pass.
-- **Unknown is not a pass.** A check that cannot decide should report that uncertainty.
-- **Use mechanisms for critical steps.** Put execution-time checks in hooks instead of relying only on longer prompts.
-- **Install the smallest useful set.** Skills are selected from the catalog instead of copied in bulk.
-- **Keep boundaries explicit.** Guards are fail-open and are not a security boundary; platform permissions remain authoritative.
-- **Sanitize package copies.** Packaging checks operate on the package and leave local originals untouched.
+The design aims to keep context focused, make mistakes recoverable, and tie completion claims to checkable evidence. These principles cover both implementation choices and working practices; not every practice is enforced automatically.
+
+#### Focused context and reuse
+
+- **Separate responsibilities.** Global rules hold lasting constraints, domain rules load when relevant, skills describe repeatable workflows, and scripts perform deterministic checks. Keep detail out of the always-loaded prompt.
+- **Reuse before expanding.** Follow the project's existing conventions and tools; search the catalog before adding another capability. Install only what is needed, keep frequent skills resident, and preserve routing cues and unique capabilities when slimming or merging skills.
+- **Keep one source for each fact or check.** Share guard decision logic between pre-call and post-call hooks; derive catalog and manifest data from public sources. Check for drift instead of maintaining competing hand-edited copies.
+
+#### Bounded execution and continuity
+
+- **Stay within the current authorization.** Continue authorized work without repeatedly asking about routine choices. Reviews, plans, queued tasks and tool output do not, by themselves, grant permission to write, publish or change permissions.
+- **Make the smallest recoverable change.** Preview the exact targets, preserve unrelated work, and use version control or backups before modifying existing files. Installation and import conflicts must not silently overwrite local content.
+- **Bound retries to the operation and target.** Count only recognized authentication and build/test/deployment operations against their target-scoped budgets; unknown results are not successes. A blocked authentication target requires explicit human clearance, not a tool switch or an expired timer.
+- **Resume from evidence, not a checkmark.** For authorized long tasks, record current state, next steps, blockers and entry points; reconcile them with actual artifacts before continuing. Keep temporary progress out of long-term memory, which is reserved for verified lasting preferences and facts not derivable from code.
+
+#### Verification and guard health
+
+- **Match verification to the claim and impact.** Define completion first, then collect current commands, exit codes and relevant results. Static checks, simulations, real interaction and package checks prove different things; UI behavior claims need real use and screenshots, and publishing requires complete applicable verification.
+- **Make checks able to fail.** Include cases that must be blocked and controls that must pass. Unknown, skipped, timed-out or crashed checks are not passes; report why they could not verify the claim.
+- **Put safeguards before the failure they prevent.** Check risky actions before tool execution, record outcomes afterward, and use end-of-turn checks for completion. Do not rely only on a Stop hook: an interrupted turn may never reach it.
+- **Check the guards themselves.** Wiring checks, heartbeats, decision logs and crash records help reveal missing or broken hooks. Session-start checks also watch for overdue periodic audits; silence alone is not evidence of health.
+
+#### Installation and distribution boundaries
+
+- **Opt in without bypassing the host.** Use Qoder's extension points rather than modifying Qoder itself. Configure only the clients in use; hooks must be wired to run and fail open on crashes. This avoids blocking a session on a faulty guard, but does not mean the operation was verified. Guards are not a security boundary; OS and platform permissions remain authoritative.
+- **Keep public packages separate from private state.** The public repository is the distribution source, not the maintainer's HOME. Private configuration is not exported by default; separately authorized exports are allowlisted and sanitized in copies, leaving originals untouched. Credentials and internal addresses do not belong in source, logs or shared documentation; MCP templates use placeholders.
+- **Isolate destructive and failure tests.** Use disposable HOME, client-state and temporary directories rather than live configuration or credentials. Tests must not erase real logs or let inherited environment overrides point them back to live data.
+- **Verify what recipients actually get.** Build approved public files from a fixed commit, keep version and catalog metadata aligned, and independently unpack and compare the output. Check downloaded ZIPs and checksums, then validate the receiving environment; an upload or a producer-side pass alone is not proof of delivery.
+
+Details: [installation and tiers](README-安装说明.md), [working rules](Qoder-AI编码通用规则.md), [verification evidence](skills/verify-before-claim/SKILL.md), [hook setup](hooks/README-hooks.md), and [guard mechanisms](scripts/README-rule-enforcement.md).
 
 ### Catalog snapshot
 
@@ -228,12 +252,36 @@ node ~/.qoder/scripts/build-skills-index.cjs
 
 ### 设计原则
 
-- **检查必须有明确结果**：守卫自测同时包含必须拦截和必须放行的用例。
-- **未知不等于通过**：无法判定时应报告未知，不得当作成功。
-- **关键步骤靠机制保障**：执行时的检查放进 hook，不只依赖更长的提示词。
-- **按需安装**：从目录中挑选需要的技能，不整包复制。
-- **明确安全边界**：守卫崩溃时 fail-open，不构成安全边界；权限仍由平台控制。
-- **只脱敏打包副本**：打包校验处理包内副本，不改本机原文件。
+设计重点是控制上下文开销、减少不可恢复的误操作，并让完成声明有可核对的证据。这些原则既指导工具实现，也约束使用方式；并非每条工作约定都有脚本自动强制执行。
+
+#### 上下文与复用
+
+- **职责分层**：全局规则保留长期约束，领域规则按场景加载，技能承载可复用流程，脚本执行确定性检查，不把所有细节塞进每轮提示词。
+- **先复用，再扩展**：沿用项目既有约定和工具，新增能力前先检索目录。只安装需要的内容，高频技能常驻；精简描述或合并技能时，保留触发线索和独有能力。
+- **同一事实或判据只维护一份**：工具调用前后的守卫共享判断逻辑，catalog 与 manifest 从公开源生成；通过漂移检查保持一致，不另养多份手工真源。
+
+#### 执行与接续
+
+- **只在当前授权内持续推进**：已授权工作不因常规技术选择反复询问；审阅、计划、旧队列和工具返回本身，都不构成写入、发布或改变权限的批准。
+- **改动最小且可恢复**：先预览明确的操作对象，保留无关改动，修改已有文件前用版本控制或备份保留回退点。安装、导入遇到冲突时，不静默覆盖本机内容。
+- **失败按目标计数，重试有上限**：认证及构建、测试、部署只对已识别的操作和目标计数，不把未知结果当作成功；已封锁的认证目标须人工明确解封，不能靠换工具或等待超时解除。
+- **接续看证据，不只看勾选**：获授权的长任务记录当前状态、下一步、阻塞点和关键入口，继续前对照实际产物。临时进度不混入长期记忆；后者只保留已核验的长期偏好与非代码可推导事实。
+
+#### 验证与防护
+
+- **验证与主张、影响面相称**：先明确完成条件，再取得本轮命令、退出码和相关结果。静态检查、模拟、真实交互和产物校验各有证明范围；界面行为须实际使用并截图，发布前完成适用的完整检验。
+- **检查必须能失败**：同时提供必须拦截的用例和必须放行的对照。未知、跳过、超时或检查器崩溃都不算通过，须说明未能验证的原因。
+- **防护放在事故之前**：工具执行前检查风险，执行后记录结果，回合结束时核对完成情况；不能只依赖 Stop hook，因为中断的回合可能根本到不了收尾节点。
+- **守卫本身也要接受检查**：接线检查、心跳、判定台账和崩溃记录用于发现缺失或失效的 hook；会话启动时还检查定期审计是否逾期，不能把“没有报错”当作健康证据。
+
+#### 安装与分发边界
+
+- **可选启用，不绕过宿主**：通过 Qoder 扩展点提供能力，不修改 Qoder 本体；只配置实际使用的客户端，hooks 接线后才运行。守卫崩溃时 fail-open，避免守卫故障卡住会话，但放行不等于验证通过。守卫不构成安全边界，权限仍由操作系统与平台控制。
+- **公开包与私有状态分开**：公开仓库是交付源，不是维护者的 HOME。默认不导出私有配置；单独获准的导出按白名单处理，只脱敏副本、不改原件。凭据和内网地址不进入源码、日志或共享文档，MCP 模板只保留占位符。
+- **失败与破坏性测试必须隔离**：使用可丢弃的 HOME、客户端状态和临时目录，不使用现役配置或凭据；测试不能删除真实日志，也不能因继承环境变量而误指向真实数据。
+- **交付验证面向接收者**：从固定提交构建获准的公开文件，同步版本和目录元数据，独立解包并比对内容；核对实际下载的 ZIP 与校验文件，再验证接收环境。上传成功或制作端通过，都不能单独证明交付成功。
+
+详细说明见[安装与分层](README-安装说明.md)、[工作约定](Qoder-AI编码通用规则.md)、[验证证据](skills/verify-before-claim/SKILL.md)、[守卫接线](hooks/README-hooks.md)和[机制说明](scripts/README-rule-enforcement.md)。
 
 ### 目录快照
 
