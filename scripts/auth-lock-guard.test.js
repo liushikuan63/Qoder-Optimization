@@ -66,6 +66,17 @@ check('④ 换工具形态绕（直连限定名工具名）同一 srv：仍拦',
 check('⑤ 换 shell 直连、但报错里出现过同一账号：按 user 维度仍拦',
   pre({ tool_name: 'Bash', tool_input: { command: 'psql -h 203.0.113.10 -U probe_appuser -c "select 1"' } }).blocked,
   '报错原文含 user "probe_appuser"，应被并入同一目标');
+for (const command of [
+  'ssh operator@203.0.113.9 "psql -h 203.0.113.10 -U probe_appuser -c SELECT"',
+  'ssh -p 2222 -o BatchMode=yes operator@203.0.113.9 "psql -h 203.0.113.10 -U probe_appuser -c SELECT"',
+  'plink -batch -P 2222 operator@203.0.113.9 "psql -h 203.0.113.10 -U probe_appuser -c SELECT"',
+  'ssh operator@203.0.113.10 "psql -U probe_appuser -c SELECT"',
+]) check('⑤b 远程 shell 内真实数据库入口仍使用同一认证预算',
+  pre({ tool_name: 'Bash', tool_input: { command } }).blocked, command);
+const beforeQuotedRemote = ledger();
+check('⑤c 远程输出数据库命令文本不发起连接、不计账',
+  !pre({ tool_name: 'Bash', tool_input: { command: 'ssh probe_appuser@203.0.113.10 "echo \'psql -h 203.0.113.10 -U probe_appuser\'"' } }).blocked
+  && ledger() === beforeQuotedRemote);
 
 reset();
 const lock = post(dbhub('prod_b'), LOCKERR);

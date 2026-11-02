@@ -231,6 +231,26 @@ function shellTargets(command, depth = 0) {
       if (scriptIndex >= 0) targets.push(...shellTargets(executable === 'cmd' ? argv.slice(scriptIndex + 1).join(' ') : argv[scriptIndex + 1], depth + 1));
       continue;
     }
+    if (/^(?:ssh|plink)$/.test(executable)) {
+      let remote = 0;
+      const valueOptions = executable === 'ssh'
+        ? /^(?:-[BbcDEeFIiJLlmOopQRSWw]|--login)$/
+        : /^(?:-l|-P|-pw|-i|-hostkey|-proxycmd|-sercfg|-loghost|-sshlog|-sshrawlog|-sessionlog)$/;
+      while (remote < argv.length && argv[remote].startsWith('-')) {
+        if (argv[remote] === '--') { remote++; break; }
+        remote += valueOptions.test(argv[remote]) ? 2 : 1;
+      }
+      const destination = argv[remote++];
+      if (destination && remote < argv.length) {
+        const nested = shellTargets(argv.slice(remote).join(' '), depth + 1);
+        const host = destination.replace(/^.*@/, '').replace(/^\[|\]$/g, '').toLowerCase();
+        for (const target of nested) {
+          if (!target.host) target.host = host;
+          targets.push(target);
+        }
+      }
+      continue;
+    }
     if (!DB_COMMAND.test(executable)) continue;
     const target = {};
     const srv = executable.match(/^execute_sql[_-](.+)$/i);
