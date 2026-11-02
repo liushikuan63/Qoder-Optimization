@@ -29,7 +29,7 @@ const run = (input) => spawnSync(process.execPath, [SCRIPT], {
   env: { ...process.env, USERPROFILE: HOME, HOME },
 });
 
-const MARKERS = ['简体中文', '不随意停止', '需拍板', '验证要能失败', '先备份', '先只读预览命中范围', '明确结论', 'Vibecoding 两问', '目标模式', '过程落盘', '领域与流程纪律'];
+const MARKERS = ['简体中文', '不随意停止', '需拍板', '验证要能失败', '先备份', '先只读预览命中范围', '明确结论', 'Vibecoding 两问', '目标模式', '过程落盘', '领域与流程纪律', '自进化采集'];
 const STRENGTHENED = ['只读', '不重复确认', '不得通过换工具', '零文件写入', '不适用记 N/A'];
 const checkText = (text, expected) => MARKERS.concat(STRENGTHENED).every((k) => expected ? text.includes(k) : true);
 
@@ -42,7 +42,7 @@ check('① 合法载荷 → exit 0 + 合法 JSON + 形状正确',
 
 // ② 要素完整（含本轮强化的两条）
 const missing = MARKERS.concat(STRENGTHENED).filter((k) => !ctx.includes(k));
-check('② 10 条要素 + 2 条强化判据齐全', missing.length === 0, missing.length ? '缺 ' + missing.join(',') : '');
+check('② 11 条要素 + 2 条强化判据齐全', missing.length === 0, missing.length ? '缺 ' + missing.join(',') : '');
 
 // ③ 空 stdin 也要注入
 const r3 = run('');
@@ -159,6 +159,49 @@ const r18 = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: P1
 let ctx18 = '';
 try { ctx18 = JSON.parse(r18.stdout).hookSpecificOutput.additionalContext || ''; } catch {}
 check('⑱ 元提及 / 教学问句不触发', r18.status === 0 && !ctx18.includes('【复核模式 · 已触发】'), `exit=${r18.status}`);
+
+// ⑲–㉖ 自进化采集触发（2026-11-02）：只提醒不拦截；正例三族，负例四类
+const EVO_MARK = '【自进化采集 · 本轮疑似纠正/长期偏好】';
+const evoCase = (label, prompt, expected) => {
+  const r = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt }));
+  let c = '';
+  try { c = JSON.parse(r.stdout).hookSpecificOutput.additionalContext || ''; } catch {}
+  check(label, r.status === 0 && c.includes(EVO_MARK) === expected, `exit=${r.status} 命中=${c.includes(EVO_MARK)}`);
+  return c;
+};
+evoCase('⑲ 长期偏好正例 → 追加自进化采集段', '以后所有回复都用简体中文', true);
+evoCase('⑳ 重复纠正正例 → 追加自进化采集段', '你又没跑测试就宣布完成', true);
+evoCase('㉑ 显式沉淀正例 → 追加自进化采集段', '把这条写进记忆：以后先跑测试再汇报', true);
+evoCase('㉒ 单次任务约束负例 → 不追加', '不要修改任何文件，只读审阅后给建议', false);
+evoCase('㉓ 普通请求负例 → 不追加', '修复一个按钮文案', false);
+evoCase('㉔ 元提及负例 → 不追加', '当我说以后都别用缓存时你怎么处理', false);
+evoCase('㉕ 引用规则原文负例 → 不追加', '规则里写着以后不要修改文件', false);
+check('㉖ 空 stdin 静态第 10 条仍注入', ctx.includes('自进化采集') && ctx.includes('证据门槛'), '');
+
+// ㉗–㉙ 变异对照：移除 evolutionNote 调用后正例提示必须消失；负例与原件逐字节一致
+const EVO_MUT_DIR = path.join(SB, 'mutated-evolution');
+fs.mkdirSync(EVO_MUT_DIR, { recursive: true });
+for (const name of ['rules-reminder.js', 'client-root.js', 'hook-crash-guard.js', 'recheck-protocol.cjs']) {
+  fs.copyFileSync(path.join(__dirname, name), path.join(EVO_MUT_DIR, name));
+}
+const evoMutFile = path.join(EVO_MUT_DIR, 'rules-reminder.js');
+const evoSource = fs.readFileSync(evoMutFile, 'utf8');
+const evoMutated = evoSource.replace(' + evolutionNote(prompt)', '');
+if (evoMutated !== evoSource) fs.writeFileSync(evoMutFile, evoMutated);
+check('㉗ 变异体已移除自进化调用', evoMutated !== evoSource, evoMutated === evoSource ? '未找到可替换的调用点' : '');
+const runEvoMut = (input) => spawnSync(process.execPath, [evoMutFile], {
+  input,
+  encoding: 'utf8',
+  timeout: 15000,
+  env: { ...process.env, USERPROFILE: HOME, HOME },
+});
+const evoPos = JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: '以后所有回复都用简体中文' });
+const evoMutCtx = JSON.parse(runEvoMut(evoPos).stdout).hookSpecificOutput.additionalContext;
+check('㉘ 变异对照：移除自进化调用后正例提示消失', !evoMutCtx.includes(EVO_MARK), '');
+const evoNeg = JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: '修复一个按钮文案' });
+const evoOrigCtx = JSON.parse(run(evoNeg).stdout).hookSpecificOutput.additionalContext;
+const evoMutNegCtx = JSON.parse(runEvoMut(evoNeg).stdout).hookSpecificOutput.additionalContext;
+check('㉙ 模式隔离：负例在原件与变异体逐字节一致', evoOrigCtx === evoMutNegCtx, `orig=${evoOrigCtx.length} mut=${evoMutNegCtx.length}`);
 
 function runChunked(input, split) {
   return new Promise(resolve => {

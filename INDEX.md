@@ -1,8 +1,8 @@
-# Qoder-Optimization - 0.0.15
+# Qoder-Optimization - 0.0.16
 
 ## 分享包索引（按需加装）
 
-共 253 条：skill=132 / script=109 / command=10 / agent=2
+共 255 条：skill=132 / script=111 / command=10 / agent=2
 
 - 状态：`shipped` 随包可直接装；`external` 只给官方安装方式；`template` 给合并说明。
 - 机器可读版：`catalog.json`。文件存在不代表已安装或已装载。

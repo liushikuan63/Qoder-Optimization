@@ -2,13 +2,13 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.0.15"
+  "version": "0.0.16"
  },
- "generated": "2026-11-01",
+ "generated": "2026-11-02",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 132,
-  "script": 109,
+  "script": 111,
   "command": 10,
   "agent": 2
  },
@@ -2417,6 +2417,32 @@
    "source": "scripts/evidence-audit.test.js",
    "dependencies": [
     "script:evidence-audit.cjs"
+   ]
+  },
+  {
+   "id": "script:evolution-candidates.cjs",
+   "category": "script",
+   "name": "evolution-candidates.cjs",
+   "status": "shipped",
+   "source": "scripts/evolution-candidates.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:client-root.js"
+   ]
+  },
+  {
+   "id": "script:evolution-candidates.test.js",
+   "category": "script",
+   "name": "evolution-candidates.test.js",
+   "status": "shipped",
+   "source": "scripts/evolution-candidates.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:evolution-candidates.cjs"
    ]
   },
   {

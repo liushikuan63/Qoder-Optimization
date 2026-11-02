@@ -36,6 +36,7 @@ const REMINDER = [
   '7. Vibecoding 两问仅用于规模大且需求或验收口径不明、又未获相应授权的任务；明确需求不弹窗。阶段检查不等于逐阶段批准，显式审批仍等待。目标模式仅在用户或系统/开发者明确要求时创建；目录里有任务包不构成实施授权。',
   '8. 过程落盘仅适用于获准写入的执行任务：队列写任务ID、责任会话及当前状态 / 下一步 / 阻塞点 / 关键入口，未建路径标待建。只读、评审待批准时零文件写入（含记忆、队列和备份）。收尾文档 / 提交 / 记忆按适用性执行，不适用记 N/A。',
   '9. 记忆**读写两头都要主动**：动手前先在记忆索引按目标查条目（地址 / 端口 / 路径 / 凭据位置 / 启动脚本 / 口径 / 已知坑），命中就照记忆做、不重新猜不重复探测，无命中或不可用再自行推理并标注「记忆无此项」，与现场冲突以现场为准并就地更新；保存时只存经核验的长期偏好和非代码可推导事实，重试、临时纠正及审阅发现不单独强制写入。领域与流程纪律按需加载，维护、安装及打包不得成为无关主任务的完成前置。',
+  '10. **自进化采集**：收尾前核对本轮有无用户明确的长期偏好 / 纠正、反复出现的模式、验证过的复用经验；有证据按 self-evolution 证据门槛处理（记忆 / 规则 / 技能 / hook），无则不写日志、不为凑记录而记录；同类问题已被门禁反复拦截时优先补机制，不重复堆提示。',
 ].join('\n');
 
 function heartbeat() {
@@ -131,6 +132,25 @@ function recheckNoteFor(promptText) {
   }
 }
 
+// 自进化采集触发（2026-11-02）：只做语义初筛，不拦截、不写状态。
+// 正向三族：长期要求 / 显式沉淀 / 重复纠正；元提及与引用规则原文排除。
+// 单次任务约束（"不要修改文件"）不含长期词，天然不命中——不要为它加正向词。
+const EVOLUTION_LONG_TERM = /(?:以后|今后|下次|从现在开始|每次|一律|永远|总是).{0,24}(?:都|要|别|不要|必须|记得|记住|用|按)/;
+const EVOLUTION_EXPLICIT = /(?:记住|记一下|写进记忆|写入记忆|沉淀|固化成规则)/;
+const EVOLUTION_REPEAT = /(?:你又|怎么又|说了(?:多少|几)次|重复(?:犯|出现)|还是没|一直没|每次都)/;
+const EVOLUTION_META = /(?:当我说|如果我说|比如我说|这句话|这个词|举个例子).{0,24}(?:触发|处理|怎么|如何|会怎样|是否)/;
+const EVOLUTION_RULE_QUOTE = /(?:规则|AGENTS|提示词|文档).{0,16}(?:说|写着|要求|规定)/;
+const EVOLUTION_NOTE = '\n【自进化采集 · 本轮疑似纠正/长期偏好】检测到纠正或长期要求。收尾前按 self-evolution 证据门槛判断：用户明确长期偏好一次即可采纳；推断习惯需 ≥3 个独立任务、跨 ≥2 会话；单次任务约束只作用本轮。采纳则落到最窄载体并说明作用范围；临时要求明确说明不沉淀。';
+
+function evolutionNote(promptText) {
+  const text = typeof promptText === 'string' ? promptText.replace(/\s+/g, ' ').trim() : '';
+  if (!text) return '';
+  if (EVOLUTION_META.test(text) || EVOLUTION_RULE_QUOTE.test(text)) return '';
+  return EVOLUTION_LONG_TERM.test(text) || EVOLUTION_EXPLICIT.test(text) || EVOLUTION_REPEAT.test(text)
+    ? EVOLUTION_NOTE
+    : '';
+}
+
 function emit() {
   if (emitted) return;
   emitted = true;
@@ -139,7 +159,7 @@ function emit() {
   const payload = JSON.stringify({
     hookSpecificOutput: {
       hookEventName: 'UserPromptSubmit',
-      additionalContext: REMINDER + suppressedNote() + recheckNoteFor(prompt) + requestEcho(prompt),
+      additionalContext: REMINDER + suppressedNote() + evolutionNote(prompt) + recheckNoteFor(prompt) + requestEcho(prompt),
     },
   });
   process.stdout.write(payload + '\n', () => {

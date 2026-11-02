@@ -1,7 +1,7 @@
-# Qoder-Optimization - 0.0.15
+# Qoder-Optimization - 0.0.16
 
 > 文档：Qoder AI 编码通用规则（可分享版）。
-> 版本：0.0.15；制作日期：2026-11-01。版本、计数与目录由公开包元数据同步；是否已发布以对应 Release 为准。
+> 版本：0.0.16；制作日期：2026-11-02。版本、计数与目录由公开包元数据同步；是否已发布以对应 Release 为准。
 > 内容：全局开发纪律 + 20 条领域 / 流程规则 + 可选能力目录。按使用者习惯取舍，不默认全装；材料不是授权来源。
 > 包内技能 125 个（12 常驻 + 113 按需），不等于接收者已安装数量。
 > 先读《Qoder-个人规则生成提示词.md》；catalog.json/INDEX.md 提供按需检索。任何权限、MCP、hook 接线变更仍按平台要求单独批准。
@@ -144,6 +144,8 @@
 - **不做什么**：不捏造任务标识与证据；不把沉默 / 重试 / AI 自己的建议当偏好；暂停期不自动记录（用户明确纠正 / 回退除外）；不改自身门槛与权限边界。
 - **可回退**：对已有文件（AGENTS.md / settings.json / 个人技能）先**留快照**（checkpoint）→ 编辑并验证 → **commit** 记录修改后哈希；失败按哈希比对**回滚**，有并发冲突不强行覆盖。落地流程与命令见技能 `self-evolution`（`status / record / checkpoint / commit / rollback`；数据目录 `~/.qoder/evolution/`）。
 - **定期扫描与闭环**：可用定时任务周期性扫描 `skill_evolution_suggestions` 的 `pending`（枚举 → 取全文 → 同域合并 → 落成技能 → 重建索引与路由验收 → 标记 `evolved` → 汇报）。SOP 与脚本见技能 `skill-authoring-closure` 与 `large-sqlite-text-extraction`；没有新建议时只记一行日志，不创建空技能。
+- **采集触发（每轮可见）**：`rules-reminder` 每轮注入自进化采集提醒；用户出现长期偏好、明确纠正或重复纠正时当轮追加针对性提示。单次任务约束、普通请求、教学式提及和引用规则原文不触发；只提醒不拦截，不写状态。
+- **证据晋升（定期候选）**：运行 `scripts/evolution-candidates.cjs --days 30 --write` 汇总记忆 feedback、门禁违规台账与 `evolution/records`，输出 `promote-global / promote-local / observe / covered` 四类候选到 `~/.qoder/evolution/candidates/`。报告只给候选：覆盖检测是关键词初筛，晋升仍按证据门槛与当前授权执行，不自动改规则 / 技能 / hook / 权限。
 
 ### 规则沉淀（随任务自动补充）
 

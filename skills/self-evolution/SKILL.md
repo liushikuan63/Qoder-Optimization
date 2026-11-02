@@ -65,6 +65,20 @@ description: 将用户明确的长期偏好、重复纠正、验证过的复用�
 
 若修改后验证失败，只撤销本次能确认的差异；不覆盖新出现的其他会话改动。
 
+## 周期性证据晋升
+
+定期（建议每月）运行本地候选扫描，把「观察很多、晋升靠人想」补成可核对清单：
+
+```bash
+node ~/.qoder/scripts/evolution-candidates.cjs --days 30 --write
+```
+
+- 数据源：`memory/*.md` 的 feedback、`tmp/stop-gate/violations.log`、`evolution/records/*.json`。
+- 四类输出：`promote-global`（未覆盖且有跨会话/高频证据）、`promote-local`（单会话或部分覆盖，按项目/技术栈/技能沉淀）、`observe`（证据不足）、`covered`（已有载体）。
+- 报告在 `~/.qoder/evolution/candidates/YYYY-MM-DD.{md,json}`。覆盖检测是关键词初筛，处理前逐条核对用户原话、现有载体与反例——不要因为出现在 promote 里就直接采纳。
+- 报告不是授权：不自动改规则、技能、hook、权限。处理按本文证据门槛与「更新落点与边界」执行，每项验证后用 `record` 留证据；待批准或证据不足的保持 `observe`。
+- 无候选时明确说「无候选」，不新建技能、不写假记录。定时任务只生成报告并汇报候选；自动晋升需要另行授权。
+
 ## 查看、暂停、纠正和回退
 
 用户说"查看学到的规则""暂停自动调整""恢复自进化""撤销最近学到的这条"时，直接解释相关记录并执行适用操作。

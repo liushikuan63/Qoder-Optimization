@@ -6,6 +6,23 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.0.16] - 2026-11-02
+
+### Added
+- Add a per-turn self-evolution capture reminder plus a targeted note for long-term preferences, explicit persistence requests, and repeated corrections. Single-task constraints, ordinary requests, meta questions, and rule quotations do not trigger it.
+- Add `evolution-candidates.cjs`, a read-only scan over memory feedback, stop-gate violations, and evolution records. It classifies candidates as `promote-global`, `promote-local`, `observe`, or `covered` and writes Markdown + JSON reports. Reports are candidates only and never change rules, skills, hooks, permissions, or approval boundaries.
+
+### Compatibility and recovery
+- The new reminder adds one static line to every prompt injection; non-triggering turns keep the rest of the output byte-identical to the previous release. The scan is read-only by default and writes only under `evolution/candidates/` with `--write`.
+- Tests run with an isolated client root; no live client configuration or user data is modified.
+
+### 中文摘要
+- 新增每轮自进化采集提醒，并对长期偏好、明确沉淀和重复纠正追加针对性提示；单次约束、普通请求、教学式提及和引用规则原文不触发。
+- 新增 `evolution-candidates.cjs`：只读汇总记忆 feedback、门禁违规台账与进化记录，输出四类候选报告；报告不自动修改规则、技能、hook、权限或审批边界。
+
+### Contributors / 贡献者
+- @liushikuan63
+
 ## [0.0.15] - 2026-11-01
 
 ### Fixed

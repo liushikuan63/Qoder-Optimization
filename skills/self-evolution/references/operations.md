@@ -101,3 +101,18 @@ node ~/.qoder/skills/self-evolution/scripts/evolution.js rollback --id '实际ID
 ## 双端同步
 
 本机的 Qoder 与 Qoder CN 各自有独立的 `~/.qoder/evolution/` 和 `~/.qoder-cn/evolution/`。两侧规则/技能通过 `scripts/sync-global-config.sh` 保持同步，但经验记录（records/）各自独立积累。跨端同步经验记录时，用 `scripts/sync-evolution.sh --copy-missing` 只补单边文件（与记忆同步同口径）。
+
+## 周期候选扫描（证据晋升）
+
+```bash
+node ~/.qoder/scripts/evolution-candidates.cjs --days 30            # 只打印摘要
+node ~/.qoder/scripts/evolution-candidates.cjs --days 30 --json     # 完整 JSON
+node ~/.qoder/scripts/evolution-candidates.cjs --days 30 --write    # 写 candidates/YYYY-MM-DD.{md,json}
+node ~/.qoder/scripts/evolution-candidates.cjs --help
+```
+
+- 数据源：记忆 feedback（`metadata.type: feedback`）、Stop 门禁违规台账、`evolution/records/*.json`。任一源缺失只降级该源并写入 warnings，不中断。
+- `--days` 只作用于违规台账和 records；feedback 没有统一时间字段，报告会标注。
+- 退出码：0 正常（含无候选）；2 参数错误或输出目录不可写。
+- 报告不复制记忆正文，只含文件名、描述摘要和关键词计数；覆盖检测是关键词初筛，不是晋升结论。
+- 报告默认只读；`--write` 只写 `evolution/candidates/`，不写规则、技能、hook 或数据库。
