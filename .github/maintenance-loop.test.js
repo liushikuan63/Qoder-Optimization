@@ -116,25 +116,16 @@ test('fail-streak self-test rejects a failed negative-control subprocess', () =>
 
 for (const apply of [false, true]) {
   test('migration reports a failed copy with a nonzero exit; apply=' + apply, { skip: process.platform !== 'win32' }, () => fixture(f => {
-    const logs = path.join(f.client, 'logs'); fs.mkdirSync(logs, { recursive: true });
-    const file = path.join(logs, 'owned.log'); fs.writeFileSync(file, 'owned fixture');
-    const wrapper = path.join(f.base, 'migration-wrapper.ps1');
-    const script = path.join(source, 'scripts/migrate-qoder-data.ps1').replace(/'/g, "''");
-    fs.writeFileSync(wrapper, [
-      "$ErrorActionPreference = 'Stop'",
-      'function Get-Process { @() }',
-      "function Get-PSDrive { param($Name) [pscustomobject]@{ Name = $Name; Free = 100GB } }",
-      'function robocopy { param([Parameter(ValueFromRemainingArguments=$true)]$Arguments) $global:LASTEXITCODE = 8 }',
-      // Ignore the planned external destination creation; all real paths remain in the fixture.
-      "function New-Item { param($ItemType, [switch]$Force, $Path, $Value) if ($Path -like 'D:\\qoder-data\\*') { return }; throw 'unexpected write' }",
-      "& '" + script + "' -To D" + (apply ? ' -Apply' : ''),
-      'exit $LASTEXITCODE',
-    ].join('\n'));
-    const result = spawnSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', wrapper], { env: f.env, encoding: 'utf8', timeout: 30000 });
+    const m = migrationFixture(f);
+    fs.mkdirSync(m.link, { recursive: true });
+    const file = path.join(m.link, 'owned.log'); fs.writeFileSync(file, 'owned fixture');
+    const result = m.invoke('-To D' + (apply ? ' -Apply' : ''), { copyExit: 8 });
     assert.equal(result.status, apply ? 1 : 0, result.stdout + result.stderr);
     assert.match(result.stdout, apply ? /robocopy exit 8/ : /PLAN ONLY/);
+    assert.doesNotMatch(result.stdout, /D:\\qoder-data\\/i);
     assert.equal(fs.readFileSync(file, 'utf8'), 'owned fixture');
-    assert.equal(fs.existsSync(logs + '.bak-migrating'), false);
+    assert.equal(fs.existsSync(m.link + '.bak-migrating'), false);
+    assert.equal(fs.existsSync(path.join(m.target, 'owned.log')), false);
   }));
 }
 
@@ -151,13 +142,13 @@ function migrationFixture(f) {
   const target = path.join(destination, 'qoder/logs'), link = path.join(f.client, 'logs');
   const marker = path.join(f.base, 'unsafe-transition.txt');
   let calls = 0;
-  const invoke = (args, { running = false, copy = false, forbidRename = false, failedProbe = false, recordCopy = false } = {}) => {
+  const invoke = (args, { running = false, copy = false, copyExit = 0, forbidRename = false, failedProbe = false, recordCopy = false } = {}) => {
     const wrapper = path.join(f.base, 'migration-call-' + calls++ + '.ps1');
     fs.writeFileSync(wrapper, [
       "$ErrorActionPreference = 'Stop'",
       running ? "function Get-Process { [pscustomobject]@{ Name='QoderFixture' } }" : 'function Get-Process { @() }',
       'function Get-PSDrive { param($Name) [pscustomobject]@{Name=$Name;Free=100GB} }',
-      'function robocopy { param([Parameter(ValueFromRemainingArguments=$true)][string[]]$Arguments) ' + (recordCopy ? "[IO.File]::WriteAllText('" + quote(marker) + "','copy called'); " : '') + (copy ? "[IO.File]::Copy((Join-Path $Arguments[0] 'owned.log'), (Join-Path $Arguments[1] 'owned.log'), $true); " : '') + '$global:LASTEXITCODE=0 }',
+      'function robocopy { param([Parameter(ValueFromRemainingArguments=$true)][string[]]$Arguments) ' + (recordCopy ? "[IO.File]::WriteAllText('" + quote(marker) + "','copy called'); " : '') + (copy ? "[IO.File]::Copy((Join-Path $Arguments[0] 'owned.log'), (Join-Path $Arguments[1] 'owned.log'), $true); " : '') + '$global:LASTEXITCODE=' + copyExit + ' }',
       "function cmd { param([Parameter(ValueFromRemainingArguments=$true)]$Arguments) [IO.File]::WriteAllText('" + quote(marker) + "','unsafe unlink requested'); throw 'probe blocks shell deletion' }",
       ...(failedProbe ? ["function Get-ChildItem { param([string]$LiteralPath,[switch]$Recurse,[switch]$File,[switch]$Force,[string]$ErrorAction) if ($Recurse -and $File -and ((Get-Item -LiteralPath $LiteralPath -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) { [pscustomobject]@{FullName=(Join-Path $LiteralPath 'absent-read-probe')} } else { Microsoft.PowerShell.Management\\Get-ChildItem @PSBoundParameters } }"] : []),
       ...(forbidRename ? ["function Rename-Item { param($LiteralPath,$NewName) [IO.File]::WriteAllText('" + quote(marker) + "','unsafe switch requested'); throw 'probe blocks rename' }"] : []),
