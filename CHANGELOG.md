@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 During the 0.x line, minor versions may contain breaking changes.
 
+## [0.0.19] - 2026-11-03
+
+### Added
+- Integrate the B05 auto-trigger into `rules-reminder.js` (backed by `verification-trigger-core.js`): actionable tasks automatically receive the four-step policy/selection instruction, with a kill switch and a decision ledger. It is advisory-only while the host lacks `resolveAuthority`; it never calls the authority-bound session functions or claims the T-07 native pilot passed.
+- Restore the missing `goal-candidate-core.js` and merge the live goal-candidate reminder into `rules-reminder.js`, keeping package and live behavior aligned without adding a seventh UserPromptSubmit hook.
+- Refine the B05 trigger so request-style questions ("是否可以…/能否帮我…") count as tasks while advice and status questions ("是否应该…/是否已经部署…") stay silent.
+- Add `stop-gate` rules R10/R11: install/update `NEXT_ACTION` output must be followed by an explicit user choice, and a successful release command must be followed by an explicit deploy question.
+- Extend `edit-guard` to remind about `carrier-preflight` when creating or overwriting skills, rules, memory, hooks, agents, commands, or hook-named scripts.
+
+### Verification
+- B05 trigger tests 14/14 (5 core + 9 in `rules-reminder`); `rules-reminder` 45/45; `stop-gate` 336/336; `edit-guard` 19/19; live hook positive/negative probes exit 0.
+
 ## [0.0.18] - 2026-11-03
 
 ### Fixed

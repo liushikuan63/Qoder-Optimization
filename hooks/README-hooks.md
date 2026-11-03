@@ -11,13 +11,13 @@
 
 | 事件 | 脚本 | 超时(s) | 作用 |
 |---|---|---|---|
-| `UserPromptSubmit` | `rules-reminder.js` | 10 | 每轮注入精简纪律（最易被忽略的兜底）+ 回注本轮请求原文；命中"再次检查 / 重复检查 / 循环检查"等复核词时追加复核协议摘要（`recheck-protocol.cjs`，普通轮不追加） |
+| `UserPromptSubmit` | `rules-reminder.js` | 10 | 每轮注入精简纪律（最易被忽略的兜底）+ 回注本轮请求原文 + 目标候选 / 自进化采集 / B05 自动选档触发；命中"再次检查 / 重复检查 / 循环检查"等复核词时追加复核协议摘要（`recheck-protocol.cjs`，普通轮不追加） |
 | `UserPromptSubmit` | `session-budget.js` | 10 | 上下文体积 / 压缩次数 / 接续队列分档提醒 |
 | `UserPromptSubmit` | `fact-ledger.cjs --hook` | 10 | 硬事实登记簿：把 ≤12 条长期硬约束按目录隔离注入每轮；无登记时**零输出**（不占 token）；`/fact` 增删查清 |
-| `Stop` | `stop-gate.js` | 10 | 收尾门禁：拦住"声明下一步却没做 / 该弹窗没弹 / 无视觉证据 / 明确记忆请求无成功证据 / 无主张踢皮球"；只读 / 交接 / 旧队列不催办 |
+| `Stop` | `stop-gate.js` | 10 | 收尾门禁：拦住"声明下一步却没做 / 该弹窗没弹 / 无视觉证据 / 明确记忆请求无成功证据 / 无主张踢皮球"；检索到可安装/可更新条目却未询问、发布后未询问部署也拦；只读 / 交接 / 旧队列不催办 |
 | `SessionStart` | `global-config-guard.js` | 15 | 开台体检：两侧漂移 + 悬空引用（含 `skills/<技能>/scripts/x` 形态），健康时零输出 |
 | `SessionStart` | `session-budget.js` | 10 | 同上（开会话时也看一眼预算与磁盘水位） |
-| `PreToolUse` | `edit-guard.js` | 10 | 改不可回滚文件前的备份提醒（advisory，不拦截） |
+| `PreToolUse` | `edit-guard.js` | 10 | 改不可回滚文件前的备份提醒（advisory，不拦截）；命中技能 / 规则 / 记忆 / hook / MCP / agent 等载体目录时追加 `carrier-preflight` 提醒 |
 | `PreToolUse` | `huge-output-guard.js` | 10 | 拦"整读大文件 / 无输出限流"的命令（防大会话被传输层掐断） |
 | `PreToolUse` | `commit-scope-guard.js` | 10 | 提交前拦 `git add -A` / `.` 这类宽范围暂存 |
 | `PreToolUse` | `cua-cursor-guard.js` | 10 | 拦手搓 Win32/SendInput 级桌面原语，改走 CUA 驱动 |
@@ -32,6 +32,7 @@
 
 - `hook-crash-guard.js` **不需要单独接线**：它是被其它 hook 脚本 `require` 的库（`require("./hook-crash-guard.js").install("<名字>")`），把崩溃写进 `hooks-crash.log` 交给周检，保持 fail-open 语义。
 - `byok-modelconfigs-guard.js` 也不接线：手动或周检调用的工具。
+- **B05 自动选档（已并入 rules-reminder）**：`rules-reminder.js` 每轮调用 `verification-trigger-core.js`，命中可执行任务时注入选档提示；不想要自动选档时写 `~/.qoder/verification-trigger.json` 的 `{"enabled":false}`。
 - **接续记忆与追回（continuity）**：`PreCompact` / `PostCompact` / `UserPromptSubmit` / `SessionStart` / `PostToolUse` 这 5 个 hook 不在本模板里，默认不采集；由 `scripts/install-continuity.cjs` 在用户明确同意后单独接线，不要从模板直接复制。
 - **拦截语义**：只有 `exit 2` 或 `deny` JSON 真拦截；其余非零退出码 / 超时 / 崩溃默认**放行（fail-open）**——别把 hook 当安全边界，硬权限仍交权限系统。
 - **自证在跑**：每个 hook 都要能自证——`rules-reminder` 写心跳日志、各脚本带 `--selftest` 或 `.test.js`、`global-config-guard --check` 会报接线缺失与"指向不存在的脚本"。接完线**新开一次会话**再跑几轮，确认台账 / 心跳有记录。

@@ -660,6 +660,28 @@ replay('多层索引成功记忆不误拦', '请记住这个长期偏好', '结�
 fs.writeFileSync(qFile,'责任会话：old-session\n- [ ] 需要接续的未完成实施项\n');
 replay('明确接续可以承接旧责任会话队列', '按工作队列继续', '结论：这一项尚未处理。', 'block', [], {cwd:qDir,task_id:null});
 
+// R10 分享包安装/更新提示必须转成真实询问
+const nextAction = 'NEXT_ACTION: ASK_INSTALL_OR_UPDATE — 2 条可安装或可更新；必须用 AskUserQuestion 询问用户，未获明确选择不得执行安装或更新。';
+const askedInstall = tool('AskUserQuestion', { questions: [{ question: '是否安装/更新这些技能与脚本？', options: ['更新', '保持现状'] }] });
+replay('R10 NEXT_ACTION 未询问必须拦', '检索可安装技能并处理', '结论：已检索。', 'block', [tool('Bash', { command: 'node pkg-catalog.cjs search ui' }, nextAction)]);
+replay('R10 已询问安装更新放行', '检索可安装技能并处理', '结论：已询问用户。', 'allow', [tool('Bash', { command: 'node pkg-catalog.cjs search ui' }, nextAction), askedInstall]);
+replay('R10 用户明确不更新放行', '只检索，不安装也不更新', '结论：已检索。', 'allow', [tool('Bash', { command: 'node pkg-catalog.cjs search ui' }, nextAction)]);
+replay('R10 普通检索无 NEXT_ACTION 不拦', '检索技能', '结论：已检索。', 'allow', [tool('Bash', { command: 'node pkg-catalog.cjs search ui' }, '未找到可安装条目')]);
+replay('R10 源码检索 NEXT_ACTION 字样不误拦', '检查安装提示实现', '结论：已检查。', 'allow', [tool('Bash', { command: 'grep -n "NEXT_ACTION" scripts/pkg-catalog.cjs' }, nextAction)]);
+replay('R10 node -e 打印源码字样不误拦', '检查安装提示实现', '结论：已检查。', 'allow', [tool('Bash', { command: 'node -e "console.log(\'pkg-catalog.cjs\')"' }, nextAction)]);
+
+// R11 发布完成必须询问部署
+const askedDeploy = tool('AskUserQuestion', { questions: [{ question: '发布完成，是否部署到现役？', options: ['部署', '暂不部署'] }] });
+replay('R11 发布后未询问部署必须拦', '发布新版本', '结论：已发布。', 'block', [tool('Bash', { command: 'gh release create v0.0.19 --title 0.0.19' }, 'released')]);
+replay('R11 已询问部署放行', '发布新版本', '结论：已询问用户。', 'allow', [tool('Bash', { command: 'gh release create v0.0.19 --title 0.0.19' }, 'released'), askedDeploy]);
+replay('R11 用户明确只发布不部署放行', '只发布，不部署到现役', '结论：已发布。', 'allow', [tool('Bash', { command: 'gh release create v0.0.19 --title 0.0.19' }, 'released')]);
+replay('R11 发布失败不追问部署', '发布新版本', '结论：发布失败，CI 未通过。', 'allow', [tool('Bash', { command: 'gh release create v0.0.19 --title 0.0.19' }, 'released')]);
+replay('R11 普通推送不误判为发布', '推送主分支', '结论：已推送。', 'allow', [tool('Bash', { command: 'git push origin main' }, 'pushed')]);
+replay('R11 推送版本 tag 未询问必须拦', '推送版本标签', '结论：已推送。', 'block', [tool('Bash', { command: 'git push origin v0.0.19' }, 'pushed')]);
+replay('R11 publish-release 未询问必须拦', '发布新版本', '结论：已发布。', 'block', [tool('Bash', { command: 'node .github/publish-release.js v0.0.19' }, 'released')]);
+replay('R11 grep 源码发布字样不误拦', '检查发布脚本', '结论：已检查。', 'allow', [tool('Bash', { command: 'grep -n "gh release create" .github/publish-release.js' }, 'gh release create found')]);
+replay('R11 node -e 打印发布字样不误拦', '检查发布脚本', '结论：已检查。', 'allow', [tool('Bash', { command: 'node -e "console.log(\'release.yml\')"' }, 'release.yml')]);
+
 console.log(results.join('\n'));
 
 const failed = results.filter((x) => x.startsWith('FAIL')).length;

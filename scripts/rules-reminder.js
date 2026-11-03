@@ -12,6 +12,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { clientRoot } = require('./client-root.js');
+const { goalCandidateNote } = require('./goal-candidate-core.js');
+const { classifyVerificationTrigger, buildTriggerNote } = require('./verification-trigger-core.js');
 const CLIENT_ROOT = clientRoot();
 require('./hook-crash-guard.js').install('rules-reminder'); // 崩溃可见化：仍 fail-open，但写进 hooks-crash.log 供周检
 // 复核协议是可选增强：模块缺失或检测异常时只丢这段提示，不影响静态提醒与请求回注。
@@ -24,6 +26,10 @@ const HOME = process.env.HOME || process.env.USERPROFILE || os.homedir();
 const LOG = path.join(CLIENT_ROOT, 'scripts', 'rules-reminder.log');
 const LOG_MAX_BYTES = 64 * 1024;
 const LOG_KEEP_LINES = 200;
+const VERIFICATION_CONFIG = path.join(CLIENT_ROOT, 'verification-trigger.json');
+const VERIFICATION_LOG = path.join(CLIENT_ROOT, 'tmp', 'verification-trigger', 'decisions.log');
+const VERIFICATION_LOG_MAX_BYTES = 64 * 1024;
+const VERIFICATION_LOG_KEEP_LINES = 200;
 
 const REMINDER = [
   '【规则提醒 · 每轮生效】',
@@ -151,6 +157,41 @@ function evolutionNote(promptText) {
     : '';
 }
 
+// B05 自动选档触发（2026-11-03）：并入每轮必跑的 rules-reminder，避免再占一条 UserPromptSubmit 接线。
+// 开关 ~/.qoder/verification-trigger.json {"enabled":false}；决策日志只记判定，不记请求原文。
+function verificationEnabled() {
+  try {
+    return JSON.parse(fs.readFileSync(VERIFICATION_CONFIG, 'utf8')).enabled !== false;
+  } catch {
+    return true;
+  }
+}
+
+function logVerificationDecision(result, promptText) {
+  try {
+    if (fs.existsSync(VERIFICATION_LOG) && fs.statSync(VERIFICATION_LOG).size > VERIFICATION_LOG_MAX_BYTES) {
+      const kept = fs.readFileSync(VERIFICATION_LOG, 'utf8').split('\n').filter(Boolean).slice(-VERIFICATION_LOG_KEEP_LINES);
+      fs.writeFileSync(VERIFICATION_LOG, kept.join('\n') + '\n');
+    }
+    fs.mkdirSync(path.dirname(VERIFICATION_LOG), { recursive: true });
+    let sessionId = '-';
+    try { sessionId = String(JSON.parse(raw).session_id || '-'); } catch {}
+    fs.appendFileSync(VERIFICATION_LOG, [new Date().toISOString(), sessionId, result.reason, result.signals.join(','), promptText.length].join('|') + '\n');
+  } catch {
+    // 日志只用于自证与排查，不能影响注入。
+  }
+}
+
+function verificationNote(promptText) {
+  if (!verificationEnabled()) return '';
+  const text = typeof promptText === 'string' ? promptText : '';
+  const result = classifyVerificationTrigger(text);
+  logVerificationDecision(result, text);
+  return result.trigger
+    ? buildTriggerNote(result, path.join(CLIENT_ROOT, 'scripts', 'verification-policy.cjs'))
+    : '';
+}
+
 function emit() {
   if (emitted) return;
   emitted = true;
@@ -159,7 +200,7 @@ function emit() {
   const payload = JSON.stringify({
     hookSpecificOutput: {
       hookEventName: 'UserPromptSubmit',
-      additionalContext: REMINDER + suppressedNote() + evolutionNote(prompt) + recheckNoteFor(prompt) + requestEcho(prompt),
+      additionalContext: REMINDER + suppressedNote() + goalCandidateNote(prompt) + evolutionNote(prompt) + verificationNote(prompt) + recheckNoteFor(prompt) + requestEcho(prompt),
     },
   });
   process.stdout.write(payload + '\n', () => {

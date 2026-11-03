@@ -71,6 +71,21 @@ check('备份文件本身 → 静默', !run(W(bakFile)).reason);
 const missing = path.join(SB, 'norepo', 'brand-new.md');
 check('新建文件（不存在）→ 静默', !run(W(missing)).reason);
 
+const carrierNew = path.join(SB, 'skills', 'new-skill', 'SKILL.md');
+r = run(W(carrierNew, 'sess-carrier'));
+check('新建技能载体 → 预检提醒', !!(r.reason && r.reason.includes('载体预检') && /carrier-preflight/.test(r.reason)));
+const memoryNew = path.join(SB, '.qoder', 'memory', 'new-pref.md');
+r = run(W(memoryNew, 'sess-memory'));
+check('新建记忆载体 → 预检提醒（type=memory）', !!(r.reason && r.reason.includes('载体预检') && /--type memory/.test(r.reason)));
+const mcpNew = path.join(SB, 'mcp', 'new-server.json');
+r = run(W(mcpNew, 'sess-mcp'));
+check('新建 MCP 载体 → 预检提醒（type=mcp）', !!(r.reason && r.reason.includes('载体预检') && /--type mcp/.test(r.reason)));
+const plainScript = path.join(SB, 'scripts', 'utility.js');
+check('普通新脚本（非 hook 名）→ 不误报', !run(W(plainScript, 'sess-plain')).reason);
+const bigRule = mkFile('.qoder/rules/big-rule.md', 8192);
+r = run(W(bigRule, 'sess-rule'));
+check('覆盖既有载体 → 备份提醒同时带预检提醒', !!(r.reason && r.reason.includes('备份提醒') && r.reason.includes('载体预检')));
+
 check('Edit 工具不归它管 → 静默', !run({ hook_event_name: 'PreToolUse', tool_name: 'Edit', tool_input: { file_path: big }, session_id: 's3' }).reason);
 
 // ── 异常与开关 ──
@@ -92,7 +107,7 @@ check('Edit 工具不归它管 → 静默', !run({ hook_event_name: 'PreToolUse'
 {
   const led = path.join(SB, 'state', 'decisions.log');
   const txt = fs.existsSync(led) ? fs.readFileSync(led, 'utf8') : '';
-  check('落了台账（advise + 各类 skip）', /advise/.test(txt) && /git-covered/.test(txt) && /repeat-skip/.test(txt), txt.split('\n').filter(Boolean).slice(-3).join(' / ').slice(0, 90));
+  check('落了台账（advise + 各类 skip）', /advise/.test(txt) && /git-covered/.test(txt) && /repeat-skip/.test(txt) && /carrier-new/.test(txt), txt.split('\n').filter(Boolean).slice(-3).join(' / ').slice(0, 90));
 }
 
 fs.rmSync(SB, { recursive: true, force: true });

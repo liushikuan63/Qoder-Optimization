@@ -69,6 +69,27 @@ function isTempish(p) {
   return /\/tmp\/|\/appdata\/local\/temp\/|vibe_images|\.bak/.test(s);
 }
 
+// 新增载体前的预检提醒：技能 / 规则 / 记忆 / hook / agent / MCP 都是"加了就长期生效"的载体。
+// 只对载体路径提示，普通源码与文档不吵；新文件也提示（新建载体正是最需要 preflight 的时点）。
+const CARRIER = /[\\/](skills|skills-library|rules|commands|agents|memory|hooks|mcp)[\\/]|[\\/]scripts[\\/][^\\/]*(?:guard|hook|reminder|gate|budget|ledger|trigger)[^\\/]*$/i;
+function carrierType(target) {
+  const s = String(target).replace(/\\/g, '/');
+  if (/[\\/]skills(?:-library)?[\\/]/i.test(s)) return 'skill';
+  if (/[\\/]memory[\\/]/i.test(s)) return 'memory';
+  if (/[\\/]agents[\\/]/i.test(s)) return 'agent';
+  if (/[\\/]mcp[\\/]/i.test(s)) return 'mcp';
+  if (/[\\/](rules|commands)[\\/]/i.test(s)) return 'rule';
+  if (/[\\/]hooks[\\/]|[\\/]scripts[\\/]/i.test(s)) return 'hook';
+  return 'rule';
+}
+function carrierNote(target) {
+  if (!CARRIER.test(target)) return '';
+  const type = carrierType(target);
+  return `\n【载体预检提醒】目标位于载体目录（${type}）。新增/修改规则、技能、记忆、hook、MCP 或 agent 前先运行：`
+    + `\n  node ~/.qoder/scripts/carrier-preflight.cjs --type ${type} --name <名称>`
+    + `\n查同类、冲突与限额，并把方案交用户确认后再落盘；修改既有载体同样先查重与冲突。`;
+}
+
 function main() {
   let payload;
   try { payload = JSON.parse(readStdin()); } catch (e) { return; }
@@ -84,7 +105,15 @@ function main() {
 
   const target = path.resolve(String(p));
   let st;
-  try { st = fs.statSync(target); } catch (e) { ledger(['new-file', path.basename(target)]); return; }   // 新建，无可备份
+  try { st = fs.statSync(target); } catch (e) {
+    ledger(['new-file', path.basename(target)]);
+    const note = carrierNote(target);
+    if (note) {
+      ledger(['carrier-new', path.basename(target)]);
+      allow(note.trim());
+    }
+    return;
+  }
   if (!st.isFile() || st.size < MIN_BYTES) return;
   if (isTempish(target)) { ledger(['temp-skip', path.basename(target)]); return; }
   if (hasGit(path.dirname(target))) { ledger(['git-covered', path.basename(target)]); return; }
@@ -105,6 +134,7 @@ function main() {
     `先备份再写：\`node ~/.qoder/scripts/backup-file.js "${target}"\`（自动按"至多 3 份 / 删 7 天前的 / 至少留 1 份"裁剪）。\n` +
     `（本条是提示不拦截；同一会话同一文件只提醒一次。若这个目录本该受版本控制，` +
     `\`git init && git add -A && git commit\` 之后就不再提醒。）`
+    + carrierNote(target)
   );
 }
 

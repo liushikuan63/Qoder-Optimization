@@ -9,15 +9,15 @@
 
 | 机制 | 入口 | 作用 |
 |---|---|---|
-| 每轮规则提醒 | `scripts/rules-reminder.js`（UserPromptSubmit） | 把首要纪律 7 行每轮重注入，抗压缩丢失与注意力衰减 |
-| 停手门禁 | `scripts/stop-gate.js`（Stop） | 收尾文本命中 R1 停手等待 / R1b 声明下一步未做 / R2 裁决未弹窗 / R3 前台无视觉证据 / R4 明确记忆请求无成功证据 / R5 无主张踢皮球 / R6-R6c 队列与阻塞 / R7 大会话交接 / R8 记忆证据 ⇒ `decision:block` 逼回正轨；只检查当前授权任务，只读/交接不催办 |
+| 每轮规则提醒 | `scripts/rules-reminder.js`（UserPromptSubmit） | 把首要纪律每轮重注入，抗压缩丢失与注意力衰减；并内置目标候选、自进化采集、B05 自动选档触发（`verification-trigger-core.js`，可写 `~/.qoder/verification-trigger.json` 的 `{"enabled":false}` 关闭） |
+| 停手门禁 | `scripts/stop-gate.js`（Stop） | 收尾文本命中 R1 停手等待 / R1b 声明下一步未做 / R2 裁决未弹窗 / R3 前台无视觉证据 / R4 明确记忆请求无成功证据 / R5 无主张踢皮球 / R6-R6c 队列与阻塞 / R7 大会话交接 / R8 记忆证据 / R10 安装更新未询问 / R11 发布后未询问部署 ⇒ `decision:block` 逼回正轨；只检查当前授权任务，只读/交接不催办 |
 | 规则真源体检 | `scripts/global-config-guard.js`（SessionStart） | AGENTS.md 与 `rules/*.md` 两侧漂移、memory 分叉、规则里的悬空文件引用；健康时零输出。**两路 bash 检查共用一个 11s 截止线**（hook 只给 15s，各设 8s 会相加越界、被掐时连提醒都不输出）：到点跳过剩余项并明说「未检查」，检查器跑不起来（退出码非 0/1）也一律出声 |
 | 会话体积与接续 | `scripts/session-budget.js`（UserPromptSubmit + SessionStart） | **三个独立信号**：① 体积 ≥8MB 节约模式 / ≥15MB **先落盘再继续** / ≥25MB **立即落盘**；② transcript 里 `isCompactSummary:true` 的**压缩次数** ≥1 条提醒落盘、≥2 条**落盘并继续**。体积说"会不会被掐断"，压缩次数说"已经丢过几次上下文"（context rot），**③ 上一回合的上下文增量**（≥2MB 报警，`SB_TURN_GROWTH_MB` 可调）说"上一回合灌得太快"——这是**返回侧入账**：读取侧守卫只拦"明显超标的单条"，拦不住多条中等返回累积。**已知局限**：增量只有回合粒度，看不出是哪一个工具贡献的（要单工具粒度需 PostToolUse，尚未接）。SessionStart 另注入两样：未完成的 `.qoder-work-queue.md` 接续点（文案是"**第一条未完成项就是你本轮的第一件事，直接接着做**"） + **看门狗**（见下行）。**为什么必须前移**：被掐断的回合到不了 Stop，R7 兜不住它要防的那件事。**文案定调**：落盘与换会话都是手段、都**不是收工信号**——到档位先落盘，**然后继续推进当前任务**，任务不停只是换个地方跑 |
 | 看门狗（谁看住看门的人） | 同上，`session-budget.js` 的 SessionStart 分支 | 周检会查其它机制的心跳，但**周检自己没跑**（cron 失效 / 周一机器关机）没人知道。会话开台是与 cron **完全独立**的通道 ⇒ 用它查"周检上次成功是多久前"，超 `SB_AUDIT_STALE_DAYS`（默认 10 天，允许漏一轮不报）或台账根本不存在时在开局提示并给出手工命令 |
 | **hook 崩溃可见化** | `scripts/hook-crash-guard.js`（各 hook 顶部 `require('./hook-crash-guard.js').install('<名字>')` 一行接入） | hook 抛错本来就是 **fail-open**（非 `exit 2` 不拦），但这意味着**一个坏掉的守卫可以连着几周"看着没事"**：不响、台账不涨，也没人知道它没在干活。装了它之后仍退 0（语义不变），但把 `uncaughtException` / `unhandledRejection` 连同栈写进 `scripts/hooks-crash.log`；周检 `checkHookCrashes()` 读近 7 天记录，有就报 warn 并给样本。已接入 13 个：`stop-gate` / `rules-reminder` / `session-budget` / `global-config-guard` / `huge-output-guard` / `edit-guard` / `commit-scope-guard` / `cua-cursor-guard` / `risky-match-guard` / `auth-lock-guard` / `attempt-lock-guard` / `tool-payload-guard` / `win-path-guard` |
 | **同类连败计数** | 判据 `scripts/attempt-lock-core.js`；入口 = `risky-match-guard.js`（Pre）+ `attempt-lock-guard.js`（Post，`^Bash$`） | 把"同类操作连败 3 次即停"从数据库认证泛化到**构建 / 测试 / 部署**：按工作目录、workspace 与命令签名隔离目标，连续失败 3 次即硬拦下一次同类调用；成功一次清零；拿不到明确信号的返回记 neutral 不计数。`cd`、工具 cwd 和包管理器目录选项指向同一目标时共用预算；`echo` / `rg` 中引用命令不建账。解封 `attempt-lock-guard.js --clear`，关掉 `~/.qoder/attempt-lock.json` |
 | **返回侧体积** | `scripts/tool-payload-guard.js`（PostToolUse，Bash/Read/Agent/Task/mcp_call） | 单条工具返回 >2MB（`TPG_BYTES`）时当场提示改用摘要推进；同会话同工具只提醒一次。补的是 Pre 守卫拦不住的"返回才知道多大"（子代理报告、工具默认回显、多条中等返回） |
-| 备份提醒 | `scripts/edit-guard.js`（PreToolUse） | 给"改文件前先备份"补机制。**只堵不可恢复那一格**：`Write`（整文件覆盖）且文件已存在、≥2KB、**一路向上无 `.git`**（有版本库时 git 就是备份）、不在临时/备份路径下；同会话同文件只提醒一次。动作是 **allow + 提示**（advisory 不拦截），每次判定落台账。关掉：`~/.qoder/edit-guard.json` |
+| 备份提醒 | `scripts/edit-guard.js`（PreToolUse） | 给"改文件前先备份"补机制。**只堵不可恢复那一格**：`Write`（整文件覆盖）且文件已存在、≥2KB、**一路向上无 `.git`**（有版本库时 git 就是备份）、不在临时/备份路径下；同会话同文件只提醒一次。命中技能 / 规则 / 记忆 / hook / MCP / agent 等载体目录时追加 `carrier-preflight` 提醒（含新建载体）。动作是 **allow + 提示**（advisory 不拦截），每次判定落台账。关掉：`~/.qoder/edit-guard.json` |
 | **认证锁库门禁** | 判据 `scripts/auth-lock-core.js`；入口 = `risky-match-guard.js`（PreToolUse，2026-10-21 并入）+ `auth-lock-guard.js`（PostToolUse） | 把"连败三次即停"从提示词变成计数器：按目标（srv/host/user 任一相同）累计**认证类失败**，满 3 次硬拦该目标的一切连接动作，出现锁定签名一次即拦；连接被拒/超时算中性、SQL 语法错算清零。**防的是"重试到把生产库账号锁死"**（2026-10-21 事故：CRLF 尾巴的密码连发 10 次 → 账号锁死，只能人工解锁）。解封 `--clear`，关掉 `~/.qoder/auth-lock-guard.json` |
 | 两侧同步 | `scripts/sync-global-config.sh`（`--check` 只报） | AGENTS.md / `rules/*.md` / **`commands/*.md`** 实体副本保持一致（2026-09-22 起把 commands 也纳进来：**只挂一侧的指令会让另一侧静默没有这个 `/命令`**）；被 SessionStart 以 8s 超时**内联**调用 ⇒ 同样"极少 spawn"（2026-09-19 重写：一次 md5sum 全量取哈希） |
 | 记忆同步 | `scripts/sync-memory.sh`（`--copy-missing` 只补单边文件） | 分叉文件一律不自动覆盖，交人合；被 SessionStart 以 8s 超时**内联**调用 ⇒ 实现保持"极少 spawn"（2026-09-19 重写，选型实测见脚本头注释；周检 `PERF_BUDGETS` 盯着这张预算表） |
@@ -34,10 +34,10 @@
 ## 怎么验
 
 ```bash
-node ~/.qoder/scripts/stop-gate.test.js        # 90 条：各规则违规必红 + 对照组必绿 + 真实历史原文回放 + 台账 + 防死循环 + fail-open + R6b 阻塞过期复核 + R6 持有豁免 + **2026-10-27 新增 11 条**（R3 引号引用放行/改动面驱动正反例、R9 六条、R2 已按推荐项继续放行、R6 任务清单兜底正反例与只读对照）
+node ~/.qoder/scripts/stop-gate.test.js        # 336 条：各规则违规必红 + 对照组必绿 + 真实历史原文回放 + 台账 + 防死循环 + fail-open + R6b 阻塞过期复核 + R6 持有豁免 + R10 安装/更新询问 + R11 发布后部署询问
 echo '{"last_assistant_message":"剩下的待办要继续下一格吗？","session_id":"t"}' | node ~/.qoder/scripts/stop-gate.js
 node ~/.qoder/scripts/stop-gate.js --report 7   # 按规则汇总近 7 天命中；台账为空会显式打"零命中"
-node ~/.qoder/scripts/rules-reminder.test.js   # 5 条：注入形状 + 7 条要素与两条强化判据齐全 + 空 stdin 也注入 + 心跳 + **对照组（删一条要素必须判红）**
+node ~/.qoder/scripts/rules-reminder.test.js   # 45 条：注入形状 + 要素与强化判据齐全 + 空 stdin 也注入 + 心跳 + 请求回注 + 目标候选 + 自进化采集 + B05 自动选档（含开关与变异对照）
 node ~/.qoder/scripts/hook-crash-guard.test.js # 6 条：接守卫后崩溃仍退 0（fail-open）+ 日志 +1 + 含 hook 名与错误 + **对照组（不接守卫同样抛错必须非 0 退且不写日志）** + `readCrashes` 读得到；跑完**恢复**原日志（不是删——真崩溃记录不能被测试清掉）
 bash ~/.qoder/scripts/sync-memory.test.sh       # 15 组：判一致/分叉/单边与 --copy-missing/索引/尾换行字节级/guard 端到端/无 md5sum 必报红/**单端（无 ~/.qoder-cn）退 0 且明说跳过**/前置真缺则退 2
 bash ~/.qoder/scripts/sync-global-config.test.sh # 15 组：一致/漂移与同步取新侧/单边补齐/无 md5sum 必报红/**单端退 0 明说跳过**/**目标 rules/ 整个不存在时补齐真落地（T8）**/**复制真失败必须 COPY-FAIL+exit 1（T9）**/真实目录冒烟
@@ -49,7 +49,7 @@ node ~/.qoder/scripts/attempt-lock-guard.test.js # 阈值 / Pre 硬拦 / 成功�
 node ~/.qoder/scripts/tool-payload-guard.test.js # 7 条：超阈值出声 / 同工具降温 / 换工具再报 / 小返回静默 / 非 Post 事件静默 / 台账 / 沙箱隔离
 node ~/.qoder/scripts/disk-sweeper.test.js      # 47 条（水位三档 + 一档按年龄删对 + 硬否决 survives --apply + 归档→manifest→回取→purge 闭环 + **三档未点名不删 / 缺 --apply 拒绝 / 未知 id 退 2 / 只删超限文件不删目录**）。`--simulate-free` 驱动水位，不需要真把盘填满
 node ~/.qoder/scripts/disk-sweeper.js            # 只列清单：一档可清数 / 三档按 id 的体积 / 二档只报 / 建议归档盘；退 1＝该弹窗了
-node ~/.qoder/scripts/edit-guard.test.js        # 13 组（沙箱 HOME）：该提醒的 3 类 + **不该提醒的 7 类**（git 内/小文件/临时路径/备份文件/新建/Edit/开关）+ fail-open + 台账
+node ~/.qoder/scripts/edit-guard.test.js        # 19 组（沙箱 HOME）：该提醒的备份/载体预检 + 不该提醒的多类（git 内/小文件/临时路径/备份文件/普通新建/Edit/开关）+ fail-open + 台账
 node ~/.qoder/scripts/rules-weekly-audit.test.js # 22 组（沙箱 HOME）：基线零告警 + **单端（无 ~/.qoder-cn）也必须零告警** + 悬空引用/frontmatter/冲突回归/放宽纪律/hook 缺失/**单边接线**/心跳过期/篇幅/**机制掉了**/耗时超预算/**串行合计越过 hook 超时** 逐项植入必红
 node ~/.qoder/scripts/global-config-guard.test.js # 7 组（沙箱 HOME，按 pid 独立目录）：健康零输出 + 两类漂移必报 + **检查器跑不起来（退码 2）不许静默** + **两路都慢时总耗时压在预算内且明说跳过了哪一路**（旧写法实测 10s+，会被 hook 的 15s 掐死）
 ```

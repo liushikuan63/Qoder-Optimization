@@ -83,7 +83,19 @@ const restricted = run(JSON.stringify({ prompt: 'A'.repeat(420) + '不得修改�
 const restrictedCtx = JSON.parse(restricted.stdout).hookSpecificOutput.additionalContext;
 check('⑨ 长请求摘要不冒充完整授权', !restrictedCtx.includes('以此为准') && restrictedCtx.includes('完整用户消息为准') && restrictedCtx.includes('禁止项和批准条件'));
 
-// ⑩⑪ 抑制提醒（2026-10-27）：门禁因滑动窗上限放行时必须让"这一段在放行"可见，且同批只提醒一次
+const goalPrompt = '开始代码实现，完成前后端联调，部署线上验证通过后提交SVN';
+const goalRun = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: goalPrompt }));
+const goalCtx = JSON.parse(goalRun.stdout).hookSpecificOutput.additionalContext;
+check('⑩ 长任务候选 → 同轮提醒Goal与Vibecoding两问',
+  goalCtx.includes('目标候选') && goalCtx.includes('AskUserQuestion') && goalCtx.includes('创建或更新 Vibecoding 四层文档'));
+const smallRun = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: '修复一个按钮文案并提交' }));
+const smallCtx = JSON.parse(smallRun.stdout).hookSpecificOutput.additionalContext;
+check('⑪ 单点小修复负对照 → 不注入目标候选', !smallCtx.includes('【目标候选'));
+const reviewRun = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: '只读审查方案并给建议，不要修改文件' }));
+const reviewCtx = JSON.parse(reviewRun.stdout).hookSpecificOutput.additionalContext;
+check('⑫ 只读审阅负对照 → 不注入目标候选', !reviewCtx.includes('【目标候选'));
+
+// ⑬⑭ 抑制提醒（2026-10-27）：门禁因滑动窗上限放行时必须让"这一段在放行"可见，且同批只提醒一次
 const gateDir = path.join(HOME, '.qoder', 'tmp', 'stop-gate');
 fs.mkdirSync(gateDir, { recursive: true });
 const nowIso = new Date().toISOString();
@@ -94,12 +106,13 @@ fs.writeFileSync(path.join(gateDir, 'violations.log'), [
 const r10 = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: '继续' }));
 let ctx10 = '';
 try { ctx10 = JSON.parse(r10.stdout).hookSpecificOutput.additionalContext || ''; } catch {}
-check('⑩ 有抑制放行记录 → 必须提醒一次并带规则计数',
+check('⑬ 有抑制放行记录 → 必须提醒一次并带规则计数',
   r10.status === 0 && ctx10.includes('抑制提醒') && ctx10.includes('R2-decision-without-popup×1'), `exit=${r10.status}`);
 const r11 = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: '继续' }));
 let ctx11 = '';
 try { ctx11 = JSON.parse(r11.stdout).hookSpecificOutput.additionalContext || ''; } catch {}
 check('⑪ 对照组：同一批抑制不重复提醒', r11.status === 0 && !ctx11.includes('抑制提醒'), '');
+
 
 // ⑫⑬⑭ 复核模式：触发词追加协议；首次检查与否定句不追加
 const P12 = '再次检查这个修复';
@@ -125,7 +138,7 @@ check('⑭ 否定句不触发复核模式', r14.status === 0 && !ctx14.includes(
 // ⑮⑯ 变异对照：摘掉复核调用后触发提示必须消失；非触发轮输出必须与变异体逐字节一致
 const MUT_DIR = path.join(SB, 'mutated');
 fs.mkdirSync(MUT_DIR, { recursive: true });
-for (const name of ['rules-reminder.js', 'client-root.js', 'hook-crash-guard.js', 'recheck-protocol.cjs']) {
+for (const name of ['rules-reminder.js', 'client-root.js', 'hook-crash-guard.js', 'goal-candidate-core.js', 'recheck-protocol.cjs', 'verification-trigger-core.js']) {
   fs.copyFileSync(path.join(__dirname, name), path.join(MUT_DIR, name));
 }
 const mutFile = path.join(MUT_DIR, 'rules-reminder.js');
@@ -181,7 +194,7 @@ check('㉖ 空 stdin 静态第 10 条仍注入', ctx.includes('自进化采集')
 // ㉗–㉙ 变异对照：移除 evolutionNote 调用后正例提示必须消失；负例与原件逐字节一致
 const EVO_MUT_DIR = path.join(SB, 'mutated-evolution');
 fs.mkdirSync(EVO_MUT_DIR, { recursive: true });
-for (const name of ['rules-reminder.js', 'client-root.js', 'hook-crash-guard.js', 'recheck-protocol.cjs']) {
+for (const name of ['rules-reminder.js', 'client-root.js', 'hook-crash-guard.js', 'goal-candidate-core.js', 'recheck-protocol.cjs', 'verification-trigger-core.js']) {
   fs.copyFileSync(path.join(__dirname, name), path.join(EVO_MUT_DIR, name));
 }
 const evoMutFile = path.join(EVO_MUT_DIR, 'rules-reminder.js');
@@ -202,6 +215,53 @@ const evoNeg = JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: '�
 const evoOrigCtx = JSON.parse(run(evoNeg).stdout).hookSpecificOutput.additionalContext;
 const evoMutNegCtx = JSON.parse(runEvoMut(evoNeg).stdout).hookSpecificOutput.additionalContext;
 check('㉙ 模式隔离：负例在原件与变异体逐字节一致', evoOrigCtx === evoMutNegCtx, `orig=${evoOrigCtx.length} mut=${evoMutNegCtx.length}`);
+
+// ㉚–㉞ B05 自动选档触发（2026-11-03 并入 rules-reminder）
+const B05_MARK = '【B05 自动选档 · 已触发】';
+const b05Case = (label, prompt, expected) => {
+  const r = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt }));
+  let c = '';
+  try { c = JSON.parse(r.stdout).hookSpecificOutput.additionalContext || ''; } catch {}
+  check(label, r.status === 0 && c.includes(B05_MARK) === expected, `exit=${r.status} 命中=${c.includes(B05_MARK)}`);
+  return c;
+};
+b05Case('㉚ 可执行任务 → 追加 B05 选档提示', '实现用户导出功能', true);
+b05Case('㉛ 状态问句 → 不追加', '现在多段检测机制，是否已经在本机生效', false);
+b05Case('㉜ 请求式问句 → 追加', '是否可以给 B05 加个开关', true);
+b05Case('㉝ 琐碎小改 → 不追加', '修复一个按钮文案并提交', false);
+const vCfg = path.join(HOME, '.qoder', 'verification-trigger.json');
+fs.mkdirSync(path.dirname(vCfg), { recursive: true });
+fs.writeFileSync(vCfg, JSON.stringify({ enabled: false }));
+b05Case('㉞ 开关关闭 → 不追加', '实现用户导出功能', false);
+fs.rmSync(vCfg);
+const vLog = path.join(HOME, '.qoder', 'tmp', 'verification-trigger', 'decisions.log');
+const vLogText = fs.existsSync(vLog) ? fs.readFileSync(vLog, 'utf8') : '';
+check('㉟ 决策日志记录判定且不含请求原文', /\|TRIGGER\|/.test(vLogText) && !vLogText.includes('用户导出'), `exists=${fs.existsSync(vLog)}`);
+
+// ㊱–㊳ B05 变异对照：移除 verificationNote 调用后正例提示消失；负例与原件逐字节一致
+const B05_MUT_DIR = path.join(SB, 'mutated-b05');
+fs.mkdirSync(B05_MUT_DIR, { recursive: true });
+for (const name of ['rules-reminder.js', 'client-root.js', 'hook-crash-guard.js', 'goal-candidate-core.js', 'recheck-protocol.cjs', 'verification-trigger-core.js']) {
+  fs.copyFileSync(path.join(__dirname, name), path.join(B05_MUT_DIR, name));
+}
+const b05MutFile = path.join(B05_MUT_DIR, 'rules-reminder.js');
+const b05Source = fs.readFileSync(b05MutFile, 'utf8');
+const b05Mutated = b05Source.replace(' + verificationNote(prompt)', '');
+if (b05Mutated !== b05Source) fs.writeFileSync(b05MutFile, b05Mutated);
+check('㊱ 变异体已移除 B05 调用', b05Mutated !== b05Source, b05Mutated === b05Source ? '未找到可替换的调用点' : '');
+const runB05Mut = (input) => spawnSync(process.execPath, [b05MutFile], {
+  input,
+  encoding: 'utf8',
+  timeout: 15000,
+  env: { ...process.env, USERPROFILE: HOME, HOME },
+});
+const b05Pos = JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: '实现用户导出功能' });
+const b05MutCtx = JSON.parse(runB05Mut(b05Pos).stdout).hookSpecificOutput.additionalContext;
+check('㊲ 变异对照：移除 B05 调用后正例提示消失', !b05MutCtx.includes(B05_MARK), '');
+const b05Neg = JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: '现在多段检测机制，是否已经在本机生效' });
+const b05OrigCtx = JSON.parse(run(b05Neg).stdout).hookSpecificOutput.additionalContext;
+const b05MutNegCtx = JSON.parse(runB05Mut(b05Neg).stdout).hookSpecificOutput.additionalContext;
+check('㊳ 模式隔离：B05 负例在原件与变异体逐字节一致', b05OrigCtx === b05MutNegCtx, `orig=${b05OrigCtx.length} mut=${b05MutNegCtx.length}`);
 
 function runChunked(input, split) {
   return new Promise(resolve => {

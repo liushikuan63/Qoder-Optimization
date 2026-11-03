@@ -2,13 +2,13 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.0.18"
+  "version": "0.0.19"
  },
  "generated": "2026-11-03",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 132,
-  "script": 114,
+  "script": 118,
   "command": 10,
   "agent": 2
  },
@@ -2551,6 +2551,30 @@
    ]
   },
   {
+   "id": "script:goal-candidate-core.js",
+   "category": "script",
+   "name": "goal-candidate-core.js",
+   "status": "shipped",
+   "source": "scripts/goal-candidate-core.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": []
+  },
+  {
+   "id": "script:goal-candidate-core.test.js",
+   "category": "script",
+   "name": "goal-candidate-core.test.js",
+   "status": "shipped",
+   "source": "scripts/goal-candidate-core.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:goal-candidate-core.js"
+   ]
+  },
+  {
    "id": "script:hook-crash-guard.js",
    "category": "script",
    "name": "hook-crash-guard.js",
@@ -2852,8 +2876,10 @@
    "source": "scripts/rules-reminder.js",
    "dependencies": [
     "script:client-root.js",
+    "script:goal-candidate-core.js",
     "script:hook-crash-guard.js",
-    "script:recheck-protocol.cjs"
+    "script:recheck-protocol.cjs",
+    "script:verification-trigger-core.js"
    ]
   },
   {
@@ -3266,6 +3292,30 @@
    "dependencies": [
     "script:evidence-audit.cjs",
     "script:verification-session.cjs"
+   ]
+  },
+  {
+   "id": "script:verification-trigger-core.js",
+   "category": "script",
+   "name": "verification-trigger-core.js",
+   "status": "shipped",
+   "source": "scripts/verification-trigger-core.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": []
+  },
+  {
+   "id": "script:verification-trigger-core.test.js",
+   "category": "script",
+   "name": "verification-trigger-core.test.js",
+   "status": "shipped",
+   "source": "scripts/verification-trigger-core.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:verification-trigger-core.js"
    ]
   },
   {

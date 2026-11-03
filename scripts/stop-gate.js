@@ -573,6 +573,45 @@ function ranGreenThisTurn(ctx) {
     && ranTestCommand(String(tool.input.command || '')));
 }
 
+function askedAbout(ctx, pattern) {
+  return ctx.turnTools.some((tool) => {
+    if (!tool.success || toolName(tool) !== 'AskUserQuestion') return false;
+    return pattern.test(JSON.stringify(tool.input || {}));
+  });
+}
+
+function nextActionPending(ctx) {
+  return ctx.turnTools.some((tool) => {
+    if (toolName(tool) !== 'Bash') return false;
+    const cmd = String(tool.input.command || '');
+    // 只认真正把检索脚本当入口执行的调用；grep/测试/node -e 打印源码里的 NEXT_ACTION 字样不算。
+    if (!/\bnode(?:\.exe)?\s+(?!--?(?:e|eval)\b)(?:--?[^\s]+\s+)*(?:"[^"\n]*?|'[^'\n]*?|\S*?)(?:pkg-catalog|skill-load)\.cjs\b/i.test(cmd)) return false;
+    return /NEXT_ACTION:\s*ASK_(?:INSTALL_OR_UPDATE|UPDATE)/.test(JSON.stringify(tool.result || ''));
+  });
+}
+
+function shellSegments(command) {
+  return String(command || '').split(/&&|\|\||;|\r?\n/).map((s) => s.trim()).filter(Boolean);
+}
+
+function stripLeadingAssignments(segment) {
+  return segment.replace(/^(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S+)\s+)+/, '');
+}
+
+function releaseCommandRan(ctx) {
+  return ctx.turnTools.some((tool) => {
+    if (!tool.success || toolName(tool) !== 'Bash') return false;
+    return shellSegments(tool.input.command).some((raw) => {
+      const segment = stripLeadingAssignments(raw);
+      if (/^(?:gh|gh\.exe)\s+release\s+create\b/i.test(segment)) return true;
+      if (/^(?:gh|gh\.exe)\s+workflow\s+run\s+release\.yml\b/i.test(segment)) return true;
+      if (/^git(?:\.exe)?\s+push\b/i.test(segment) && /(?:--tags|\bv\d+\.\d+\.\d+\b)/.test(segment)) return true;
+      if (/^node(?:\.exe)?\s+(?!--?(?:e|eval)\b)(?:--?[^\s]+\s+)*(?:"[^"\n]*?|'[^'\n]*?|\S*?)publish-release\.js\b/i.test(segment)) return true;
+      return false;
+    });
+  });
+}
+
 // R6 的兜底：项目没有队列文件时，本轮创建却没关掉的 TaskList 条目同样算"还有能做的格子"。
 // 只认**本轮**的创建/关闭计数（跨轮的任务状态不在 transcript 尾部可判，跨轮靠队列）。
 function inTurnOpenTasks(ctx) {
@@ -654,6 +693,27 @@ const RULES = [
     reason:
       '按全局规则「回合结束前必须过停手检查表」：待办里若还有不依赖裁决、不依赖外部条件的格子，立刻开工，不许用汇报收尾。'
       + '可结束回合的情形按 AGENTS「冲突裁决优先级」的**六项例外**：对外可见 / 不可逆 / 缺只有用户能提供的凭据或对外口径 / 需求缺失到无法定义完成判据 / 同类修复三种不同手段连败 / 触红线须先确认。',
+  },
+  {
+    id: 'R10-next-action-not-asked',
+    tailOnly: false,
+    needsText: false,
+    test: (t, ctx) => nextActionPending(ctx) && !askedAbout(ctx, /(?:安装|更新|升级|技能|脚本|分享包)/)
+      && !/(?:不安装|不更新|保持现状|暂不(?:安装|更新)|无需(?:安装|更新)|跳过(?:安装|更新)|已是最新)/.test(ctx.lastUserText),
+    reason:
+      '本轮工具输出包含 NEXT_ACTION: ASK_INSTALL_OR_UPDATE / ASK_UPDATE（检索到可安装或可更新的分享包条目），但没有对应用户选择记录。'
+      + '按分享包纪律：必须用 AskUserQuestion 逐条询问是否安装/更新（含按需技能与脚本）；未获明确选择不得安装、更新或覆盖。',
+  },
+  {
+    id: 'R11-release-deploy-not-asked',
+    tailOnly: false,
+    needsText: false,
+    test: (t, ctx) => releaseCommandRan(ctx) && !askedAbout(ctx, /(?:部署|上线|现役|合并)/)
+      && !/(?:暂不部署|不部署|仅发布|只发布|无需部署|保持现状)/.test(ctx.lastUserText)
+      && !/(?:发布|Release|release)[^。！？!?；;\n]{0,14}(?:失败|未成功|未完成|回滚)/.test(t),
+    reason:
+      '本轮执行了发布动作，但没有用 AskUserQuestion 询问是否部署到现役。'
+      + '按分享包发布纪律：发布/下载复验通过后必须询问（全量三路合并 / 仅本次缺口 / 暂不部署），并先跑 `pkg-catalog.cjs drift` 把已安装但与包内不同的按需条目一并列出。',
   },
   {
     id: 'R2-decision-without-popup',

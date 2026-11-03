@@ -1,4 +1,4 @@
-# Qoder-Optimization-0.0.18 安装说明
+# Qoder-Optimization-0.0.19 安装说明
 
 ## 包内容与落点
 
@@ -89,7 +89,7 @@ node scripts/install-continuity.cjs --yes     # 非交互启用
 这两套模块按需采用，分发源码不等于在现役客户端启用。根 `docs/` 是本地设计资料，不跟踪、不随包；公开调用说明保留在对应技能与源码测试中。
 
 - **项目约定**：检查国际化、编码风格、工具、依赖和版本约束，保留来源、范围与未知项。使用包内 `node scripts/pkg-catalog.cjs install script:convention-session.cjs` 预演，确认后加 `--apply`，安装器连同 `convention-runtime` 的入口和锁文件一起安装；第三方依赖仍需另行安装。
-- **验证选档**：用 `node scripts/pkg-catalog.cjs install script:verification-session.cjs` 预演，再按明确批准安装。该文件是宿主调用的 CommonJS 库，不是直接执行的检查命令；强化、标准、轻量和人工选项的绑定流程见 `skills/verify-before-claim/references/adaptive-verification.md`。
+- **验证选档（默认自动触发）**：默认 `hooks` 中的 `rules-reminder.js` 已内置 `verification-trigger-core.js`；接线后，可执行任务会先注入选档提示，再按 `skills/verify-before-claim/references/adaptive-verification.md` 准备事实、询问四档并执行所选清单。选档模块可用 `node scripts/pkg-catalog.cjs install script:verification-session.cjs` 预演，再按明确批准安装；写 `~/.qoder/verification-trigger.json` 的 `{"enabled":false}` 时不触发。
 - **第三方依赖**：对安装器实际打印的目录运行 `npm ci --ignore-scripts --prefix <客户端目录>/scripts/convention-runtime`。不随包复制 `node_modules`，安装器不自动联网、执行包脚本或改动现役接线。
 - **验证边界**：本地静态检查、模拟问答和依赖安装验收不代表真实 UI/Agent 试点。人工选项不自动执行；未答复不默认同意；发布前完整检验与平台审批要求不受选档影响。
 
