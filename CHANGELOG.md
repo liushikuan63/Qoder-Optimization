@@ -4,6 +4,27 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 During the 0.x line, minor versions may contain breaking changes.
 
+## [0.0.18] - 2026-11-03
+
+### Fixed
+- Audit all increments in the five published releases 0.0.13–0.0.17 against opt-in installation, authorization, recovery and evidence boundaries.
+- Validate complete continuity hook commands, matchers, types and timeouts before writing; preserve conflicting wiring for review. Prepare backups before publication and roll back only an unchanged installer-owned script if settings publication fails. Include `continuity.cjs` in the catalog installer's dependency closure.
+- Respect Bash `dir_path` in retry scopes and inspect every recognized target before compound commands, without changing budgets or clearing locked targets. Aggregate tool results still do not establish individual command outcomes.
+- Prevent explicit tool errors and nonzero exits from using row-shaped output to reset authentication failures; preserve query-row false-positive controls.
+- Group evolution records by topic and scope, count qualified independent tasks and sessions instead of raw record totals, and exclude external or unverified local evidence from global promotion. Explicit user preferences retain their original scope; reports remain candidates, not authorization.
+- Restore full, hash-verified data before converting a junction back to a real directory. Remove host-worker patching from panel forensics, require manual live-process maintenance, limit wrong-key controls to safe test credentials, and route temporary debugging facts away from lasting memory.
+- Apply per-test timeouts to serialized release contracts instead of truncating aggregated suites at nine minutes. Timeouts, crashes and failed checks still fail the release gate.
+
+### Compatibility and recovery
+- Historical releases and assets remain immutable. No live client configuration, production credentials or user data migration is changed by this release.
+- Coverage is local isolated CLI/runtime testing, static guidance contracts and fixed-commit package acceptance; it does not establish native host/UI behavior, production service acceptance or the separately incomplete B05 pilot.
+
+### 中文摘要
+- 复核 0.0.13–0.0.17 全部增量，修复接续安装的接线误判、失败回滚与目录依赖缺失。
+- 修复 Bash 目录作用域与复合调用后续目标漏检、显式错误借 rows 输出清零认证失败、候选记录重复/外部来源/范围混合导致的错误晋升。
+- 修复反向迁移空目录丢入口、修改宿主取证、现役停机、真实账号负控及临时事实入长期记忆五处规则冲突。
+- 完整测试按单项限时，不以整套九分钟上限截断后续文件；失败仍阻止发布。旧版资产与现役配置保持不变。
+
 ## [0.0.17] - 2026-11-03
 
 ### Added

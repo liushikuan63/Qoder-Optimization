@@ -21,7 +21,9 @@ Qoder BYOK 反代的端口、日志字段与现有阈值放 [references/qoder-by
 2. 命令行 / 启动脚本路径（`wmic process get ProcessId,CommandLine` 或 PowerShell `Get-CimInstance Win32_Process`）。
 3. 监听归属：`Get-NetTCPConnection -LocalPort <port> -State Listen | Select OwningProcess`；Git Bash 的 `netstat` 无输出时改走 PowerShell。
 4. 启动时间与磁盘文件 mtime：启动晚于改动才可能加载新代码。
-5. 进程句柄/父进程：旧 cmd 窗口可能重新拉起无开关实例，必须 `taskkill /PID <pid> /T` 连父链，不只杀 node。
+5. 进程句柄/父进程：核对是否有旧 cmd 窗口重新拉起无开关实例；`taskkill /T` 结束的是指定 PID 及其子进程，不是父链，不能据此扩大停止范围。
+
+现役代理/客户端的停启由用户本人执行，Agent 只提供已核对的精确 PID、影响面与回退步骤；自动结束仅限本会话创建的隔离测试进程，先枚举整棵子进程树并逐个核验归属，含用户或外来进程时不得使用 `/T`。
 
 **外来监听负对照**：在沙箱里起一个同端口但命令行不含本代理特征的假监听，确认启停脚本不会杀它；只按镜像名（`node.exe`）或端口杀进程是禁止项。
 

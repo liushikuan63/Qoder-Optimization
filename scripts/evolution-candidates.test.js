@@ -72,11 +72,12 @@ write('tmp/stop-gate/violations.log', [
 ].join('\n') + '\n');
 
 const record = (name, payload) => write(path.join('evolution', 'records', name), JSON.stringify(payload));
-record('a1.json', { topic: 'topic-a', type: 'observation', created_at: iso(2), verified: false, evidence: { task_id: 't1', session_id: 's1' } });
-record('a2.json', { topic: 'topic-a', type: 'observation', created_at: iso(3), verified: false, evidence: { task_id: 't2', session_id: 's2' } });
-record('single.json', { topic: 'topic-single', type: 'observation', created_at: iso(1), verified: false, evidence: { task_id: 't3' } });
-record('done.json', { topic: 'topic-done', type: 'correction', created_at: iso(1), verified: true, evidence: { task_id: 't4' } });
-record('rejected.json', { topic: 'topic-rejected', type: 'rejection', created_at: iso(1), verified: false, evidence: { task_id: 't5' } });
+record('a1.json', { topic: 'topic-a', scope: 'global', type: 'observation', created_at: iso(2), verified: false, evidence: { task_id: 't1', session_id: 's1', source: 'user' } });
+record('a2.json', { topic: 'topic-a', scope: 'global', type: 'observation', created_at: iso(3), verified: false, evidence: { task_id: 't2', session_id: 's2', source: 'user' } });
+record('a3.json', { topic: 'topic-a', scope: 'global', type: 'observation', created_at: iso(1), verified: false, evidence: { task_id: 't6', session_id: 's2', source: 'user' } });
+record('single.json', { topic: 'topic-single', scope: 'global', type: 'observation', created_at: iso(1), verified: false, evidence: { task_id: 't3', source: 'user' } });
+record('done.json', { topic: 'topic-done', scope: 'global', type: 'correction', created_at: iso(1), verified: true, evidence: { task_id: 't4', source: 'local-validation' } });
+record('rejected.json', { topic: 'topic-rejected', scope: 'global', type: 'rejection', created_at: iso(1), verified: false, evidence: { task_id: 't5', source: 'user' } });
 
 fs.mkdirSync(EMPTY, { recursive: true });
 fs.mkdirSync(OUT, { recursive: true });

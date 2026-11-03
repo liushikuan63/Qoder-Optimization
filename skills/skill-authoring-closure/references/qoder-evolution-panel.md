@@ -12,7 +12,7 @@
 - 把 `skills` 换成**同内容 C 盘实体目录**后，同一条建议立即落库（`realpath-probe` pending 0.9）。⇒ **非 CN 的 `~/.qoder/skills` 必须保持实体目录**。
 - junction 不影响 CLI 读取技能（`skill_listing` 仍列出 53 个），失败点在桌面端落库前的路径校验。
 - 同一次审核里的 **update 建议仍会被桌面端丢弃**（只有 create 落库），原因未查。
-- 取证手法：`NODE_OPTIONS` 会被桌面 `buildEnv()` 剥掉，需临时在 worker 运行时顶部插 stdout 捕获（改前备份、用完按 sha256 还原），或直接对比 DB 行数与面板。
+- 取证只使用客户端已有日志、已授权的只读数据库查询与面板对照；`NODE_OPTIONS` 被剥掉也不授权修改 worker、安装包或宿主运行时。原有证据不足时标注未验证，不通过插桩修改 Qoder 本体。
 
 ## 取全文
 

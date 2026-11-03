@@ -342,13 +342,15 @@ function responseText(value, depth = 0) {
   if (Array.isArray(value)) return value.map(part => responseText(part, depth + 1)).filter(Boolean).join('\n');
   if (typeof value !== 'object') return String(value);
   const code = value.errno === 1045 || value.code === 1045 || value.code === 'ER_ACCESS_DENIED_ERROR' ? ['ERROR 1045'] : [];
-  return code.concat(['error', 'message', 'stderr', 'stdout', 'text', 'content', 'output'].map(key => responseText(value[key], depth + 1))).filter(Boolean).join('\n');
+  return code.concat(['error', 'errors', 'message', 'stderr', 'stdout', 'text', 'content', 'output'].map(key => responseText(value[key], depth + 1))).filter(Boolean).join('\n');
 }
 
 function authenticatedRows(value, depth = 0) {
   if (depth > 4) return false;
   if (typeof value === 'string') { try { value = JSON.parse(value); } catch { return false; } }
-  if (!value || typeof value !== 'object' || value.isError === true || value.error || value.stderr) return false;
+  if (!value || typeof value !== 'object' || value.isError === true || value.is_error === true || value.error || value.stderr
+      || (Array.isArray(value.errors) ? value.errors.length > 0 : value.errors)
+      || (Number.isInteger(value.exitCode) && value.exitCode !== 0) || (Number.isInteger(value.exit_code) && value.exit_code !== 0)) return false;
   if (Array.isArray(value.rows)) return true;
   return Array.isArray(value.content) && value.content.length > 0 && value.content.every(part => part && part.type === 'text' && authenticatedRows(part.text, depth + 1));
 }
@@ -367,11 +369,14 @@ function postRecord(payload) {
   const respText = responseText(resp);
   let envelope = resp;
   if (typeof envelope === 'string') { try { envelope = JSON.parse(envelope); } catch {} }
-  const explicitError = envelope && typeof envelope === 'object' && (envelope.isError === true || envelope.error || envelope.stderr);
+  const explicitError = payload.is_error === true || (envelope && typeof envelope === 'object'
+    && (envelope.isError === true || envelope.is_error === true || envelope.error || envelope.stderr
+      || (Array.isArray(envelope.errors) ? envelope.errors.length > 0 : envelope.errors)
+      || (Number.isInteger(envelope.exitCode) && envelope.exitCode !== 0) || (Number.isInteger(envelope.exit_code) && envelope.exit_code !== 0)));
   const shellRows = SHELLISH.test(t.rawTool) && !explicitError && /\(\s*\d+\s+rows?\s*\)\s*$/m.test(respText) && !/^\s*(?:ERROR\b|FATAL\b|ORA-\d+|psql:)/mi.test(respText);
   const any = pats => pats.some(re => re.test(respText));
   let kind = 'neutral';
-  if (authenticatedRows(resp) || shellRows) kind = 'ok';
+  if (!explicitError && (authenticatedRows(resp) || shellRows)) kind = 'ok';
   else if (any(LOCKED)) kind = 'locked';
   else if (any(AUTH_FAIL)) kind = 'authfail';
   else if (!NEUTRAL.test(respText) && /(?:\bERROR:\s*syntax error\b|\bORA-009(?:00|04|07|17|23|33|36)\b|you have an error in your SQL syntax)/i.test(respText)) kind = 'ok';

@@ -1,4 +1,4 @@
-# Qoder-Optimization-0.0.17 安装说明
+# Qoder-Optimization-0.0.18 安装说明
 
 ## 包内容与落点
 
@@ -18,7 +18,7 @@
 
 推荐先运行包根目录的 `install.cmd`（Windows）。它会检测宿主机是否已有可用的 Node.js：
 
-- **已有 Node.js**：询问是否启用 SQLite 接续记忆与追回模式。同意后把 `scripts/continuity.cjs` 安装到客户端 `scripts/`，并把 `PreCompact` / `PostCompact` / `UserPromptSubmit` / `SessionStart` / `PostToolUse` 五个事件接入该客户端 `settings.json`；修改前自动备份，已有接线不重复添加，同一脚本的 Node 路径变化会就地更新。
+- **已有 Node.js**：询问是否启用 SQLite 接续记忆与追回模式。同意后把 `scripts/continuity.cjs` 安装到客户端 `scripts/`，并把 `PreCompact` / `PostCompact` / `UserPromptSubmit` / `SessionStart` / `PostToolUse` 五个事件接入该客户端 `settings.json`；修改前自动备份，完整接线匹配时不重复添加，同一脚本的 Node 路径变化会就地更新。已有命令、matcher、type 或 timeout 冲突时拒绝修改，保留配置供用户裁决；配置写入失败时只回滚仍属本事务且内容未变化的脚本，并清理暂存文件。按 catalog 安装 `script:install-continuity.cjs` 会同时补齐接续脚本依赖，安装不代表按会话启用采集。
 - **没有 Node.js**：询问是否安装 Node.js LTS。可选择用 winget 自动安装，或查看便携版下载方式（解压到非系统盘后重跑）。
 
 跨平台或已装 Node 时也可直接运行：

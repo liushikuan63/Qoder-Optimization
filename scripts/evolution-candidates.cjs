@@ -288,14 +288,22 @@ function scanRecords(root, days, warnings) {
     const at = Date.parse(data.created_at || data.at || '');
     if (Number.isFinite(at) && at < since) continue;
     const topic = data.topic || data.summary || file;
-    const group = groups.get(topic) || { topic, types: {}, tasks: new Set(), sessions: new Set(), verified: 0, records: 0 };
+    const scope = typeof data.scope === 'string' ? data.scope : '';
+    const key = JSON.stringify([topic, scope]);
+    const group = groups.get(key) || { topic, scope, types: {}, tasks: new Set(), sessions: new Set(), qualifiedTasks: new Set(), qualifiedSessions: new Set(), explicit: false, verified: 0, records: 0 };
     group.records++;
     group.types[data.type || 'observation'] = (group.types[data.type || 'observation'] || 0) + 1;
     const evidence = data.evidence || {};
     if (evidence.task_id) group.tasks.add(String(evidence.task_id));
     if (evidence.session_id) group.sessions.add(String(evidence.session_id));
-    if (data.verified === true) group.verified++;
-    groups.set(topic, group);
+    const trusted = evidence.source === 'user' || (evidence.source === 'local-validation' && data.verified === true);
+    if (scope && evidence.task_id && trusted && ['observation', 'correction', 'preference'].includes(data.type)) {
+      group.qualifiedTasks.add(String(evidence.task_id));
+      if (evidence.session_id) group.qualifiedSessions.add(String(evidence.session_id));
+      if (data.type === 'preference' && data.explicit === true && evidence.source === 'user') group.explicit = true;
+      if (data.verified === true) group.verified++;
+    }
+    groups.set(key, group);
     count++;
   }
   const items = [...groups.values()].map((group) => {
@@ -307,15 +315,15 @@ function scanRecords(root, days, warnings) {
     } else if (group.verified > 0) {
       kind = 'covered';
       reasons.push(`已有 ${group.verified} 条 verified 记录`);
-    } else if (group.tasks.size >= 2 || group.records >= 3) {
-      kind = 'promote-global';
-      reasons.push(`独立任务 ${group.tasks.size} 个、记录 ${group.records} 条，证据已够但未验证`);
+    } else if (group.explicit || (group.qualifiedTasks.size >= 3 && group.qualifiedSessions.size >= 2)) {
+      kind = group.scope === 'global' ? 'promote-global' : 'promote-local';
+      reasons.push(group.explicit ? '用户明确的长期偏好，仍按原范围与当前授权处理' : `合格独立任务 ${group.qualifiedTasks.size} 个、${group.qualifiedSessions.size} 个会话，达到候选门槛`);
     } else {
       kind = 'observe';
-      reasons.push(`独立任务 ${group.tasks.size} 个、记录 ${group.records} 条，继续观察`);
+      reasons.push(`合格独立任务 ${group.qualifiedTasks.size} 个、${group.qualifiedSessions.size} 个会话，继续观察`);
     }
     return {
-      id: 'record:' + group.topic,
+      id: 'record:' + group.topic + (group.scope && group.scope !== 'global' ? ':' + require('crypto').createHash('sha256').update(group.scope).digest('hex').slice(0, 12) : ''),
       source: 'record',
       title: group.topic,
       kind,

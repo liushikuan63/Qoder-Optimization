@@ -108,3 +108,78 @@ test('非交互且未加 --yes 时默认跳过', () => {
     assert.equal(fs.readFileSync(o.settings, 'utf8'), before);
   } finally { cleanup(o); }
 });
+
+for (const mutation of ['matcher', 'type', 'timeout', 'operation', 'duplicate', 'malformed']) {
+  test('conflicting continuity wiring is rejected without overwriting local settings: ' + mutation, () => {
+    const o = sandbox();
+    try {
+      assert.equal(run(o, ['--yes']).status, 0);
+      const settings = JSON.parse(fs.readFileSync(o.settings, 'utf8'));
+      const group = settings.hooks.PostToolUse[0], hook = group.hooks[0];
+      if (mutation === 'matcher') group.matcher = '^Read$';
+      if (mutation === 'type') hook.type = 'prompt';
+      if (mutation === 'timeout') hook.timeout = 1;
+      if (mutation === 'operation') hook.command = hook.command.replace(/ hook$/, ' disable');
+      if (mutation === 'duplicate') settings.hooks.PostToolUse.push(structuredClone(group));
+      if (mutation === 'malformed') settings.hooks.PostToolUse = { preserve: true };
+      const before = JSON.stringify(settings, null, 2) + '\n';
+      fs.writeFileSync(o.settings, before);
+      fs.writeFileSync(o.target, 'local script bytes');
+      const result = run(o, ['--yes']);
+      assert.equal(result.status, 1, result.stdout + result.stderr);
+      assert.equal(fs.readFileSync(o.settings, 'utf8'), before);
+      assert.equal(fs.readFileSync(o.target, 'utf8'), 'local script bytes');
+    } finally { cleanup(o); }
+  });
+}
+
+for (const prior of [false, true]) {
+  test('settings publication failure rolls back only the installed script: prior=' + prior, () => {
+    const o = sandbox();
+    try {
+      const before = fs.readFileSync(o.settings);
+      if (prior) fs.writeFileSync(o.target, 'prior script bytes');
+      const preload = path.join(o.home, 'publication-failure.cjs');
+      fs.writeFileSync(preload, 'const fs=require("node:fs"),rename=fs.renameSync;fs.renameSync=function(from,to){if(to===' + JSON.stringify(o.settings) + ')throw new Error("injected settings failure");return rename.call(this,from,to);};');
+      const result = spawnSync(process.execPath, ['--require', preload, installer, '--client-root', o.client, '--yes'], {
+        encoding: 'utf8', timeout: 30000,
+        env: { ...process.env, HOME: o.home, USERPROFILE: o.home, QODER_HOME: o.client },
+      });
+      assert.equal(result.status, 1, result.stdout + result.stderr);
+      assert.deepEqual(fs.readFileSync(o.settings), before);
+      assert.equal(fs.existsSync(o.target), prior);
+      if (prior) assert.equal(fs.readFileSync(o.target, 'utf8'), 'prior script bytes');
+      assert.equal(fs.readdirSync(o.client).some(name => name.includes('.tmp-')), false);
+    } finally { cleanup(o); }
+  });
+}
+
+for (const prior of [false, true]) {
+  test('a concurrent replacement during rollback is preserved: prior=' + prior, () => {
+    const o = sandbox();
+    try {
+      if (prior) fs.writeFileSync(o.target, 'prior script bytes');
+      const preload = path.join(o.home, 'rollback-race.cjs');
+      fs.writeFileSync(preload, 'const fs=require("node:fs"),rename=fs.renameSync,unlink=fs.unlinkSync;let failed=false,fired=false;const target=' + JSON.stringify(o.target) + ';function race(p){if(failed&&!fired&&p===target){fired=true;fs.writeFileSync(target,"concurrent script bytes");}}fs.renameSync=function(from,to){if(to===' + JSON.stringify(o.settings) + '){failed=true;throw new Error("injected settings failure");}race(from===target?from:to);return rename.call(this,from,to);};fs.unlinkSync=function(p){race(p);return unlink.call(this,p);};');
+      const r = spawnSync(process.execPath, ['--require', preload, installer, '--client-root', o.client, '--yes'], {
+        encoding: 'utf8', timeout: 30000, env: { ...process.env, HOME: o.home, USERPROFILE: o.home, QODER_HOME: o.client },
+      });
+      assert.equal(r.status, 1, r.stdout + r.stderr);
+      assert.equal(fs.existsSync(o.target), true);
+      assert.equal(fs.readFileSync(o.target, 'utf8'), 'concurrent script bytes');
+    } finally { cleanup(o); }
+  });
+}
+
+test('catalog installation includes the continuity installer runtime closure', () => {
+  const o = sandbox();
+  try {
+    const env = { ...process.env, HOME: o.home, USERPROFILE: o.home, QODER_HOME: o.client };
+    const result = spawnSync(process.execPath, [path.join(root, 'scripts/pkg-catalog.cjs'), 'install', 'script:install-continuity.cjs', '--apply', '--catalog', path.join(root, 'catalog.json')], { env, encoding: 'utf8', timeout: 30000 });
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.equal(fs.existsSync(o.target), true, 'continuity runtime must be installed as a dependency');
+    const installed = path.join(o.client, 'scripts/install-continuity.cjs');
+    const preview = spawnSync(process.execPath, [installed, '--client-root', o.client, '--yes', '--dry-run'], { env, encoding: 'utf8', timeout: 30000 });
+    assert.equal(preview.status, 0, preview.stdout + preview.stderr);
+  } finally { cleanup(o); }
+});

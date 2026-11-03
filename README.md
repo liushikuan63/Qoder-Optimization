@@ -3,7 +3,7 @@
 **An opt-in toolkit for making Qoder workflows more repeatable and verifiable.** It adds rules, on-demand skills, hooks, commands, scripts, and MCP templates through Qoder's extension points; it does not modify Qoder itself.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.0.17-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.0.18-blue.svg)](VERSION)
 [![Node](https://img.shields.io/badge/node-24-brightgreen.svg)](https://nodejs.org)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#requirements-and-limits)
 
@@ -22,6 +22,7 @@ No clone required — pick a version and download it. Every release carries a re
 
 | Version | Released | Highlights | Download |
 |---|---|---|---|
+| 0.0.18 | 2026-11-03 | Five-release audit: continuity recovery, scoped evidence and rule consistency | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.18/Qoder-Optimization-0.0.18.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.18) |
 | 0.0.17 | 2026-11-03 | Continuity install and explicit package update prompts | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.17/Qoder-Optimization-0.0.17.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.17) |
 | 0.0.16 | 2026-11-02 | Self-evolution capture trigger and evidence promotion | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.16/Qoder-Optimization-0.0.16.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.16) |
 | 0.0.15 | 2026-11-01 | Transaction recovery, encoding, installer and packaging fixes | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.15/Qoder-Optimization-0.0.15.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.15) |
@@ -180,6 +181,7 @@ MIT; see [LICENSE](LICENSE). This is an unofficial community project and is not 
 
 | 版本 | 发布日期 | 主要内容 | 下载 |
 |---|---|---|---|
+| 0.0.18 | 2026-11-03 | 五版复核：接续恢复、证据作用域与规则一致性修复 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.18/Qoder-Optimization-0.0.18.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.18) |
 | 0.0.17 | 2026-11-03 | 接续安装与按需安装/更新询问 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.17/Qoder-Optimization-0.0.17.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.17) |
 | 0.0.16 | 2026-11-02 | 自进化采集触发与证据晋升 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.16/Qoder-Optimization-0.0.16.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.16) |
 | 0.0.15 | 2026-11-01 | 事务恢复、编码扫描、安装器与打包边界修复 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.15/Qoder-Optimization-0.0.15.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.15) |
@@ -330,7 +332,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 <!-- offline-bundle:start -->
 ### Optional offline bundle / 可选离线附件
 
-The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.17/Qoder-Optimization-0.0.17-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
+The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.18/Qoder-Optimization-0.0.18-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
 
 核心包不含 MCP 离线二进制；需要时单独下载离线附件，核对各自的 .sha256 后解压到同一目录。无需离线组件时只取核心包；链接仅在对应版本发布后可用。
 <!-- offline-bundle:end -->

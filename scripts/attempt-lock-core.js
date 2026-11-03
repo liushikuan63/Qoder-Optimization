@@ -187,7 +187,10 @@ function familyOf(cmd) {
 // 路径只存摘要；同一目标换 verbosity 等无关参数仍共用预算。旧版无作用域键不再匹配新调用。
 function keyOf(family, cmd, cwd) {
   const target = commandTargets(cmd, cwd).find(t => t.family === family);
-  if (!target) return null;
+  return target ? targetKey(target) : null;
+}
+function targetKey(target) {
+  const family = target.family;
   const sig = target.words.filter(t => t && t.charAt(0) !== '-').slice(0, 3).join(' ').toLowerCase();
   // Remote destinations often follow multiple option/value pairs. Retain the
   // complete invocation in its digest so different hosts cannot share a key.
@@ -238,7 +241,9 @@ function parse(p) {
   const cmd = String(input.command || '');
   const family = familyOf(cmd);
   if (!family) return null;
-  return { family, key: keyOf(family, cmd, input.cwd || input.workdir || p.cwd || process.cwd()), cmd, config: c };
+  const cwd = input.cwd || input.workdir || input.dir_path || p.cwd || process.cwd();
+  const keys = [...new Set(commandTargets(cmd, cwd).map(targetKey))];
+  return { family, key: keyOf(family, cmd, cwd), keys, cmd, config: c };
 }
 
 function prune(s, c) {
@@ -259,20 +264,22 @@ function preCheck(payload) {
   if (!t) return null;
   const threshold = Number(t.config.threshold) > 0 ? Number(t.config.threshold) : 3;
   const s = prune(load(), t.config);
-  const e = s.entries[t.key];
-  if (e && (e.blocked || (e.count || 0) >= threshold)) {
-    ledger(['block', t.key, 'n=' + (e.count || 0)]);
-    return {
-      key: t.key,
-      count: e.count || 0,
-      reason: '[attempt-lock] `' + t.key + '` 已连续失败 ' + (e.count || 0) + ' 次，本次调用被拦。'
-        + '按全局规则「同类操作连败 3 次（3 种不同手段）必须停手上报」：不要再原样重跑——'
-        + '先换一种诊断手段（读原始日志 / 缩小成单条用例 / 加 -x 或 -e 追根因），'
-        + '仍不成立就把失败次数与报错原文上报，等用户决定。\n'
-        + '人工解除：node ~/.qoder/scripts/attempt-lock-guard.js --clear "' + t.key + '"（或 --clear ALL）',
-    };
+  for (const key of t.keys) {
+    const e = s.entries[key];
+    if (e && (e.blocked || (e.count || 0) >= threshold)) {
+      ledger(['block', key, 'n=' + (e.count || 0)]);
+      return {
+        key,
+        count: e.count || 0,
+        reason: '[attempt-lock] `' + key + '` 已连续失败 ' + (e.count || 0) + ' 次，本次调用被拦。'
+          + '按全局规则「同类操作连败 3 次（3 种不同手段）必须停手上报」：不要再原样重跑——'
+          + '先换一种诊断手段（读原始日志 / 缩小成单条用例 / 加 -x 或 -e 追根因），'
+          + '仍不成立就把失败次数与报错原文上报，等用户决定。\n'
+          + '人工解除：node ~/.qoder/scripts/attempt-lock-guard.js --clear "' + key + '"（或 --clear ALL）',
+      };
+    }
+    ledger(['allow', key, 'n=' + (e ? e.count || 0 : 0)]);
   }
-  ledger(['allow', t.key, 'n=' + (e ? e.count || 0 : 0)]);
   return null;
 }
 

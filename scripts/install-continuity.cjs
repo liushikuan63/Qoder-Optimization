@@ -98,33 +98,41 @@ function planFor(client, nodePath) {
   return { client, target, settings, command, hooks };
 }
 
-function continuityHook(group) {
-  return (group?.hooks || []).find(hook => String(hook?.command || '').includes('continuity.cjs')) || null;
-}
-
 function mergeHooks(settings, hooks, target) {
-  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new Error('settings.json 顶层必须是对象');
+  const object = value => value && typeof value === 'object' && !Array.isArray(value);
+  if (!object(settings)) throw new Error('settings.json 顶层必须是对象');
   if (settings.hooks === undefined) settings.hooks = {};
-  if (!settings.hooks || typeof settings.hooks !== 'object' || Array.isArray(settings.hooks)) throw new Error('settings.hooks 必须是对象');
-  const normalize = value => String(value).replace(/\\/g, '/').toLowerCase();
+  if (!object(settings.hooks)) throw new Error('settings.hooks 必须是对象');
+  for (const [event, groups] of Object.entries(settings.hooks)) {
+    if (!Array.isArray(groups) || groups.some(group => !object(group) || !Array.isArray(group.hooks) || group.hooks.some(hook => !object(hook)))) {
+      throw new Error('settings.hooks.' + event + ' 接线结构无效，未做任何修改');
+    }
+  }
+  const normalize = value => {
+    const resolved = path.resolve(value);
+    return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+  };
   const added = [];
   const updated = [];
   const existing = [];
   for (const { event, group } of hooks) {
-    if (!Array.isArray(settings.hooks[event])) settings.hooks[event] = [];
-    const found = settings.hooks[event].map(item => ({ item, hook: continuityHook(item) })).filter(entry => entry.hook);
+    const groups = settings.hooks[event] || [];
+    const found = groups.flatMap(item => item.hooks.filter(hook => String(hook.command || '').includes('continuity.cjs')).map(hook => ({ item, hook })));
     if (!found.length) {
-      settings.hooks[event].push(group);
+      settings.hooks[event] = [...groups, group];
       added.push(event);
       continue;
     }
-    if (found.some(entry => entry.hook.command === group.hooks[0].command)) { existing.push(event); continue; }
-    const sameTarget = found.find(entry => normalize(entry.hook.command).includes(normalize(target)));
-    if (sameTarget) {
-      sameTarget.hook.command = group.hooks[0].command;
+    const { item, hook } = found[0];
+    const command = String(hook.command || '').match(/^\s*(?:"([^"\r\n]+)"|([^\s"'`|&;<>$()]+))\s+(?:"([^"\r\n]+)"|([^\s"'`|&;<>$()]+))\s+hook\s*$/);
+    if (found.length !== 1 || !command || normalize(command[3] || command[4]) !== normalize(target)
+        || item.matcher !== group.matcher || hook.type !== 'command' || hook.timeout !== 10) {
+      throw new Error('settings.hooks.' + event + ' 已有 continuity 接线与完整命令/matcher/type/timeout 不匹配，未做任何修改');
+    }
+    if (hook.command === group.hooks[0].command) existing.push(event);
+    else {
+      hook.command = group.hooks[0].command;
       updated.push(event);
-    } else {
-      existing.push(event);
     }
   }
   return { added, updated, existing };
@@ -144,19 +152,30 @@ function backup(file) {
   return match ? match[1].trim() : file + '.bak.*';
 }
 
-function writeFile(file, data) {
+function writeFile(file, data, exclusive = false) {
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   const temp = file + '.tmp-' + process.pid + '-' + Date.now();
-  fs.writeFileSync(temp, data, { mode: 0o600 });
-  fs.renameSync(temp, file);
+  try {
+    fs.writeFileSync(temp, data, { mode: 0o600, flag: 'wx' });
+    if (exclusive) fs.linkSync(temp, file);
+    else fs.renameSync(temp, file);
+    return fs.lstatSync(file);
+  } finally {
+    if (fs.existsSync(temp)) fs.unlinkSync(temp);
+  }
 }
 
 function install(plan, options) {
-  const source = path.join(__dirname, SCRIPT_NAME);
+  const source = path.join(__dirname, 'continuity.cjs');
   if (!fs.existsSync(source)) throw new Error('缺少随包脚本：' + source + '（请从解压包目录运行本安装器）');
   const sourceBytes = fs.readFileSync(source);
-  let scriptState = 'create';
-  if (fs.existsSync(plan.target)) scriptState = fs.readFileSync(plan.target).equals(sourceBytes) ? 'unchanged' : 'upgrade';
+  for (const file of [plan.target, plan.settings]) {
+    if (!fs.existsSync(file)) continue;
+    const stat = fs.lstatSync(file);
+    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('安装目标必须是普通文件：' + file);
+  }
+  const priorBytes = fs.existsSync(plan.target) ? fs.readFileSync(plan.target) : null;
+  const scriptState = priorBytes === null ? 'create' : priorBytes.equals(sourceBytes) ? 'unchanged' : 'upgrade';
   let settingsText = null;
   let settings = {};
   if (fs.existsSync(plan.settings)) {
@@ -168,13 +187,28 @@ function install(plan, options) {
   const settingsChanged = added.length > 0 || updated.length > 0;
   const result = { scriptState, settingsState: settingsChanged ? (settingsText === null ? 'create' : 'update') : 'unchanged', added, updated, existing, backups: [], wrote: false };
   if (options.dryRun) return result;
-  if (scriptState !== 'unchanged') {
-    if (scriptState === 'upgrade') result.backups.push(backup(plan.target));
-    writeFile(plan.target, sourceBytes);
-  }
-  if (settingsChanged) {
-    if (settingsText !== null) result.backups.push(backup(plan.settings));
-    writeFile(plan.settings, JSON.stringify(settings, null, 2) + '\n');
+  if (scriptState === 'upgrade') result.backups.push(backup(plan.target));
+  if (settingsChanged && settingsText !== null) result.backups.push(backup(plan.settings));
+  let owned;
+  try {
+    if (scriptState !== 'unchanged') owned = writeFile(plan.target, sourceBytes);
+    if (settingsChanged) writeFile(plan.settings, JSON.stringify(settings, null, 2) + '\n');
+  } catch (error) {
+    if (owned) {
+      const moved = plan.target + '.rollback-' + process.pid + '-' + Date.now();
+      try {
+        // Verify the file actually moved, then restore by exclusive creation rather than overwriting a recreated path.
+        fs.renameSync(plan.target, moved);
+        const stat = fs.lstatSync(moved);
+        if (!stat.isFile() || stat.isSymbolicLink() || stat.ino !== owned.ino || stat.dev !== owned.dev || !fs.readFileSync(moved).equals(sourceBytes)) {
+          fs.linkSync(moved, plan.target);
+          throw new Error('脚本存在并发变更，保留目标与恢复资料：' + moved);
+        }
+        if (priorBytes !== null) writeFile(plan.target, priorBytes, true);
+        fs.unlinkSync(moved);
+      } catch (rollbackError) { error.message += '；回滚未完成：' + rollbackError.message + '；恢复路径：' + moved; }
+    }
+    throw error;
   }
   result.wrote = true;
   return result;
@@ -190,10 +224,10 @@ function printPlan(plan, options) {
 }
 
 function printResult(plan, result) {
-  const labels = { create: '新建', update: '更新', unchanged: '已是最新' };
+  const labels = { create: '新建', update: '更新', upgrade: '更新', unchanged: '已是最新' };
   console.log('脚本：' + labels[result.scriptState] + ' ' + plan.target);
   console.log('hooks：' + labels[result.settingsState] + (result.added.length ? '，新增 ' + result.added.join(' / ') : '') + (result.updated.length ? '，更新 ' + result.updated.join(' / ') : ''));
-  if (result.existing.length) console.log('已存在指向其他脚本的 continuity hook（未改动）：' + result.existing.join(' / '));
+  if (result.existing.length) console.log('完整接线已匹配（未改动）：' + result.existing.join(' / '));
   for (const file of result.backups) console.log('备份：' + file);
   if (!result.wrote) return;
   console.log('\n下一步（按会话开启采集）：');

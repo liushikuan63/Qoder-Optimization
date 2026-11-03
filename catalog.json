@@ -2,7 +2,7 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.0.17"
+  "version": "0.0.18"
  },
  "generated": "2026-11-03",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
@@ -2626,7 +2626,8 @@
    },
    "dependencies": [
     "script:backup-file.js",
-    "script:client-root.js"
+    "script:client-root.js",
+    "script:continuity.cjs"
    ]
   },
   {
