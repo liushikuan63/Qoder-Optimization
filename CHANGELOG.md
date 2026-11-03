@@ -12,6 +12,7 @@ During the 0.x line, minor versions may contain breaking changes.
 - Add a package installation entry that inspects existing/missing capabilities, updates only copies proven unchanged against the previously registered package, and preserves local modifications for review.
 - Suggest missing general or explicitly preferred capabilities for user selection; skip unrelated specialized entries. Optional capabilities are never all accepted by a generic `--yes`.
 - Install the routing dependency closure and merge its UserPromptSubmit wiring so relevant installed capabilities actively prompt for task use. Explicit current requests route directly without repeated questions; per-session reminders are bounded and do not imply approval or native-host acceptance.
+- Include required dependencies in explicit capability selections even when advice is disabled. Bind custom clients in the hook command itself; legacy two-argument wiring upgrades without depending on inherited QODER_HOME.
 - Keep SQLite continuity opt-in independent from capability activation. Explicit preference sources, transactional installation, recovery and unchanged legacy-client behavior remain part of acceptance.
 
 ### Added

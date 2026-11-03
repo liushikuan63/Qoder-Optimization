@@ -74,7 +74,7 @@ test('--yes activates routing without SQLite and leaves new optional capabilitie
   assert.equal(JSON.parse(fs.readFileSync(path.join(f.client, 'share-package.json'))).catalog, f.next.catalog);
   const settings = JSON.parse(fs.readFileSync(path.join(f.client, 'settings.json')));
   assert.equal(settings.hooks.UserPromptSubmit.length, 1);
-  assert.match(settings.hooks.UserPromptSubmit[0].hooks[0].command, /rules-reminder\.js"$/);
+  assert.match(settings.hooks.UserPromptSubmit[0].hooks[0].command, /rules-reminder\.js" --client-root "/);
   for (const file of ['rules-reminder.js', 'capability-advisor.cjs', 'pkg-catalog.cjs', 'skill-load.cjs', 'build-skills-index.cjs']) assert.equal(fs.existsSync(path.join(f.client, 'scripts', file)), true, file);
   assert.equal(fs.existsSync(path.join(f.client, 'skills/skills-router/SKILL.md')), true);
   assert.equal(fs.existsSync(path.join(f.client, 'skills-library/office-docs')), false);
@@ -112,6 +112,37 @@ test('an exact current install selection can override a prior profile exclusion 
   assert.equal(fs.existsSync(path.join(f.client, 'skills-library/fixture-specialized/SKILL.md')), true);
   assert.equal(fs.readFileSync(path.join(f.client, 'capability-preferences.json'), 'utf8'), profile);
   assert.equal(fs.existsSync(path.join(f.client, 'skills-library/office-docs')), false);
+});
+
+test('an activated client treats the complete explicit install closure as selected despite disabled suggestions', t => {
+  const f = fixture(t), initial = f.run(['--yes', '--json']);
+  assert.equal(initial.status, 0, initial.stdout + initial.stderr);
+  const profile = JSON.stringify({ schema: 1, enabled: false, excludedIds: ['skill:fixture-specialized', 'script:client-root.js'], excludedKeywords: ['script'] });
+  f.put('capability-preferences.json', profile);
+  const r = f.run(['--yes', '--install', 'skill:fixture-specialized', '--json']);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const result = JSON.parse(r.stdout);
+  assert.equal(result.ready, true);
+  assert.equal(result.plan.items.find(item => item.id === 'script:client-root.js').action, 'KEEP');
+  assert.equal(fs.existsSync(path.join(f.client, 'skills-library/fixture-specialized/SKILL.md')), true);
+  assert.equal(fs.readFileSync(path.join(f.client, 'capability-preferences.json'), 'utf8'), profile);
+  assert.equal(fs.existsSync(path.join(f.client, 'skills-library/office-docs')), false);
+});
+
+test('explicit dependency selection still preserves a modified installed dependency', t => {
+  const f = fixture(t), initial = f.run(['--yes', '--json']);
+  assert.equal(initial.status, 0, initial.stdout + initial.stderr);
+  const target = path.join(f.client, 'scripts/client-root.js'), modified = fs.readFileSync(target, 'utf8') + '\n// user-local fixture change\n';
+  fs.writeFileSync(target, modified);
+  const profile = JSON.stringify({ schema: 1, enabled: false, excludedIds: ['skill:fixture-specialized', 'script:client-root.js'] });
+  f.put('capability-preferences.json', profile);
+  const r = f.run(['--yes', '--install', 'skill:fixture-specialized', '--json']);
+  assert.equal(r.status, 3, r.stdout + r.stderr);
+  const result = JSON.parse(r.stdout);
+  assert.equal(result.status, 'ACTIVATION_BLOCKED');
+  assert.equal(result.pendingItems.some(item => item.id === 'script:client-root.js' && item.action === 'REVIEW_UPDATE'), true);
+  assert.equal(fs.readFileSync(target, 'utf8'), modified);
+  assert.equal(fs.readFileSync(path.join(f.client, 'capability-preferences.json'), 'utf8'), profile);
 });
 
 test('existing settings and unrelated installed skills survive activation and real index generation', t => {
@@ -176,6 +207,32 @@ test('conflicting hook wiring rejects the entire install before any publication'
   assert.deepEqual(fs.readdirSync(f.client), ['settings.json']);
   assert.equal(fs.readFileSync(path.join(f.client, 'settings.json'), 'utf8'), text);
 });
+
+test('a legacy two-argument hook upgrades to a same-client binding and stays idempotent', t => {
+  const f = fixture(t), target = path.join(f.client, 'scripts/rules-reminder.js');
+  f.put('settings.json', JSON.stringify({ hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', timeout: 10, command: '"' + process.execPath + '" "' + target + '"' }] }] } }));
+  const first = f.run(['--yes', '--json']); assert.equal(first.status, 0, first.stdout + first.stderr);
+  assert.equal(JSON.parse(first.stdout).receipt.hook, 'UPDATE');
+  const bytes = fs.readFileSync(path.join(f.client, 'settings.json'));
+  const settings = JSON.parse(bytes);
+  assert.equal(settings.hooks.UserPromptSubmit.length, 1);
+  assert.equal(settings.hooks.UserPromptSubmit[0].hooks[0].command, '"' + process.execPath + '" "' + target + '" --client-root "' + f.client + '"');
+  const second = f.run(['--yes', '--json']); assert.equal(second.status, 0, second.stdout + second.stderr);
+  assert.equal(JSON.parse(second.stdout).receipt.hook, 'KEEP');
+  assert.deepEqual(fs.readFileSync(path.join(f.client, 'settings.json')), bytes);
+});
+
+for (const variant of ['different-client', 'relative-client', 'extra-argument', 'duplicate-client']) {
+  test('hook migration rejects unapproved client bindings or trailing arguments: ' + variant, t => {
+    const f = fixture(t), target = path.join(f.client, 'scripts/rules-reminder.js');
+    const tail = variant === 'different-client' ? '--client-root "' + path.join(f.home, 'other-client') + '"' : variant === 'relative-client' ? '--client-root client' : variant === 'extra-argument' ? '--client-root "' + f.client + '" --unexpected' : '--client-root "' + f.client + '" --client-root "' + f.client + '"';
+    const text = JSON.stringify({ hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', timeout: 10, command: '"' + process.execPath + '" "' + target + '" ' + tail }] }] } });
+    f.put('settings.json', text);
+    const r = f.run(['--yes']); assert.notEqual(r.status, 0, r.stdout + r.stderr);
+    assert.deepEqual(fs.readdirSync(f.client), ['settings.json']);
+    assert.equal(fs.readFileSync(path.join(f.client, 'settings.json'), 'utf8'), text);
+  });
+}
 
 for (const race of [false, true]) {
   test('settings publication failure rolls back owned routing and preserves other writes: race=' + race, t => {

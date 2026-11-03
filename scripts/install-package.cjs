@@ -138,15 +138,19 @@ function settingsFor(bytes, target) {
   for (const [event, groups] of Object.entries(settings.hooks)) {
     if (!Array.isArray(groups) || groups.some(group => !object(group) || !Array.isArray(group.hooks) || group.hooks.some(hook => !object(hook)))) throw new Error('settings.hooks.' + event + ' 结构无效');
   }
-  const command = '"' + process.execPath + '" "' + target + '"';
+  const client = path.dirname(path.dirname(target));
+  const command = '"' + process.execPath + '" "' + target + '" --client-root "' + client + '"';
   const groups = settings.hooks.UserPromptSubmit || [];
   const found = groups.flatMap(group => group.hooks.filter(hook => String(hook.command || '').includes('rules-reminder.js')).map(hook => ({ group, hook })));
   let state = 'ADD';
   if (found.length) {
     const { group, hook } = found[0];
-    const match = String(hook.command || '').match(/^\s*(?:"([^"\r\n]+)"|([^\s"'`|&;<>$()]+))\s+(?:"([^"\r\n]+)"|([^\s"'`|&;<>$()]+))\s*$/);
+    const match = String(hook.command || '').match(/^\s*(?:"([^"\r\n]+)"|([^\s"'`|&;<>$()]+))\s+(?:"([^"\r\n]+)"|([^\s"'`|&;<>$()]+))(?:\s+--client-root\s+(?:"([^"\r\n]+)"|([^\s"'`|&;<>$()]+)))?\s*$/);
     const node = match && (match[1] || match[2]).split(/[\\/]/).pop();
-    if (found.length !== 1 || !match || !/^node(?:\.exe)?$/i.test(node) || normalized(match[3] || match[4]) !== normalized(target) || group.matcher !== undefined || hook.type !== 'command' || hook.timeout !== 10) throw new Error('已有 rules-reminder 接线与完整命令/matcher/type/timeout 冲突，保留配置供核对');
+    const boundClient = match && (match[5] || match[6]);
+    if (found.length !== 1 || !match || !/^node(?:\.exe)?$/i.test(node) || normalized(match[3] || match[4]) !== normalized(target)
+      || (boundClient !== undefined && (!path.isAbsolute(boundClient) || normalized(boundClient) !== normalized(client)))
+      || group.matcher !== undefined || hook.type !== 'command' || hook.timeout !== 10) throw new Error('已有 rules-reminder 接线与完整命令/client-root/matcher/type/timeout 冲突，保留配置供核对');
     state = hook.command === command ? 'KEEP' : 'UPDATE';
     hook.command = command;
   } else settings.hooks.UserPromptSubmit = [...groups, { hooks: [{ type: 'command', command, timeout: 10 }] }];
@@ -181,13 +185,7 @@ function prepare(options = {}) {
   if (options.install?.length) {
     preferences = { ...(preferences || { schema: 1 }), preferredIds: [...new Set([...(preferences?.preferredIds || []), ...options.install])], excludedIds: (preferences?.excludedIds || []).filter(id => !options.install.includes(id)) };
   }
-  const { planCapabilities } = require('./capability-advisor.cjs');
-  const prompt = [...BASE_IDS, ...(options.install || [])].map(id => '安装 ' + id).join('；');
-  const advice = planCapabilities({ catalogFile, clientRoot: client, prompt, phase: 'install', preferences, previousCatalogFile: typeof previous.catalog === 'string' ? path.resolve(client, previous.catalog) : undefined });
-  plan.items = advice.items || [];
-  plan.diagnostics = advice.diagnostics || advice.warnings || [];
   const entries = new Map(catalog.entries.map(entry => [entry.id, entry]));
-  const items = new Map(plan.items.map(item => [item.id || item.entry?.id, item]));
   for (const id of [...BASE_IDS, ...(options.install || [])]) if (!entries.has(id)) throw new Error('包内缺少精确条目：' + id);
   const closure = ids => {
     const order = [], visiting = new Set(), visited = new Set();
@@ -207,7 +205,17 @@ function prepare(options = {}) {
     ids.forEach(visit); return order;
   };
   const baseClosure = closure(BASE_IDS);
-  plan.acceptedInstallIds = [...new Set([...baseClosure, ...closure(options.install || []), ...plan.items.filter(item => item.action === 'UPDATE').map(item => item.id)])];
+  const explicitClosure = closure([...BASE_IDS, ...(options.install || [])]);
+  // An exact install choice includes its necessary technical dependencies.
+  // Preferences control suggestions, never veto that current choice; local
+  // differences still go through the advisor's pristine-baseline checks.
+  const { planCapabilities } = require('./capability-advisor.cjs');
+  const prompt = explicitClosure.map(id => '安装 ' + id).join('；');
+  const advice = planCapabilities({ catalogFile, clientRoot: client, prompt, phase: 'install', preferences, previousCatalogFile: typeof previous.catalog === 'string' ? path.resolve(client, previous.catalog) : undefined });
+  plan.items = advice.items || [];
+  plan.diagnostics = advice.diagnostics || advice.warnings || [];
+  const items = new Map(plan.items.map(item => [item.id || item.entry?.id, item]));
+  plan.acceptedInstallIds = [...new Set([...explicitClosure, ...plan.items.filter(item => item.action === 'UPDATE').map(item => item.id)])];
   const blocked = id => items.get(id)?.action === 'REVIEW_UPDATE' || (items.get(id)?.installedPaths?.length || 0) > 1;
   plan.baseBlocked = baseClosure.filter(blocked);
   plan.baseReady = plan.baseBlocked.length === 0;

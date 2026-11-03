@@ -64,6 +64,30 @@ test('registered installed capability becomes a concrete use question once per s
   assert.equal(ledger.includes('session-a'), false);
 });
 
+test('the installed hook command binds a custom client without an inherited QODER_HOME', t => {
+  const f = fixture(t), item = f.skill(); f.setItems([item]); f.register();
+  fs.cpSync(f.scripts, path.join(f.client, 'scripts'), { recursive: true });
+  const { settingsFor } = require('../scripts/install-package.cjs');
+  const settings = JSON.parse(settingsFor(null, path.join(f.client, 'scripts/rules-reminder.js')).bytes);
+  const command = settings.hooks.UserPromptSubmit[0].hooks[0].command;
+  const args = [...command.matchAll(/"([^"\r\n]*)"|([^\s]+)/g)].map(match => match[1] ?? match[2]);
+  const env = { ...f.env }; delete env.QODER_HOME;
+  const r = spawnSync(args[0], args.slice(1), { env, cwd: f.dir, input: JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: '修复浏览器页面', session_id: 'custom-profile' }), encoding: 'utf8', timeout: 20000 });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(JSON.parse(r.stdout).hookSpecificOutput.additionalContext, /是否使用 browser-helper/);
+  assert.equal(fs.existsSync(path.join(env.HOME, '.qoder')), false, 'hook wrote to a different default client');
+});
+
+test('malformed explicit client binding never falls back to another client', t => {
+  const f = fixture(t), env = { ...f.env }; delete env.QODER_HOME;
+  for (const args of [['--client-root'], ['--client-root', 'relative'], ['--client-root', f.client, '--client-root', f.client]]) {
+    const r = spawnSync(process.execPath, [path.join(f.scripts, 'rules-reminder.js'), ...args], { env, cwd: f.dir, input: '{}', encoding: 'utf8', timeout: 10000 });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, ''); assert.match(r.stderr, /RULES_REMINDER_CLIENT_ROOT_INVALID/);
+    assert.equal(fs.existsSync(path.join(env.HOME, '.qoder')), false);
+  }
+});
+
 test('missing capability asks installation while excluded or irrelevant entries remain quiet', t => {
   const f = fixture(t); f.register();
   const source = path.join(f.pkg, 'skills/generic-helper/SKILL.md'); f.write(source, '# generic\n');

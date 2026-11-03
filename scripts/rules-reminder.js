@@ -11,6 +11,18 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+// A custom client must not depend on the host inheriting QODER_HOME. Bind only
+// this hook process, before any helper computes its client-specific paths.
+const clientArgs = process.argv.slice(2);
+const clientFlag = clientArgs.indexOf('--client-root');
+if (clientFlag >= 0) {
+  const selected = clientArgs[clientFlag + 1];
+  if (clientArgs.lastIndexOf('--client-root') !== clientFlag || !selected?.trim() || !path.isAbsolute(selected)) {
+    process.stderr.write('RULES_REMINDER_CLIENT_ROOT_INVALID\n');
+    process.exit(0);
+  }
+  process.env.QODER_HOME = path.resolve(selected);
+}
 const crypto = require('crypto');
 const { clientRoot } = require('./client-root.js');
 const { goalCandidateNote } = require('./goal-candidate-core.js');
