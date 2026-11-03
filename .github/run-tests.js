@@ -23,7 +23,7 @@ const checks = [
   ['global self-tests', [path.join(root, 'skills/global-config-smoke-runner/scripts/smoke-runner.cjs'), '--tests-only']],
   ['mechanize fail-streak self-tests', [path.join(root, 'skills/mechanize-rule-into-hook-guard/scripts/fail-streak-guard.test.js')]],
   ['mechanize fail-streak mutation', [path.join(root, 'skills/mechanize-rule-into-hook-guard/scripts/fail-streak-merge-mutation.test.js')]],
-  ['release, suggestion, scan and tiering contracts', ['--test', ...fs.readdirSync(__dirname).filter((file) => file.endsWith('.test.js')).sort().map((file) => path.join(__dirname, file))]],
+  ['release, suggestion, scan and tiering contracts', ['--test', '--test-concurrency=1', ...fs.readdirSync(__dirname).filter((file) => file.endsWith('.test.js')).sort().map((file) => path.join(__dirname, file))]],
 ];
 let failures = 0;
 try {

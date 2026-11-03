@@ -92,34 +92,103 @@ function scoreEntry(e, query, tokens) {
   return score;
 }
 
-function localPresence(e) {
-  if (e.category === 'plugin' || e.category === 'mcp') return { label: '安装/连接状态未核验，先用平台工具核对', present: null };
+function digestOf(file) {
+  try {
+    const st = fs.lstatSync(file);
+    if (!st.isFile() || st.isSymbolicLink()) return null;
+    return createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+  } catch { return null; }
+}
+
+// 只比对包内会安装的公开文件：本地新增文件与 .bak 不参与判断，
+// 否则一份本地备份就会把"与包内一致"误报成"可更新"。
+function packageFiles(root, rel) {
+  const files = [];
+  const walk = (abs, relPath) => {
+    for (const name of fs.readdirSync(abs).sort()) {
+      const next = relPath + '/' + name;
+      if (!isPublicFile(next)) continue;
+      const full = path.join(abs, name);
+      const st = fs.lstatSync(full);
+      if (st.isSymbolicLink()) return false;
+      if (st.isDirectory()) {
+        if (!walk(full, next)) return false;
+      } else if (st.isFile()) {
+        files.push({ rel: next.slice(rel.length + 1), hash: digestOf(full) });
+      } else {
+        return false;
+      }
+    }
+    return true;
+  };
+  return walk(path.join(root, rel), rel) ? files : null;
+}
+
+function compareWithPackage(e, root, localTarget) {
+  if (!root || !e.source) return null;
+  try {
+    const src = path.resolve(root, e.source);
+    if (!within(fs.realpathSync(root), fs.realpathSync(src))) return null;
+    if (e.category === 'skill' || (e.category === 'script' && e.install?.mode === 'copy-directory')) {
+      const files = packageFiles(root, e.source);
+      if (!files || !files.length) return null;
+      for (const f of files) {
+        if (digestOf(path.join(localTarget, f.rel)) !== f.hash) return { differs: true, file: f.rel };
+      }
+      return { differs: false };
+    }
+    const sourceHash = digestOf(src);
+    const localHash = digestOf(localTarget);
+    if (!sourceHash || !localHash) return null;
+    return { differs: sourceHash !== localHash, file: path.basename(localTarget) };
+  } catch {
+    return null;
+  }
+}
+
+function localPresence(e, root = '') {
+  if (e.category === 'plugin' || e.category === 'mcp') return { label: '安装/连接状态未核验，先用平台工具核对', present: null, differs: null };
   const roots = e.category === 'skill' ? ['skills', 'skills-library'] :
     ({ script: ['scripts'], command: ['commands'], agent: ['agents'] }[e.category] || []);
   const name = e.category === 'skill' ? e.name : path.basename(e.source || '');
-  if (!name || name === '.' || name === '..' || /[\\/:]/.test(name)) return { label: '本地状态未核验', present: null };
-  const found = roots.filter(root => {
-    const p = path.join(QODER, root, name, ...(e.category === 'skill' ? ['SKILL.md'] : []));
+  if (!name || name === '.' || name === '..' || /[\\/:]/.test(name)) return { label: '本地状态未核验', present: null, differs: null };
+  const directory = e.category === 'skill' || (e.category === 'script' && e.install?.mode === 'copy-directory');
+  const found = [];
+  for (const r of roots) {
+    const p = path.join(QODER, r, name, ...(e.category === 'skill' ? ['SKILL.md'] : []));
     try {
       if (e.category === 'script' && e.install?.mode === 'copy-directory') {
         scriptDirectoryFiles(path.dirname(p), path.basename(p));
-        return true;
-      }
-      return fs.statSync(p).isFile();
-    } catch { return false; }
-  });
-  return { present: found.length > 0, label: found.length ? `本地文件已存在（${found.join(' + ')}；未验装载）` : '本地未发现' };
+      } else if (!fs.statSync(p).isFile()) continue;
+      found.push({ root: r, target: directory ? path.join(QODER, r, name) : p });
+    } catch { /* 未安装或目录不完整 */ }
+  }
+  if (!found.length) return { present: false, differs: null, label: '本地未发现' };
+  const where = found.map(f => f.root).join(' + ');
+  const cmp = compareWithPackage(e, root, found[0].target);
+  if (cmp?.differs) {
+    return { present: true, differs: true, label: `本地文件已存在（${where}；内容与包内不同${cmp.file ? '：' + cmp.file : ''}，可更新或本地已改，需比对）` };
+  }
+  if (cmp) return { present: true, differs: false, label: `本地文件已存在（${where}；与包内一致，未验装载）` };
+  return { present: true, differs: null, label: `本地文件已存在（${where}；包内来源不可比对，未验装载）` };
 }
 
-function formatEntry(e, catalogFile = '') {
+function needsAsk(e, presence) {
+  return e.status === 'shipped' && (presence.present === false || presence.differs === true);
+}
+
+function formatEntry(e, catalogFile = '', presence = localPresence(e, catalogFile ? path.dirname(catalogFile) : '')) {
   const BADGE = { shipped: '随包', external: '外部', disabled: '来源已停用', template: '模板', recommended: '推荐', optional: '可选', 'on-demand': '按需', bundled: '随客户端' };
   const badge = BADGE[e.status] || e.status;
-  const presence = localPresence(e);
+  const installer = path.join(QODER, 'scripts', 'pkg-catalog.cjs');
+  const catalogArg = catalogFile ? ' --catalog ' + JSON.stringify(catalogFile) : '';
   const lines = [`${e.id}  [${e.category}/${badge}]  ${e.name}`, '  ' + presence.label];
   if (e.description) lines.push('  ' + e.description.slice(0, 140));
-  if (e.install && e.install.command && presence.present !== true) lines.push('  ' + e.install.command);
+  if (e.install && e.install.command && (presence.present !== true || presence.differs === true)) lines.push('  ' + e.install.command);
   if (e.status === 'shipped' && presence.present === false) {
-    lines.push(`  安装预演：node ${JSON.stringify(path.join(QODER, 'scripts', 'pkg-catalog.cjs'))} install ${JSON.stringify(e.id)}${catalogFile ? ' --catalog ' + JSON.stringify(catalogFile) : ''}`);
+    lines.push(`  安装预演：node ${JSON.stringify(installer)} install ${JSON.stringify(e.id)}${catalogArg}`);
+  } else if (e.status === 'shipped' && presence.differs === true) {
+    lines.push(`  更新预演（覆盖前先三路比对并备份）：node ${JSON.stringify(installer)} install ${JSON.stringify(e.id)} --force${catalogArg}`);
   }
   return lines.join('\n');
 }
@@ -143,8 +212,15 @@ function cmdSearch() {
   if (!value) fail(2, '用法：pkg-catalog.cjs search <关键词>');
   const hits = searchEntries(entries, value);
   if (!hits.length) { console.error(`NO_MATCH 包内索引没有「${value}」。可换同义词再查，或到技能库/扩展市场找。`); process.exit(3); }
+  const root = path.dirname(file);
   console.log(`命中 ${hits.length} 条（按相关度排序）：`);
-  for (const h of hits) console.log(formatEntry(h.e, file));
+  let ask = 0;
+  for (const h of hits) {
+    const presence = localPresence(h.e, root);
+    console.log(formatEntry(h.e, file, presence));
+    if (needsAsk(h.e, presence)) ask++;
+  }
+  if (ask) console.log(`\nNEXT_ACTION: ASK_INSTALL_OR_UPDATE — ${ask} 条可安装或可更新；必须用 AskUserQuestion 询问用户，未获明确选择不得执行安装或更新。`);
 }
 
 function cmdShow() {
@@ -156,12 +232,34 @@ function cmdShow() {
 }
 
 function cmdList() {
-  const { entries } = loadCatalog();
+  const { file, entries } = loadCatalog();
+  const root = path.dirname(file);
   const rows = CATEGORY ? entries.filter((e) => e.category === CATEGORY) : entries;
   const by = {};
   for (const e of rows) by[e.category] = (by[e.category] || 0) + 1;
   console.log(`共 ${rows.length} 条：` + Object.entries(by).map(([k, v]) => `${k}=${v}`).join(' / '));
-  for (const e of rows) console.log(`- ${e.id}  [包标记:${e.status}]  ${e.name}  ${localPresence(e).label}`);
+  for (const e of rows) {
+    const presence = localPresence(e, root);
+    const tag = needsAsk(e, presence) ? (presence.present === false ? '  [可安装]' : '  [可更新]') : '';
+    console.log(`- ${e.id}  [包标记:${e.status}]  ${e.name}  ${presence.label}${tag}`);
+  }
+}
+
+function cmdDrift() {
+  const { file, entries } = loadCatalog();
+  const root = path.dirname(file);
+  const rows = [];
+  for (const e of entries) {
+    const presence = localPresence(e, root);
+    if (e.status === 'shipped' && presence.present === true && presence.differs === true) rows.push({ e, presence });
+  }
+  if (!rows.length) {
+    console.log('DRIFT_NONE 已安装的随包条目与包内内容一致（未验装载；第三方依赖与运行期状态另查）。');
+    return;
+  }
+  console.log(`DRIFT ${rows.length} 条已安装但与包内不同（可更新或本地已改）：`);
+  for (const { e, presence } of rows) console.log(`- ${e.id}  ${e.name}\n  ${presence.label}`);
+  console.log('\nNEXT_ACTION: ASK_UPDATE — 必须用 AskUserQuestion 逐条询问是否更新；更新前三路比对并备份，未获明确选择不得 --force 覆盖。');
 }
 
 function within(root, p) {
@@ -412,21 +510,23 @@ function cmdRegister() {
 }
 
 const usage = () => console.log([
-  '用法：pkg-catalog.cjs <search|show|list|install|register> ...',
-  '  search <关键词>                 检索包内与外部可装内容',
+  '用法：pkg-catalog.cjs <search|show|list|drift|install|register> ...',
+  '  search <关键词>                 检索包内与外部可装内容（可安装/可更新时输出 NEXT_ACTION）',
   '  show <id>                       查看条目详情',
   '  list [--category skill]         列出全部条目',
+  '  drift                           列出已安装但与包内内容不同的随包条目',
   '  install <id> [--apply]          安装随包条目（默认 dry-run；技能默认入按需库，--tier core 进常驻）',
   '  register [<包目录>]             登记分享包位置（供 skill-load 兜底检索）',
 ].join('\n'));
 
-module.exports = { resolveCatalog, readCatalog, searchEntries, formatEntry };
+module.exports = { resolveCatalog, readCatalog, searchEntries, formatEntry, localPresence, needsAsk, compareWithPackage };
 if (require.main === module) {
   try {
     switch (CMD) {
       case 'search': cmdSearch(); break;
       case 'show': cmdShow(); break;
       case 'list': cmdList(); break;
+      case 'drift': cmdDrift(); break;
       case 'install': cmdInstall(); break;
       case 'register': cmdRegister(); break;
       default: usage(); process.exitCode = 2;

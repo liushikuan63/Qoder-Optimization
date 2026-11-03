@@ -1,4 +1,4 @@
-# Qoder-Optimization-0.0.16 安装说明
+# Qoder-Optimization-0.0.17 安装说明
 
 ## 包内容与落点
 
@@ -13,6 +13,23 @@
 | `mcp/` | MCP 配置示例（占位符版，无凭据） | 见 `mcp/README-mcp.md` |
 | `hooks/` | **hooks 接线模板**（占位符版）+ 事件×脚本对照（脚本不接线不会自己跑） | 并入 `~/.qoder/settings.json` 的 `hooks`，见 `hooks/README-hooks.md` |
 | `qoder-memory-export-*.tar.gz` | 通用脱敏记忆包（方法论与工具类，已剔除个人与内网信息）；解包后 `rules-summary.md` 就是**筛选菜单**（逐条勾选） | 按提示词文档第 3 步筛选后并入 `~/.qoder/memory/` |
+
+## 接续记忆与追回（安装时可选启用）
+
+推荐先运行包根目录的 `install.cmd`（Windows）。它会检测宿主机是否已有可用的 Node.js：
+
+- **已有 Node.js**：询问是否启用 SQLite 接续记忆与追回模式。同意后把 `scripts/continuity.cjs` 安装到客户端 `scripts/`，并把 `PreCompact` / `PostCompact` / `UserPromptSubmit` / `SessionStart` / `PostToolUse` 五个事件接入该客户端 `settings.json`；修改前自动备份，已有接线不重复添加，同一脚本的 Node 路径变化会就地更新。
+- **没有 Node.js**：询问是否安装 Node.js LTS。可选择用 winget 自动安装，或查看便携版下载方式（解压到非系统盘后重跑）。
+
+跨平台或已装 Node 时也可直接运行：
+
+```bash
+node scripts/install-continuity.cjs          # 交互式：启用 / 跳过
+node scripts/install-continuity.cjs --dry-run # 只显示计划
+node scripts/install-continuity.cjs --yes     # 非交互启用
+```
+
+启用只代表“装好并接线”；采集仍按会话显式开启：在需要接续的会话中运行 `enable`（安装完成会打印完整命令），任务结束 `disable`。工具只在 enable 的会话里保存用户正文与指定助手段落，不读 Qoder 内部数据库、不上传。需要 Node.js 24.16+（内置 `node:sqlite` 与 FTS5）。
 
 ## 安装
 
@@ -41,7 +58,7 @@
 - 按需：`~/.qoder/skills-library/`（单领域技能），**不参与注入**
 - 检索：`node ~/.qoder/scripts/skill-load.cjs "<关键词>"` → 命中后 Read 对应 `SKILL.md` 再动手；也可用 `/skill-load "<关键词>"`
 - **一键分层**：`node ~/.qoder/scripts/tier-skills.cjs`（dry-run 预览）→ 加 `--apply` 执行；`--keep a,b,c` 额外保留；`--restore <名>` / `--restore-all` 恢复。核心保留列表内置在脚本里
-- 重建索引：任何增删移技能后显式跑 `node ~/.qoder/scripts/build-skills-index.cjs`；`skill-load` 只读扫描实际文件，不在查询时写盘，包候选不等于已安装或已授权安装
+- 重建索引：任何增删移技能后显式跑 `node ~/.qoder/scripts/build-skills-index.cjs`；`skill-load` 只读扫描实际文件，不在查询时写盘。包候选会标「本地未发现 / 与包内一致 / 内容与包内不同」；本地已命中但包内内容不同时输出 `NEXT_ACTION: ASK_UPDATE`，包候选可安装/可更新时输出 `NEXT_ACTION: ASK_INSTALL_OR_UPDATE`。出现这两类信号时必须先询问用户是否安装/更新，未获明确选择不得写盘
 - **新增技能先判层级**：元/跨域高频或被 AGENTS·rules 硬引用（引用处未注明按需检索）→ `skills/`；单领域专用 → `skills-library/`；拿不准默认进库。创建前用 `node ~/.qoder/scripts/carrier-preflight.cjs --type skill --name <名> --path ~/.qoder/skills-library/<名>/SKILL.md` 预检——会列出两层同名/同类候选、提示本次拟入层与常驻预算（40 软 / 60 硬）
 
 包内实物：132 个技能（12 常驻 + 120 按需）；常驻描述 2675 字符，全部技能描述 27477 字符，占比 9.7%。按 catalog 计算，不是接收者的已安装数量。
@@ -51,8 +68,10 @@
 包内收录经脱敏门验证的完整能力集，但安装时默认不全量复制；按技术栈和任务从 catalog 选择，以后用到别的也不用重新翻包：
 
 - 登记位置（一次）：`node ~/.qoder/scripts/pkg-catalog.cjs register <分享包目录>`
-- 检索：`node ~/.qoder/scripts/pkg-catalog.cjs search "<关键词>"`，或 `/pkg-find "<关键词>"`
+- 检索：`node ~/.qoder/scripts/pkg-catalog.cjs search "<关键词>"`，或 `/pkg-find "<关键词>"`；结果标「本地未发现 / 与包内一致 / 内容与包内不同」，出现 `NEXT_ACTION` 时必须先用 `AskUserQuestion` 询问（安装/更新（推荐） / 查看差异 / 保持现状），未获明确选择不得写盘
 - 安装：`install <id>` 先预演依赖闭包，确认后加 `--apply`；技能按 manifest/catalog 的 tier 落点安装。另一层已有同名技能时拒绝写入，迁移请使用 tier-skills；索引先暂存再以归属/内容核对和独占创建提交。失败只回滚本批仍属本事务且未变化的文件；检测到并发修改时保留目标与备份目录、明确报告未完整回滚，先裁决再重试。
+- 更新：`内容与包内不同` 表示可更新；先三路比对并备份，保留本地较新内容，确认后 `install <id> --apply --force`，再重建索引并跑 `skills-doctor`
+- 批量漂移：`node ~/.qoder/scripts/pkg-catalog.cjs drift` 列出已安装但与包内不同的条目；升版部署询问必须带上这份清单
 - 插件 / 社区技能 / MCP：只给官方安装命令与合并说明，不代装、不转发源码
 - 兜底：`skill-load` 查不到时，会自动到已登记的包内索引里找，并给出加装命令
 

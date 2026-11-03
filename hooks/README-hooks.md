@@ -32,6 +32,7 @@
 
 - `hook-crash-guard.js` **不需要单独接线**：它是被其它 hook 脚本 `require` 的库（`require("./hook-crash-guard.js").install("<名字>")`），把崩溃写进 `hooks-crash.log` 交给周检，保持 fail-open 语义。
 - `byok-modelconfigs-guard.js` 也不接线：手动或周检调用的工具。
+- **接续记忆与追回（continuity）**：`PreCompact` / `PostCompact` / `UserPromptSubmit` / `SessionStart` / `PostToolUse` 这 5 个 hook 不在本模板里，默认不采集；由 `scripts/install-continuity.cjs` 在用户明确同意后单独接线，不要从模板直接复制。
 - **拦截语义**：只有 `exit 2` 或 `deny` JSON 真拦截；其余非零退出码 / 超时 / 崩溃默认**放行（fail-open）**——别把 hook 当安全边界，硬权限仍交权限系统。
 - **自证在跑**：每个 hook 都要能自证——`rules-reminder` 写心跳日志、各脚本带 `--selftest` 或 `.test.js`、`global-config-guard --check` 会报接线缺失与"指向不存在的脚本"。接完线**新开一次会话**再跑几轮，确认台账 / 心跳有记录。
 - 说明全文见 `../scripts/README-rule-enforcement.md`（三层机制全貌与阈值/选型依据）。

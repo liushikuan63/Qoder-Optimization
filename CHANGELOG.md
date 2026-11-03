@@ -4,7 +4,28 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 During the 0.x line, minor versions may contain breaking changes.
 
-## [Unreleased]
+## [0.0.17] - 2026-11-03
+
+### Added
+- Add an optional install-time continuity setup. `install.cmd` detects Node.js, asks whether to enable the SQLite/FTS5 continuity memory and recovery mode, and wires the five hooks into the selected client. When Node.js is missing, it offers a winget install or portable download guidance.
+- Ship `scripts/continuity.cjs`, a per-session SQLite + FTS5 archive with automatic migration from the earlier JSON record format; CLI and hook behavior remain compatible.
+- Add isolated installer tests for dry-run, idempotent hook merging, malformed settings, and non-interactive skip.
+
+### Changed
+- Ask before installing or updating on-demand package entries. `pkg-catalog.cjs search/list/drift` now compares package and local content and emits `NEXT_ACTION`; `skill-load` checks installed skills against the registered package. `/pkg-find`, `/skill-load`, and `skills-router` require an explicit `AskUserQuestion` choice before any write, and release/deployment asks include the drift list.
+
+### Fixed
+- Serialize the contract test suite with `--test-concurrency=1` so wall-clock guard checks are not starved by parallel test files.
+
+### Compatibility and recovery
+- The installer preserves existing hooks, skips duplicate continuity wiring, backs up before changing files, and writes nothing in `--dry-run`. Collection still requires an explicit per-session `enable`.
+
+### 中文摘要
+- 新增安装时可选的接续模式：`install.cmd` 检测 Node.js，询问是否启用 SQLite/FTS5 记忆与追回，并把 5 个 hooks 接入所选客户端；未检测到 Node.js 时提供 winget 安装或便携版指引。
+- 随包提供 `scripts/continuity.cjs`：每会话 SQLite + FTS5 档案，旧 JSON 记录首次读取时自动迁移；CLI 与 hook 行为保持兼容。
+- 安装器保留既有 hooks、不重复接线、改前备份；`--dry-run` 不写盘；采集仍需按会话显式 `enable`。
+- 按需条目安装/更新前必须询问：检索输出 `NEXT_ACTION`，`skill-load` 也比对已安装技能；发布/部署询问包含 drift 清单。
+- 契约测试改为串行执行，避免并行测试压垮 wall-clock 守卫断言。
 
 ## [0.0.16] - 2026-11-02
 

@@ -18,7 +18,7 @@ const PUBLIC_PATHS = [
   '.gitattributes', '.gitignore', 'VERSION', 'README.md', 'LICENSE', 'CHANGELOG.md',
   'INDEX.md', 'README-安装说明.md', 'Qoder-AI编码通用规则.md', 'Qoder-个人规则生成提示词.md',
   'SKILLS-清单.md', 'catalog.json', 'skills-manifest.json', 'qoder-memory-export-generic.tar.gz',
-  'skills', 'scripts', 'commands', 'agents', 'hooks', 'mcp', 'plugins',
+  'install.cmd', 'skills', 'scripts', 'commands', 'agents', 'hooks', 'mcp', 'plugins',
 ];
 const PRIVATE_FILE = /(^|\/)(?:\.git|\.github|node_modules|logs?|backups|credentials(?:\.[^/]*)?|settings\.json|share-package\.json|\.env(?:\.[^/]*)?|\.qoder-work-queue\.md|\.export-[^/]*|Thumbs\.db|desktop\.ini|\.DS_Store)(?:\/|$)|\.bak(?:[._-]|$)|(?:~|\.tmp|\.swp|\.orig|\.log|\.pem|\.key)$/i;
 
@@ -125,11 +125,13 @@ function metadataFor(root, options = {}) {
     `# ${name} - ${version}`, '', '## 分享包索引（按需加装）', '',
     `共 ${entries.length} 条：` + Object.entries(counts).map(([kind, count]) => `${kind}=${count}`).join(' / '), '',
     '- 状态：`shipped` 随包可直接装；`external` 只给官方安装方式；`template` 给合并说明。',
+    '- 检索结果会标「本地未发现 / 与包内一致 / 内容与包内不同」；出现 `NEXT_ACTION` 时必须先询问用户是否安装/更新，未获明确选择不得写盘。',
     '- 机器可读版：`catalog.json`。文件存在不代表已安装或已装载。', '',
     '```bash', 'node scripts/pkg-catalog.cjs register <分享包目录>',
     'node scripts/pkg-catalog.cjs search "<关键词>"',
     'node scripts/pkg-catalog.cjs install <id>',
-    'node scripts/pkg-catalog.cjs install <id> --apply', '```', '',
+    'node scripts/pkg-catalog.cjs install <id> --apply',
+    'node scripts/pkg-catalog.cjs drift', '```', '',
   ].join('\n');
   const core = entries.filter(e => e.category === 'skill' && e.tier === 'core');
   const skillEntries = entries.filter(e => e.category === 'skill');

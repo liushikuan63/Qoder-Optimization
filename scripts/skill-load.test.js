@@ -101,6 +101,51 @@ test('已存在的脚本不再提示加装', t => {
   assert.ok(!r.stdout.includes('尚未安装'));
 });
 
+test('本地命中但包内内容不同时输出更新信号', t => {
+  const f = fixture(t); f.index();
+  f.skill('library', 'demo-skill', '报表导出');
+  f.write(path.join(f.pkg, 'skills', 'demo-skill', 'SKILL.md'), '---\nname: demo-skill\ndescription: 报表导出\n---\n\n包内新版\n');
+  f.catalog([{ id: 'skill:demo-skill', category: 'skill', name: 'demo-skill', status: 'shipped', description: '报表导出', source: 'skills/demo-skill', install: { tier: 'library' } }]);
+  f.register();
+  const r = f.run('skill-load.cjs', ['报表导出']);
+  assert.equal(r.status, 0);
+  assert.match(r.stdout, /包内更新检查/);
+  assert.match(r.stdout, /NEXT_ACTION: ASK_UPDATE/);
+});
+
+test('本地命中且包内一致时不提示更新', t => {
+  const f = fixture(t); f.index();
+  const local = f.skill('library', 'demo-skill', '报表导出');
+  f.write(path.join(f.pkg, 'skills', 'demo-skill', 'SKILL.md'), fs.readFileSync(local, 'utf8'));
+  f.catalog([{ id: 'skill:demo-skill', category: 'skill', name: 'demo-skill', status: 'shipped', description: '报表导出', source: 'skills/demo-skill', install: { tier: 'library' } }]);
+  f.register();
+  const r = f.run('skill-load.cjs', ['报表导出']);
+  assert.equal(r.status, 0);
+  assert.ok(!r.stdout.includes('NEXT_ACTION'));
+});
+
+test('包候选内容不同时输出更新询问信号', t => {
+  const f = fixture(t); f.index();
+  f.write(path.join(f.pkg, 'scripts', 'demo.cjs'), 'package version');
+  f.catalog([{ ...bundledScript, description: '专用报表 工具' }]); f.register();
+  f.write(path.join(f.q, 'scripts', 'demo.cjs'), 'local changed');
+  const r = f.run('skill-load.cjs', ['专用报表 工具']);
+  assert.equal(r.status, 3);
+  assert.match(r.stdout, /内容与包内不同/);
+  assert.match(r.stdout, /NEXT_ACTION: ASK_INSTALL_OR_UPDATE/);
+});
+
+test('包候选内容一致时静默，不提示安装或更新', t => {
+  const f = fixture(t); f.index();
+  f.write(path.join(f.pkg, 'scripts', 'demo.cjs'), 'same version');
+  f.catalog([{ ...bundledScript, description: '专用报表 工具' }]); f.register();
+  f.write(path.join(f.q, 'scripts', 'demo.cjs'), 'same version');
+  const r = f.run('skill-load.cjs', ['专用报表 工具']);
+  assert.equal(r.status, 3);
+  assert.match(r.stdout, /与包内一致/);
+  assert.ok(!r.stdout.includes('NEXT_ACTION'));
+});
+
 test('未安装候选只建议预演，不自动 apply', t => {
   const f = fixture(t); f.index(); f.catalog([bundledScript]); f.register();
   const before = tree(f.q);

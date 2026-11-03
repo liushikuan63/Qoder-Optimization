@@ -69,6 +69,47 @@ caseRun('已安装技能检索不再建议重复加装', ['install', 'skill:demo
   const search = run(c, ['search', '报表']);
   return r.code === 0 && search.code === 0 && search.out.includes('本地文件已存在') && !search.out.includes('安装预演');
 });
+caseRun('已安装且内容一致不提示更新', ['install', 'skill:demo-skill', '--apply'], (r, c) => {
+  const search = run(c, ['search', '报表']);
+  return r.code === 0 && search.code === 0 && search.out.includes('与包内一致') &&
+    !search.out.includes('NEXT_ACTION') && !search.out.includes('更新预演');
+});
+caseRun('本地内容改动标记可更新并输出 NEXT_ACTION', ['install', 'skill:demo-skill', '--apply'], (r, c) => {
+  fs.writeFileSync(target(c), 'local changed content');
+  const search = run(c, ['search', '报表']);
+  return r.code === 0 && search.code === 0 && search.out.includes('内容与包内不同') &&
+    search.out.includes('NEXT_ACTION: ASK_INSTALL_OR_UPDATE') && search.out.includes('更新预演');
+});
+caseRun('drift 只列内容不同的随包条目', ['install', 'skill:demo-skill', '--apply'], (r, c) => {
+  fs.writeFileSync(target(c), 'local changed content');
+  const drift = run(c, ['drift']);
+  const forced = run(c, ['install', 'skill:demo-skill', '--apply', '--force']);
+  const after = run(c, ['drift']);
+  return r.code === 0 && drift.code === 0 && drift.out.includes('DRIFT 1') && drift.out.includes('skill:demo-skill') &&
+    forced.code === 0 && after.code === 0 && after.out.includes('DRIFT_NONE');
+});
+{
+  const ctx = setup();
+  try {
+    fs.mkdirSync(path.join(ctx.pkg, 'scripts'), { recursive: true });
+    fs.writeFileSync(path.join(ctx.pkg, 'scripts', 'demo.cjs'), 'package version');
+    const cat = JSON.parse(fs.readFileSync(ctx.catalogPath, 'utf8'));
+    cat.entries.push({ id: 'script:demo.cjs', category: 'script', name: 'demo.cjs', status: 'shipped', description: '演示脚本：报表导出', source: 'scripts/demo.cjs', install: { mode: 'copy-file' } });
+    fs.writeFileSync(ctx.catalogPath, JSON.stringify(cat, null, 2));
+    fs.mkdirSync(path.join(ctx.home, '.qoder', 'scripts'), { recursive: true });
+    const local = path.join(ctx.home, '.qoder', 'scripts', 'demo.cjs');
+    fs.writeFileSync(local, 'local changed');
+    const diff = run(ctx, ['search', '演示脚本']);
+    fs.writeFileSync(local, 'package version');
+    const same = run(ctx, ['search', '演示脚本']);
+    check('脚本按字节比对：不同提示更新，一致不提示',
+      diff.code === 0 && diff.out.includes('内容与包内不同') && diff.out.includes('NEXT_ACTION') &&
+      same.code === 0 && same.out.includes('与包内一致') && !same.out.includes('NEXT_ACTION'),
+      `diff=${diff.code} same=${same.code}`);
+  } finally {
+    fs.rmSync(ctx.sb, { recursive: true, force: true });
+  }
+}
 caseRun('外部插件只给命令不写盘', ['install', 'plugin:demo-plugin', '--apply'], (r, c) => r.code === 0 && r.out.includes('扩展市场') && !fs.existsSync(path.join(c.home, '.qoder', 'skills-library', 'demo-plugin')));
 caseRun('MCP 模板只给合并说明', ['install', 'mcp:demo-mcp'], (r) => r.code === 0 && r.out.includes('mcpServers'));
 caseRun('未知条目 → exit 2', ['show', 'no-such'], (r) => r.code === 2);

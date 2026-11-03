@@ -2,13 +2,13 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.0.16"
+  "version": "0.0.17"
  },
- "generated": "2026-11-02",
+ "generated": "2026-11-03",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 132,
-  "script": 111,
+  "script": 114,
   "command": 10,
   "agent": 2
  },
@@ -2136,6 +2136,17 @@
    ]
   },
   {
+   "id": "script:continuity.cjs",
+   "category": "script",
+   "name": "continuity.cjs",
+   "status": "shipped",
+   "source": "scripts/continuity.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": []
+  },
+  {
    "id": "script:convention-benchmark.cjs",
    "category": "script",
    "name": "convention-benchmark.cjs",
@@ -2603,6 +2614,31 @@
     "script:archive-entries.cjs",
     "script:client-root.js"
    ]
+  },
+  {
+   "id": "script:install-continuity.cjs",
+   "category": "script",
+   "name": "install-continuity.cjs",
+   "status": "shipped",
+   "source": "scripts/install-continuity.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:backup-file.js",
+    "script:client-root.js"
+   ]
+  },
+  {
+   "id": "script:install-node.ps1",
+   "category": "script",
+   "name": "install-node.ps1",
+   "status": "shipped",
+   "source": "scripts/install-node.ps1",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": []
   },
   {
    "id": "script:link-cn-dirs.ps1",
