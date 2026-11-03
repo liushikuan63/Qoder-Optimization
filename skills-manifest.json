@@ -326,7 +326,7 @@
   {
    "name": "parallel-orchestration",
    "tier": "library",
-   "files": 4
+   "files": 7
   },
   {
    "name": "pause-writer-before-shared-file-edit",
