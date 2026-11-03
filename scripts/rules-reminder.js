@@ -11,6 +11,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const crypto = require('crypto');
 const { clientRoot } = require('./client-root.js');
 const { goalCandidateNote } = require('./goal-candidate-core.js');
 const { classifyVerificationTrigger, buildTriggerNote } = require('./verification-trigger-core.js');
@@ -19,6 +20,8 @@ require('./hook-crash-guard.js').install('rules-reminder'); // 崩溃可见化�
 // 复核协议是可选增强：模块缺失或检测异常时只丢这段提示，不影响静态提醒与请求回注。
 let recheck = null;
 try { recheck = require('./recheck-protocol.cjs'); } catch {}
+let capabilityAdvisor = null;
+try { capabilityAdvisor = require('./capability-advisor.cjs'); } catch {}
 
 // 路径从 HOME 派生，不写死用户名：否则换机器 / 换家目录直接失效，
 // 而且这种"个人绝对路径"会把导出包的门禁卡住（2026-09-19 出包时被扫描拦下才发现）。
@@ -30,6 +33,8 @@ const VERIFICATION_CONFIG = path.join(CLIENT_ROOT, 'verification-trigger.json');
 const VERIFICATION_LOG = path.join(CLIENT_ROOT, 'tmp', 'verification-trigger', 'decisions.log');
 const VERIFICATION_LOG_MAX_BYTES = 64 * 1024;
 const VERIFICATION_LOG_KEEP_LINES = 200;
+const CAPABILITY_CONFIG = path.join(CLIENT_ROOT, 'capability-advisor.json');
+const capabilityDeliveries = [];
 
 const REMINDER = [
   '【规则提醒 · 每轮生效】',
@@ -192,6 +197,117 @@ function verificationNote(promptText) {
     : '';
 }
 
+function capabilityEntry(item, catalogFile, installed) {
+  const base = installed ? CLIENT_ROOT : path.dirname(catalogFile);
+  const candidates = [item.entryPath];
+  if (installed && typeof item.installedPath === 'string') candidates.push(item.installedPath, path.join(item.installedPath, 'SKILL.md'));
+  if (!installed && typeof item.entry?.source === 'string') {
+    const source = path.resolve(base, item.entry.source);
+    candidates.push(source, path.join(source, 'SKILL.md'));
+  }
+  for (const file of candidates) {
+    if (typeof file !== 'string') continue;
+    try {
+      const relative = path.relative(fs.realpathSync(base), fs.realpathSync(file));
+      if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) continue;
+      if (fs.lstatSync(file).isFile()) return path.resolve(file);
+    } catch {}
+  }
+  return '';
+}
+
+function capabilityClaim(item) {
+  let session;
+  try { session = JSON.parse(raw).session_id; } catch {}
+  // A missing/malformed identity must not become a shared permanent refusal.
+  if (typeof session !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(session)) return true;
+  try {
+    const sessionHash = crypto.createHash('sha256').update(session).digest('hex');
+    let dir = fs.realpathSync(CLIENT_ROOT);
+    for (const name of ['tmp', 'capability-advisor', 'sessions', sessionHash]) {
+      dir = path.join(dir, name);
+      try { fs.mkdirSync(dir, { mode: 0o700 }); } catch (error) { if (error.code !== 'EEXIST') throw error; }
+      const stat = fs.lstatSync(dir);
+      if (!stat.isDirectory() || stat.isSymbolicLink()) return true;
+    }
+    const key = crypto.createHash('sha256').update(item.id + '\0' + item.action).digest('hex');
+    const file = path.join(dir, key + '.json'), lock = path.join(dir, key + '.pending');
+    const identity = { schema: 1, sessionHash, capabilityId: item.id, action: item.action };
+    const matches = value => value && Object.keys(identity).every(key => value[key] === identity[key]);
+    const ordinaryJson = target => {
+      const stat = fs.lstatSync(target);
+      return stat.isFile() && !stat.isSymbolicLink() && stat.size <= 8192 ? JSON.parse(fs.readFileSync(target, 'utf8')) : null;
+    };
+    try { const prior = ordinaryJson(file); if (matches(prior) && prior.status === 'delivered') return false; } catch {}
+    const claimId = crypto.randomUUID();
+    let ownsLock = false;
+    try {
+      fs.writeFileSync(lock, JSON.stringify({ ...identity, claimId, at: Date.now() }), { flag: 'wx', mode: 0o600 });
+      ownsLock = true;
+    } catch (error) {
+      if (error.code !== 'EEXIST') return true;
+      try {
+        const pending = ordinaryJson(lock), age = Date.now() - pending?.at;
+        if (matches(pending) && Number.isFinite(age) && age >= 0 && age < 30000) return false;
+      } catch {}
+      // Stale or corrupt diagnostic state cannot suppress advice forever. The
+      // delivered marker still uses exclusive creation; unknown files are kept.
+    }
+    capabilityDeliveries.push({ file, lock, claimId, ownsLock, identity });
+  } catch {}
+  return true;
+}
+
+function finishCapabilityDeliveries(delivered) {
+  for (const item of capabilityDeliveries) {
+    if (delivered) try {
+      fs.writeFileSync(item.file, JSON.stringify({ ...item.identity, status: 'delivered', at: new Date().toISOString() }) + '\n', { flag: 'wx', mode: 0o600 });
+    } catch {}
+    if (item.ownsLock) try {
+      const prior = JSON.parse(fs.readFileSync(item.lock, 'utf8'));
+      if (prior.claimId === item.claimId) fs.unlinkSync(item.lock);
+    } catch {}
+  }
+}
+
+function capabilityNote(promptText) {
+  if (!capabilityAdvisor || typeof capabilityAdvisor.planCapabilities !== 'function' || !promptText.trim()) return '';
+  try {
+    try { if (JSON.parse(fs.readFileSync(CAPABILITY_CONFIG, 'utf8')).enabled === false) return ''; } catch {}
+    // Only an explicitly registered package is consulted. Repository fallback
+    // would inject package suggestions on machines that never installed it.
+    const pointer = JSON.parse(fs.readFileSync(path.join(CLIENT_ROOT, 'share-package.json'), 'utf8'));
+    if (typeof pointer?.catalog !== 'string' || !pointer.catalog.trim()) return '';
+    const catalogFile = path.resolve(CLIENT_ROOT, pointer.catalog);
+    const result = capabilityAdvisor.planCapabilities({ catalogFile, clientRoot: CLIENT_ROOT, prompt: promptText, phase: 'task' });
+    if (result?.schema !== 1 || !Array.isArray(result.items)) return '';
+    const lines = [];
+    for (const item of result.items.slice(0, 3)) {
+      if (!item || typeof item.id !== 'string' || !item.id.trim() || item.id.length > 256 || /[\x00-\x1f]/.test(item.id) || typeof item.name !== 'string') continue;
+      const name = item.name.replace(/[\x00-\x1f`]/g, ' ').trim().slice(0, 100);
+      if (!name) continue;
+      const authorized = item.action === 'KEEP' && item.requested === true && item.authorized === true;
+      const installed = authorized || ['ASK_USE', 'UPDATE', 'REVIEW_UPDATE'].includes(item.action);
+      if (!authorized && !['ASK_USE', 'ASK_INSTALL', 'UPDATE', 'REVIEW_UPDATE'].includes(item.action)) continue;
+      const entry = capabilityEntry(item, catalogFile, installed);
+      if (!entry) continue;
+      const reference = JSON.stringify(entry.replace(/\\/g, '/'));
+      if (authorized) {
+        const local = item.differs === true ? '当前使用已安装的本地版本，与注册包有差异；保留该版本，更新另行确认，不作为当前任务前置。' : '';
+        lines.push(`- 用户本轮已明确指定 ${name}：现在读取对应入口 ${reference} 并按其适用步骤执行；无需重复询问是否使用。${local}`);
+        continue;
+      }
+      if (!capabilityClaim(item)) continue;
+      const verb = item.action === 'ASK_USE' ? '使用' : item.action === 'ASK_INSTALL' ? '安装' : '更新';
+      const question = item.action === 'ASK_USE' ? `是否使用 ${name} 来完成当前任务？` : `是否${verb} ${name} 用于当前任务？`;
+      const qualifier = item.action === 'REVIEW_UPDATE' ? '本地已有差异，先展示并审查差异，不覆盖本地内容。' : '';
+      lines.push(`- ${name}（${item.action}）：可核对入口 ${reference}。${qualifier}用 AskUserQuestion 提问：${JSON.stringify(question)}，给出“${verb} / 本次不用”选项；用户未明确选择前保留原状态。`);
+    }
+    return lines.length ? '\n【当前任务能力建议】\n' + lines.join('\n')
+      + '\n以上是能力建议或本轮明确指名路由；投递记录不等于用户批准。已有适用授权不重复询问，能力使用也不扩大安装、发布或生产操作权限。' : '';
+  } catch { return ''; }
+}
+
 function emit() {
   if (emitted) return;
   emitted = true;
@@ -200,10 +316,11 @@ function emit() {
   const payload = JSON.stringify({
     hookSpecificOutput: {
       hookEventName: 'UserPromptSubmit',
-      additionalContext: REMINDER + suppressedNote() + goalCandidateNote(prompt) + evolutionNote(prompt) + verificationNote(prompt) + recheckNoteFor(prompt) + requestEcho(prompt),
+      additionalContext: REMINDER + suppressedNote() + goalCandidateNote(prompt) + evolutionNote(prompt) + verificationNote(prompt) + recheckNoteFor(prompt) + capabilityNote(prompt) + requestEcho(prompt),
     },
   });
-  process.stdout.write(payload + '\n', () => {
+  process.stdout.write(payload + '\n', (error) => {
+    finishCapabilityDeliveries(!error);
     heartbeat();
     if (!stdinEnded) {
       try { process.stdin.destroy(); } catch {}

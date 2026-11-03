@@ -8,6 +8,12 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [0.0.21] - 2026-11-03
 
+### Capability installation and task use
+- Add a package installation entry that inspects existing/missing capabilities, updates only copies proven unchanged against the previously registered package, and preserves local modifications for review.
+- Suggest missing general or explicitly preferred capabilities for user selection; skip unrelated specialized entries. Optional capabilities are never all accepted by a generic `--yes`.
+- Install the routing dependency closure and merge its UserPromptSubmit wiring so relevant installed capabilities actively prompt for task use. Explicit current requests route directly without repeated questions; per-session reminders are bounded and do not imply approval or native-host acceptance.
+- Keep SQLite continuity opt-in independent from capability activation. Explicit preference sources, transactional installation, recovery and unchanged legacy-client behavior remain part of acceptance.
+
 ### Added
 - Auto-bind continuity sessions on supported machines: when the installer is accepted and the host provides Node.js 24.16+ with `node:sqlite` and FTS5, it writes `<store>/auto-bind.json` (`{"schema":1,"enabled":true}`) so each new session binds on its first hook with task `AUTO-<date>-<dir>`. An explicit per-session `disable` is never reopened; `--no-auto-bind` keeps the original manual `enable` flow, and unsupported hosts fall back to the same manual flow after offering a Node.js install.
 - Add a portable continuity store default: `CONTINUITY_STORE` wins, then `D:/qoder-data/context-continuity` on Windows when a `D:` drive exists, otherwise `~/.qoder/context-continuity`.

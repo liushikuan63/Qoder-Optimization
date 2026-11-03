@@ -65,7 +65,7 @@ if ($index -eq 0) {
     if ($command) { $node = $command.Source }
   }
   if ($node) {
-    & $node (Join-Path $PSScriptRoot 'install-continuity.cjs')
+    & $node (Join-Path $PSScriptRoot 'install-package.cjs')
     exit $LASTEXITCODE
   } else {
     Write-Host '安装完成，但当前终端找不到 node.exe；请重开终端后运行 install.cmd。'
@@ -73,7 +73,7 @@ if ($index -eq 0) {
   }
 } elseif ($index -eq 1) {
   Write-Host '便携版：打开 https://nodejs.org/en/download 下载 Windows x64 ZIP，解压到例如 D:\tools\node。'
-  Write-Host '然后运行：D:\tools\node\node.exe scripts\install-continuity.cjs'
+  Write-Host '然后运行：D:\tools\node\node.exe scripts\install-package.cjs'
   Write-Host '或把该目录加入 PATH 后重新运行 install.cmd。'
 } else {
   Write-Host '已跳过。'

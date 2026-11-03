@@ -9,17 +9,33 @@
 | `skills/` | 随包技能源码（每个子目录一份 `SKILL.md`，tier 见 manifest/catalog） | **默认不整目录复制**；先登记包，再按任务用 `pkg-catalog.cjs search/install` 选择 |
 | `agents/` | 全局子智能体（运行期真值核验 / 部署后真实验收） | 拷到 `~/.qoder/agents/`（用户级，官方机制） |
 | `plugins/` | 推荐插件清单（装哪些 / 为什么 / settings.json 怎么写） | 见 `plugins/README-plugins.md` |
-| `scripts/` | 技能与规则引用的脚本（办公文档 / wiki 校验 / 临时产物清理 / 规则强制层 hook / 同步与打包工具） | 拷到 `~/.qoder/scripts/` |
+| `scripts/` | 技能与规则引用的脚本（办公文档 / wiki 校验 / 临时产物清理 / 规则强制层 hook / 同步与打包工具） | 主安装器按依赖闭包安装到 `~/.qoder/scripts/`；高级手动安装需自行核对依赖 |
 | `mcp/` | MCP 配置示例（占位符版，无凭据） | 见 `mcp/README-mcp.md` |
 | `hooks/` | **hooks 接线模板**（占位符版）+ 事件×脚本对照（脚本不接线不会自己跑） | 并入 `~/.qoder/settings.json` 的 `hooks`，见 `hooks/README-hooks.md` |
 | `qoder-memory-export-*.tar.gz` | 通用脱敏记忆包（方法论与工具类，已剔除个人与内网信息）；解包后 `rules-summary.md` 就是**筛选菜单**（逐条勾选） | 按提示词文档第 3 步筛选后并入 `~/.qoder/memory/` |
 
+## 先核对能力，再安装和使用
+
+Windows 从包根 `install.cmd` 开始；跨平台可运行 `node scripts/install-package.cjs`。主入口主动检查本地已有和缺失能力，默认展示计划，不整包搬入常驻目录。
+
+```bash
+node scripts/install-package.cjs --dry-run
+node scripts/install-package.cjs --yes
+node scripts/install-package.cjs --yes --install skill:parallel-orchestration
+```
+
+- 已有能力：与新包比较，只有本地完整匹配旧登记包的条目才自动更新；本地自改、额外文件或旧基线不明时列为 `REVIEW_UPDATE`，先核对，不覆盖。
+- 缺失能力：通用或符合明确偏好的才询问是否安装，专业不匹配的跳过。`--yes` 不代表同意全部可选条目，`--install <exact-id>` 才选择对应能力。
+- 基础路由：安装规则提醒、能力规划与检索依赖，合并唯一 `UserPromptSubmit` 接线，登记当前包并维护完整技能索引；冲突保留现场，不能把半套安装报成功。
+- 任务使用：相关已装能力主动提示是否用于本任务；已有明确指名或适用授权就读取入口执行，不重复询问。hook 不安装、不联网、不执行业务，问答与实际使用仍须宿主完成。
+- 详细偏好、更新与验收边界见[能力闭环](skills/skills-router/references/capability-lifecycle.md)。本机现役客户端是否完成真实触发须单独核验。
+
 ## 接续记忆与追回（安装时可选启用）
 
-推荐先运行包根目录的 `install.cmd`（Windows）。它会检测宿主机是否已有可用的 Node.js：
+基础能力路由不依赖 SQLite。需要接续记忆时单独运行下方 `install-continuity.cjs`，或在主安装入口显式选择 `--continuity`；只有明确启用后才接线与采集：
 
 - **已有 Node.js（24.16+，含内置 `node:sqlite` 与 FTS5）**：询问是否启用 SQLite 接续记忆与追回模式。同意后把 `scripts/continuity.cjs` 安装到客户端 `scripts/`，把 `PreCompact` / `PostCompact` / `UserPromptSubmit` / `SessionStart` / `PostToolUse` 五个事件接入该客户端 `settings.json`，并写入 `<存储目录>/auto-bind.json` 的 `{"schema":1,"enabled":true}`——**后续新会话在首个提示时自动绑定并开始采集**，不需要再手动 `enable`。修改前自动备份，完整接线匹配时不重复添加，同一脚本的 Node 路径变化会就地更新。已有命令、matcher、type 或 timeout 冲突时拒绝修改，保留配置供用户裁决；发布时先核对真实原对象再独占创建目标，并发更改不会被覆盖；配置写入失败时只回滚仍属本事务且内容未变化的脚本，恢复冲突保留 `.previous-<uuid>` 原资料并提示路径。策略失败则保留已接 hooks、降级手工 enable，损坏旧策略也备份。按 catalog 安装 `script:install-continuity.cjs` 会同时补齐接续脚本依赖。
-- **没有 Node.js（或版本过低 / 缺 `node:sqlite` / FTS5）**：交互运行时询问是否安装 Node.js LTS（可选择用 winget 自动安装，或查看便携版下载方式，解压到非系统盘后重跑）；无 Node 时带参数的 `install.cmd` 请求（help/skip 除外）返回前置条件退出码 3、不写盘；安装后用原参数重试，避免交互重启时丢失 `--dry-run` 或自定义客户端路径。已有 Node 的非交互 `--yes` 但 SQLite 不支持时同样返回 3；安装 Node 或后续安装器失败会传播真实非零退出。**未安装前保持原有方式**：不写自动绑定策略、不改配置，由你装好 Node 后重新运行安装器。
+- **没有 Node.js（或版本过低 / 缺 `node:sqlite` / FTS5）**：交互运行时询问是否安装 Node.js LTS（可选择用 winget 自动安装，或查看便携版下载方式，解压到非系统盘后重跑）；无 Node 时带参数的 `install.cmd` 请求（help/skip 除外）返回前置条件退出码 3、不写盘；安装后用原参数重试，避免交互重启时丢失 `--dry-run` 或自定义客户端路径。独立 `install-continuity.cjs --yes` 在 SQLite 不支持时返回 3，基础包安装不受此限制；安装 Node 或后续安装器失败会传播真实非零退出。**未安装前保持原有方式**：不写自动绑定策略、不改配置，由你装好 Node 后重新运行安装器。
 
 跨平台或已装 Node 时也可直接运行：
 
@@ -41,10 +57,10 @@ node scripts/install-continuity.cjs --yes --no-auto-bind # 只接线，仍按会
 
 推荐 Node.js 24。在解压包的顶层目录使用包内脚本开始，不假设本机已经安装检索工具；修改已有文件前先备份。
 
-1. 基础检索：先用 `node scripts/pkg-catalog.cjs register .` 登记当前包，再用 `node scripts/pkg-catalog.cjs install script:skill-load.cjs` 预演。确认后加 `--apply`，安装器会列出并安装缺失的包内依赖；已存在的依赖不覆盖，不需要逐个重复安装。
+1. 高级手工安装基础检索（主安装器已处理路由时不用重复）：先用 `node scripts/pkg-catalog.cjs register .` 登记当前包，再用 `node scripts/pkg-catalog.cjs install script:skill-load.cjs` 预演。确认后加 `--apply`，安装器会列出并安装缺失的包内依赖；已存在的依赖不覆盖，不需要逐个重复安装。
 2. 技能与其他脚本：用包内 `search "<关键词>"` 查找，再按 ID 预演和安装。技能层级由 manifest/catalog 指定，`--tier core` 可显式选择常驻；不要整目录复制，已存在目标不自动覆盖。
 3. 规则：把 `Qoder-AI编码通用规则.md` 中与你的环境相符的部分并进 `~/.qoder/AGENTS.md`——按你的实际工具与环境删改，不必整篇照抄
-4. **hooks 接线**（不做这步，脚本躺着不跑）：照 `hooks/README-hooks.md` 把 `hooks.example.json` 的占位符替换后**并入该客户端的** `settings.json` 的 `hooks`（双端都装才各挂一份；只装一个就只挂一个）
+4. **其他 hooks 按需接线**（主安装器已处理能力提醒，勿重复添加该条；未接线的其他脚本不会自行运行）：照 `hooks/README-hooks.md` 把 `hooks.example.json` 的占位符替换后**并入该客户端的** `settings.json` 的 `hooks`（双端都装才各挂一份；只装一个就只挂一个）
 5. MCP：照 `mcp/README-mcp.md` 合并配置，并做一次协议级冒烟（能列出工具名即接线成功）
 6. 记忆：先按 `Qoder-个人规则生成提示词.md` 第 3 步分类勾选；`node scripts/import-memory.cjs <归档>` 仅预演，确认后加 `--apply`。支持平铺和带版本外层目录；与现有文件冲突时整批拒绝，先三方合并，不覆盖索引或复制归档里的脚本到现役目录。
 7. 子智能体：`cp agents/*.md <客户端目录>/agents/`（目录不存在就建；非官方机制不支持时可直接读该目录下的 md 当提示词用）
@@ -67,7 +83,7 @@ node scripts/install-continuity.cjs --yes --no-auto-bind # 只接线，仍按会
 - 重建索引：任何增删移技能后显式跑 `node ~/.qoder/scripts/build-skills-index.cjs`；`skill-load` 只读扫描实际文件，不在查询时写盘。包候选会标「本地未发现 / 与包内一致 / 内容与包内不同」；本地已命中但包内内容不同时输出 `NEXT_ACTION: ASK_UPDATE`，包候选可安装/可更新时输出 `NEXT_ACTION: ASK_INSTALL_OR_UPDATE`。出现这两类信号时必须先询问用户是否安装/更新，未获明确选择不得写盘
 - **新增技能先判层级**：元/跨域高频或被 AGENTS·rules 硬引用（引用处未注明按需检索）→ `skills/`；单领域专用 → `skills-library/`；拿不准默认进库。创建前用 `node ~/.qoder/scripts/carrier-preflight.cjs --type skill --name <名> --path ~/.qoder/skills-library/<名>/SKILL.md` 预检——会列出两层同名/同类候选、提示本次拟入层与常驻预算（40 软 / 60 硬）
 
-包内实物：133 个技能（12 常驻 + 121 按需）；常驻描述 2675 字符，全部技能描述 27662 字符，占比 9.7%。按 catalog 计算，不是接收者的已安装数量。
+包内实物：133 个技能（12 常驻 + 121 按需）；常驻描述 2543 字符，全部技能描述 27530 字符，占比 9.2%。按 catalog 计算，不是接收者的已安装数量。
 
 ## 按需加装（分享包索引）
 

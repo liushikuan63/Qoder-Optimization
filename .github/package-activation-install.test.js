@@ -1,0 +1,314 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+const root = path.resolve(__dirname, '..');
+const installer = path.join(root, 'scripts/install-package.cjs');
+const { BASE_IDS } = require(installer);
+const { dependenciesFor } = require('../scripts/package-dependencies.cjs');
+
+function fixture(t) {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'qo-package-activation-'));
+  const client = path.join(home, 'client'); fs.mkdirSync(client);
+  const env = { ...process.env, HOME: home, USERPROFILE: home, QODER_HOME: client, CONTINUITY_STORE: path.join(home, 'store') };
+  const catalog = JSON.parse(fs.readFileSync(path.join(root, 'catalog.json'), 'utf8'));
+  if (!catalog.entries.some(entry => entry.id === 'script:capability-advisor.cjs')) catalog.entries.push({ id: 'script:capability-advisor.cjs', name: 'capability-advisor.cjs', source: 'scripts/capability-advisor.cjs', category: 'script', status: 'shipped', install: { mode: 'copy-file' } });
+  const entries = [], seen = new Set();
+  const visit = id => {
+    if (seen.has(id)) return; seen.add(id);
+    const entry = catalog.entries.find(item => item.id === id); assert.ok(entry, id);
+    dependenciesFor(root, entry).forEach(visit); entries.push(entry);
+  };
+  BASE_IDS.forEach(visit);
+  entries.push({ id: 'script:fixture-update.js', name: 'fixture-update.js', category: 'script', status: 'shipped', source: 'scripts/fixture-update.js', install: { mode: 'copy-file' } });
+  for (const name of ['office-docs', 'write-repowiki', 'fixture-specialized']) entries.push({ id: 'skill:' + name, name, category: 'skill', tier: 'library', status: 'shipped', source: 'skills/' + name, description: 'fixture capability', install: { mode: 'copy-skill', tier: 'library' } });
+  const packageAt = (label, version) => {
+    const pkg = path.join(home, label); fs.mkdirSync(pkg);
+    for (const entry of entries) {
+      const target = path.join(pkg, entry.source); fs.mkdirSync(path.dirname(target), { recursive: true });
+      if (entry.id === 'script:fixture-update.js') fs.writeFileSync(target, 'console.log(' + JSON.stringify(version) + ');\n');
+      else if (['skill:office-docs', 'skill:write-repowiki', 'skill:fixture-specialized'].includes(entry.id)) { fs.mkdirSync(target); fs.writeFileSync(path.join(target, 'SKILL.md'), '---\nname: ' + entry.name + '\ndescription: fixture capability\n---\nFixture.\n'); }
+      else fs.cpSync(path.join(root, entry.source), target, { recursive: true, force: false, errorOnExist: true });
+    }
+    const file = path.join(pkg, 'catalog.json'); fs.writeFileSync(file, JSON.stringify({ schema: 1, package: { name: 'Qoder-Optimization', version }, entries }));
+    return { root: pkg, catalog: file };
+  };
+  const old = packageAt('old-package', 'old-fixture'), next = packageAt('next-package', 'new-fixture');
+  t.after(() => { assert.ok(path.resolve(home).startsWith(path.resolve(os.tmpdir()) + path.sep)); fs.rmSync(home, { recursive: true, force: true }); });
+  const run = (args = [], extra = {}) => spawnSync(process.execPath, [installer, '--client-root', client, '--catalog', next.catalog, ...args], { env, encoding: 'utf8', input: '', timeout: 120000, ...extra });
+  const put = (rel, value) => { const file = path.join(client, rel); fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, value); return file; };
+  return { home, client, env, old, next, run, put };
+}
+
+test('private activation metadata keeps owner-only permissions on POSIX', { skip: process.platform === 'win32' }, t => {
+  const f = fixture(t), file = f.put('settings.json', '{"fixtureSecret":"private"}'); fs.chmodSync(file, 0o600);
+  const runner = path.join(f.home, 'private-modes.cjs');
+  fs.writeFileSync(runner, `process.umask(0o022);const installer=require(${JSON.stringify(installer)});installer.apply(installer.prepare({client:${JSON.stringify(f.client)},catalogFile:${JSON.stringify(f.next.catalog)}}),{yes:true});`);
+  const r = spawnSync(process.execPath, [runner], { env: f.env, encoding: 'utf8', timeout: 120000 });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  for (const name of ['settings.json', 'share-package.json', 'skills-index.json', 'package-activation.json']) assert.equal(fs.statSync(path.join(f.client, name)).mode & 0o777, 0o600, name);
+});
+
+test('default and explicit dry-run are read-only, even without SQLite', t => {
+  const f = fixture(t), preload = path.join(f.home, 'no-sqlite.cjs');
+  fs.writeFileSync(preload, `const Module=require('node:module'),load=Module._load;Module._load=function(request,...args){if(request==='node:sqlite')throw new Error('SQLite must remain optional');return load.call(this,request,...args);};`);
+  for (const args of [[], ['--yes', '--dry-run']]) {
+    const r = f.run([...args, '--json'], { env: { ...f.env, NODE_OPTIONS: '--require ' + preload } });
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.equal(JSON.parse(r.stdout).status, 'DRY_RUN');
+    assert.deepEqual(fs.readdirSync(f.client), []);
+    assert.equal(fs.existsSync(f.env.CONTINUITY_STORE), false);
+  }
+});
+
+test('--yes activates routing without SQLite and leaves new optional capabilities pending', t => {
+  const f = fixture(t), preload = path.join(f.home, 'no-sqlite.cjs');
+  fs.writeFileSync(preload, `const Module=require('node:module'),load=Module._load;Module._load=function(request,...args){if(request==='node:sqlite')throw new Error('SQLite must remain optional');return load.call(this,request,...args);};`);
+  const r = f.run(['--yes', '--json'], { env: { ...f.env, NODE_OPTIONS: '--require ' + preload } });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const result = JSON.parse(r.stdout);
+  assert.equal(result.ready, true);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(f.client, 'share-package.json'))).catalog, f.next.catalog);
+  const settings = JSON.parse(fs.readFileSync(path.join(f.client, 'settings.json')));
+  assert.equal(settings.hooks.UserPromptSubmit.length, 1);
+  assert.match(settings.hooks.UserPromptSubmit[0].hooks[0].command, /rules-reminder\.js"$/);
+  for (const file of ['rules-reminder.js', 'capability-advisor.cjs', 'pkg-catalog.cjs', 'skill-load.cjs', 'build-skills-index.cjs']) assert.equal(fs.existsSync(path.join(f.client, 'scripts', file)), true, file);
+  assert.equal(fs.existsSync(path.join(f.client, 'skills/skills-router/SKILL.md')), true);
+  assert.equal(fs.existsSync(path.join(f.client, 'skills-library/office-docs')), false);
+  assert.equal(fs.existsSync(path.join(f.client, 'skills-library/fixture-specialized')), false);
+  assert.equal(fs.existsSync(path.join(f.client, 'scripts/continuity.cjs')), false);
+  assert.equal(fs.existsSync(f.env.CONTINUITY_STORE), false);
+  const hook = spawnSync(process.execPath, [path.join(f.client, 'scripts/rules-reminder.js')], { env: f.env, input: JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: '检查技能路由', cwd: f.home }), encoding: 'utf8', timeout: 10000 });
+  assert.equal(hook.status, 0, hook.stderr);
+  assert.match(JSON.parse(hook.stdout).hookSpecificOutput.additionalContext, /规则提醒/);
+  assert.equal(result.plan.items.find(item => item.id === 'skill:office-docs').action, 'ASK_INSTALL');
+});
+
+test('explicit continuity stays independent and JSON output remains one complete result', t => {
+  const f = fixture(t);
+  fs.writeFileSync(path.join(f.next.root, 'scripts/install-continuity.cjs'), 'console.log("fixture optional continuity unsupported");process.exit(3);');
+  const catalog = JSON.parse(fs.readFileSync(f.next.catalog));
+  catalog.entries.push({ id: 'script:install-continuity.cjs', name: 'install-continuity.cjs', category: 'script', status: 'shipped', source: 'scripts/install-continuity.cjs', install: { mode: 'copy-file' } });
+  fs.writeFileSync(f.next.catalog, JSON.stringify(catalog));
+  const r = f.run(['--yes', '--continuity', '--json']);
+  assert.equal(r.status, 3, r.stdout + r.stderr);
+  const result = JSON.parse(r.stdout);
+  assert.equal(result.status, 'INSTALLED');
+  assert.equal(result.ready, true);
+  assert.equal(result.continuity.exit, 3);
+  assert.match(result.continuity.stdout, /fixture optional continuity/);
+  assert.equal(fs.existsSync(path.join(f.client, 'scripts/continuity.cjs')), false);
+});
+
+test('an exact current install selection can override a prior profile exclusion without changing that profile', t => {
+  const f = fixture(t);
+  const profile = JSON.stringify({ schema: 1, enabled: false, excludedIds: ['skill:fixture-specialized'] });
+  f.put('capability-preferences.json', profile);
+  const r = f.run(['--yes', '--install', 'skill:fixture-specialized', '--json']);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(fs.existsSync(path.join(f.client, 'skills-library/fixture-specialized/SKILL.md')), true);
+  assert.equal(fs.readFileSync(path.join(f.client, 'capability-preferences.json'), 'utf8'), profile);
+  assert.equal(fs.existsSync(path.join(f.client, 'skills-library/office-docs')), false);
+});
+
+test('existing settings and unrelated installed skills survive activation and real index generation', t => {
+  const f = fixture(t);
+  f.put('settings.json', JSON.stringify({ opaqueSetting: 'fixture-private-value', hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: 'existing-hook', timeout: 4 }] }], Stop: [] } }));
+  f.put('skills-library/unrelated-user-skill/SKILL.md', '---\nname: unrelated-user-skill\ndescription: User metadata stays present.\n---\nUser content.\n');
+  const r = f.run(['--yes', '--json']); assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.doesNotMatch(r.stdout, /fixture-private-value|settingsBytes|sourceBefore/);
+  const settings = JSON.parse(fs.readFileSync(path.join(f.client, 'settings.json')));
+  assert.equal(settings.opaqueSetting, 'fixture-private-value');
+  assert.equal(settings.hooks.UserPromptSubmit[0].hooks[0].command, 'existing-hook');
+  const index = JSON.parse(fs.readFileSync(path.join(f.client, 'skills-index.json')));
+  assert.equal(index.entries.some(entry => entry.name === 'unrelated-user-skill'), true);
+  for (const entry of index.entries) { assert.equal(fs.existsSync(entry.path), true, entry.path); assert.equal(entry.path.includes('.package-activation-'), false, entry.path); }
+  const again = f.run(['--yes', '--json']); assert.equal(again.status, 0, again.stdout + again.stderr);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(f.client, 'settings.json'))).hooks.UserPromptSubmit.length, 2);
+});
+
+test('--yes updates only pristine old-package copies and preserves local edits', t => {
+  const f = fixture(t), file = f.put('scripts/fixture-update.js', fs.readFileSync(path.join(f.old.root, 'scripts/fixture-update.js')));
+  f.put('share-package.json', JSON.stringify({ catalog: f.old.catalog }));
+  const r = f.run(['--yes', '--json']); assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(JSON.parse(r.stdout).plan.items.find(item => item.id === 'script:fixture-update.js').action, 'UPDATE');
+  assert.equal(fs.readFileSync(file, 'utf8'), fs.readFileSync(path.join(f.next.root, 'scripts/fixture-update.js'), 'utf8'));
+  fs.writeFileSync(file, 'user local edits');
+  const edited = f.run(['--yes', '--json']); assert.equal(edited.status, 0, edited.stdout + edited.stderr);
+  assert.equal(JSON.parse(edited.stdout).plan.items.find(item => item.id === 'script:fixture-update.js').action, 'REVIEW_UPDATE');
+  assert.equal(fs.readFileSync(file, 'utf8'), 'user local edits');
+});
+
+test('a locally changed base blocks activation and retains the old package pointer', t => {
+  const f = fixture(t);
+  const pointer = JSON.stringify({ catalog: f.old.catalog }); f.put('share-package.json', pointer);
+  f.put('scripts/rules-reminder.js', 'user local reminder');
+  const independent = f.put('scripts/fixture-update.js', fs.readFileSync(path.join(f.old.root, 'scripts/fixture-update.js')));
+  const r = f.run(['--yes', '--json']);
+  assert.equal(r.status, 3, r.stdout + r.stderr);
+  assert.equal(JSON.parse(r.stdout).status, 'ACTIVATION_BLOCKED');
+  assert.equal(fs.readFileSync(path.join(f.client, 'share-package.json'), 'utf8'), pointer);
+  assert.equal(fs.readFileSync(path.join(f.client, 'scripts/rules-reminder.js'), 'utf8'), 'user local reminder');
+  assert.equal(fs.existsSync(path.join(f.client, 'settings.json')), false);
+  assert.equal(fs.readFileSync(independent, 'utf8'), fs.readFileSync(path.join(f.next.root, 'scripts/fixture-update.js'), 'utf8'));
+});
+
+test('an independent update still installs its new required dependency while base activation is blocked', t => {
+  const f = fixture(t);
+  f.put('share-package.json', JSON.stringify({ catalog: f.old.catalog }));
+  f.put('scripts/rules-reminder.js', 'user local reminder');
+  f.put('scripts/fixture-update.js', fs.readFileSync(path.join(f.old.root, 'scripts/fixture-update.js')));
+  fs.writeFileSync(path.join(f.next.root, 'scripts/fixture-update.js'), "require('./client-root.js');\nconsole.log('new-fixture');\n");
+  const r = f.run(['--yes', '--json']); assert.equal(r.status, 3, r.stdout + r.stderr);
+  assert.equal(fs.existsSync(path.join(f.client, 'scripts/client-root.js')), true);
+  assert.equal(fs.existsSync(path.join(f.client, 'settings.json')), false);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(f.client, 'share-package.json'))).catalog, f.old.catalog);
+});
+
+test('conflicting hook wiring rejects the entire install before any publication', t => {
+  const f = fixture(t);
+  const text = JSON.stringify({ hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', timeout: 10, command: 'node /somewhere/rules-reminder.js --unexpected' }] }] } });
+  f.put('settings.json', text);
+  const r = f.run(['--yes']); assert.notEqual(r.status, 0, r.stdout + r.stderr);
+  assert.deepEqual(fs.readdirSync(f.client), ['settings.json']);
+  assert.equal(fs.readFileSync(path.join(f.client, 'settings.json'), 'utf8'), text);
+});
+
+for (const race of [false, true]) {
+  test('settings publication failure rolls back owned routing and preserves other writes: race=' + race, t => {
+    const f = fixture(t), target = f.put('settings.json', '{"preserve":"prior"}');
+    const preload = path.join(f.home, 'publication-failure.cjs');
+    fs.writeFileSync(preload, `const fs=require('node:fs'),rename=fs.renameSync,open=fs.openSync;let fired=false;const target=${JSON.stringify(target)};
+      fs.renameSync=function(from,to){if(${race}&&!fired&&from===target){fired=true;fs.writeFileSync(target,'{"preserve":"concurrent"}');}return rename.call(this,from,to);};
+      fs.openSync=function(file,flags,...args){if(!${race}&&file===target&&flags==='wx')throw new Error('fixture settings publication failure');return open.call(this,file,flags,...args);};`);
+    const r = f.run(['--yes'], { env: { ...f.env, NODE_OPTIONS: '--require ' + preload } });
+    assert.notEqual(r.status, 0, r.stdout + r.stderr);
+    assert.equal(fs.readFileSync(target, 'utf8'), race ? '{"preserve":"concurrent"}' : '{"preserve":"prior"}');
+    assert.equal(fs.existsSync(path.join(f.client, 'scripts/rules-reminder.js')), false);
+    assert.equal(fs.existsSync(path.join(f.client, 'share-package.json')), false);
+    assert.equal(fs.existsSync(path.join(f.client, 'skills-index.json')), false);
+    const stages = fs.readdirSync(f.client).filter(name => name.startsWith('.package-activation-'));
+    assert.equal(stages.length, 1);
+    assert.equal(fs.existsSync(path.join(f.client, stages[0], 'transaction.json')), true);
+  });
+}
+
+test('rollback preserves a concurrent replacement of an installer-owned script', t => {
+  const f = fixture(t), settings = f.put('settings.json', '{"preserve":"prior"}');
+  const target = path.join(f.client, 'scripts/rules-reminder.js'), preload = path.join(f.home, 'rollback-race.cjs');
+  fs.writeFileSync(preload, `const fs=require('node:fs'),rename=fs.renameSync,open=fs.openSync,unlink=fs.unlinkSync;let failed=false,fired=false;const target=${JSON.stringify(target)};
+    function race(file){if(failed&&!fired&&file===target){fired=true;fs.writeFileSync(target,'concurrent writer content');}}
+    fs.openSync=function(file,flags,...args){if(file===${JSON.stringify(settings)}&&flags==='wx'){failed=true;throw new Error('fixture settings publication failure');}return open.call(this,file,flags,...args);};
+    fs.renameSync=function(from,to){race(from);return rename.call(this,from,to);};
+    fs.unlinkSync=function(file){race(file);return unlink.call(this,file);};`);
+  const r = f.run(['--yes'], { env: { ...f.env, NODE_OPTIONS: '--require ' + preload } });
+  assert.notEqual(r.status, 0, r.stdout + r.stderr);
+  assert.equal(fs.readFileSync(target, 'utf8'), 'concurrent writer content');
+  assert.equal(fs.readFileSync(settings, 'utf8'), '{"preserve":"prior"}');
+});
+
+test('target child junctions escaping the authorized client are refused', { skip: process.platform !== 'win32' }, t => {
+  const f = fixture(t), outside = path.join(f.home, 'outside'); fs.mkdirSync(outside);
+  fs.symlinkSync(outside, path.join(f.client, 'scripts'), 'junction');
+  const r = f.run(['--yes']); assert.notEqual(r.status, 0, r.stdout + r.stderr);
+  assert.deepEqual(fs.readdirSync(outside), []);
+  assert.equal(fs.existsSync(path.join(f.client, 'share-package.json')), false);
+});
+
+test('the Windows wrapper runs the package entry and preserves a custom client argument', { skip: process.platform !== 'win32' }, t => {
+  const f = fixture(t), wrapper = path.join(f.home, 'install.cmd'), output = path.join(f.home, 'wrapper-args.json');
+  fs.copyFileSync(path.join(root, 'install.cmd'), wrapper);
+  fs.mkdirSync(path.join(f.home, 'scripts'));
+  fs.writeFileSync(path.join(f.home, 'scripts/install-package.cjs'), 'require("node:fs").writeFileSync(' + JSON.stringify(output) + ',JSON.stringify(process.argv.slice(2)));');
+  fs.writeFileSync(path.join(f.home, 'scripts/install-continuity.cjs'), 'throw new Error("continuity was not selected");');
+  const custom = path.join(f.home, 'custom client');
+  const r = spawnSync(process.env.ComSpec || 'cmd.exe', ['/d', '/c', 'install.cmd --yes --client-root "' + custom + '"'], { cwd: f.home, env: f.env, encoding: 'utf8', input: '', timeout: 10000, windowsHide: true, windowsVerbatimArguments: true });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.deepEqual(JSON.parse(fs.readFileSync(output)), ['--yes', '--client-root', custom]);
+});
+
+for (const mode of ['original-persistent', 'original-transient', 'frozen-transient', 'original-executor']) {
+  test('unapproved source bytes never publish or execute: ' + mode, t => {
+    const f = fixture(t), runner = path.join(f.home, 'source-race.cjs');
+    const transient = mode.endsWith('transient'), frozen = mode === 'frozen-transient', executor = mode === 'original-executor';
+    fs.writeFileSync(runner, `const fs=require('node:fs'),path=require('node:path'),cp=require('node:child_process'),real=cp.spawnSync;
+      const installer=${JSON.stringify(installer)},client=${JSON.stringify(f.client)},catalogFile=${JSON.stringify(f.next.catalog)};
+      const plan=require(installer).prepare({client,catalogFile}),source=path.join(${JSON.stringify(f.next.root)},${JSON.stringify(executor ? 'scripts/pkg-catalog.cjs' : 'scripts/rules-reminder.js')}),approved=fs.readFileSync(source),executionMarker=${JSON.stringify(path.join(f.home, 'unapproved-execution-marker'))};let fired=false;const entriesUsed=[];
+      cp.spawnSync=function(command,args,options){if(Array.isArray(args)&&String(args[0]).endsWith('pkg-catalog.cjs'))entriesUsed.push(args[0]);if(Array.isArray(args)&&args[0]==='-e')entriesUsed.push(args[2]);if(!fired&&Array.isArray(args)&&String(args[0]).endsWith('pkg-catalog.cjs')&&args.includes('install')&&(!${transient}||args.includes('script:rules-reminder.js'))){fired=true;const changed=${frozen} ? path.join(path.dirname(args[0]),'rules-reminder.js') : source;fs.writeFileSync(changed,Buffer.concat([approved,Buffer.from(${JSON.stringify(executor ? '\nrequire("node:fs").writeFileSync(' + JSON.stringify(path.join(f.home, 'unapproved-execution-marker')) + ',"unapproved");\n' : '\n// UNAPPROVED_SOURCE_RACE_FIXTURE\n')})]));try{return real(command,args,options);}finally{if(${transient})fs.writeFileSync(changed,approved);}}return real(command,args,options);};
+      delete require.cache[require.resolve(installer)];let result,error;try{result=require(installer).apply(plan,{yes:true});}catch(e){error=e.message;}
+      console.log(JSON.stringify({fired,error,status:result?.status,ready:result?.ready,entriesUsed,unapprovedExecuted:fs.existsSync(executionMarker),sourceRestored:fs.readFileSync(source).equals(approved),files:fs.readdirSync(client)}));`);
+    const r = spawnSync(process.execPath, [runner], { env: f.env, encoding: 'utf8', timeout: 120000 });
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    const result = JSON.parse(r.stdout);
+    assert.equal(result.fired, true);
+    assert.equal(result.unapprovedExecuted, false, r.stdout);
+    assert.equal(result.entriesUsed.every(entry => entry.includes(path.sep + 'frozen-package' + path.sep)), true, r.stdout);
+    if (transient) assert.equal(result.sourceRestored, true);
+    const installed = path.join(f.client, 'scripts/rules-reminder.js');
+    if (fs.existsSync(installed)) assert.doesNotMatch(fs.readFileSync(installed, 'utf8'), /UNAPPROVED_SOURCE_RACE_FIXTURE/);
+    if (mode === 'original-transient' && result.status === 'INSTALLED') {
+      assert.equal(result.ready, true);
+      assert.deepEqual(fs.readFileSync(installed), fs.readFileSync(path.join(f.next.root, 'scripts/rules-reminder.js')));
+      return;
+    }
+    assert.equal(typeof result.error, 'string', r.stdout);
+    assert.notEqual(result.ready, true, r.stdout);
+    assert.equal(result.files.length, 1, r.stdout);
+    assert.match(result.files[0], /^\.package-activation-/);
+    const transaction = JSON.parse(fs.readFileSync(path.join(f.client, result.files[0], 'transaction.json')));
+    assert.equal(transaction.status, 'ROLLED_BACK');
+    assert.equal(fs.existsSync(path.join(f.client, 'settings.json')), false);
+    assert.equal(fs.existsSync(path.join(f.client, 'share-package.json')), false);
+    assert.equal(fs.existsSync(path.join(f.client, 'scripts')), false);
+  });
+}
+
+test('ignored source backups are outside the approved public copy proof', t => {
+  const f = fixture(t), runner = path.join(f.home, 'ignored-backup.cjs');
+  fs.writeFileSync(runner, `const fs=require('node:fs'),installer=require(${JSON.stringify(installer)});
+    const plan=installer.prepare({client:${JSON.stringify(f.client)},catalogFile:${JSON.stringify(f.next.catalog)}});
+    fs.writeFileSync(${JSON.stringify(path.join(f.next.root, 'skills/skills-router/SKILL.md.bak-fixture'))},'ignored fixture backup');
+    console.log(JSON.stringify(installer.apply(plan,{yes:true}).receipt));`);
+  const r = spawnSync(process.execPath, [runner], { env: f.env, encoding: 'utf8', timeout: 120000 });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(JSON.parse(r.stdout).ready, true);
+  assert.equal(fs.existsSync(path.join(f.client, 'skills/skills-router/SKILL.md.bak-fixture')), false);
+});
+
+test('completed exact/base choices leave only unselected generic candidates pending', t => {
+  const f = fixture(t);
+  const dry = f.run(['--yes', '--dry-run', '--install', 'skill:office-docs', '--json']);
+  assert.equal(dry.status, 0, dry.stdout + dry.stderr);
+  const preview = JSON.parse(dry.stdout);
+  assert.equal(preview.status, 'DRY_RUN');
+  assert.equal(preview.pendingItems.some(item => item.id === 'skill:office-docs'), true);
+  assert.deepEqual(fs.readdirSync(f.client), []);
+  const r = f.run(['--yes', '--install', 'skill:office-docs', '--json']);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const result = JSON.parse(r.stdout), pending = result.pendingItems.map(item => item.id);
+  assert.equal(pending.includes('skill:office-docs'), false);
+  for (const id of BASE_IDS) assert.equal(pending.includes(id), false, id);
+  assert.equal(pending.includes('skill:write-repowiki'), true);
+  assert.equal(result.nextActions.includes('ASK_INSTALL'), true);
+  assert.equal(result.nextAction, 'ASK_INSTALL_OR_UPDATE');
+  const text = f.run(['--yes']); assert.equal(text.status, 0, text.stdout + text.stderr);
+  const asks = text.stdout.split('ASK_INSTALL:')[1].split('REVIEW_UPDATE:')[0];
+  assert.match(asks, /skill:write-repowiki/);
+  assert.doesNotMatch(asks, /skill:office-docs|rules-reminder|skills-router/);
+  assert.match(text.stdout, /NEXT_ACTION: ASK_INSTALL_OR_UPDATE/);
+});
+
+test('authorized but blocked base installation is reported as blocked, never requested again', t => {
+  const f = fixture(t);
+  f.put('scripts/rules-reminder.js', 'user-owned existing reminder');
+  const r = f.run(['--yes', '--json']); assert.equal(r.status, 3, r.stdout + r.stderr);
+  const result = JSON.parse(r.stdout);
+  assert.equal(result.status, 'ACTIVATION_BLOCKED');
+  assert.equal(result.pendingItems.some(item => item.id === 'script:rules-reminder.js' && item.action === 'REVIEW_UPDATE'), true);
+  for (const id of BASE_IDS) assert.equal(result.pendingItems.some(item => item.id === id && item.action === 'ASK_INSTALL'), false, id);
+  assert.equal(result.blockedItems.some(item => item.id === 'script:skill-load.cjs' && item.requiresConfirmation === false), true);
+  assert.equal(result.pendingItems.some(item => item.id === 'skill:office-docs' && item.action === 'ASK_INSTALL'), true);
+});

@@ -600,8 +600,8 @@ function nextActionPending(ctx) {
     if (toolName(tool) !== 'Bash') return false;
     const cmd = String(tool.input.command || '');
     // 只认真正把检索脚本当入口执行的调用；grep/测试/node -e 打印源码里的 NEXT_ACTION 字样不算。
-    if (!shellSegments(cmd).some(segment => nodeScriptEntry(segment, /^(?:pkg-catalog|skill-load)\.cjs$/i))) return false;
-    return /NEXT_ACTION:\s*ASK_(?:INSTALL_OR_UPDATE|UPDATE)/.test(JSON.stringify(tool.result || ''));
+    if (!shellSegments(cmd).some(segment => nodeScriptEntry(segment, /^(?:pkg-catalog|skill-load|install-package|capability-advisor)\.cjs$/i))) return false;
+    return /NEXT_ACTION:\s*ASK_(?:INSTALL_OR_UPDATE|INSTALL|UPDATE|USE)\b/.test(JSON.stringify(tool.result || ''));
   });
 }
 
@@ -749,11 +749,11 @@ const RULES = [
     id: 'R10-next-action-not-asked',
     tailOnly: false,
     needsText: false,
-    test: (t, ctx) => nextActionPending(ctx) && !askedAbout(ctx, /(?:安装|更新|升级|技能|脚本|分享包)/)
-      && !/(?:不安装|不更新|保持现状|暂不(?:安装|更新)|无需(?:安装|更新)|跳过(?:安装|更新)|已是最新)/.test(ctx.lastUserText),
+    test: (t, ctx) => nextActionPending(ctx) && !askedAbout(ctx, /(?:安装|更新|升级|技能|脚本|分享包|能力|使用|调用)/)
+      && !/(?:不安装|不更新|不使用|本次不用|保持现状|暂不(?:安装|更新|使用)|无需(?:安装|更新|使用)|跳过(?:安装|更新|使用)|已是最新)/.test(ctx.lastUserText),
     reason:
-      '本轮工具输出包含 NEXT_ACTION: ASK_INSTALL_OR_UPDATE / ASK_UPDATE（检索到可安装或可更新的分享包条目），但没有对应用户选择记录。'
-      + '按分享包纪律：必须用 AskUserQuestion 逐条询问是否安装/更新（含按需技能与脚本）；未获明确选择不得安装、更新或覆盖。',
+      '本轮工具输出包含 NEXT_ACTION: ASK_INSTALL_OR_UPDATE / ASK_INSTALL / ASK_UPDATE / ASK_USE，但没有对应用户选择记录。'
+      + '按分享包纪律：必须用 AskUserQuestion 询问是否安装、更新或使用相关能力（含按需技能与脚本）；已有适用授权不重复询问，未获明确选择不安装、更新或覆盖。',
   },
   {
     id: 'R11-release-deploy-not-asked',

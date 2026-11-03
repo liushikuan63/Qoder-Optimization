@@ -172,7 +172,7 @@ for (const scenario of ['winget-failure', 'child-failure', 'node-missing']) {
       .replace(/^\$index = Select-Menu .*$/m, '$index = 0');
     const script = path.join(f.dir, 'install-node.ps1');
     fs.writeFileSync(script, '\ufeff' + projected.replace(/^\ufeff/, ''));
-    fs.writeFileSync(path.join(f.dir, 'install-continuity.cjs'), 'process.exit(71);');
+    fs.writeFileSync(path.join(f.dir, 'install-package.cjs'), 'process.exit(71);');
     const wrapper = path.join(f.dir, 'bootstrap-fixture.ps1');
     const quote = value => "'" + value.replace(/'/g, "''") + "'";
     fs.writeFileSync(wrapper, '\ufeff' + `$env:ProgramFiles = ${quote(f.dir)}

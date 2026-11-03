@@ -24,4 +24,6 @@ node ~/.qoder/scripts/pkg-catalog.cjs search "$ARGUMENTS"
 
 ## 汇报
 
+主动规划按[能力闭环](../skills/skills-router/references/capability-lifecycle.md)：已有能力核对更新，本地自改先审差异；缺失仅通用、符合明确偏好或本轮明确选择才询问安装，其他跳过。已装能力任务命中时主动询问使用；已有指名/授权不重复询问。
+
 分开写「已安装 / 已更新 / 本地较新未覆盖 / 用户拒绝 / 未验证（第三方依赖、现役装载）」。

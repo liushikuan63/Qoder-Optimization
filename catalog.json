@@ -8,7 +8,7 @@
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 133,
-  "script": 123,
+  "script": 125,
   "command": 10,
   "agent": 2
  },
@@ -1433,7 +1433,7 @@
    "name": "skills-router",
    "status": "shipped",
    "tier": "core",
-   "description": "领域任务的技能入口。任何非纯对话任务开始前，先用 node ~/.qoder/scripts/skill-load.cjs \"<关键词>\" 检索技能索引（常驻 + 按需库，数量以 ~/.qoder/skills-index.json 实测为准）；命中就 Read 对应 SKILL.md 再动手。覆盖 Java/Spring、数据库、前端、部署、运维、文档、小程序、爬虫等。不检索等于这些技能不存在。新增技能先判层级：元/跨域高频或硬引用进 skills/，单领域默认进 skills-library/。触发词：用什么技能、技能索引、skill-load、按需技能、领域技能、路由回归。",
+   "description": "任务能力路由入口。先核对已安装能力与登记包，相关已装能力主动询问是否用于本任务；用户明确指名或已有授权时直接读取入口使用。缺失仅通用、符合明确偏好或本轮明确选择时询问安装，专业不匹配跳过。本地自改先审差异，有可靠旧包基线才自动更新。触发词：技能索引、skill-load、按需技能、能力安装、能力更新、主动使用、路由回归。",
    "install": {
     "mode": "copy-skill",
     "tier": "core"
@@ -2038,6 +2038,20 @@
    },
    "source": "scripts/byok-modelconfigs-guard.js",
    "dependencies": []
+  },
+  {
+   "id": "script:capability-advisor.cjs",
+   "category": "script",
+   "name": "capability-advisor.cjs",
+   "status": "shipped",
+   "source": "scripts/capability-advisor.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:client-root.js",
+    "script:pkg-catalog.cjs"
+   ]
   },
   {
    "id": "script:capture-window.ps1",
@@ -2680,6 +2694,23 @@
    "dependencies": []
   },
   {
+   "id": "script:install-package.cjs",
+   "category": "script",
+   "name": "install-package.cjs",
+   "status": "shipped",
+   "source": "scripts/install-package.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:capability-advisor.cjs",
+    "script:client-root.js",
+    "script:pack-share-extras.cjs",
+    "script:package-dependencies.cjs",
+    "script:pkg-catalog.cjs"
+   ]
+  },
+  {
    "id": "script:link-cn-dirs.ps1",
    "category": "script",
    "name": "link-cn-dirs.ps1",
@@ -2952,6 +2983,7 @@
    },
    "source": "scripts/rules-reminder.js",
    "dependencies": [
+    "script:capability-advisor.cjs",
     "script:client-root.js",
     "script:goal-candidate-core.js",
     "script:hook-crash-guard.js",

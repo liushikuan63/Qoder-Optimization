@@ -33,6 +33,7 @@
 - `hook-crash-guard.js` **不需要单独接线**：它是被其它 hook 脚本 `require` 的库（`require("./hook-crash-guard.js").install("<名字>")`），把崩溃写进 `hooks-crash.log` 交给周检，保持 fail-open 语义。
 - `byok-modelconfigs-guard.js` 也不接线：手动或周检调用的工具。
 - **B05 自动选档（已并入 rules-reminder）**：`rules-reminder.js` 每轮调用 `verification-trigger-core.js`，命中可执行任务时注入选档提示；不想要自动选档时写 `~/.qoder/verification-trigger.json` 的 `{"enabled":false}`。
+- **能力主动路由**：主安装器安装 `rules-reminder.js`、`capability-advisor.cjs` 与检索依赖后，合并唯一 `UserPromptSubmit` 接线。相关已装能力询问是否使用，缺失仅通用或明确偏好才询问安装；无关/排除能力保持安静。用户明确指名直接读取入口，不重复问。同会话去重台账只证明提示投递；详情见[能力闭环](../skills/skills-router/references/capability-lifecycle.md)。
 - **接续记忆与追回（continuity）**：`PreCompact` / `PostCompact` / `UserPromptSubmit` / `SessionStart` / `PostToolUse` 这 5 个 hook 不在本模板里，由 `scripts/install-continuity.cjs` 在用户明确同意后单独接线，不要从模板直接复制。同意的机器上安装器会同时写入 `<存储目录>/auto-bind.json`，新会话首个提示自动绑定；显式 `disable` 的会话不会被重开，`--no-auto-bind` 可只接线、保留按会话手动 `enable`。
 - **拦截语义**：只有 `exit 2` 或 `deny` JSON 真拦截；其余非零退出码 / 超时 / 崩溃默认**放行（fail-open）**——别把 hook 当安全边界，硬权限仍交权限系统。
 - **自证在跑**：每个 hook 都要能自证——`rules-reminder` 写心跳日志、各脚本带 `--selftest` 或 `.test.js`、`global-config-guard --check` 会报接线缺失与"指向不存在的脚本"。接完线**新开一次会话**再跑几轮，确认台账 / 心跳有记录。

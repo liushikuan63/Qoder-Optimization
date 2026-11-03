@@ -511,7 +511,7 @@
   {
    "name": "skills-router",
    "tier": "core",
-   "files": 1
+   "files": 2
   },
   {
    "name": "spring-aop",

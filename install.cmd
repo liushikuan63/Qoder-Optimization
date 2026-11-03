@@ -6,7 +6,7 @@ set "NODE_EXE="
 for /f "delims=" %%p in ('node -p "process.execPath" 2^>nul') do set "NODE_EXE=%%p"
 if not defined NODE_EXE goto :no_node
 if not exist "%NODE_EXE%" goto :no_node
-"%NODE_EXE%" "%ROOT%scripts\install-continuity.cjs" %*
+"%NODE_EXE%" "%ROOT%scripts\install-package.cjs" %*
 set "EXIT_CODE=%errorlevel%"
 goto :finish
 
@@ -32,7 +32,7 @@ set "EXIT_CODE=%errorlevel%"
 goto :finish
 
 :node_help
-echo Usage: install.cmd [--yes] [--no] [--dry-run] [--client-root path]
+echo Usage: install.cmd [--yes] [--install exact-id] [--no] [--dry-run] [--client-root path] [--continuity]
 echo Node.js 24.16+ is required. With no arguments, the installer can offer Node setup.
 set "EXIT_CODE=0"
 goto :finish

@@ -172,16 +172,16 @@ function compareWithPackage(e, root, localTarget) {
   }
 }
 
-function localPresence(e, root = '') {
-  if (e.category === 'plugin' || e.category === 'mcp') return { label: '安装/连接状态未核验，先用平台工具核对', present: null, differs: null };
+function localPresence(e, root = '', client = QODER) {
+  if (e.category === 'plugin' || e.category === 'mcp') return { label: '安装/连接状态未核验，先用平台工具核对', present: null, differs: null, installedPaths: [] };
   const roots = e.category === 'skill' ? ['skills', 'skills-library'] :
     ({ script: ['scripts'], command: ['commands'], agent: ['agents'] }[e.category] || []);
   const name = e.category === 'skill' ? e.name : path.basename(e.source || '');
-  if (!name || name === '.' || name === '..' || /[\\/:]/.test(name)) return { label: '本地状态未核验', present: null, differs: null };
+  if (!name || name === '.' || name === '..' || /[\\/:]/.test(name)) return { label: '本地状态未核验', present: null, differs: null, installedPaths: [] };
   const directory = e.category === 'skill' || (e.category === 'script' && e.install?.mode === 'copy-directory');
   const found = [];
   for (const r of roots) {
-    const p = path.join(QODER, r, name);
+    const p = path.join(client, r, name);
     try {
       // A partially installed directory is still a local copy to compare;
       // missing entry points and companions must not disappear from drift.
@@ -189,17 +189,18 @@ function localPresence(e, root = '') {
       found.push({ root: r, target: p });
     } catch { /* 未安装或目录不完整 */ }
   }
-  if (!found.length) return { present: false, differs: null, label: '本地未发现' };
+  if (!found.length) return { present: false, differs: null, label: '本地未发现', installedPaths: [] };
+  const installedPaths = found.map(item => item.target);
   const where = found.map(f => f.root).join(' + ');
   // Both tiers may exist even when a later index build would reject the duplicate.
   // A matching first copy must never hide edits in the other installed copy.
   const comparisons = found.map(f => ({ ...f, cmp: compareWithPackage(e, root, f.target) }));
   const changed = comparisons.find(f => f.cmp?.differs);
   if (changed) {
-    return { present: true, differs: true, label: `本地文件已存在（${where}；内容与包内不同：${changed.root}/${changed.cmp.file || name}，可更新或本地已改，需比对）` };
+    return { present: true, differs: true, installedPaths, label: `本地文件已存在（${where}；内容与包内不同：${changed.root}/${changed.cmp.file || name}，可更新或本地已改，需比对）` };
   }
-  if (comparisons.every(f => f.cmp)) return { present: true, differs: false, label: `本地文件已存在（${where}；与包内一致，未验装载）` };
-  return { present: true, differs: null, label: `本地文件已存在（${where}；包内来源不可比对，未验装载）` };
+  if (comparisons.every(f => f.cmp)) return { present: true, differs: false, installedPaths, label: `本地文件已存在（${where}；与包内一致，未验装载）` };
+  return { present: true, differs: null, installedPaths, label: `本地文件已存在（${where}；包内来源不可比对，未验装载）` };
 }
 
 function needsAsk(e, presence) {

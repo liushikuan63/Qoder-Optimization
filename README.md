@@ -22,7 +22,7 @@ No clone required — pick a version and download it. Every release carries a re
 
 | Version | Released | Highlights | Download |
 |---|---|---|---|
-| 0.0.21 | 2026-11-03 | Integrity fixes; optional offline bundle | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.21/Qoder-Optimization-0.0.21.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.21) |
+| 0.0.21 | 2026-11-03 | Active capability lifecycle, isolated parallel writes and delivery integrity | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.21/Qoder-Optimization-0.0.21.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.21) |
 | 0.0.20 | 2026-11-03 | Parallel orchestration with plan approval and explicit opt-in | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.20/Qoder-Optimization-0.0.20.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.20) |
 | 0.0.19 | 2026-11-03 | B05 auto-trigger; install/update and deploy ask gates | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.19/Qoder-Optimization-0.0.19.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.19) |
 | 0.0.18 | 2026-11-03 | Five-release audit: continuity recovery, scoped evidence and rule consistency | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.18/Qoder-Optimization-0.0.18.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.18) |
@@ -53,10 +53,10 @@ AI coding assistants can lose track of process: a check may be claimed without e
 | Included | Count | Examples |
 |---|---:|---|
 | Skills | 133 | Verification, code review, delivery, databases, documents, desktop automation |
-| Scripts | 123 | Guardrails, self-tests, packaging, validation, tool helpers |
+| Scripts | 125 | Guardrails, self-tests, packaging, validation, tool helpers |
 | Commands | 10 | Clarification, checkpoints, skill search, cleanup |
 | Sub-agents | 2 | Runtime-truth and post-deployment verification |
-| Catalog entries | 268 | Skills, scripts, commands, and agents |
+| Catalog entries | 270 | Skills, scripts, commands, and agents |
 
 ### How it fits together
 
@@ -78,7 +78,7 @@ For a guided setup, give the repository to Qoder and ask it to inspect your curr
 
 For a manual setup, follow the [installation guide](README-安装说明.md). Install only the skills you need; do not copy `skills/` wholesale.
 
-Optional: on Windows, run `install.cmd` at the package root. It detects Node.js (24.16+), offers to install it when missing, and asks whether to enable the SQLite continuity memory and recovery mode. When enabled on a supported machine, new sessions auto-bind on their first prompt; an explicit per-session `disable` is never reopened, and `--no-auto-bind` keeps the manual per-session `enable` flow.
+Start with `install.cmd` on Windows, or `node scripts/install-package.cjs` elsewhere. The package checks installed capabilities, updates only verified unchanged older copies, and asks about missing general or explicitly preferred capabilities. It wires task routing so relevant installed capabilities can prompt for use. Optional SQLite continuity remains a separate explicit choice (`--continuity` or `install-continuity.cjs`); accepted continuity installs auto-bind supported sessions while preserving explicit disables.
 
 After setup, run the checks from the client directory you configured:
 
@@ -101,6 +101,7 @@ The first two checks should report a clean skill set and no trigger collisions. 
 | Hook setup | [hooks/README-hooks.md](hooks/README-hooks.md) |
 | MCP setup | [mcp/README-mcp.md](mcp/README-mcp.md) |
 | Plugin recommendations | [plugins/README-plugins.md](plugins/README-plugins.md) |
+| Capability installation and proactive task use | [Capability lifecycle](skills/skills-router/references/capability-lifecycle.md) |
 | Parallel write isolation and integration review | [Write worktrees](skills/parallel-orchestration/references/write-worktrees.md) |
 
 ### Design principles
@@ -139,7 +140,7 @@ Details: [installation and tiers](README-安装说明.md), [working rules](Qoder
 
 ### Catalog snapshot
 
-In the catalog generated on 2026-11-03, 12 core skill descriptions total 2,675 characters; all 133 skill descriptions total 27,662 characters. The core descriptions are 9.7% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
+In the catalog generated on 2026-11-03, 12 core skill descriptions total 2,543 characters; all 133 skill descriptions total 27,530 characters. The core descriptions are 9.2% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
 
 ### Requirements and limits
 
@@ -186,7 +187,7 @@ MIT; see [LICENSE](LICENSE). This is an unofficial community project and is not 
 
 | 版本 | 发布日期 | 主要内容 | 下载 |
 |---|---|---|---|
-| 0.0.21 | 2026-11-03 | 完整性修复；离线附件按需下载 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.21/Qoder-Optimization-0.0.21.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.21) |
+| 0.0.21 | 2026-11-03 | 能力主动核对与使用、并行写隔离、交付完整性 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.21/Qoder-Optimization-0.0.21.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.21) |
 | 0.0.20 | 2026-11-03 | 并行编排：计划审批与显式 opt-in | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.20/Qoder-Optimization-0.0.20.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.20) |
 | 0.0.19 | 2026-11-03 | B05 自动触发；安装/更新与部署询问门禁 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.19/Qoder-Optimization-0.0.19.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.19) |
 | 0.0.18 | 2026-11-03 | 五版复核：接续恢复、证据作用域与规则一致性修复 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.18/Qoder-Optimization-0.0.18.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.18) |
@@ -219,10 +220,10 @@ AI 编码助手常见的问题包括：没有证据就声称验证通过、失�
 | 内容 | 数量 | 示例 |
 |---|---:|---|
 | 技能 | 133 | 验证、代码评审、交付、数据库、文档、桌面自动化 |
-| 脚本 | 123 | 守卫、自测、打包、校验与工具补强 |
+| 脚本 | 125 | 守卫、自测、打包、校验与工具补强 |
 | 命令 | 10 | 需求澄清、接续检查、技能检索、清理 |
 | 子智能体 | 2 | 运行期真值核验、部署后验收 |
-| 目录条目 | 268 | 技能、脚本、命令与子智能体 |
+| 目录条目 | 270 | 技能、脚本、命令与子智能体 |
 
 ### 工作方式
 
@@ -244,7 +245,7 @@ Hooks      在配置的流程节点运行检查
 
 手动安装请按[安装说明](README-安装说明.md)操作。只安装需要的技能，不要整目录复制 `skills/`。
 
-可选：Windows 用户可先运行包根目录 `install.cmd`；它会检测 Node.js（24.16+，缺失时询问是否安装），并询问是否启用 SQLite 接续记忆与追回模式。支持的机器上启用后，新会话首个提示即自动绑定；显式 `disable` 的会话不会被重开，`--no-auto-bind` 则保留按会话手动 `enable`。
+Windows 从包根 `install.cmd` 开始，其他平台运行 `node scripts/install-package.cjs`。安装包主动核对已有能力，只更新可证明未被本地修改的旧副本；缺失仅通用或符合明确偏好时询问安装，其他跳过，并把相关已装能力接入任务询问与路由。SQLite 接续记忆仍需单独显式选择（`--continuity` 或 `install-continuity.cjs`），启用后自动绑定并保留会话关闭选择。
 
 安装后，在所使用客户端的目录中运行：
 
@@ -267,6 +268,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 | Hooks 接线 | [hooks/README-hooks.md](hooks/README-hooks.md) |
 | MCP 配置 | [mcp/README-mcp.md](mcp/README-mcp.md) |
 | 插件建议 | [plugins/README-plugins.md](plugins/README-plugins.md) |
+| 能力安装与任务主动使用 | [能力闭环](skills/skills-router/references/capability-lifecycle.md) |
 | 并行写隔离、核验与恢复 | [工作树协议](skills/parallel-orchestration/references/write-worktrees.md) |
 
 ### 设计原则
@@ -305,7 +307,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 
 ### 目录快照
 
-截至 2026-11-03 生成的目录，12 个常驻技能的描述共 2,675 字符；133 个技能的描述共 27,662 字符。常驻描述占全部技能描述文本的 9.7%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
+截至 2026-11-03 生成的目录，12 个常驻技能的描述共 2,543 字符；133 个技能的描述共 27,530 字符。常驻描述占全部技能描述文本的 9.2%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
 
 ### 环境与限制
 
