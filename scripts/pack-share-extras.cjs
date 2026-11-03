@@ -172,7 +172,7 @@ function metadataFor(root, options = {}) {
     'README.md': readme,
     'README-安装说明.md': install,
     'SKILLS-清单.md': skillList,
-    'Qoder-AI编码通用规则.md': readDoc('Qoder-AI编码通用规则.md').replace(/^# Qoder-Optimization[^\n]*/, '# Qoder-Optimization - ' + version).replace(/^> 版本：.*$/m, '> 版本：' + version + '；制作日期：' + date + '。版本、计数与目录由公开包元数据同步；是否已发布以对应 Release 为准。').replace(/^> 制作端家用机实际装.*$/m, '> 包内技能 ' + skills.length + ' 个（' + core.length + ' 常驻 + ' + (skills.length - core.length) + ' 按需），不等于接收者已安装数量。'),
+    'Qoder-AI编码通用规则.md': readDoc('Qoder-AI编码通用规则.md').replace(/^# Qoder-Optimization[^\n]*/, '# Qoder-Optimization - ' + version).replace(/^> 版本：.*$/m, '> 版本：' + version + '；制作日期：' + date + '。版本、计数与目录由公开包元数据同步；是否已发布以对应 Release 为准。').replace(/^> (?:制作端家用机实际装.*|包内技能 .*)$/m, '> 包内技能 ' + skills.length + ' 个（' + core.length + ' 常驻 + ' + (skills.length - core.length) + ' 按需），不等于接收者已安装数量。'),
     'Qoder-个人规则生成提示词.md': readDoc('Qoder-个人规则生成提示词.md').replace(/配套包：Qoder-Optimization-\d+\.\d+\.\d+（\d{4}-\d{2}-\d{2}）/, '配套包：Qoder-Optimization-' + version + '（' + date + '）'),
     'catalog.json': JSON.stringify(catalog, null, 1) + '\n',
     'skills-manifest.json': JSON.stringify(manifest, null, 1) + '\n',
