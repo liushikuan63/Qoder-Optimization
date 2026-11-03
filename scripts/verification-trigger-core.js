@@ -10,6 +10,7 @@ const ADVICE = /^(?:怎么|如何|为什么|为何|多少|什么时候|哪里|�
 const STATUS = /^(?:是否|有没有|现在).{0,24}(?:生效|部署|上线|发布|完成|成功|可用|正常|存在|运行)|已经.{0,12}(?:生效|部署|上线|发布|完成|成功)/;
 const CONTINUATION = /^(?:继续|接着|然后|还有|顺便|另外|再|这里|这个|它|那|刚才|上一|按上面|照这个)/;
 const EXPLICIT = /(?:按难度|选档|选择?验证(?:强度|方式|档位)|验证强度|自适应验证|分档验证)/;
+const OPT_OUT = /(?:不要|不用|无需|不必|跳过|取消|关闭|禁用|停用).{0,6}(?:选档|选择?验证(?:强度|方式|档位)|验证强度|自适应验证|分档验证)/;
 const SMALL_SCOPE = /(?:文案|错别字|注释|日志|颜色|样式|按钮文字|拼写|标点|格式|版本号|README|文档|说明文字|提示语|措辞|表述|话术|翻译|润色|排版|\b(?:typo|comment|readme|docs?|style|color|label|text)\b)/i;
 const RISK = /(?:生产|线上|数据库|迁移|权限|鉴权|认证|计费|支付|删除|覆盖|回滚|安全|并发|性能|密钥|凭据|部署|上线|发布|推送|集群|服务端|服务器|外部|对外|\bpr\b)/i;
 const SCOPE = /(?:全仓|整个仓库|跨模块|多个模块|多个文件|多文件|批量|逐个|端到端|全流程|完整|系统|模块|接口|服务|脚本|配置|settings|hook|接线|代码库|仓库|前端|后端|\b(?:module|service|api|hook|config|repo|codebase|frontend|backend)\b)/i;
@@ -32,11 +33,12 @@ function classifyVerificationTrigger(prompt) {
   const text = normalize(prompt);
   const no = (reason) => ({ trigger: false, reason, signals: [] });
   if (!text) return no('EMPTY');
-  if (EXPLICIT.test(text)) return { trigger: true, reason: 'EXPLICIT', signals: ['explicit'] };
+  if (OPT_OUT.test(text)) return no('OPT_OUT');
   if (ACK.test(text)) return no('ACK');
   if (READ_ONLY.test(text)) return no('READ_ONLY');
-  if (!ACTION.test(text)) return no('NO_ACTION');
   if (ADVICE.test(text) || STATUS.test(text)) return no('QUESTION');
+  if (EXPLICIT.test(text)) return { trigger: true, reason: 'EXPLICIT', signals: ['explicit'] };
+  if (!ACTION.test(text)) return no('NO_ACTION');
   const risk = RISK.test(text);
   if (CONTINUATION.test(text) && !risk) return no('CONTINUATION');
   if (SMALL_SCOPE.test(text) && text.length < 60 && !risk) return no('SMALL');

@@ -41,6 +41,30 @@ const value = positionals.join(' ').trim();
 const fail = (code, msg) => { console.error(msg); process.exit(code); };
 const readJson = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
 
+function validateArgs() {
+  const allowed = {
+    search: ['catalog'], show: ['catalog'], list: ['catalog', 'category'],
+    drift: ['catalog'], install: ['catalog', 'tier', 'apply', 'force'], register: ['catalog'],
+  }[CMD];
+  if (!allowed) return;
+  const seen = new Set(), words = [];
+  for (let i = 1; i < argv.length; i++) {
+    const arg = argv[i];
+    if (!arg.startsWith('-')) { words.push(arg); continue; }
+    const name = arg.slice(2);
+    if (!arg.startsWith('--') || !allowed.includes(name) || seen.has(name)) throw new Error('未知、重复或不适用的参数：' + arg);
+    seen.add(name);
+    if (['catalog', 'tier', 'category'].includes(name)) {
+      const next = argv[++i];
+      if (!next || !next.trim() || next.startsWith('-')) throw new Error(arg + ' 需要明确值');
+      if (name === 'tier' && !['core', 'library'].includes(next)) throw new Error('--tier 只能是 core 或 library');
+      if (name === 'category' && !Object.hasOwn(CAT_LABEL, next)) throw new Error('--category 类别无效');
+    }
+  }
+  if (['drift', 'list'].includes(CMD) && words.length) throw new Error(CMD + ' 不接受位置参数');
+  if (['install', 'show', 'register'].includes(CMD) && words.length > 1) throw new Error(CMD + ' 只接受一个条目或目录；含空格的路径需整体引用');
+}
+
 function resolveCatalog() {
   if (CATALOG_ARG) return path.resolve(CATALOG_ARG);
   if (process.env.QODER_SHARE_CATALOG) return path.resolve(process.env.QODER_SHARE_CATALOG);
@@ -114,7 +138,9 @@ function packageFiles(root, rel) {
       if (st.isDirectory()) {
         if (!walk(full, next)) return false;
       } else if (st.isFile()) {
-        files.push({ rel: next.slice(rel.length + 1), hash: digestOf(full) });
+        const hash = digestOf(full);
+        if (!hash) return false;
+        files.push({ rel: next.slice(rel.length + 1), hash });
       } else {
         return false;
       }
@@ -155,21 +181,24 @@ function localPresence(e, root = '') {
   const directory = e.category === 'skill' || (e.category === 'script' && e.install?.mode === 'copy-directory');
   const found = [];
   for (const r of roots) {
-    const p = path.join(QODER, r, name, ...(e.category === 'skill' ? ['SKILL.md'] : []));
+    const p = path.join(QODER, r, name);
     try {
-      if (e.category === 'script' && e.install?.mode === 'copy-directory') {
-        scriptDirectoryFiles(path.dirname(p), path.basename(p));
-      } else if (!fs.statSync(p).isFile()) continue;
-      found.push({ root: r, target: directory ? path.join(QODER, r, name) : p });
+      // A partially installed directory is still a local copy to compare;
+      // missing entry points and companions must not disappear from drift.
+      if (directory ? !fs.statSync(p).isDirectory() : !fs.statSync(p).isFile()) continue;
+      found.push({ root: r, target: p });
     } catch { /* 未安装或目录不完整 */ }
   }
   if (!found.length) return { present: false, differs: null, label: '本地未发现' };
   const where = found.map(f => f.root).join(' + ');
-  const cmp = compareWithPackage(e, root, found[0].target);
-  if (cmp?.differs) {
-    return { present: true, differs: true, label: `本地文件已存在（${where}；内容与包内不同${cmp.file ? '：' + cmp.file : ''}，可更新或本地已改，需比对）` };
+  // Both tiers may exist even when a later index build would reject the duplicate.
+  // A matching first copy must never hide edits in the other installed copy.
+  const comparisons = found.map(f => ({ ...f, cmp: compareWithPackage(e, root, f.target) }));
+  const changed = comparisons.find(f => f.cmp?.differs);
+  if (changed) {
+    return { present: true, differs: true, label: `本地文件已存在（${where}；内容与包内不同：${changed.root}/${changed.cmp.file || name}，可更新或本地已改，需比对）` };
   }
-  if (cmp) return { present: true, differs: false, label: `本地文件已存在（${where}；与包内一致，未验装载）` };
+  if (comparisons.every(f => f.cmp)) return { present: true, differs: false, label: `本地文件已存在（${where}；与包内一致，未验装载）` };
   return { present: true, differs: null, label: `本地文件已存在（${where}；包内来源不可比对，未验装载）` };
 }
 
@@ -248,15 +277,22 @@ function cmdList() {
 function cmdDrift() {
   const { file, entries } = loadCatalog();
   const root = path.dirname(file);
-  const rows = [];
+  const rows = [], unknown = [];
   for (const e of entries) {
     const presence = localPresence(e, root);
     if (e.status === 'shipped' && presence.present === true && presence.differs === true) rows.push({ e, presence });
+    if (e.status === 'shipped' && presence.present === true && presence.differs === null) unknown.push({ e, presence });
   }
-  if (!rows.length) {
+  if (unknown.length) {
+    console.log(`DRIFT_UNVERIFIED ${unknown.length} 条已安装内容无法完成包内比对：`);
+    for (const { e, presence } of unknown) console.log(`- ${e.id}  ${presence.label}`);
+    process.exitCode = 2;
+  }
+  if (!rows.length && !unknown.length) {
     console.log('DRIFT_NONE 已安装的随包条目与包内内容一致（未验装载；第三方依赖与运行期状态另查）。');
     return;
   }
+  if (!rows.length) return;
   console.log(`DRIFT ${rows.length} 条已安装但与包内不同（可更新或本地已改）：`);
   for (const { e, presence } of rows) console.log(`- ${e.id}  ${e.name}\n  ${presence.label}`);
   console.log('\nNEXT_ACTION: ASK_UPDATE — 必须用 AskUserQuestion 逐条询问是否更新；更新前三路比对并备份，未获明确选择不得 --force 覆盖。');
@@ -522,6 +558,7 @@ const usage = () => console.log([
 module.exports = { resolveCatalog, readCatalog, searchEntries, formatEntry, localPresence, needsAsk, compareWithPackage };
 if (require.main === module) {
   try {
+    validateArgs();
     switch (CMD) {
       case 'search': cmdSearch(); break;
       case 'show': cmdShow(); break;

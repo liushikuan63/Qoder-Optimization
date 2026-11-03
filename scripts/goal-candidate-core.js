@@ -18,12 +18,19 @@ function normalize(prompt) {
 }
 
 function classifyGoalCandidate(prompt, options = {}) {
-  const text = normalize(prompt);
+  // 引用中的祈使句是被编辑/讨论的数据；保留“开启『目标模式』”这类被引用的名词。
+  const text = normalize(typeof prompt === 'string' ? prompt
+    .replace(/```[\s\S]*?```|`[^`\n]*`/g, ' ')
+    .replace(/“([^”\n]*)”|「([^」\n]*)」|『([^』\n]*)』|"([^"\n]*)"|'([^'\n]*)'/g, (_, ...parts) => {
+      const quoted = parts.slice(0, 5).find(value => value !== undefined) || '';
+      return GOAL_INTENT.test(quoted) ? ' ' : quoted;
+    }) : '');
   const explicitGoal = GOAL_INTENT.test(text) && !GOAL_META.test(text) && !GOAL_NEGATION.test(text);
   const matchedStages = STAGES.filter((stage) => stage.pattern.test(text)).map((stage) => stage.id);
   const minStages = Number.isFinite(options.minStages) ? options.minStages : 3;
   const hasDeliveryBoundary = matchedStages.includes('deploy') || matchedStages.includes('deliver');
-  const readOnly = READ_ONLY.test(text) && !matchedStages.includes('implement');
+  const readOnly = READ_ONLY.test(text) && (!matchedStages.includes('implement')
+    || /^(?:请\s*)?(?:只读|仅审阅|只审查|只分析|仅分析|只评估|仅评估|仅给建议)/.test(text));
   const candidate = !readOnly && (explicitGoal || (matchedStages.length >= minStages && hasDeliveryBoundary));
   return { candidate, explicitGoal, matchedStages, readOnly };
 }

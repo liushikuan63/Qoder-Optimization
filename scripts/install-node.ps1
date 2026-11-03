@@ -46,13 +46,14 @@ $index = Select-Menu 'Qoder-Optimization：未检测到可用的 Node.js' $optio
 if ($index -eq 0) {
   if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
     Write-Host '未找到 winget。请手动安装 Node.js 后重试：https://nodejs.org/en/download'
-    exit 0
+    exit 3
   }
   Write-Host '正在通过 winget 安装 Node.js LTS...'
   & winget install --id OpenJS.NodeJS.LTS --exact --silent --accept-package-agreements --accept-source-agreements
-  if ($LASTEXITCODE -ne 0) {
-    Write-Host 'winget 安装未成功（退出码 ' + $LASTEXITCODE + '）。请手动安装后重试。'
-    exit 0
+  $wingetExit = $LASTEXITCODE
+  if ($wingetExit -ne 0) {
+    Write-Host ('winget 安装未成功（退出码 ' + $wingetExit + '）。请手动安装后重试。')
+    exit $wingetExit
   }
   $candidates = @()
   if ($env:ProgramFiles) { $candidates += Join-Path $env:ProgramFiles 'nodejs\node.exe' }
@@ -65,8 +66,10 @@ if ($index -eq 0) {
   }
   if ($node) {
     & $node (Join-Path $PSScriptRoot 'install-continuity.cjs')
+    exit $LASTEXITCODE
   } else {
     Write-Host '安装完成，但当前终端找不到 node.exe；请重开终端后运行 install.cmd。'
+    exit 3
   }
 } elseif ($index -eq 1) {
   Write-Host '便携版：打开 https://nodejs.org/en/download 下载 Windows x64 ZIP，解压到例如 D:\tools\node。'

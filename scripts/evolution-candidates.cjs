@@ -38,7 +38,7 @@ function parseArgs(argv) {
     const arg = argv[i];
     if (arg === '--days') {
       const raw = argv[++i];
-      if (!raw || !/^\d+$/.test(raw) || Number(raw) <= 0) return { error: '--days 需要正整数' };
+      if (!raw || !/^\d+$/.test(raw) || !Number.isSafeInteger(Number(raw)) || Number(raw) <= 0) return { error: '--days 需要安全范围内的正整数' };
       options.days = Number(raw);
     } else if (arg === '--json') {
       options.json = true;
@@ -46,7 +46,7 @@ function parseArgs(argv) {
       options.write = true;
     } else if (arg === '--out') {
       const raw = argv[++i];
-      if (!raw) return { error: '--out 需要目录' };
+      if (!raw || !raw.trim() || raw.startsWith('-')) return { error: '--out 需要目录' };
       options.out = path.resolve(raw);
     } else if (arg === '--help' || arg === '-h') {
       options.help = true;
@@ -188,19 +188,16 @@ function classifyFeedback(item, carrierText) {
   } else if (coverage >= 0.2) {
     kind = 'promote-local';
     reasons.push(`已有部分覆盖 ${Math.round(coverage * 100)}%，建议并入既有载体`);
-  } else if (sessions >= 2) {
-    kind = 'promote-global';
-    reasons.push(`未覆盖且正文含 ${sessions} 个不同会话标识`);
   } else {
     kind = 'promote-local';
-    reasons.push('未覆盖；单会话证据，按项目/技术栈沉淀，不推广全机');
+    reasons.push(`未覆盖；正文 ${sessions} 个会话标识仅供定位，不能证明独立任务与来源，先核对最窄局部载体`);
   }
   return {
     id: 'feedback:' + item.file,
     source: 'feedback',
     title: item.name,
     kind,
-    score: Number((coverage + (sessions >= 2 ? 0.2 : 0)).toFixed(3)),
+    score: Number(coverage.toFixed(3)),
     evidence: {
       file: item.file,
       description: String(item.description || '').slice(0, 160),
@@ -221,7 +218,8 @@ function scanViolations(root, days, warnings) {
     warnings.push('violations.log 缺失，违规源跳过');
     return { status: 'missing', lines: 0, items: [] };
   }
-  const since = Date.now() - days * 86400000;
+  const now = Date.now();
+  const since = now - days * 86400000;
   const groups = new Map();
   let lines = 0;
   for (const line of text.split(/\r?\n/)) {
@@ -230,7 +228,7 @@ function scanViolations(root, days, warnings) {
     const parts = line.split('|');
     if (parts.length < 2) continue;
     const at = Date.parse(parts[0]);
-    if (!Number.isFinite(at) || at < since) continue;
+    if (!Number.isFinite(at) || at < since || at > now) continue;
     const rawRule = parts[1];
     if (rawRule === 'SECOND-STOP') continue;
     const suppressed = /-SUPPRESSED$/.test(rawRule);
@@ -244,7 +242,8 @@ function scanViolations(root, days, warnings) {
     groups.set(rule, group);
   }
   const items = [...groups.values()].map((group) => {
-    const kind = group.count >= 3 && group.sessions.size >= 2 ? 'promote-global' : 'observe';
+    // 违规台账没有 task_id；重复拦截与跨会话不等于三个独立任务。
+    const kind = 'observe';
     return {
       id: 'violation:' + group.rule,
       source: 'violation',
@@ -260,7 +259,7 @@ function scanViolations(root, days, warnings) {
       suggested_carrier: 'hook / 规则（先核对是否该机制化）',
       reasons: [
         group.count >= 3 && group.sessions.size >= 2
-          ? `近 ${days} 天命中 ${group.count} 次、${group.sessions.size} 个会话，提示词可能未生效`
+          ? `近 ${days} 天命中 ${group.count} 次、${group.sessions.size} 个会话；缺少独立任务与范围证据，核对后补规范 records`
           : `近 ${days} 天命中 ${group.count} 次，继续观察`,
       ],
     };
@@ -277,29 +276,36 @@ function scanRecords(root, days, warnings) {
     warnings.push('evolution/records 缺失，记录源跳过');
     return { status: 'missing', count: 0, items: [] };
   }
-  const since = Date.now() - days * 86400000;
+  const now = Date.now();
+  const since = now - days * 86400000;
   const groups = new Map();
   let count = 0;
+  let invalid = 0;
   for (const file of files) {
     const text = readText(path.join(dir, file));
     if (!text) continue;
     let data;
-    try { data = JSON.parse(text); } catch { continue; }
+    try { data = JSON.parse(text); } catch { invalid++; continue; }
+    if (!data || typeof data !== 'object' || Array.isArray(data)) { invalid++; continue; }
     const at = Date.parse(data.created_at || data.at || '');
-    if (Number.isFinite(at) && at < since) continue;
+    if (!Number.isFinite(at) || at > now) { invalid++; continue; }
+    if (at < since) continue;
     const topic = data.topic || data.summary || file;
+    if (typeof topic !== 'string' || !topic.trim()) { invalid++; continue; }
     const scope = typeof data.scope === 'string' ? data.scope : '';
     const key = JSON.stringify([topic, scope]);
     const group = groups.get(key) || { topic, scope, types: {}, tasks: new Set(), sessions: new Set(), qualifiedTasks: new Set(), qualifiedSessions: new Set(), explicit: false, verified: 0, records: 0 };
     group.records++;
     group.types[data.type || 'observation'] = (group.types[data.type || 'observation'] || 0) + 1;
-    const evidence = data.evidence || {};
-    if (evidence.task_id) group.tasks.add(String(evidence.task_id));
-    if (evidence.session_id) group.sessions.add(String(evidence.session_id));
+    const evidence = data.evidence && typeof data.evidence === 'object' && !Array.isArray(data.evidence) ? data.evidence : {};
+    const task = typeof evidence.task_id === 'string' ? evidence.task_id.trim() : '';
+    const session = typeof evidence.session_id === 'string' ? evidence.session_id.trim() : '';
+    if (task) group.tasks.add(task);
+    if (session) group.sessions.add(session);
     const trusted = evidence.source === 'user' || (evidence.source === 'local-validation' && data.verified === true);
-    if (scope && evidence.task_id && trusted && ['observation', 'correction', 'preference'].includes(data.type)) {
-      group.qualifiedTasks.add(String(evidence.task_id));
-      if (evidence.session_id) group.qualifiedSessions.add(String(evidence.session_id));
+    if (scope && task && trusted && ['observation', 'correction', 'preference'].includes(data.type)) {
+      group.qualifiedTasks.add(task);
+      if (session) group.qualifiedSessions.add(session);
       if (data.type === 'preference' && data.explicit === true && evidence.source === 'user') group.explicit = true;
       if (data.verified === true) group.verified++;
     }
@@ -323,7 +329,7 @@ function scanRecords(root, days, warnings) {
       reasons.push(`合格独立任务 ${group.qualifiedTasks.size} 个、${group.qualifiedSessions.size} 个会话，继续观察`);
     }
     return {
-      id: 'record:' + group.topic + (group.scope && group.scope !== 'global' ? ':' + require('crypto').createHash('sha256').update(group.scope).digest('hex').slice(0, 12) : ''),
+      id: 'record:' + group.topic + (group.scope === 'global' ? '' : ':' + require('crypto').createHash('sha256').update(group.scope).digest('hex').slice(0, 12)),
       source: 'record',
       title: group.topic,
       kind,
@@ -339,6 +345,7 @@ function scanRecords(root, days, warnings) {
       reasons,
     };
   });
+  if (invalid) warnings.push(`忽略 ${invalid} 条无效 records（结构、主题或时间窗口无效）`);
   return { status: 'ok', count, items };
 }
 

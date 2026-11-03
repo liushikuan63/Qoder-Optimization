@@ -80,23 +80,37 @@ function scopeAt(loc) {
   return scope;
 }
 
+function withScopeLock(loc, operation) {
+  fs.mkdirSync(loc.dir, { recursive: true, mode: 0o700 });
+  const file = path.join(loc.dir, 'scope.lock');
+  let fd;
+  try { fd = fs.openSync(file, 'wx', 0o600); }
+  catch (error) { if (error.code === 'EEXIST') throw new Error('SCOPE_BUSY'); throw error; }
+  try { return operation(); }
+  finally { fs.closeSync(fd); fs.unlinkSync(file); }
+}
+
 function enable(options) {
   const loc = location(options);
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/.test(options.task || '')) throw new Error('INVALID_TASK');
-  const prior = scopeAt(loc);
-  if (prior && prior.task !== options.task) throw new Error('SESSION_ALREADY_ASSIGNED');
-  fs.mkdirSync(path.join(loc.dir, 'records'), { recursive: true, mode: 0o700 });
-  const scope = { schema: 1, task: options.task, cwd: loc.cwd, session: loc.session, enabled: true, createdAt: prior?.createdAt || new Date().toISOString() };
-  atomic(path.join(loc.dir, 'scope.json'), scope);
-  return { status: 'ENABLED', task: scope.task, directory: loc.dir };
+  return withScopeLock(loc, () => {
+    const prior = scopeAt(loc);
+    if (prior?.task && prior.task !== options.task) throw new Error('SESSION_ALREADY_ASSIGNED');
+    fs.mkdirSync(path.join(loc.dir, 'records'), { recursive: true, mode: 0o700 });
+    const scope = { schema: 1, task: options.task, cwd: loc.cwd, session: loc.session, enabled: true, createdAt: prior?.createdAt || new Date().toISOString() };
+    atomic(path.join(loc.dir, 'scope.json'), scope);
+    return { status: 'ENABLED', task: scope.task, directory: loc.dir };
+  });
 }
 
 function disable(options) {
   const loc = location(options);
-  const scope = scopeAt(loc);
-  if (!scope) return { status: 'NOT_ENABLED' };
-  atomic(path.join(loc.dir, 'scope.json'), { ...scope, enabled: false });
-  return { status: 'DISABLED', task: scope.task };
+  return withScopeLock(loc, () => {
+    const scope = scopeAt(loc) || { schema: 1, cwd: loc.cwd, session: loc.session, createdAt: new Date().toISOString() };
+    // A first-use disable is a durable choice too; auto-bind must not undo it.
+    atomic(path.join(loc.dir, 'scope.json'), { ...scope, enabled: false });
+    return { status: 'DISABLED', task: scope.task };
+  });
 }
 
 function autoBindPolicy(loc) {
@@ -119,10 +133,17 @@ function autoTask(loc) {
 function autoBind(loc) {
   if (!autoBindPolicy(loc)) return null;
   try {
-    enable({ store: loc.store, cwd: loc.cwd, session: loc.session, task: autoTask(loc) });
-    const scope = { ...scopeAt(loc), auto: true };
-    atomic(path.join(loc.dir, 'scope.json'), scope);
-    return scope;
+    return withScopeLock(loc, () => {
+      // Re-read after taking the same lock as enable/disable: a late hook may
+      // have observed an unbound session before the user disabled it.
+      const prior = scopeAt(loc);
+      if (prior) return prior;
+      if (!autoBindPolicy(loc)) return null;
+      fs.mkdirSync(path.join(loc.dir, 'records'), { recursive: true, mode: 0o700 });
+      const scope = { schema: 1, task: autoTask(loc), cwd: loc.cwd, session: loc.session, enabled: true, auto: true, createdAt: new Date().toISOString() };
+      atomic(path.join(loc.dir, 'scope.json'), scope);
+      return scope;
+    });
   } catch (error) {
     console.error('CONTINUITY_NOT_SAVED: AUTO_BIND_FAILED');
     return null;
@@ -366,7 +387,7 @@ function captureTranscript(ctx, transcript) {
 function capture(options) {
   const loc = location(options);
   const scope = scopeAt(loc);
-  if (!scope?.enabled) return { status: 'NOT_ENABLED', added: 0 };
+  if (scope?.enabled !== true) return { status: 'NOT_ENABLED', added: 0 };
   const lock = path.join(loc.dir, 'capture.lock');
   let fd;
   try { fd = fs.openSync(lock, 'wx', 0o600); }
@@ -465,7 +486,7 @@ function hook(payload, options = {}) {
   const loc = location(input);
   let scope = scopeAt(loc);
   if (!scope) scope = autoBind(loc);
-  if (!scope?.enabled) return '';
+  if (scope?.enabled !== true) return '';
   let result;
   let context = '';
   if (event === 'PostCompact') withDatabase(loc, db => writeState(db, 'pending-restore', { pending: true }));
@@ -505,7 +526,7 @@ function parseArgs(argv) {
   const options = {};
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--history') { options.history = true; continue; }
-    if (!['--cwd', '--session', '--task', '--store', '--transcript', '--query', '--id'].includes(argv[i]) || !argv[i + 1]) throw new Error('INVALID_ARGUMENT');
+    if (!['--cwd', '--session', '--task', '--store', '--transcript', '--query', '--id'].includes(argv[i]) || !argv[i + 1]?.trim() || argv[i + 1].startsWith('--')) throw new Error('INVALID_ARGUMENT');
     options[argv[i].slice(2)] = argv[++i];
   }
   return options;

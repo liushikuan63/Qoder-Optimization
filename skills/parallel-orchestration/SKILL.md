@@ -110,21 +110,23 @@ node scripts/parallel-context.cjs pack --context .qoder/parallel-runs/<taskId>/c
 
 只读 worker（用户已选择启用后）：
 
-- 用内置 `Explore`；一条消息内并行调用多个 Agent；每个提示词自包含，含范围、读路径、禁止项、验收、证据格式、`contextVersion`。
+- 用内置 `Explore`；一条消息内并行调用多个 Agent；每个提示词自包含，含范围、读路径、禁止项、验收、证据格式、`contextVersion` 和 `planDigest`。
 - 不要求 worker 输出完整文件；要求 `file:line` 证据和结构化结果。
 
 写 worker（用户已显式 opt-in 后）：
 
 - 用 `general-purpose` + Agent 工具的 `isolation: "worktree"`；每个 worker 只写自己的 `ownedPaths`；互不重叠。
 - 不在主工作树并发写；不自动合并；未获写并行 opt-in 时不得创建 worktree。
+- 需要 CLI 实体隔离时用 `parallel-write.cjs prepare/verify`，按[并行写工作树协议](references/write-worktrees.md)核对单波基线、逐提交路径归属及 Git 冲突。后续依赖波次在前序集成验收后的新基线准备。
 
 长任务：用 `create_chat_session` + `callbackMode: "supervise"`，完成或需要权限时回调；`wait_chat_sessions` 只作兜底。提示词模板见 [references/worker-contracts.md](references/worker-contracts.md)。
 
 ### 4. 监控与合并
 
 - 后台任务用完成通知；不 sleep、不轮询；超时/取消用停止能力。
-- worker 返回 `findings/evidence/recallRequests/contextVersion`；协调者用 `parallel-context.cjs merge` 合并 delta；禁止 worker 直接写 canonical。
+- worker 返回 `findings/evidence/recallRequests/contextVersion/planDigest`；协调者用 `parallel-context.cjs merge` 合并 delta；版本或摘要缺失/不一致时重新取得当前 pack，禁止 worker 直接写 canonical。
 - 任一 canonical 字段变化就递增 `version`；受影响 worker 用新版本对齐或重派；旧版本结果不合并。
+- 同一版本的多单元结果可用 `merge-batch` 全部验证后一次提交/升版，避免首个结果升版后其余结果无效；canonical 写者共用锁，不清理未知占用。
 - 写 worker 的 worktree 按拓扑顺序串行审查/合并；合并前重读目标文件，冲突就停止报告，不覆盖。
 - 合并后重新跑验收；worker 自测通过不等于主分支通过。
 

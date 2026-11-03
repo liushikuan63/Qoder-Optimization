@@ -50,8 +50,15 @@
 
 - 协调者是 L0 的唯一 canonical 写入者；worker 只返回 `findings/evidence/recallRequests`，由 `parallel-context.cjs merge` 合并。
 - 只有用户确认计划并选择启用并行后才 `init`；未确认不创建运行目录。
+- `init` 只接受 `PARALLEL_READ` / `PARALLEL_WORKTREE`。阻塞或需顺序执行的计划返回 `PLAN_NOT_PARALLEL`，不创建运行目录。
 - 用户确认计划并同意启用后，用 `init --decision "<选择>"` 把计划确认与 opt-in 写进 `decisions`（source=`user`）。
 - 任何 canonical 字段变化都递增 `version`；只有计划文件本身变化才重新计算 `planDigest`（重新 init 或显式更新，`check` 拒绝摘要不一致）。版本/摘要不一致的结果不得静默合并。
+- worker delta 必须同时携带 `contextVersion` 与 `planDigest`；缺少摘要或摘要不匹配返回 `STALE_PLAN`，需重新取得当前 pack。`pack` / `merge` 会对照同目录 `plan.json` 核验目标、约束和单元定义，不能只保留版本号而替换计划范围。
+- 同一运行目录 `init --force` 会在可校验的旧版本上递增版本，避免同计划旧 delta 重放；旧上下文版本损坏时先保留资料，改用新的运行目录。`merge --out` 只能指向原 `--context` 文件，异路径返回 `USAGE`，避免生成失去计划关联的 canonical 副本。
+- delta 中包含凭据、敏感 URL 等内容时返回 `SENSITIVE_OUTPUT` 并拒绝写入；召回支持对 JSON 引号键中的密码等凭据脱敏。
+- `merge-batch --context <context.json> --delta <A.json> --delta <B.json>` 接收 1–8 份同一当前版本/摘要的互异单元结果，全部通过后一次发布、版本增加 1；任一失败不提交，不删除输入文件。单份 `merge` 的旧版本拒绝保持有效。
+- `init/merge/merge-batch` 共用独占 `.context-write.lock`，锁内重读并检查原文件快照；占用时报 `CONTEXT_BUSY`，不自动清理未知锁。普通输出失败按归属恢复；恢复冲突留 `.context-txn-*/RECOVERY.json`。JSON 最后发布，不宣称跨文件操作系统级原子性。
+- `pack --out` 使用 `packs/<unit>.json`；保留文件名 `context.json/plan.json/context.md/.context-write.lock` 及实际路径别名不能作为 pack 输出，避免绕过 canonical 写协议。
 - 运行摘要可以提出“候选长期记忆”，但不得自动写入 L1/L2；写入需用户明确同意并遵循现有记忆规则（查重、来源、脱敏、索引）。
 - continuity 不由本流程自动 enable/disable；只在用户已启用时作为只读召回源。
 
@@ -67,7 +74,7 @@
 node scripts/parallel-context.cjs check --run .qoder/parallel-runs/<taskId>
 ```
 
-会检查：`planDigest`、`contextVersion`、单元状态、`packs/` 的版本/摘要、context/pack 中的敏感内容。发现问题退出 1；不修改文件。
+会检查：`planDigest`、`contextVersion`、目标/约束/单元定义与计划的一致性、单元状态、`context.md` 镜像、`packs/` 的任务/单元/路径范围和版本/摘要，以及 context/pack 中的敏感内容。发现问题退出 1；不修改文件。
 
 ## 回退
 

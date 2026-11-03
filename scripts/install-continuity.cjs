@@ -2,6 +2,7 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const readline = require('node:readline');
 const { spawnSync } = require('node:child_process');
 const { clientRoot } = require('./client-root.js');
@@ -39,7 +40,7 @@ function parseArgs(argv) {
     else if (arg === '--no-auto-bind') options.autoBind = false;
     else if (arg === '--dry-run') options.dryRun = true;
     else if (arg === '--client-root') {
-      if (!argv[i + 1] || argv[i + 1].startsWith('--')) throw new Error('--client-root 缺少路径');
+      if (!argv[i + 1]?.trim() || argv[i + 1].startsWith('--')) throw new Error('--client-root 缺少路径');
       options.clientRoot = argv[++i];
     } else if (arg === '--help' || arg === '-h') options.help = true;
     else throw new Error('未知参数：' + arg);
@@ -155,15 +156,50 @@ function backup(file) {
   return match ? match[1].trim() : file + '.bak.*';
 }
 
-function writeFile(file, data, exclusive = false) {
+function snapshot(file) {
+  let stat;
+  try { stat = fs.lstatSync(file); }
+  catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+  if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('安装目标必须是普通文件：' + file);
+  return { stat, bytes: fs.readFileSync(file) };
+}
+
+function sameSnapshot(a, b) {
+  return a && b && a.stat.dev === b.stat.dev && a.stat.ino === b.stat.ino
+    && a.stat.mtimeMs === b.stat.mtimeMs && a.stat.size === b.stat.size && a.bytes.equals(b.bytes);
+}
+
+function writeFile(file, data, exclusive = false, expected = null) {
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  const temp = file + '.tmp-' + process.pid + '-' + Date.now();
+  const temp = file + '.tmp-' + crypto.randomUUID();
+  const moved = file + '.previous-' + crypto.randomUUID();
+  let priorMoved = false;
+  let published = false;
   try {
     fs.writeFileSync(temp, data, { mode: 0o600, flag: 'wx' });
-    if (exclusive) fs.linkSync(temp, file);
-    else fs.renameSync(temp, file);
-    return fs.lstatSync(file);
+    const owned = fs.lstatSync(temp);
+    if (!exclusive && expected) {
+      // Moving first lets us verify the actual object detached from the target,
+      // rather than trusting a check made before an overwriting rename.
+      fs.renameSync(file, moved);
+      priorMoved = true;
+      if (!sameSnapshot(expected, snapshot(moved))) throw new Error('安装目标存在并发变更：' + file);
+    }
+    // A concurrent creator after the move must win its path, never be replaced.
+    fs.linkSync(temp, file);
+    published = true;
+    return owned;
+  } catch (error) {
+    if (priorMoved && !published) {
+      try { fs.linkSync(moved, file); fs.unlinkSync(moved); priorMoved = false; }
+      catch (restoreError) { error.message += '；目标与原资料均保留，恢复路径：' + moved + '；' + restoreError.message; }
+    }
+    throw error;
   } finally {
+    if (priorMoved && published) {
+      try { fs.unlinkSync(moved); }
+      catch { console.error('CONTINUITY_INSTALL_RECOVERY_FILE: ' + moved); }
+    }
     if (fs.existsSync(temp)) fs.unlinkSync(temp);
   }
 }
@@ -171,17 +207,20 @@ function writeFile(file, data, exclusive = false) {
 function applyAutoBindPolicy(plan, options) {
   const file = path.join(plan.store, 'auto-bind.json');
   if (options.autoBind === false) return { state: 'skipped', file };
+  let prior;
   let current = null;
-  if (fs.existsSync(file)) {
-    try { current = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { current = null; }
+  try { prior = snapshot(file); }
+  catch (error) { return { state: 'failed', file, error: error.message }; }
+  if (prior) {
+    try { current = JSON.parse(prior.bytes.toString('utf8')); } catch { current = null; }
     if (current && current.enabled === false) return { state: 'preserved-disabled', file };
     if (current && current.schema === 1 && current.enabled === true) return { state: 'unchanged', file };
   }
-  if (options.dryRun) return { state: current ? 'update' : 'create', file };
+  if (options.dryRun) return { state: prior ? 'update' : 'create', file };
   try {
-    if (current) backup(file);
-    writeFile(file, JSON.stringify({ schema: 1, enabled: true }, null, 2) + '\n');
-    return { state: current ? 'update' : 'create', file };
+    if (prior) backup(file);
+    writeFile(file, JSON.stringify({ schema: 1, enabled: true }, null, 2) + '\n', false, prior);
+    return { state: prior ? 'update' : 'create', file };
   } catch (error) {
     return { state: 'failed', file, error: error.message };
   }
@@ -191,17 +230,14 @@ function install(plan, options) {
   const source = path.join(__dirname, 'continuity.cjs');
   if (!fs.existsSync(source)) throw new Error('缺少随包脚本：' + source + '（请从解压包目录运行本安装器）');
   const sourceBytes = fs.readFileSync(source);
-  for (const file of [plan.target, plan.settings]) {
-    if (!fs.existsSync(file)) continue;
-    const stat = fs.lstatSync(file);
-    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('安装目标必须是普通文件：' + file);
-  }
-  const priorBytes = fs.existsSync(plan.target) ? fs.readFileSync(plan.target) : null;
+  const priorScript = snapshot(plan.target);
+  const priorSettings = snapshot(plan.settings);
+  const priorBytes = priorScript ? priorScript.bytes : null;
   const scriptState = priorBytes === null ? 'create' : priorBytes.equals(sourceBytes) ? 'unchanged' : 'upgrade';
   let settingsText = null;
   let settings = {};
-  if (fs.existsSync(plan.settings)) {
-    settingsText = fs.readFileSync(plan.settings, 'utf8');
+  if (priorSettings) {
+    settingsText = priorSettings.bytes.toString('utf8');
     try { settings = JSON.parse(settingsText); }
     catch (error) { throw new Error('settings.json 不是有效 JSON，未做任何修改：' + error.message); }
   }
@@ -216,8 +252,8 @@ function install(plan, options) {
   if (settingsChanged && settingsText !== null) result.backups.push(backup(plan.settings));
   let owned;
   try {
-    if (scriptState !== 'unchanged') owned = writeFile(plan.target, sourceBytes);
-    if (settingsChanged) writeFile(plan.settings, JSON.stringify(settings, null, 2) + '\n');
+    if (scriptState !== 'unchanged') owned = writeFile(plan.target, sourceBytes, false, priorScript);
+    if (settingsChanged) writeFile(plan.settings, JSON.stringify(settings, null, 2) + '\n', false, priorSettings);
   } catch (error) {
     if (owned) {
       const moved = plan.target + '.rollback-' + process.pid + '-' + Date.now();
@@ -284,6 +320,7 @@ function printResult(plan, result) {
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) { usage(); return 0; }
+  if (options.mode === 'skip') { console.log('已跳过，未修改任何文件。'); return 0; }
   const support = sqliteSupport();
   if (!support.ok) {
     console.error('当前 Node ' + process.version + ' 不支持 node:sqlite + FTS5 trigram，无法启用 SQLite 接续记忆与追回（需要 Node.js 24.16+）。');
@@ -295,7 +332,10 @@ async function main() {
         '保持原有方式（先不启用接续）',
       ]);
       if (choice.index === 0) {
-        const shell = ['C:\\Program Files\\PowerShell\\7\\pwsh.exe', 'pwsh', 'powershell'].find(exe => exe.includes('\\') ? fs.existsSync(exe) : true);
+        const shell = [
+          path.join(process.env.ProgramFiles || 'C:\\Program Files', 'PowerShell/7/pwsh.exe'),
+          path.join(process.env.SystemRoot || 'C:\\Windows', 'System32/WindowsPowerShell/v1.0/powershell.exe'),
+        ].find(exe => fs.existsSync(exe)) || 'powershell.exe';
         const run = spawnSync(shell, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', nodeInstaller], { stdio: 'inherit' });
         if (run.error) console.error('无法启动 PowerShell：' + run.error.message);
         else console.error('Node.js 安装流程结束（退出码 ' + (run.status === null ? 'unknown' : run.status) + '）。安装成功后请重新运行本安装器。');

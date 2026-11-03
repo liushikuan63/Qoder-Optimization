@@ -111,11 +111,13 @@
 - 同文件/共享文件会被两个 worker 写：`INVALID_PLAN` 或 `BLOCKED_HUMAN`。
 - 生产、共享数据库写、迁移、部署、破坏性操作、凭据/密钥处理：`BLOCKED_HUMAN`。
 - 依赖成环、未知依赖、空单元、重复 id、缺验收/证据：`INVALID_PLAN`。
-- 多写单元但 `isolation != worktree`：`INVALID_PLAN`。
+- 任何含写者的并行计划（包括一写一读）若 `isolation != worktree`：`INVALID_PLAN`；`Explore` 只能接收只读单元。
 - `maxConcurrency` 1–4；并行模式需 ≥2；超过单元数或 `maxWorkers`：`INVALID_PLAN`。
 
 ## 路径规则
 
 - `ownedPaths`/`readPaths` 用相对路径，不接受绝对路径、`..`、通配符。
-- 重叠判断会统一分隔符和大小写；`src\a.js` 与 `SRC/A.JS` 视为同一路径。
+- 重叠判断会统一分隔符和大小写；`src\a.js` 与 `SRC/A.JS` 视为同一路径；`src` 与 `src/a.js` 的目录/文件祖先关系也算写入重叠。
+- `dependsOn` 不得包含重复单元 ID；无效依赖返回 `INVALID_PLAN`，不进入拓扑执行。
 - 一个路径同一时刻只能有一个写者。
+- 同一波次内，写者 `ownedPaths` 与其他单元 `readPaths` 重叠返回 `READ_WRITE_CONFLICT`；用明确 `dependsOn` 表达读写顺序，后续波次从集成后的新基线创建工作树。

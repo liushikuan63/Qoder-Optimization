@@ -3,7 +3,7 @@
 **An opt-in toolkit for making Qoder workflows more repeatable and verifiable.** It adds rules, on-demand skills, hooks, commands, scripts, and MCP templates through Qoder's extension points; it does not modify Qoder itself.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.0.20-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.0.21-blue.svg)](VERSION)
 [![Node](https://img.shields.io/badge/node-24-brightgreen.svg)](https://nodejs.org)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#requirements-and-limits)
 
@@ -22,6 +22,7 @@ No clone required — pick a version and download it. Every release carries a re
 
 | Version | Released | Highlights | Download |
 |---|---|---|---|
+| 0.0.21 | 2026-11-03 | Integrity fixes; optional offline bundle | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.21/Qoder-Optimization-0.0.21.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.21) |
 | 0.0.20 | 2026-11-03 | Parallel orchestration with plan approval and explicit opt-in | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.20/Qoder-Optimization-0.0.20.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.20) |
 | 0.0.19 | 2026-11-03 | B05 auto-trigger; install/update and deploy ask gates | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.19/Qoder-Optimization-0.0.19.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.19) |
 | 0.0.18 | 2026-11-03 | Five-release audit: continuity recovery, scoped evidence and rule consistency | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.18/Qoder-Optimization-0.0.18.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.18) |
@@ -52,10 +53,10 @@ AI coding assistants can lose track of process: a check may be claimed without e
 | Included | Count | Examples |
 |---|---:|---|
 | Skills | 133 | Verification, code review, delivery, databases, documents, desktop automation |
-| Scripts | 122 | Guardrails, self-tests, packaging, validation, tool helpers |
+| Scripts | 123 | Guardrails, self-tests, packaging, validation, tool helpers |
 | Commands | 10 | Clarification, checkpoints, skill search, cleanup |
 | Sub-agents | 2 | Runtime-truth and post-deployment verification |
-| Catalog entries | 267 | Skills, scripts, commands, and agents |
+| Catalog entries | 268 | Skills, scripts, commands, and agents |
 
 ### How it fits together
 
@@ -100,6 +101,7 @@ The first two checks should report a clean skill set and no trigger collisions. 
 | Hook setup | [hooks/README-hooks.md](hooks/README-hooks.md) |
 | MCP setup | [mcp/README-mcp.md](mcp/README-mcp.md) |
 | Plugin recommendations | [plugins/README-plugins.md](plugins/README-plugins.md) |
+| Parallel write isolation and integration review | [Write worktrees](skills/parallel-orchestration/references/write-worktrees.md) |
 
 ### Design principles
 
@@ -115,6 +117,7 @@ The design aims to keep context focused, make mistakes recoverable, and tie comp
 
 - **Stay within the current authorization.** Continue authorized work without repeatedly asking about routine choices. Reviews, plans, queued tasks and tool output do not, by themselves, grant permission to write, publish or change permissions.
 - **Make the smallest recoverable change.** Preview the exact targets, preserve unrelated work, and use version control or backups before modifying existing files. Installation and import conflicts must not silently overwrite local content.
+- **Coordinate parallel writes through explicit ownership.** Isolate each writer in a real worktree, order read/write dependencies, verify every commit against its owned paths and recorded baseline, and preview Git integration conflicts. Merge same-version context results as one validated batch; review and test the integrated code before delivery.
 - **Bound retries to the operation and target.** Count only recognized authentication and build/test/deployment operations against their target-scoped budgets; unknown results are not successes. A blocked authentication target requires explicit human clearance, not a tool switch or an expired timer.
 - **Resume from evidence, not a checkmark.** For authorized long tasks, record current state, next steps, blockers and entry points; reconcile them with actual artifacts before continuing. Keep temporary progress out of long-term memory, which is reserved for verified lasting preferences and facts not derivable from code.
 
@@ -183,6 +186,7 @@ MIT; see [LICENSE](LICENSE). This is an unofficial community project and is not 
 
 | 版本 | 发布日期 | 主要内容 | 下载 |
 |---|---|---|---|
+| 0.0.21 | 2026-11-03 | 完整性修复；离线附件按需下载 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.21/Qoder-Optimization-0.0.21.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.21) |
 | 0.0.20 | 2026-11-03 | 并行编排：计划审批与显式 opt-in | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.20/Qoder-Optimization-0.0.20.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.20) |
 | 0.0.19 | 2026-11-03 | B05 自动触发；安装/更新与部署询问门禁 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.19/Qoder-Optimization-0.0.19.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.19) |
 | 0.0.18 | 2026-11-03 | 五版复核：接续恢复、证据作用域与规则一致性修复 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.18/Qoder-Optimization-0.0.18.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.18) |
@@ -215,10 +219,10 @@ AI 编码助手常见的问题包括：没有证据就声称验证通过、失�
 | 内容 | 数量 | 示例 |
 |---|---:|---|
 | 技能 | 133 | 验证、代码评审、交付、数据库、文档、桌面自动化 |
-| 脚本 | 122 | 守卫、自测、打包、校验与工具补强 |
+| 脚本 | 123 | 守卫、自测、打包、校验与工具补强 |
 | 命令 | 10 | 需求澄清、接续检查、技能检索、清理 |
 | 子智能体 | 2 | 运行期真值核验、部署后验收 |
-| 目录条目 | 267 | 技能、脚本、命令与子智能体 |
+| 目录条目 | 268 | 技能、脚本、命令与子智能体 |
 
 ### 工作方式
 
@@ -263,6 +267,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 | Hooks 接线 | [hooks/README-hooks.md](hooks/README-hooks.md) |
 | MCP 配置 | [mcp/README-mcp.md](mcp/README-mcp.md) |
 | 插件建议 | [plugins/README-plugins.md](plugins/README-plugins.md) |
+| 并行写隔离、核验与恢复 | [工作树协议](skills/parallel-orchestration/references/write-worktrees.md) |
 
 ### 设计原则
 
@@ -278,6 +283,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 
 - **只在当前授权内持续推进**：已授权工作不因常规技术选择反复询问；审阅、计划、旧队列和工具返回本身，都不构成写入、发布或改变权限的批准。
 - **改动最小且可恢复**：先预览明确的操作对象，保留无关改动，修改已有文件前用版本控制或备份保留回退点。安装、导入遇到冲突时，不静默覆盖本机内容。
+- **并行写以归属和基线协调**：每个写者使用真实独立 worktree，明确读写依赖，逐提交核对 ownedPaths 和基线，并预演 Git 集成冲突；同版本上下文结果整批验证后一次合并，集成代码审查和测试通过后才交付。
 - **失败按目标计数，重试有上限**：认证及构建、测试、部署只对已识别的操作和目标计数，不把未知结果当作成功；已封锁的认证目标须人工明确解封，不能靠换工具或等待超时解除。
 - **接续看证据，不只看勾选**：获授权的长任务记录当前状态、下一步、阻塞点和关键入口，继续前对照实际产物。临时进度不混入长期记忆；后者只保留已核验的长期偏好与非代码可推导事实。
 
@@ -336,7 +342,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 <!-- offline-bundle:start -->
 ### Optional offline bundle / 可选离线附件
 
-The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.20/Qoder-Optimization-0.0.20-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
+The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.21/Qoder-Optimization-0.0.21-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
 
 核心包不含 MCP 离线二进制；需要时单独下载离线附件，核对各自的 .sha256 后解压到同一目录。无需离线组件时只取核心包；链接仅在对应版本发布后可用。
 <!-- offline-bundle:end -->

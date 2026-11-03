@@ -42,12 +42,14 @@ function textList(value, name, maxItems = 20, allowEmpty = false) {
 
 function safePath(value, name) {
   if (typeof value !== 'string') fail('INVALID_PATH', name + ' must be a string');
-  const text = value.replace(/\\/g, '/').trim().replace(/^\.?\//, '');
-  if (!text || text.startsWith('/') || /^[A-Za-z]:/.test(text) || /[?*[\]{}]/.test(text)) {
+  const raw = value.replace(/\\/g, '/').trim();
+  // Check rooted paths before stripping the optional relative "./" prefix.
+  if (!raw || raw.startsWith('/') || /[:?*[\]{}\x00-\x1f]/.test(raw)) {
     fail('INVALID_PATH', name + ' must be a relative literal path: ' + value);
   }
+  const text = raw.replace(/^\.\//, '');
   const parts = text.split('/').filter(Boolean);
-  if (!parts.length || parts.some(part => part === '..' || part === '.')) {
+  if (!parts.length || parts.some(part => part === '..' || part === '.' || /[. ]$/.test(part))) {
     fail('INVALID_PATH', name + ' must not escape the workspace: ' + value);
   }
   return parts.join('/').toLowerCase();
@@ -65,6 +67,7 @@ function normalizeUnit(raw, index) {
   if (!isText(raw.title, 200)) fail('INVALID_UNIT_TITLE', 'unit ' + raw.id + ' title is required');
   const dependsOn = raw.dependsOn === undefined ? [] : textList(raw.dependsOn, 'DEPENDS_ON', 20, true);
   for (const id of dependsOn) if (!SAFE_ID.test(id)) fail('INVALID_DEPENDS_ON', 'invalid dependency id: ' + id);
+  if (new Set(dependsOn).size !== dependsOn.length) fail('DUPLICATE_DEPENDENCY', 'unit ' + raw.id + ' repeats a dependency');
   const ownedPaths = raw.ownedPaths === undefined ? [] : pathList(raw.ownedPaths, 'OWNED_PATHS');
   const readPaths = raw.readPaths === undefined ? [] : pathList(raw.readPaths, 'READ_PATHS');
   const acceptance = textList(raw.acceptance, 'ACCEPTANCE', 20);
@@ -150,7 +153,11 @@ function validatePlan(input) {
   const owned = new Map();
   for (const unit of writes) {
     for (const ownedPath of unit.ownedPaths) {
-      if (owned.has(ownedPath)) fail('OVERLAPPING_OWNED_PATHS', 'path ' + ownedPath + ' owned by ' + owned.get(ownedPath) + ' and ' + unit.id);
+      for (const [previousPath, previousUnit] of owned) {
+        if (ownedPath === previousPath || (previousUnit !== unit.id && (ownedPath.startsWith(previousPath + '/') || previousPath.startsWith(ownedPath + '/')))) {
+          fail('OVERLAPPING_OWNED_PATHS', 'paths ' + previousPath + ' and ' + ownedPath + ' owned by ' + previousUnit + ' and ' + unit.id);
+        }
+      }
       owned.set(ownedPath, unit.id);
     }
   }
@@ -179,9 +186,27 @@ function validatePlan(input) {
   if (!Number.isInteger(maxWorkers) || maxWorkers < 1 || maxWorkers > 4) fail('INVALID_BUDGET', 'maxWorkers must be 1..4');
   if (!Number.isInteger(maxRounds) || maxRounds < 1 || maxRounds > 2) fail('INVALID_BUDGET', 'maxRounds must be 1..2');
   if (maxConcurrency > maxWorkers) fail('CONCURRENCY_EXCEEDS_BUDGET', 'maxConcurrency exceeds maxWorkers');
-  if (writes.length > 1 && isolation !== 'worktree') fail('WORKTREE_REQUIRED', 'multiple write units require isolation=worktree');
+  if ((writes.length > 1 || (writes.length && maxConcurrency > 1)) && isolation !== 'worktree') fail('WORKTREE_REQUIRED', 'parallel write units require isolation=worktree');
+  if (writes.length && workerTool === 'Explore') fail('WORKER_KIND_MISMATCH', 'Explore cannot execute write units');
   if (mode === 'read' && writes.length) fail('MODE_KIND_MISMATCH', 'read mode cannot contain write units');
   if (mode === 'worktree' && !writes.length) fail('MODE_KIND_MISMATCH', 'worktree mode needs write units');
+  if (maxConcurrency > 1 && mode !== 'sequential') {
+    const byId = new Map(units.map(unit => [unit.id, unit]));
+    for (const wave of topologicalWaves(units)) {
+      for (const writerId of wave) {
+        const writer = byId.get(writerId);
+        if (writer.kind !== 'write') continue;
+        for (const readerId of wave.filter(id => id !== writerId)) {
+          const reader = byId.get(readerId);
+          for (const written of writer.ownedPaths) for (const read of reader.readPaths) {
+            if (written === read || written.startsWith(read + '/') || read.startsWith(written + '/')) {
+              fail('READ_WRITE_CONFLICT', writer.id + ' writes ' + written + ' while same-wave ' + reader.id + ' reads ' + read + '; add dependsOn to serialize them');
+            }
+          }
+        }
+      }
+    }
+  }
   return {
     schema: SCHEMA,
     taskId: input.taskId,
@@ -280,12 +305,15 @@ function render(result) {
 function main(argv) {
   const args = [...argv];
   const json = args.includes('--json');
-  const file = args.find(arg => !arg.startsWith('--'));
-  if (!file) {
-    console.error('用法：node scripts/parallel-plan.cjs <plan.json> [--json]');
+  const files = args.filter(arg => arg !== '--json');
+  if (files.length !== 1 || files[0].startsWith('-') || args.filter(arg => arg === '--json').length > 1) {
+    const message = '用法：node scripts/parallel-plan.cjs <plan.json> [--json]';
+    if (json) console.log(JSON.stringify({ ok: false, code: 'USAGE', message }));
+    else console.error(message);
     process.exitCode = 2;
     return;
   }
+  const file = files[0];
   let input;
   try {
     input = JSON.parse(fs.readFileSync(path.resolve(file), 'utf8'));

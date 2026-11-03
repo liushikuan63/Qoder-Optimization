@@ -138,6 +138,7 @@ test('merge appends deltas, bumps version and updates the mirror', () => {
   writeJson(deltaFile, {
     unitId: 'U1',
     contextVersion: 1,
+    planDigest: JSON.parse(fs.readFileSync(path.join(runDir, 'context.json'), 'utf8')).planDigest,
     status: 'done',
     findings: ['found a'],
     evidence: [{ ref: 'src/a.js:12', summary: 'line evidence' }],
@@ -169,7 +170,7 @@ test('merge rejects stale versions and canonical writes', () => {
   assert.equal(canonicalResult.status, 1);
   assert.equal(canonicalResult.output.code, 'INVALID_DELTA');
   const verified = path.join(dir, 'verified.json');
-  writeJson(verified, { unitId: 'U1', contextVersion: 1, status: 'verified' });
+  writeJson(verified, { unitId: 'U1', contextVersion: 1, planDigest: JSON.parse(fs.readFileSync(path.join(runDir, 'context.json'), 'utf8')).planDigest, status: 'verified' });
   const verifiedResult = run(['merge', '--context', path.join(runDir, 'context.json'), '--delta', verified]);
   assert.equal(verifiedResult.status, 1);
   assert.equal(verifiedResult.output.code, 'INVALID_STATUS');

@@ -20,6 +20,7 @@ node ~/.qoder/scripts/pkg-catalog.cjs search "$ARGUMENTS"
 - 同一任务内用户已明确拒绝的条目不再重复询问；任务范围变化或用户重新要求时才再问。
 - `external` 只给官方安装方式；`template` 给合并说明；`disabled` 本机已停用、按需恢复。插件 / 社区技能 / MCP 不代装、不转发源码。
 - 批量查看已安装条目哪些落后于分享包：`node ~/.qoder/scripts/pkg-catalog.cjs drift`；对照指定包加 `--catalog <包目录>/catalog.json`。发布升版后的部署询问必须带上这份清单。
+- `drift` 同时核对常驻与按需层中的副本；包源缺失或不可比较时会输出 `DRIFT_UNVERIFIED`、退出 2，需先恢复来源再判断是否更新。
 
 ## 汇报
 

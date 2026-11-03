@@ -2,13 +2,13 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.0.20"
+  "version": "0.0.21"
  },
  "generated": "2026-11-03",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 133,
-  "script": 122,
+  "script": 123,
   "command": 10,
   "agent": 2
  },
@@ -2841,6 +2841,19 @@
    "name": "parallel-plan.test.js",
    "status": "shipped",
    "source": "scripts/parallel-plan.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:parallel-plan.cjs"
+   ]
+  },
+  {
+   "id": "script:parallel-write.cjs",
+   "category": "script",
+   "name": "parallel-write.cjs",
+   "status": "shipped",
+   "source": "scripts/parallel-write.cjs",
    "install": {
     "mode": "copy-file"
    },

@@ -1,6 +1,6 @@
 {
  "package_name": "Qoder-Optimization",
- "version": "0.0.20",
+ "version": "0.0.21",
  "generated": "2026-11-03",
  "skills": [
   {
@@ -326,7 +326,7 @@
   {
    "name": "parallel-orchestration",
    "tier": "library",
-   "files": 7
+   "files": 8
   },
   {
    "name": "pause-writer-before-shared-file-edit",

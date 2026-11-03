@@ -144,7 +144,7 @@ for (const prior of [false, true]) {
       const before = fs.readFileSync(o.settings);
       if (prior) fs.writeFileSync(o.target, 'prior script bytes');
       const preload = path.join(o.home, 'publication-failure.cjs');
-      fs.writeFileSync(preload, 'const fs=require("node:fs"),rename=fs.renameSync;fs.renameSync=function(from,to){if(to===' + JSON.stringify(o.settings) + ')throw new Error("injected settings failure");return rename.call(this,from,to);};');
+      fs.writeFileSync(preload, 'const fs=require("node:fs"),link=fs.linkSync;fs.linkSync=function(from,to){if(to===' + JSON.stringify(o.settings) + '&&String(from).includes(".tmp-"))throw new Error("injected settings failure");return link.call(this,from,to);};');
       const result = spawnSync(process.execPath, ['--require', preload, installer, '--client-root', o.client, '--yes'], {
         encoding: 'utf8', timeout: 30000,
         env: env(o),
@@ -164,7 +164,7 @@ for (const prior of [false, true]) {
     try {
       if (prior) fs.writeFileSync(o.target, 'prior script bytes');
       const preload = path.join(o.home, 'rollback-race.cjs');
-      fs.writeFileSync(preload, 'const fs=require("node:fs"),rename=fs.renameSync,unlink=fs.unlinkSync;let failed=false,fired=false;const target=' + JSON.stringify(o.target) + ';function race(p){if(failed&&!fired&&p===target){fired=true;fs.writeFileSync(target,"concurrent script bytes");}}fs.renameSync=function(from,to){if(to===' + JSON.stringify(o.settings) + '){failed=true;throw new Error("injected settings failure");}race(from===target?from:to);return rename.call(this,from,to);};fs.unlinkSync=function(p){race(p);return unlink.call(this,p);};');
+      fs.writeFileSync(preload, 'const fs=require("node:fs"),rename=fs.renameSync,link=fs.linkSync,unlink=fs.unlinkSync;let failed=false,fired=false;const target=' + JSON.stringify(o.target) + ';function race(p){if(failed&&!fired&&p===target){fired=true;fs.writeFileSync(target,"concurrent script bytes");}}fs.linkSync=function(from,to){if(to===' + JSON.stringify(o.settings) + '&&String(from).includes(".tmp-")){failed=true;throw new Error("injected settings failure");}return link.call(this,from,to);};fs.renameSync=function(from,to){race(from===target?from:to);return rename.call(this,from,to);};fs.unlinkSync=function(p){race(p);return unlink.call(this,p);};');
       const r = spawnSync(process.execPath, ['--require', preload, installer, '--client-root', o.client, '--yes'], {
         encoding: 'utf8', timeout: 30000, env: env(o),
       });

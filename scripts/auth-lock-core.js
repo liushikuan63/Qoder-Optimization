@@ -382,7 +382,26 @@ function postRecord(payload) {
   else if (!NEUTRAL.test(respText) && /(?:\bERROR:\s*syntax error\b|\bORA-009(?:00|04|07|17|23|33|36)\b|you have an error in your SQL syntax)/i.test(respText)) kind = 'ok';
 
   const resDims = kind === 'authfail' || kind === 'locked' ? dims(respText, t.srvFromTool) : {};
-  const target = t.callTargets.find(d => sameDim(d, resDims, dimsAllowed)) || t.callTargets[0];
+  const targets = [...new Map(t.callTargets.map(target => [keyOf(target), target])).values()];
+  let target = targets[0];
+  if (targets.length > 1) {
+    // A combined stdout/exit code cannot clear one database's failures on the
+    // strength of another database's rows. Attribute only an error whose
+    // reported identity selects exactly one target without contradictions.
+    const identities = respText.split(/\r?\n/).map(line => dims(line, t.srvFromTool));
+    // Several errors may share one line; do not discard later user identities.
+    for (const match of respText.matchAll(/\b(?:for\s+)?user\s+["']([^"'\\\r\n]+)["']|\bfor user\s+([^\s:;,"'()]+)/gi)) {
+      identities.push({ user: (match[1] || match[2]).toLowerCase() });
+    }
+    const contradictory = DIMS_DEFAULT.some(key => new Set(identities.map(identity => identity[key]).filter(Boolean)).size > 1);
+    const reported = DIMS_DEFAULT.filter(key => resDims[key]);
+    const identified = reported.length ? targets.filter(candidate => reported.every(key => candidate[key] === resDims[key])) : [];
+    if (contradictory || identified.length !== 1) {
+      ledger('neutral|aggregate-targets');
+      return { key: null, count: 0, kind: 'neutral', attribution: 'aggregate' };
+    }
+    target = identified[0];
+  }
   const merged = Object.assign({}, resDims, target);
   const hits = findMatches(s, merged, dimsAllowed);
   const idKey = hits.length ? hits[0].k : keyOf(merged);

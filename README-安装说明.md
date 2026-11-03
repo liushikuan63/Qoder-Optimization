@@ -1,4 +1,4 @@
-# Qoder-Optimization-0.0.20 安装说明
+# Qoder-Optimization-0.0.21 安装说明
 
 ## 包内容与落点
 
@@ -18,8 +18,8 @@
 
 推荐先运行包根目录的 `install.cmd`（Windows）。它会检测宿主机是否已有可用的 Node.js：
 
-- **已有 Node.js（24.16+，含内置 `node:sqlite` 与 FTS5）**：询问是否启用 SQLite 接续记忆与追回模式。同意后把 `scripts/continuity.cjs` 安装到客户端 `scripts/`，把 `PreCompact` / `PostCompact` / `UserPromptSubmit` / `SessionStart` / `PostToolUse` 五个事件接入该客户端 `settings.json`，并写入 `<存储目录>/auto-bind.json` 的 `{"schema":1,"enabled":true}`——**后续新会话在首个提示时自动绑定并开始采集**，不需要再手动 `enable`。修改前自动备份，完整接线匹配时不重复添加，同一脚本的 Node 路径变化会就地更新。已有命令、matcher、type 或 timeout 冲突时拒绝修改，保留配置供用户裁决；配置写入失败时只回滚仍属本事务且内容未变化的脚本，并清理暂存文件。按 catalog 安装 `script:install-continuity.cjs` 会同时补齐接续脚本依赖。
-- **没有 Node.js（或版本过低 / 缺 `node:sqlite` / FTS5）**：交互运行时询问是否安装 Node.js LTS（可选择用 winget 自动安装，或查看便携版下载方式，解压到非系统盘后重跑）；非交互 `--yes` 则直接跳过并提示手动安装。**未安装前保持原有方式**：不写自动绑定策略、不改配置，由你装好 Node 后重新运行安装器。
+- **已有 Node.js（24.16+，含内置 `node:sqlite` 与 FTS5）**：询问是否启用 SQLite 接续记忆与追回模式。同意后把 `scripts/continuity.cjs` 安装到客户端 `scripts/`，把 `PreCompact` / `PostCompact` / `UserPromptSubmit` / `SessionStart` / `PostToolUse` 五个事件接入该客户端 `settings.json`，并写入 `<存储目录>/auto-bind.json` 的 `{"schema":1,"enabled":true}`——**后续新会话在首个提示时自动绑定并开始采集**，不需要再手动 `enable`。修改前自动备份，完整接线匹配时不重复添加，同一脚本的 Node 路径变化会就地更新。已有命令、matcher、type 或 timeout 冲突时拒绝修改，保留配置供用户裁决；发布时先核对真实原对象再独占创建目标，并发更改不会被覆盖；配置写入失败时只回滚仍属本事务且内容未变化的脚本，恢复冲突保留 `.previous-<uuid>` 原资料并提示路径。策略失败则保留已接 hooks、降级手工 enable，损坏旧策略也备份。按 catalog 安装 `script:install-continuity.cjs` 会同时补齐接续脚本依赖。
+- **没有 Node.js（或版本过低 / 缺 `node:sqlite` / FTS5）**：交互运行时询问是否安装 Node.js LTS（可选择用 winget 自动安装，或查看便携版下载方式，解压到非系统盘后重跑）；无 Node 时带参数的 `install.cmd` 请求（help/skip 除外）返回前置条件退出码 3、不写盘；安装后用原参数重试，避免交互重启时丢失 `--dry-run` 或自定义客户端路径。已有 Node 的非交互 `--yes` 但 SQLite 不支持时同样返回 3；安装 Node 或后续安装器失败会传播真实非零退出。**未安装前保持原有方式**：不写自动绑定策略、不改配置，由你装好 Node 后重新运行安装器。
 
 跨平台或已装 Node 时也可直接运行：
 
@@ -32,7 +32,7 @@ node scripts/install-continuity.cjs --yes --no-auto-bind # 只接线，仍按会
 
 **自动绑定与手动模式**：
 
-- 自动绑定策略开启后，任何新会话在首个提示时绑定任务 `AUTO-<日期>-<目录名>`，任务结束可在该会话运行 `disable`；**显式 `disable` 的会话不会被自动重开**，单会话退出优先。
+- 自动绑定策略开启后，任何新会话在首个提示时绑定任务 `AUTO-<日期>-<目录名>`，任务结束可在该会话运行 `disable`；**显式 `disable` 的会话不会被自动重开**，包括首次 hook 前关闭的会话。自动绑定与显式启停共用会话锁，锁被占用时不覆盖其他写入者的选择。
 - 想整体关闭自动绑定：把 `<存储目录>/auto-bind.json` 改成 `{"schema":1,"enabled":false}` 或删除该文件；安装器**不会**把你显式设为 `enabled:false` 的策略重开。
 - 存储目录：Windows 且存在 `D:` 时为 `D:/qoder-data/context-continuity`，否则 `~/.qoder/context-continuity`；`CONTINUITY_STORE` 环境变量优先。每个会话一个 SQLite（FTS5 trigram 检索），不读 Qoder 内部数据库、不上传。
 - 采集边界不变：只存用户正文与 `决策：` / `已否证：` / `验证结论：` / `证据引用：` / `授权边界：` 前缀的助手段落，写入前脱敏。检索与手工启停见 `/checkpoint`。
@@ -77,7 +77,8 @@ node scripts/install-continuity.cjs --yes --no-auto-bind # 只接线，仍按会
 - 检索：`node ~/.qoder/scripts/pkg-catalog.cjs search "<关键词>"`，或 `/pkg-find "<关键词>"`；结果标「本地未发现 / 与包内一致 / 内容与包内不同」，出现 `NEXT_ACTION` 时必须先用 `AskUserQuestion` 询问（安装/更新（推荐） / 查看差异 / 保持现状），未获明确选择不得写盘
 - 安装：`install <id>` 先预演依赖闭包，确认后加 `--apply`；技能按 manifest/catalog 的 tier 落点安装。另一层已有同名技能时拒绝写入，迁移请使用 tier-skills；索引先暂存再以归属/内容核对和独占创建提交。失败只回滚本批仍属本事务且未变化的文件；检测到并发修改时保留目标与备份目录、明确报告未完整回滚，先裁决再重试。
 - 更新：`内容与包内不同` 表示可更新；先三路比对并备份，保留本地较新内容，确认后 `install <id> --apply --force`，再重建索引并跑 `skills-doctor`
-- 批量漂移：`node ~/.qoder/scripts/pkg-catalog.cjs drift` 列出已安装但与包内不同的条目；升版部署询问必须带上这份清单
+- 批量漂移：`node ~/.qoder/scripts/pkg-catalog.cjs drift` 核对全部已安装副本，列出与包内不同的条目；升版部署询问必须带上这份清单。已安装条目的包源缺失或不可比对时输出 `DRIFT_UNVERIFIED` 并退出 2，不能当作一致。额外本地文件与备份仍不纳入包内文件比对。
+- 参数缺值、重复或未知选项会在写盘前拒绝；含空格的目录需整体引用，`--catalog` / `--tier` 不能留空。
 - 插件 / 社区技能 / MCP：只给官方安装命令与合并说明，不代装、不转发源码
 - 兜底：`skill-load` 查不到时，会自动到已登记的包内索引里找，并给出加装命令
 

@@ -6,12 +6,35 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.0.21] - 2026-11-03
+
 ### Added
 - Auto-bind continuity sessions on supported machines: when the installer is accepted and the host provides Node.js 24.16+ with `node:sqlite` and FTS5, it writes `<store>/auto-bind.json` (`{"schema":1,"enabled":true}`) so each new session binds on its first hook with task `AUTO-<date>-<dir>`. An explicit per-session `disable` is never reopened; `--no-auto-bind` keeps the original manual `enable` flow, and unsupported hosts fall back to the same manual flow after offering a Node.js install.
 - Add a portable continuity store default: `CONTINUITY_STORE` wins, then `D:/qoder-data/context-continuity` on Windows when a `D:` drive exists, otherwise `~/.qoder/context-continuity`.
 
+### Parallel write execution
+- Add `parallel-write.cjs prepare/verify`: create locked per-unit Git worktrees from a clean, recorded baseline; check real registration, branches, every linear commit, both rename endpoints, dirty state and shared Git drift, then preview integration with Git merge-tree. No automatic branch merge or project-code execution.
+- Check same-wave read/write ownership conflicts; dependent write waves must start from the newly integrated baseline. Isolate Git environment and executable hooks/filters/drivers while inspecting and preparing worktrees.
+- Add all-or-nothing `merge-batch` for same-version worker results, canonical writer locks, snapshot checks and recoverable publication. Reject pack outputs that alias canonical files or locks. Context inputs and conflicted worktrees are retained.
+
+### Fixed
+- Preserve first-use session disables and serialize continuity scope changes; reject ambiguous CLI paths. Publish continuity scripts, settings and auto-bind policy without overwriting concurrent edits, retaining recovery copies when ownership changes.
+- Reject absolute/overlapping parallel ownership paths and duplicate dependencies. Bind worker deltas to both context version and plan digest; check canonical scope, mirrors and packs against the plan, and reject sensitive results before writing.
+- Distinguish explicit goal/verification requests from quotations, advice and refusals. Keep carrier reminders active for small or Git-tracked files; require qualified task/session evidence for evolution candidates, and treat failed release commands as failures.
+- Validate catalog arguments before writes, compare every installed skill tier, and report unavailable package comparisons as `DRIFT_UNVERIFIED` rather than equality.
+- Do not attribute aggregate build/test/deploy results to an arbitrary target. Combined database output cannot clear failures; authentication errors are attributed only when their reported identity selects one target unambiguously.
+
+### Compatibility and recovery
+- Worker deltas now require `planDigest`; older deltas must be regenerated from the current context pack. Catalog `drift` exits 2 when installed content cannot be compared with its package source.
+- Historical release assets, live client configuration, real user data and external services are unchanged. Native Qoder/UI behavior and the separate B05 pilot remain outside this isolated CLI/package acceptance.
+
+### 中文摘要
+- 同步最新代码中的可选自动绑定模式，修复首次关闭被重新开启及安装并发覆盖；保护用户选择与恢复资料。
+- 收紧并行路径所有权、计划摘要、上下文范围和敏感结果校验，防止跨计划合并或互斥失效。
+- 修复规则误触发、证据不足的候选晋升、发布失败误判，以及目录比对假一致和复合命令串账。
+
 ### Verification
-- Installer/continuity suite: 23 pass / 0 fail, covering auto-bind policy creation, dry-run, explicit-disable preservation, `--no-auto-bind`, corrupt-policy rewrite, runtime auto-bind followed by `disable`, and the unsupported-Node fallback that writes nothing.
+- Continuity/installer focused regression: 45 pass / 0 fail. Parallel coordination focused regression: 55 pass / 0 fail. Actual Git worktree regressions cover independent commits, out-of-scope changes, branch/base drift and executable Git driver suppression; full cross-platform gates and fixed-commit package acceptance are required before publication.
 
 ## [0.0.20] - 2026-11-03
 

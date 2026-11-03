@@ -98,6 +98,21 @@ function json(p) {
   }
 }
 
+// 只读工具结果的明确信封字段；非零退出不因宿主未设置 is_error 而变成成功证据。
+function toolFailed(value, depth = 0) {
+  if (depth > 8 || value == null) return false;
+  if (typeof value === 'string') { try { return toolFailed(JSON.parse(value), depth + 1); } catch { return false; } }
+  if (Array.isArray(value)) return value.some(item => toolFailed(item, depth + 1));
+  if (typeof value !== 'object') return false;
+  if (value.is_error === true || value.isError === true || value.success === false || value.cancelled === true || value.canceled === true
+    || (typeof value.error === 'string' && value.error)) return true;
+  for (const key of ['exitCode', 'exit_code', 'exit_status']) {
+    const code = value[key];
+    if ((typeof code === 'number' || (typeof code === 'string' && /^-?\d+$/.test(code))) && Number(code) !== 0) return true;
+  }
+  return ['result', 'response', 'tool_response', 'content', 'text'].some(key => toolFailed(value[key], depth + 1));
+}
+
 // transcript 只取尾部，解析出：最后一条助手文本 + 最后一条真实用户文本 + 最近一轮的工具调用
 function scanTranscript(file, tailBytes) {
   const out = { lastUserText: '', lastAssistantText: '', turnTools: [], parsed: 0, exists: false };
@@ -128,7 +143,7 @@ function scanTranscript(file, tailBytes) {
             if (tool) {
               tool.result = result.content;
               const body = typeof result.content === 'string' ? result.content : JSON.stringify(result.content);
-              tool.success = !result.is_error && !/"success"\s*:\s*false|"isError"\s*:\s*true|"error"\s*:\s*"[^"\n]+"/.test(body || '');
+              tool.success = !result.is_error && !toolFailed(result.content) && !/"success"\s*:\s*false|"isError"\s*:\s*true|"error"\s*:\s*"[^"\n]+"/.test(body || '');
             }
           }
         }
@@ -585,17 +600,53 @@ function nextActionPending(ctx) {
     if (toolName(tool) !== 'Bash') return false;
     const cmd = String(tool.input.command || '');
     // 只认真正把检索脚本当入口执行的调用；grep/测试/node -e 打印源码里的 NEXT_ACTION 字样不算。
-    if (!/\bnode(?:\.exe)?\s+(?!--?(?:e|eval)\b)(?:--?[^\s]+\s+)*(?:"[^"\n]*?|'[^'\n]*?|\S*?)(?:pkg-catalog|skill-load)\.cjs\b/i.test(cmd)) return false;
+    if (!shellSegments(cmd).some(segment => nodeScriptEntry(segment, /^(?:pkg-catalog|skill-load)\.cjs$/i))) return false;
     return /NEXT_ACTION:\s*ASK_(?:INSTALL_OR_UPDATE|UPDATE)/.test(JSON.stringify(tool.result || ''));
   });
 }
 
 function shellSegments(command) {
-  return String(command || '').split(/&&|\|\||;|\r?\n/).map((s) => s.trim()).filter(Boolean);
+  // 仅在引号外切分；echo/grep 中引用的示例不是已执行的发布入口。
+  const text = String(command || '');
+  const segments = [];
+  let part = '', quote = '', escaped = false;
+  const flush = () => { if (part.trim()) segments.push(part.trim()); part = ''; };
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (escaped) { part += c; escaped = false; continue; }
+    if (c === '\\' && quote !== "'") { part += c; escaped = true; continue; }
+    if (quote) { part += c; if (c === quote) quote = ''; continue; }
+    if (c === '"' || c === "'" || c === '`') { quote = c; part += c; continue; }
+    if (c === '#' && (!part || /\s$/.test(part))) { while (i < text.length && text[i] !== '\n') i++; flush(); continue; }
+    if (c === ';' || c === '\r' || c === '\n') { flush(); continue; }
+    if ((c === '&' && text[i + 1] === '&') || (c === '|' && text[i + 1] === '|')) { flush(); i++; continue; }
+    part += c;
+  }
+  if (quote || escaped) return [];
+  flush();
+  return segments;
 }
 
 function stripLeadingAssignments(segment) {
   return segment.replace(/^(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S+)\s+)+/, '');
+}
+
+function nodeScriptEntry(segment, filename) {
+  // argv 的入口位置决定是否执行脚本；支持 Windows 带空格的完整 Node 路径。
+  const words = (stripLeadingAssignments(segment).match(/"(?:\\.|[^"\\])*"|'[^']*'|[^\s]+/g) || [])
+    .map(word => /^(?:"[\s\S]*"|'[\s\S]*')$/.test(word) ? word.slice(1, -1) : word);
+  const leaf = value => String(value || '').split(/[\\/]/).pop();
+  if (!/^node(?:\.exe)?$/i.test(leaf(words[0]))) return false;
+  let i = 1;
+  for (; i < words.length && words[i].startsWith('-'); i++) {
+    const option = words[i].split('=')[0];
+    if (words[i] === '--') { i++; break; }
+    if (['-e', '--eval', '-p', '--print', '-c', '--check', '--test', '-h', '--help', '-v', '--version', '-i', '--interactive', '--run', '--input-type'].includes(option)
+      || /^-[epcihvr].+/.test(option) && !option.startsWith('--')) return false;
+    if (['-r', '--require', '--import', '--loader', '--experimental-loader', '-C', '--conditions', '--inspect-port'].includes(option)
+      && !words[i].includes('=')) i++;
+  }
+  return filename.test(leaf(words[i]));
 }
 
 function releaseCommandRan(ctx) {
@@ -606,7 +657,7 @@ function releaseCommandRan(ctx) {
       if (/^(?:gh|gh\.exe)\s+release\s+create\b/i.test(segment)) return true;
       if (/^(?:gh|gh\.exe)\s+workflow\s+run\s+release\.yml\b/i.test(segment)) return true;
       if (/^git(?:\.exe)?\s+push\b/i.test(segment) && /(?:--tags|\bv\d+\.\d+\.\d+\b)/.test(segment)) return true;
-      if (/^node(?:\.exe)?\s+(?!--?(?:e|eval)\b)(?:--?[^\s]+\s+)*(?:"[^"\n]*?|'[^'\n]*?|\S*?)publish-release\.js\b/i.test(segment)) return true;
+      if (nodeScriptEntry(segment, /^publish-release\.js$/i)) return true;
       return false;
     });
   });

@@ -104,25 +104,28 @@ function main() {
   if (!p) return;
 
   const target = path.resolve(String(p));
+  const note = carrierNote(target);
+  const carrierOnly = () => { if (note) { ledger(['carrier-existing', path.basename(target)]); allow(note.trim()); } };
   let st;
   try { st = fs.statSync(target); } catch (e) {
     ledger(['new-file', path.basename(target)]);
-    const note = carrierNote(target);
     if (note) {
       ledger(['carrier-new', path.basename(target)]);
       allow(note.trim());
     }
     return;
   }
-  if (!st.isFile() || st.size < MIN_BYTES) return;
-  if (isTempish(target)) { ledger(['temp-skip', path.basename(target)]); return; }
-  if (hasGit(path.dirname(target))) { ledger(['git-covered', path.basename(target)]); return; }
+  if (!st.isFile()) return;
+  // 备份豁免只影响备份提醒；载体变更仍需预检，即使文件很小或已有 Git 兜底。
+  if (st.size < MIN_BYTES) { carrierOnly(); return; }
+  if (isTempish(target)) { ledger(['temp-skip', path.basename(target)]); carrierOnly(); return; }
+  if (hasGit(path.dirname(target))) { ledger(['git-covered', path.basename(target)]); carrierOnly(); return; }
 
   const sid = String(payload.session_id || 'nosession').slice(0, 12);
   const marker = path.join(STATE_DIR, `advised-${sid}.json`);
   let advised = {};
   try { advised = JSON.parse(fs.readFileSync(marker, 'utf8')); } catch (e) {}
-  if (advised[target]) { ledger(['repeat-skip', path.basename(target)]); return; }
+  if (advised[target]) { ledger(['repeat-skip', path.basename(target)]); carrierOnly(); return; }
   advised[target] = new Date().toISOString();
   try { fs.mkdirSync(STATE_DIR, { recursive: true }); fs.writeFileSync(marker, JSON.stringify(advised)); } catch (e) {}
 
@@ -134,7 +137,7 @@ function main() {
     `先备份再写：\`node ~/.qoder/scripts/backup-file.js "${target}"\`（自动按"至多 3 份 / 删 7 天前的 / 至少留 1 份"裁剪）。\n` +
     `（本条是提示不拦截；同一会话同一文件只提醒一次。若这个目录本该受版本控制，` +
     `\`git init && git add -A && git commit\` 之后就不再提醒。）`
-    + carrierNote(target)
+    + note
   );
 }
 

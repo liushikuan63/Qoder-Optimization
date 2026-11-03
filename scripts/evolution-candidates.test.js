@@ -106,11 +106,11 @@ const expectKind = (label, data, id, kind) => {
   check(label, Boolean(candidate) && candidate.kind === kind, candidate ? `kind=${candidate.kind}` : 'missing');
 };
 
-expectKind('② 双会话未覆盖 feedback → promote-global', first.data, 'feedback:feedback-alpha-quasar.md', 'promote-global');
+expectKind('② 双会话 UUID 不证明独立任务 → promote-local', first.data, 'feedback:feedback-alpha-quasar.md', 'promote-local');
 expectKind('③ 单会话未覆盖 feedback → promote-local', first.data, 'feedback:feedback-beta-vertex.md', 'promote-local');
 expectKind('④ 载体已覆盖 feedback → covered', first.data, 'feedback:feedback-gamma-covered.md', 'covered');
 expectKind('⑤ 空描述短正文 feedback → observe', first.data, 'feedback:feedback-short.md', 'observe');
-expectKind('⑥ 高频多会话违规 → promote-global', first.data, 'violation:R3-ui-claim-without-evidence', 'promote-global');
+expectKind('⑥ 高频多会话违规无任务证明 → observe', first.data, 'violation:R3-ui-claim-without-evidence', 'observe');
 expectKind('⑦ 低频违规 → observe', first.data, 'violation:R1b-declared-next-step-without-reason', 'observe');
 expectKind('⑧ 多任务 records → promote-global', first.data, 'record:topic-a', 'promote-global');
 expectKind('⑨ 单条 records → observe', first.data, 'record:topic-single', 'observe');
@@ -126,12 +126,12 @@ const serialized = JSON.stringify(first.data);
 check('⑭ 报告不复制记忆正文（敏感串零命中）', !serialized.includes('SECRET_TOKEN_ABC'), '');
 check('⑮ 数据源缺失时继续并给出警告', first.data.warnings.some((w) => /初筛/.test(w)) && first.data.sources.feedback.status === 'ok', '');
 
-// ⑯ 负对照：删掉第二个 UUID → 同一 feedback 必须从 promote-global 降为 promote-local
+// ⑯ 负对照：增减正文 UUID 不得替代独立任务证据升级全局候选。
 const alphaFile = path.join(ROOT, 'memory', 'feedback-alpha-quasar.md');
 const alphaText = fs.readFileSync(alphaFile, 'utf8');
 fs.writeFileSync(alphaFile, alphaText.replace('22222222-2222-2222-2222-222222222222', 'SESSION-B'), 'utf8');
 const downgraded = report();
-expectKind('⑯ 负对照：跨会话证据减少 → promote-global 降为 promote-local',
+expectKind('⑯ 负对照：减少正文 UUID 后仍只建议核对局部载体',
   downgraded.data, 'feedback:feedback-alpha-quasar.md', 'promote-local');
 fs.writeFileSync(alphaFile, alphaText, 'utf8');
 

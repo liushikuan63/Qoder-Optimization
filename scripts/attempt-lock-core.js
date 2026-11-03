@@ -289,7 +289,11 @@ function postRecord(payload) {
   if (!t) return null;
   const threshold = Number(t.config.threshold) > 0 ? Number(t.config.threshold) : 3;
   const s = prune(load(), t.config);
-  const signal = failureSignal(payload);
+  // A shell envelope describes the whole call. With multiple target keys it
+  // cannot establish which build/test/deploy succeeded or failed.
+  const operations = commandWords(t.cmd).map(words => unwrapWords(words, false))
+    .filter(words => words.length && !/^(?:cd|chdir|set-location)$/i.test(words[0]));
+  const signal = t.keys.length > 1 || operations.length !== 1 ? 'neutral' : failureSignal(payload);
   const cur = s.entries[t.key];
   if (signal === 'neutral') { ledger(['neutral', t.key]); return { key: t.key, count: cur ? cur.count || 0 : 0, kind: 'neutral' }; }
   if (signal === 'ok') {
