@@ -17,7 +17,11 @@ function sandbox() {
   fs.mkdirSync(scripts, { recursive: true });
   const settings = path.join(client, 'settings.json');
   fs.writeFileSync(settings, JSON.stringify({ hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: 'existing-hook.js' }] }] } }, null, 2) + '\n');
-  return { home, client, settings, target: path.join(scripts, 'continuity.cjs') };
+  return { home, client, settings, store: path.join(home, 'store'), target: path.join(scripts, 'continuity.cjs') };
+}
+
+function env(o) {
+  return { ...process.env, HOME: o.home, USERPROFILE: o.home, QODER_HOME: o.client, CONTINUITY_STORE: o.store };
 }
 
 function run(o, args = []) {
@@ -25,7 +29,7 @@ function run(o, args = []) {
     encoding: 'utf8',
     input: '',
     timeout: 30000,
-    env: { ...process.env, HOME: o.home, USERPROFILE: o.home, QODER_HOME: o.client },
+    env: env(o),
   });
 }
 
@@ -143,7 +147,7 @@ for (const prior of [false, true]) {
       fs.writeFileSync(preload, 'const fs=require("node:fs"),rename=fs.renameSync;fs.renameSync=function(from,to){if(to===' + JSON.stringify(o.settings) + ')throw new Error("injected settings failure");return rename.call(this,from,to);};');
       const result = spawnSync(process.execPath, ['--require', preload, installer, '--client-root', o.client, '--yes'], {
         encoding: 'utf8', timeout: 30000,
-        env: { ...process.env, HOME: o.home, USERPROFILE: o.home, QODER_HOME: o.client },
+        env: env(o),
       });
       assert.equal(result.status, 1, result.stdout + result.stderr);
       assert.deepEqual(fs.readFileSync(o.settings), before);
@@ -162,7 +166,7 @@ for (const prior of [false, true]) {
       const preload = path.join(o.home, 'rollback-race.cjs');
       fs.writeFileSync(preload, 'const fs=require("node:fs"),rename=fs.renameSync,unlink=fs.unlinkSync;let failed=false,fired=false;const target=' + JSON.stringify(o.target) + ';function race(p){if(failed&&!fired&&p===target){fired=true;fs.writeFileSync(target,"concurrent script bytes");}}fs.renameSync=function(from,to){if(to===' + JSON.stringify(o.settings) + '){failed=true;throw new Error("injected settings failure");}race(from===target?from:to);return rename.call(this,from,to);};fs.unlinkSync=function(p){race(p);return unlink.call(this,p);};');
       const r = spawnSync(process.execPath, ['--require', preload, installer, '--client-root', o.client, '--yes'], {
-        encoding: 'utf8', timeout: 30000, env: { ...process.env, HOME: o.home, USERPROFILE: o.home, QODER_HOME: o.client },
+        encoding: 'utf8', timeout: 30000, env: env(o),
       });
       assert.equal(r.status, 1, r.stdout + r.stderr);
       assert.equal(fs.existsSync(o.target), true);
@@ -171,15 +175,121 @@ for (const prior of [false, true]) {
   });
 }
 
+test('--yes 默认写入 auto-bind 策略', () => {
+  const o = sandbox();
+  try {
+    const result = run(o, ['--yes']);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    const policy = JSON.parse(fs.readFileSync(path.join(o.store, 'auto-bind.json'), 'utf8'));
+    assert.deepEqual(policy, { schema: 1, enabled: true });
+    assert.match(result.stdout, /自动绑定：已开启/);
+  } finally { cleanup(o); }
+});
+
+test('dry-run 不写 auto-bind 策略', () => {
+  const o = sandbox();
+  try {
+    const result = run(o, ['--yes', '--dry-run']);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.equal(fs.existsSync(path.join(o.store, 'auto-bind.json')), false);
+    assert.match(result.stdout, /自动绑定：开启/);
+  } finally { cleanup(o); }
+});
+
+test('显式关闭的 auto-bind 策略不被重开', () => {
+  const o = sandbox();
+  try {
+    fs.mkdirSync(o.store, { recursive: true });
+    const file = path.join(o.store, 'auto-bind.json');
+    const prior = JSON.stringify({ schema: 1, enabled: false }, null, 2) + '\n';
+    fs.writeFileSync(file, prior);
+    const result = run(o, ['--yes']);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.equal(fs.readFileSync(file, 'utf8'), prior);
+    assert.match(result.stdout, /保留此前的显式关闭/);
+  } finally { cleanup(o); }
+});
+
+test('--no-auto-bind 只接线不写策略', () => {
+  const o = sandbox();
+  try {
+    const result = run(o, ['--yes', '--no-auto-bind']);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.equal(fs.existsSync(path.join(o.store, 'auto-bind.json')), false);
+    assert.match(result.stdout, /未开启（--no-auto-bind）/);
+    const settings = JSON.parse(fs.readFileSync(o.settings, 'utf8'));
+    assert.ok(settings.hooks.UserPromptSubmit.length >= 1);
+  } finally { cleanup(o); }
+});
+
+test('损坏的 auto-bind 策略被重写为开启', () => {
+  const o = sandbox();
+  try {
+    fs.mkdirSync(o.store, { recursive: true });
+    const file = path.join(o.store, 'auto-bind.json');
+    fs.writeFileSync(file, '{bad');
+    const result = run(o, ['--yes']);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { schema: 1, enabled: true });
+  } finally { cleanup(o); }
+});
+
+test('运行期 hook 自动绑定，显式 disable 后不再重开', () => {
+  const o = sandbox();
+  try {
+    const session = 'auto-bind-session-0001';
+    const ws = path.join(o.home, 'ws');
+    fs.mkdirSync(ws);
+    const transcript = path.join(o.home, session + '.jsonl');
+    fs.writeFileSync(transcript, JSON.stringify({
+      sessionId: session, cwd: ws, type: 'user', humanInput: true, uuid: 'u1',
+      message: { content: [{ type: 'text', text: '自动绑定测试请求' }] },
+    }) + '\n');
+    fs.mkdirSync(o.store, { recursive: true });
+    fs.writeFileSync(path.join(o.store, 'auto-bind.json'), JSON.stringify({ schema: 1, enabled: true }));
+    const payload = { hook_event_name: 'UserPromptSubmit', cwd: ws, session_id: session, transcript_path: transcript };
+    const hook = () => spawnSync(process.execPath, [source, 'hook'], { input: JSON.stringify(payload), encoding: 'utf8', timeout: 30000, env: env(o) });
+    const status = () => JSON.parse(spawnSync(process.execPath, [source, 'status', '--cwd', ws, '--session', session], { encoding: 'utf8', timeout: 30000, env: env(o) }).stdout);
+
+    const first = hook();
+    assert.equal(first.status, 0, first.stdout + first.stderr);
+    const afterBind = status();
+    assert.equal(afterBind.scope.enabled, true);
+    assert.equal(afterBind.scope.auto, true);
+    assert.match(afterBind.scope.task, /^AUTO-\d{8}-ws$/);
+
+    const disable = spawnSync(process.execPath, [source, 'disable', '--cwd', ws, '--session', session], { encoding: 'utf8', timeout: 30000, env: env(o) });
+    assert.equal(disable.status, 0, disable.stderr);
+    const second = hook();
+    assert.equal(second.status, 0, second.stdout + second.stderr);
+    const afterDisable = status();
+    assert.equal(afterDisable.scope.enabled, false);
+  } finally { cleanup(o); }
+});
+
 test('catalog installation includes the continuity installer runtime closure', () => {
   const o = sandbox();
   try {
-    const env = { ...process.env, HOME: o.home, USERPROFILE: o.home, QODER_HOME: o.client };
-    const result = spawnSync(process.execPath, [path.join(root, 'scripts/pkg-catalog.cjs'), 'install', 'script:install-continuity.cjs', '--apply', '--catalog', path.join(root, 'catalog.json')], { env, encoding: 'utf8', timeout: 30000 });
+    const childEnv = env(o);
+    const result = spawnSync(process.execPath, [path.join(root, 'scripts/pkg-catalog.cjs'), 'install', 'script:install-continuity.cjs', '--apply', '--catalog', path.join(root, 'catalog.json')], { env: childEnv, encoding: 'utf8', timeout: 30000 });
     assert.equal(result.status, 0, result.stdout + result.stderr);
     assert.equal(fs.existsSync(o.target), true, 'continuity runtime must be installed as a dependency');
     const installed = path.join(o.client, 'scripts/install-continuity.cjs');
-    const preview = spawnSync(process.execPath, [installed, '--client-root', o.client, '--yes', '--dry-run'], { env, encoding: 'utf8', timeout: 30000 });
+    const preview = spawnSync(process.execPath, [installed, '--client-root', o.client, '--yes', '--dry-run'], { env: childEnv, encoding: 'utf8', timeout: 30000 });
     assert.equal(preview.status, 0, preview.stdout + preview.stderr);
+  } finally { cleanup(o); }
+});
+
+test('unsupported Node keeps the original mode and writes nothing', () => {
+  const o = sandbox();
+  try {
+    const preload = path.join(o.home, 'no-sqlite.cjs');
+    fs.writeFileSync(preload, 'const Module=require("node:module"),load=Module._load;Module._load=function(request,...rest){if(request==="node:sqlite")throw new Error("unsupported");return load.call(this,request,...rest);};');
+    const result = spawnSync(process.execPath, ['--require', preload, installer, '--client-root', o.client, '--yes'], { encoding: 'utf8', input: '', timeout: 30000, env: env(o) });
+    assert.equal(result.status, 3, result.stdout + result.stderr);
+    assert.match(result.stderr, /保持原有方式/);
+    assert.equal(fs.existsSync(o.target), false);
+    assert.equal(fs.existsSync(o.settings), true);
+    assert.equal(fs.existsSync(path.join(o.store, 'auto-bind.json')), false);
   } finally { cleanup(o); }
 });

@@ -19,13 +19,15 @@ function usage() {
   console.log(`用法：node scripts/install-continuity.cjs [选项]
 
   （无参数）        交互询问是否启用 SQLite 接续记忆与追回
-  --yes             不询问，直接启用
+  --yes             不询问，直接启用（含新会话自动绑定）
   --no              不询问，跳过
+  --no-auto-bind    只安装并接线，不开启新会话自动绑定（保留按会话手工 enable）
   --dry-run         只显示计划，不写盘
   --client-root <目录>  指定客户端配置目录（默认按 client-root.js 解析）
   --help            显示本说明
 
-只安装脚本并接线 hooks；采集仍需在目标会话中显式 enable。`);
+本机支持（Node 24.16+ 且带 node:sqlite + FTS5 trigram）时写 auto-bind.json，新会话首个提示自动绑定；
+显式 disable 过的会话不会被重开；不支持时保持原有按会话手工 enable 方式。`);
 }
 
 function parseArgs(argv) {
@@ -34,6 +36,7 @@ function parseArgs(argv) {
     const arg = argv[i];
     if (arg === '--yes' || arg === '--enable') options.mode = 'enable';
     else if (arg === '--no' || arg === '--skip' || arg === '--non-interactive') options.mode = 'skip';
+    else if (arg === '--no-auto-bind') options.autoBind = false;
     else if (arg === '--dry-run') options.dryRun = true;
     else if (arg === '--client-root') {
       if (!argv[i + 1] || argv[i + 1].startsWith('--')) throw new Error('--client-root 缺少路径');
@@ -86,7 +89,7 @@ function choose(title, labels) {
   });
 }
 
-function planFor(client, nodePath) {
+function planFor(client, nodePath, store) {
   const target = path.join(client, 'scripts', SCRIPT_NAME);
   const settings = path.join(client, 'settings.json');
   const command = '"' + nodePath + '" "' + target + '" hook';
@@ -95,7 +98,7 @@ function planFor(client, nodePath) {
     matcher,
     group: { ...(matcher ? { matcher } : {}), hooks: [{ type: 'command', command, timeout: 10 }] },
   }));
-  return { client, target, settings, command, hooks };
+  return { client, target, settings, store, command, hooks };
 }
 
 function mergeHooks(settings, hooks, target) {
@@ -165,6 +168,25 @@ function writeFile(file, data, exclusive = false) {
   }
 }
 
+function applyAutoBindPolicy(plan, options) {
+  const file = path.join(plan.store, 'auto-bind.json');
+  if (options.autoBind === false) return { state: 'skipped', file };
+  let current = null;
+  if (fs.existsSync(file)) {
+    try { current = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { current = null; }
+    if (current && current.enabled === false) return { state: 'preserved-disabled', file };
+    if (current && current.schema === 1 && current.enabled === true) return { state: 'unchanged', file };
+  }
+  if (options.dryRun) return { state: current ? 'update' : 'create', file };
+  try {
+    if (current) backup(file);
+    writeFile(file, JSON.stringify({ schema: 1, enabled: true }, null, 2) + '\n');
+    return { state: current ? 'update' : 'create', file };
+  } catch (error) {
+    return { state: 'failed', file, error: error.message };
+  }
+}
+
 function install(plan, options) {
   const source = path.join(__dirname, 'continuity.cjs');
   if (!fs.existsSync(source)) throw new Error('缺少随包脚本：' + source + '（请从解压包目录运行本安装器）');
@@ -185,8 +207,11 @@ function install(plan, options) {
   }
   const { added, updated, existing } = mergeHooks(settings, plan.hooks, plan.target);
   const settingsChanged = added.length > 0 || updated.length > 0;
-  const result = { scriptState, settingsState: settingsChanged ? (settingsText === null ? 'create' : 'update') : 'unchanged', added, updated, existing, backups: [], wrote: false };
-  if (options.dryRun) return result;
+  const result = { scriptState, settingsState: settingsChanged ? (settingsText === null ? 'create' : 'update') : 'unchanged', added, updated, existing, autoBind: null, backups: [], wrote: false };
+  if (options.dryRun) {
+    result.autoBind = applyAutoBindPolicy(plan, options);
+    return result;
+  }
   if (scriptState === 'upgrade') result.backups.push(backup(plan.target));
   if (settingsChanged && settingsText !== null) result.backups.push(backup(plan.settings));
   let owned;
@@ -210,6 +235,7 @@ function install(plan, options) {
     }
     throw error;
   }
+  result.autoBind = applyAutoBindPolicy(plan, options);
   result.wrote = true;
   return result;
 }
@@ -219,6 +245,8 @@ function printPlan(plan, options) {
   console.log('Node.js：' + process.version + '（' + process.execPath + '）');
   console.log('脚本落点：' + plan.target);
   console.log('hooks 落点：' + plan.settings);
+  console.log('接续存储：' + plan.store);
+  console.log('自动绑定：' + (options.autoBind === false ? '不开启（--no-auto-bind）' : '开启（写 auto-bind.json，新会话首个提示自动绑定）'));
   console.log('接线事件：' + plan.hooks.map(hook => hook.event).join(' / '));
   if (options.dryRun) console.log('（dry-run：只显示计划，不写盘）');
 }
@@ -228,12 +256,29 @@ function printResult(plan, result) {
   console.log('脚本：' + labels[result.scriptState] + ' ' + plan.target);
   console.log('hooks：' + labels[result.settingsState] + (result.added.length ? '，新增 ' + result.added.join(' / ') : '') + (result.updated.length ? '，更新 ' + result.updated.join(' / ') : ''));
   if (result.existing.length) console.log('完整接线已匹配（未改动）：' + result.existing.join(' / '));
+  const policy = result.autoBind || {};
+  const policyLabels = {
+    create: '已开启（新会话首个提示自动绑定）',
+    update: '原策略无效，已重写并开启',
+    unchanged: '已开启（保持不变）',
+    'preserved-disabled': '保留此前的显式关闭（不重开）',
+    skipped: '未开启（--no-auto-bind）',
+    failed: '写入失败，已降级为按会话手工 enable' + (policy.error ? '：' + policy.error : ''),
+  };
+  console.log('自动绑定：' + (policyLabels[policy.state] || '未变更') + (policy.file ? '（' + policy.file + '）' : ''));
   for (const file of result.backups) console.log('备份：' + file);
   if (!result.wrote) return;
-  console.log('\n下一步（按会话开启采集）：');
-  console.log('  node "' + plan.target + '" enable --cwd "<工作目录>" --session <真实会话ID> --task <任务ID>');
-  console.log('  任务结束：node "' + plan.target + '" disable --cwd "<工作目录>" --session <真实会话ID>');
-  console.log('\n安装只代表“可用”，不会自动采集；只在 enable 的会话里保存用户正文与指定助手段落，不读 Qoder 内部数据库、不上传。');
+  const auto = ['create', 'update', 'unchanged'].includes(policy.state);
+  console.log('\n下一步：');
+  if (auto) {
+    console.log('  新会话：首个提示自动绑定并采集，任务ID形如 AUTO-<日期>-<目录名>');
+    console.log('  单会话关闭：node "' + plan.target + '" disable --cwd "<工作目录>" --session <真实会话ID>（关闭后不会被自动重开）');
+    console.log('  全局关闭：把 ' + path.join(plan.store, 'auto-bind.json') + ' 的 enabled 改为 false 或删除该文件');
+  } else {
+    console.log('  按会话开启：node "' + plan.target + '" enable --cwd "<工作目录>" --session <真实会话ID> --task <任务ID>');
+    console.log('  任务结束：node "' + plan.target + '" disable --cwd "<工作目录>" --session <真实会话ID>');
+  }
+  console.log('\n采集边界不变：只存用户正文与 决策：/已否证：/验证结论：/证据引用：/授权边界： 前缀的助手段落；本地脱敏存储、不读 Qoder 内部数据库、不上传。');
 }
 
 async function main() {
@@ -241,11 +286,27 @@ async function main() {
   if (options.help) { usage(); return 0; }
   const support = sqliteSupport();
   if (!support.ok) {
-    console.error('当前 Node ' + process.version + ' 不支持 node:sqlite + FTS5 trigram，无法启用 SQLite 接续记忆与追回。');
-    console.error('需要 Node.js 24.16+；Windows 可运行 scripts\\install-node.ps1，或升级 Node 后重试。');
+    console.error('当前 Node ' + process.version + ' 不支持 node:sqlite + FTS5 trigram，无法启用 SQLite 接续记忆与追回（需要 Node.js 24.16+）。');
+    const nodeInstaller = path.join(__dirname, 'install-node.ps1');
+    const canOfferInstall = options.mode === 'prompt' && !options.dryRun && process.platform === 'win32' && fs.existsSync(nodeInstaller) && process.stdin.isTTY && process.stdout.isTTY;
+    if (canOfferInstall) {
+      const choice = await choose('当前 Node 缺少接续记忆所需的 node:sqlite + FTS5，如何处理？', [
+        '安装 Node.js LTS（运行 scripts\\install-node.ps1）',
+        '保持原有方式（先不启用接续）',
+      ]);
+      if (choice.index === 0) {
+        const shell = ['C:\\Program Files\\PowerShell\\7\\pwsh.exe', 'pwsh', 'powershell'].find(exe => exe.includes('\\') ? fs.existsSync(exe) : true);
+        const run = spawnSync(shell, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', nodeInstaller], { stdio: 'inherit' });
+        if (run.error) console.error('无法启动 PowerShell：' + run.error.message);
+        else console.error('Node.js 安装流程结束（退出码 ' + (run.status === null ? 'unknown' : run.status) + '）。安装成功后请重新运行本安装器。');
+        return 3;
+      }
+    }
+    console.error('保持原有方式：本机先不启用接续记忆。Windows 可运行 scripts\\install-node.ps1 安装 Node.js 后重试。');
     return 3;
   }
-  const plan = planFor(path.resolve(options.clientRoot || clientRoot()), process.execPath);
+  const { defaultStore } = require('./continuity.cjs');
+  const plan = planFor(path.resolve(options.clientRoot || clientRoot()), process.execPath, defaultStore());
   console.log('Qoder-Optimization：SQLite 接续记忆与追回\n');
   printPlan(plan, options);
   let mode = options.mode;

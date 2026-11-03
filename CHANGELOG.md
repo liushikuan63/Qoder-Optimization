@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 During the 0.x line, minor versions may contain breaking changes.
 
+## [Unreleased]
+
+### Added
+- Auto-bind continuity sessions on supported machines: when the installer is accepted and the host provides Node.js 24.16+ with `node:sqlite` and FTS5, it writes `<store>/auto-bind.json` (`{"schema":1,"enabled":true}`) so each new session binds on its first hook with task `AUTO-<date>-<dir>`. An explicit per-session `disable` is never reopened; `--no-auto-bind` keeps the original manual `enable` flow, and unsupported hosts fall back to the same manual flow after offering a Node.js install.
+- Add a portable continuity store default: `CONTINUITY_STORE` wins, then `D:/qoder-data/context-continuity` on Windows when a `D:` drive exists, otherwise `~/.qoder/context-continuity`.
+
+### Verification
+- Installer/continuity suite: 23 pass / 0 fail, covering auto-bind policy creation, dry-run, explicit-disable preservation, `--no-auto-bind`, corrupt-policy rewrite, runtime auto-bind followed by `disable`, and the unsupported-Node fallback that writes nothing.
+
 ## [0.0.20] - 2026-11-03
 
 ### Added

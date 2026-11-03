@@ -1,11 +1,16 @@
 'use strict';
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { DatabaseSync } = require('node:sqlite');
 const { TextDecoder } = require('node:util');
 
-const DEFAULT_STORE = 'D:/qoder-data/context-continuity';
+function defaultStore() {
+  if (process.env.CONTINUITY_STORE) return path.resolve(process.env.CONTINUITY_STORE);
+  if (process.platform === 'win32' && fs.existsSync('D:\\')) return 'D:/qoder-data/context-continuity';
+  return path.join(os.homedir(), '.qoder', 'context-continuity');
+}
 const MAX_RECORDS = 512;
 const MAX_TEXT_BYTES = 128 * 1024;
 const SCAN_BYTES = 4 * 1024 * 1024;
@@ -62,7 +67,7 @@ function redact(value) {
 function location(options) {
   if (!/^[A-Za-z0-9][A-Za-z0-9-]{7,127}$/.test(options.session || '')) throw new Error('INVALID_SESSION');
   const cwd = canonical(options.cwd);
-  const store = path.resolve(options.store || DEFAULT_STORE);
+  const store = path.resolve(options.store || defaultStore());
   const dir = path.join(store, hash(cwd).slice(0, 20), hash(options.session).slice(0, 20));
   return { cwd, store, dir, session: options.session };
 }
@@ -92,6 +97,36 @@ function disable(options) {
   if (!scope) return { status: 'NOT_ENABLED' };
   atomic(path.join(loc.dir, 'scope.json'), { ...scope, enabled: false });
   return { status: 'DISABLED', task: scope.task };
+}
+
+function autoBindPolicy(loc) {
+  const file = path.join(loc.store, 'auto-bind.json');
+  if (!fs.existsSync(file)) return false;
+  try {
+    const policy = json(file);
+    return policy.schema === 1 && policy.enabled === true;
+  } catch {
+    return false;
+  }
+}
+
+function autoTask(loc) {
+  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const base = (path.basename(loc.cwd).replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, '') || 'workspace').slice(0, 48);
+  return `AUTO-${stamp}-${base}`;
+}
+
+function autoBind(loc) {
+  if (!autoBindPolicy(loc)) return null;
+  try {
+    enable({ store: loc.store, cwd: loc.cwd, session: loc.session, task: autoTask(loc) });
+    const scope = { ...scopeAt(loc), auto: true };
+    atomic(path.join(loc.dir, 'scope.json'), scope);
+    return scope;
+  } catch (error) {
+    console.error('CONTINUITY_NOT_SAVED: AUTO_BIND_FAILED');
+    return null;
+  }
 }
 
 function recordId(body) {
@@ -428,7 +463,8 @@ function hook(payload, options = {}) {
   const input = { ...options, cwd: payload.cwd, session: payload.session_id, transcript: payload.transcript_path };
   if (!input.cwd || !input.session) return '';
   const loc = location(input);
-  const scope = scopeAt(loc);
+  let scope = scopeAt(loc);
+  if (!scope) scope = autoBind(loc);
   if (!scope?.enabled) return '';
   let result;
   let context = '';
@@ -460,7 +496,7 @@ function hook(payload, options = {}) {
   }
   atomic(path.join(loc.dir, 'last-' + event + '.json'), {
     schema: 1, event, at: new Date().toISOString(), source: payload.source || '', session: loc.session,
-    version: hash(fs.readFileSync(__filename)), result: result || null, contextChars: context.length,
+    version: hash(fs.readFileSync(__filename)), auto: Boolean(scope.auto), result: result || null, contextChars: context.length,
   });
   return context;
 }
@@ -511,7 +547,7 @@ function cli(argv) {
   return 0;
 }
 
-module.exports = { enable, disable, capture, search, restore, hook, records, location, databasePath, redact, selected, CONTEXT_CHARS, cli };
+module.exports = { enable, disable, capture, search, restore, hook, records, location, databasePath, redact, selected, defaultStore, autoBindPolicy, autoBind, CONTEXT_CHARS, cli };
 if (require.main === module) {
   try { process.exitCode = cli(process.argv.slice(2)); }
   catch (error) {

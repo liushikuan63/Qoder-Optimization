@@ -77,7 +77,7 @@ For a guided setup, give the repository to Qoder and ask it to inspect your curr
 
 For a manual setup, follow the [installation guide](README-安装说明.md). Install only the skills you need; do not copy `skills/` wholesale.
 
-Optional: on Windows, run `install.cmd` at the package root. It detects Node.js, offers to install it when missing, and asks whether to enable the SQLite continuity memory and recovery mode.
+Optional: on Windows, run `install.cmd` at the package root. It detects Node.js (24.16+), offers to install it when missing, and asks whether to enable the SQLite continuity memory and recovery mode. When enabled on a supported machine, new sessions auto-bind on their first prompt; an explicit per-session `disable` is never reopened, and `--no-auto-bind` keeps the manual per-session `enable` flow.
 
 After setup, run the checks from the client directory you configured:
 
@@ -240,7 +240,7 @@ Hooks      在配置的流程节点运行检查
 
 手动安装请按[安装说明](README-安装说明.md)操作。只安装需要的技能，不要整目录复制 `skills/`。
 
-可选：Windows 用户可先运行包根目录 `install.cmd`；它会检测 Node.js（缺失时询问是否安装），并询问是否启用 SQLite 接续记忆与追回模式。
+可选：Windows 用户可先运行包根目录 `install.cmd`；它会检测 Node.js（24.16+，缺失时询问是否安装），并询问是否启用 SQLite 接续记忆与追回模式。支持的机器上启用后，新会话首个提示即自动绑定；显式 `disable` 的会话不会被重开，`--no-auto-bind` 则保留按会话手动 `enable`。
 
 安装后，在所使用客户端的目录中运行：
 

@@ -18,18 +18,24 @@
 
 推荐先运行包根目录的 `install.cmd`（Windows）。它会检测宿主机是否已有可用的 Node.js：
 
-- **已有 Node.js**：询问是否启用 SQLite 接续记忆与追回模式。同意后把 `scripts/continuity.cjs` 安装到客户端 `scripts/`，并把 `PreCompact` / `PostCompact` / `UserPromptSubmit` / `SessionStart` / `PostToolUse` 五个事件接入该客户端 `settings.json`；修改前自动备份，完整接线匹配时不重复添加，同一脚本的 Node 路径变化会就地更新。已有命令、matcher、type 或 timeout 冲突时拒绝修改，保留配置供用户裁决；配置写入失败时只回滚仍属本事务且内容未变化的脚本，并清理暂存文件。按 catalog 安装 `script:install-continuity.cjs` 会同时补齐接续脚本依赖，安装不代表按会话启用采集。
-- **没有 Node.js**：询问是否安装 Node.js LTS。可选择用 winget 自动安装，或查看便携版下载方式（解压到非系统盘后重跑）。
+- **已有 Node.js（24.16+，含内置 `node:sqlite` 与 FTS5）**：询问是否启用 SQLite 接续记忆与追回模式。同意后把 `scripts/continuity.cjs` 安装到客户端 `scripts/`，把 `PreCompact` / `PostCompact` / `UserPromptSubmit` / `SessionStart` / `PostToolUse` 五个事件接入该客户端 `settings.json`，并写入 `<存储目录>/auto-bind.json` 的 `{"schema":1,"enabled":true}`——**后续新会话在首个提示时自动绑定并开始采集**，不需要再手动 `enable`。修改前自动备份，完整接线匹配时不重复添加，同一脚本的 Node 路径变化会就地更新。已有命令、matcher、type 或 timeout 冲突时拒绝修改，保留配置供用户裁决；配置写入失败时只回滚仍属本事务且内容未变化的脚本，并清理暂存文件。按 catalog 安装 `script:install-continuity.cjs` 会同时补齐接续脚本依赖。
+- **没有 Node.js（或版本过低 / 缺 `node:sqlite` / FTS5）**：交互运行时询问是否安装 Node.js LTS（可选择用 winget 自动安装，或查看便携版下载方式，解压到非系统盘后重跑）；非交互 `--yes` 则直接跳过并提示手动安装。**未安装前保持原有方式**：不写自动绑定策略、不改配置，由你装好 Node 后重新运行安装器。
 
 跨平台或已装 Node 时也可直接运行：
 
 ```bash
-node scripts/install-continuity.cjs          # 交互式：启用 / 跳过
-node scripts/install-continuity.cjs --dry-run # 只显示计划
-node scripts/install-continuity.cjs --yes     # 非交互启用
+node scripts/install-continuity.cjs             # 交互式：启用 / 跳过
+node scripts/install-continuity.cjs --dry-run   # 只显示计划（不写策略）
+node scripts/install-continuity.cjs --yes       # 非交互启用（含自动绑定）
+node scripts/install-continuity.cjs --yes --no-auto-bind # 只接线，仍按会话手动启用
 ```
 
-启用只代表“装好并接线”；采集仍按会话显式开启：在需要接续的会话中运行 `enable`（安装完成会打印完整命令），任务结束 `disable`。工具只在 enable 的会话里保存用户正文与指定助手段落，不读 Qoder 内部数据库、不上传。需要 Node.js 24.16+（内置 `node:sqlite` 与 FTS5）。
+**自动绑定与手动模式**：
+
+- 自动绑定策略开启后，任何新会话在首个提示时绑定任务 `AUTO-<日期>-<目录名>`，任务结束可在该会话运行 `disable`；**显式 `disable` 的会话不会被自动重开**，单会话退出优先。
+- 想整体关闭自动绑定：把 `<存储目录>/auto-bind.json` 改成 `{"schema":1,"enabled":false}` 或删除该文件；安装器**不会**把你显式设为 `enabled:false` 的策略重开。
+- 存储目录：Windows 且存在 `D:` 时为 `D:/qoder-data/context-continuity`，否则 `~/.qoder/context-continuity`；`CONTINUITY_STORE` 环境变量优先。每个会话一个 SQLite（FTS5 trigram 检索），不读 Qoder 内部数据库、不上传。
+- 采集边界不变：只存用户正文与 `决策：` / `已否证：` / `验证结论：` / `证据引用：` / `授权边界：` 前缀的助手段落，写入前脱敏。检索与手工启停见 `/checkpoint`。
 
 ## 安装
 
