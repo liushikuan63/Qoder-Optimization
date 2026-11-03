@@ -396,6 +396,7 @@ test('memory archive gate ignores the platform gzip header but not content', () 
 test('offline components are optional archives without omission or overlap', () => withFixture(f => {
   f.put('mcp/offline/LICENSE-cua-driver.txt', 'fixture license');
   f.put('mcp/offline/tool.bin', Buffer.from([0, 1, 2, 3]));
+  f.put('mcp/offline/SHA256SUMS', ['LICENSE-cua-driver.txt', 'tool.bin'].map(name => require('crypto').createHash('sha256').update(fs.readFileSync(path.join(f.root, 'mcp/offline', name))).digest('hex') + '  ' + name).join('\n') + '\n');
   f.refresh();
   commitFixture(f);
   const dest = path.join(f.base, 'split');

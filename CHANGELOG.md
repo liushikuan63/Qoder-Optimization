@@ -23,6 +23,7 @@ During the 0.x line, minor versions may contain breaking changes.
 - Distinguish explicit goal/verification requests from quotations, advice and refusals. Keep carrier reminders active for small or Git-tracked files; require qualified task/session evidence for evolution candidates, and treat failed release commands as failures.
 - Validate catalog arguments before writes, compare every installed skill tier, and report unavailable package comparisons as `DRIFT_UNVERIFIED` rather than equality.
 - Do not attribute aggregate build/test/deploy results to an arbitrary target. Combined database output cannot clear failures; authentication errors are attributed only when their reported identity selects one target unambiguously.
+- Correct the offline Cua license checksum to match its distributed LF bytes, and verify every offline payload/license checksum in the release gate. Independent actual-ZIP acceptance caught the earlier CRLF-based checksum before publication; historical releases remain unchanged.
 
 ### Compatibility and recovery
 - Worker deltas now require `planDigest`; older deltas must be regenerated from the current context pack. Catalog `drift` exits 2 when installed content cannot be compared with its package source.

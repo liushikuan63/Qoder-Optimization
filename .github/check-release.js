@@ -2,6 +2,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { isPublicFile, metadataFor } = require('../scripts/pack-share-extras.cjs');
 
 function walk(root, rel = '') {
@@ -14,6 +15,31 @@ function walk(root, rel = '') {
     else files.push(next);
   }
   return files.sort();
+}
+
+function checkOffline(root, files) {
+  const members = files.filter(file => file.startsWith('mcp/offline/'));
+  if (!members.length) return [];
+  const problems = [], listed = new Map();
+  try {
+    const manifest = path.join(root, 'mcp/offline/SHA256SUMS');
+    const st = fs.lstatSync(manifest);
+    if (!st.isFile() || st.isSymbolicLink()) throw new Error('SHA256SUMS is not an ordinary file');
+    for (const line of fs.readFileSync(manifest, 'utf8').split(/\r?\n/).map(line => line.trim()).filter(line => line && !line.startsWith('#') && line !== '```')) {
+      const row = line.match(/^([a-f0-9]{64})\s+([A-Za-z0-9][A-Za-z0-9._-]*)$/);
+      if (!row || listed.has(row[2])) throw new Error('invalid or duplicate checksum entry');
+      listed.set(row[2], row[1]);
+    }
+    const required = members.map(file => file.slice('mcp/offline/'.length)).filter(name => !['README-offline.md', 'SHA256SUMS'].includes(name));
+    for (const name of listed.keys()) if (!required.includes(name)) problems.push('offline checksum references an unapproved member: ' + name);
+    for (const name of required) {
+      if (!listed.has(name)) { problems.push('missing offline checksum: ' + name); continue; }
+      const full = path.join(root, 'mcp/offline', name), stat = fs.lstatSync(full);
+      if (!stat.isFile() || stat.isSymbolicLink()) { problems.push('offline member is not an ordinary file: ' + name); continue; }
+      if (crypto.createHash('sha256').update(fs.readFileSync(full)).digest('hex') !== listed.get(name)) problems.push('offline checksum mismatch: ' + name);
+    }
+  } catch (error) { problems.push('offline checksums missing or invalid: ' + error.message); }
+  return problems;
 }
 
 function checkRelease(root, tag, selectedFiles) {
@@ -97,10 +123,11 @@ function checkRelease(root, tag, selectedFiles) {
   for (const entry of skillEntries) if (!skillList.includes('- `' + entry.name + '`（' + (entry.tier === 'core' ? '常驻' : '按需') + '）')) fail('skill-list tier drift: ' + entry.name);
   const offline = files.filter(file => file.startsWith('mcp/offline/'));
   if (offline.length && !files.includes('mcp/offline/LICENSE-cua-driver.txt')) fail('missing offline third-party license');
+  for (const problem of checkOffline(root, files)) fail(problem);
   return { problems, files, version };
 }
 
-module.exports = { checkRelease, walk };
+module.exports = { checkRelease, checkOffline, walk };
 if (require.main === module) {
   const result = checkRelease(process.cwd(), process.argv[2]);
   for (const problem of result.problems) console.error('FAIL ' + problem);
