@@ -1,6 +1,6 @@
 {
  "package_name": "Qoder-Optimization",
- "version": "0.0.19",
+ "version": "0.0.20",
  "generated": "2026-11-03",
  "skills": [
   {
@@ -322,6 +322,11 @@
    "name": "oracledb",
    "tier": "library",
    "files": 1
+  },
+  {
+   "name": "parallel-orchestration",
+   "tier": "library",
+   "files": 4
   },
   {
    "name": "pause-writer-before-shared-file-edit",

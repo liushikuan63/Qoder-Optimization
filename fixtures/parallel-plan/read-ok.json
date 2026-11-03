@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "taskId": "read-ok",
+  "goal": "Survey two independent modules without writing files",
+  "mode": "auto",
+  "constraints": ["read-only", "cite file:line"],
+  "units": [
+    {
+      "id": "U1",
+      "kind": "read",
+      "title": "Inspect scripts validators",
+      "dependsOn": [],
+      "ownedPaths": [],
+      "readPaths": ["scripts"],
+      "acceptance": ["Report validator entry points with file:line"],
+      "evidence": ["file:line"]
+    },
+    {
+      "id": "U2",
+      "kind": "read",
+      "title": "Inspect skill metadata",
+      "dependsOn": [],
+      "ownedPaths": [],
+      "readPaths": ["skills"],
+      "acceptance": ["Report skill manifest fields with file:line"],
+      "evidence": ["file:line"]
+    }
+  ],
+  "resources": {
+    "sharedFiles": [],
+    "sharedServices": [],
+    "databaseWrites": false,
+    "production": false,
+    "destructive": false,
+    "credentials": false,
+    "externalSideEffects": false
+  },
+  "execution": {
+    "maxConcurrency": 2,
+    "isolation": "none",
+    "workerTool": "Explore"
+  },
+  "budget": {
+    "maxWorkers": 4,
+    "maxRounds": 2
+  }
+}

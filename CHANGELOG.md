@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 During the 0.x line, minor versions may contain breaking changes.
 
+## [0.0.20] - 2026-11-03
+
+### Added
+- Add deterministic parallel-plan validation (`scripts/parallel-plan.cjs`) with dependency waves, hard gates, write isolation, path ownership and machine-readable verdicts.
+- Add shared context and recall tooling (`scripts/parallel-context.cjs`): coordinator-owned canonical context, bounded/redacted memory packs, versioned worker deltas and stale-pack checks.
+- Add the `parallel-orchestration` skill and four-layer vibecoding docs. Parallelizable plans must be shown to the user for approval before dispatch; write parallelism needs a separate explicit opt-in plus worktree isolation and disjoint `ownedPaths`.
+- Sync the parallel orchestration rule to global and share-rule docs, and ignore `.qoder/parallel-runs/` runtime records.
+
+### Verification
+- `parallel-plan` and `parallel-context` suites: 26 pass / 0 fail; fixtures cover parallel-read, same-file rejection and production/database hard gates.
+- Full regression: 380 pass / 0 fail; documentation, sensitive scan and package metadata checks pass; package catalog has 267 entries.
+- Installed skill and scripts verified locally: `skill-load` resolves the skill and the installed copies pass the same 26 tests.
+
 ## [0.0.19] - 2026-11-03
 
 ### Added

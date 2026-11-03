@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "taskId": "blocked-production-database",
+  "goal": "Attempt a plan that touches production and database writes",
+  "mode": "auto",
+  "units": [
+    {
+      "id": "U1",
+      "kind": "read",
+      "title": "Inspect production configuration",
+      "dependsOn": [],
+      "ownedPaths": [],
+      "readPaths": ["config"],
+      "acceptance": ["Report production settings with file:line"],
+      "evidence": ["file:line"]
+    },
+    {
+      "id": "U2",
+      "kind": "read",
+      "title": "Inspect database migration state",
+      "dependsOn": [],
+      "ownedPaths": [],
+      "readPaths": ["migrations"],
+      "acceptance": ["Report migration entries with file:line"],
+      "evidence": ["file:line"]
+    }
+  ],
+  "resources": {
+    "sharedFiles": [],
+    "sharedServices": [],
+    "databaseWrites": true,
+    "production": true,
+    "destructive": false,
+    "credentials": false,
+    "externalSideEffects": false
+  },
+  "execution": {
+    "maxConcurrency": 2,
+    "isolation": "none",
+    "workerTool": "Explore"
+  },
+  "budget": {
+    "maxWorkers": 4,
+    "maxRounds": 2
+  }
+}

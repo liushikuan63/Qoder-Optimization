@@ -2,13 +2,13 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.0.19"
+  "version": "0.0.20"
  },
  "generated": "2026-11-03",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
-  "skill": 132,
-  "script": 118,
+  "skill": 133,
+  "script": 122,
   "command": 10,
   "agent": 2
  },
@@ -907,6 +907,20 @@
     "tier": "library"
    },
    "source": "skills/oracledb",
+   "dependencies": []
+  },
+  {
+   "id": "skill:parallel-orchestration",
+   "category": "skill",
+   "name": "parallel-orchestration",
+   "status": "shipped",
+   "tier": "library",
+   "description": "主会话协调的多 agent 并行编排：开工前判定任务能否并行，可并行时先列出计划并询问用户方案是否合适，确认后再启用只读子代理、独立 worktree 或后台会话派发，维护共享上下文与记忆召回，串行合并并重新验收。触发词：并行、多 agent、多agent、协调者、orchestrator、任务拆分、依赖图、worktree、并行编排、共享上下文、记忆召回、并行判断。",
+   "source": "skills/parallel-orchestration",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
    "dependencies": []
   },
   {
@@ -2783,6 +2797,56 @@
     "mode": "copy-file"
    },
    "dependencies": []
+  },
+  {
+   "id": "script:parallel-context.cjs",
+   "category": "script",
+   "name": "parallel-context.cjs",
+   "status": "shipped",
+   "source": "scripts/parallel-context.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:parallel-plan.cjs"
+   ]
+  },
+  {
+   "id": "script:parallel-context.test.js",
+   "category": "script",
+   "name": "parallel-context.test.js",
+   "status": "shipped",
+   "source": "scripts/parallel-context.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:parallel-context.cjs"
+   ]
+  },
+  {
+   "id": "script:parallel-plan.cjs",
+   "category": "script",
+   "name": "parallel-plan.cjs",
+   "status": "shipped",
+   "source": "scripts/parallel-plan.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": []
+  },
+  {
+   "id": "script:parallel-plan.test.js",
+   "category": "script",
+   "name": "parallel-plan.test.js",
+   "status": "shipped",
+   "source": "scripts/parallel-plan.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:parallel-plan.cjs"
+   ]
   },
   {
    "id": "script:pkg-catalog.cjs",

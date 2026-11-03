@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "taskId": "write-same-file",
+  "goal": "Attempt two writers on one file to prove the plan is rejected",
+  "mode": "worktree",
+  "units": [
+    {
+      "id": "U1",
+      "kind": "write",
+      "title": "Edit shared module",
+      "dependsOn": [],
+      "ownedPaths": ["src/shared.js"],
+      "readPaths": [],
+      "acceptance": ["Unit tests pass"],
+      "evidence": ["diff", "test output"]
+    },
+    {
+      "id": "U2",
+      "kind": "write",
+      "title": "Edit the same shared module",
+      "dependsOn": [],
+      "ownedPaths": ["src/shared.js"],
+      "readPaths": [],
+      "acceptance": ["Unit tests pass"],
+      "evidence": ["diff", "test output"]
+    }
+  ],
+  "resources": {
+    "sharedFiles": [],
+    "sharedServices": [],
+    "databaseWrites": false,
+    "production": false,
+    "destructive": false,
+    "credentials": false,
+    "externalSideEffects": false
+  },
+  "execution": {
+    "maxConcurrency": 2,
+    "isolation": "worktree",
+    "workerTool": "general-purpose"
+  },
+  "budget": {
+    "maxWorkers": 4,
+    "maxRounds": 2
+  }
+}

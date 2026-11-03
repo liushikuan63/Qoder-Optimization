@@ -1,6 +1,6 @@
-# Qoder-Optimization - 0.0.19 技能清单
+# Qoder-Optimization - 0.0.20 技能清单
 
-共 132 个源码随包技能：常驻 12 / 按需 120。机器可读版见 skills-manifest.json 与 catalog.json。
+共 133 个源码随包技能：常驻 12 / 按需 121。机器可读版见 skills-manifest.json 与 catalog.json。
 
 默认按需选择安装；层级与依赖以 catalog 为准。
 
@@ -70,6 +70,7 @@
 - `office-docs`（按需）—— 不依赖 Python 用 Node 读写 Excel（.xlsx/.csv）与 Word（.docx）——读表格转 markdown/JSON（支持按范围/行数截断、列工作表、读公式原文）、按 JSON 规格生成工作簿（列宽/冻结/数字格式/CSV 直转）、改既有工作簿的单元格、抽取 Word 正文与表格、生成 Word 文档（含样式/图片/分页，支持 Markdown 直转含插图）、往既有 docx 模板插入新表格（解包改 XML 回包、保模板样式）。
 - `open-code-review-delegate`（按需）—— Delegation mode for open-code-review (OCR). Use when the host agent should drive the review with its own LLM capabilities。中文触发：代码评审 审查 评审
 - `oracledb`（按需）—— Use these skills to manage and monitor Oracle databases by executing SQL statements, exploring schema metadata, analyzing query performance, monitoring active sessions and resource consumption, and managing storage and object health.
+- `parallel-orchestration`（按需）—— 主会话协调的多 agent 并行编排：开工前判定任务能否并行，可并行时先列出计划并询问用户方案是否合适，确认后再启用只读子代理、独立 worktree 或后台会话派发，维护共享上下文与记忆召回，串行合并并重新验收。触发词：并行、多 agent、多agent、协调者、orchestrator、任务拆分、依赖图、worktree、并行编排、共享上下文、记忆召回、并行判断。
 - `pause-writer-before-shared-file-edit`（按需）—— 编辑会被并行会话/自动机制改写的文件（技能 description、记忆索引、台账、evolution 状态）时的防竞态流程：先证明有并发写入方（mtime+字节数）→ 官方 CLI 暂停（evolution.js pause，不手写 control.json）→ 暂停后重新扫描再动手 → 扫描红当「暂定」，复跑一次再判 → 改完 resume 并记录基线。触发词：并发写入、并行会话改了我的文件、description 被回滚、悬空引用假红、mtime/size 变了、evolution pause/resume。
 - `postgresql-optimization`（按需）—— Expert in PostgreSQL performance tuning, query optimization, and database administration. Specializes in EXPLAIN analysis, indexing strategies, connection pooling, partitioning, and production-grade
 - `postgresql-table-design`（按需）—— Design a PostgreSQL-specific schema. Covers best-practices, data types, indexing, constraints, performance patterns, and advanced features
