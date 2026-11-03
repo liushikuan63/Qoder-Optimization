@@ -18,6 +18,17 @@ check('候选提醒主动询问Vibecoding文档', note.includes('Vibecoding 四�
 const explicit = classifyGoalCandidate('请设为Goal模式并持续推进到完成');
 check('显式Goal请求直接识别授权', explicit.candidate && explicit.explicitGoal);
 check('显式Goal仍检查Vibecoding文档', goalCandidateNote('请设为Goal模式并持续推进到完成').includes('Vibecoding'));
+check('祈使式开启目标模式 → 显式授权', classifyGoalCandidate('开启目标模式，把这个重构做完').explicitGoal);
+check('提问“是否开启目标模式” → 不算显式授权', !classifyGoalCandidate('现在还会自动根据任务询问是否开启目标模式吗').explicitGoal);
+check('元提及“目标模式是什么” → 不算显式授权', !classifyGoalCandidate('目标模式是什么').explicitGoal);
+check('否定“不要开启目标模式” → 不算显式授权', !classifyGoalCandidate('不要开启目标模式，直接做').explicitGoal);
+check('关闭目标模式 → 不算显式授权', !classifyGoalCandidate('关闭目标模式').explicitGoal);
+const stageOnly = classifyGoalCandidate('部署测试通过 + 提交 + 推送 +发布');
+check('多阶段任务仍命中候选且不算显式授权', stageOnly.candidate && !stageOnly.explicitGoal);
+check('多阶段候选仍要求弹窗确认两项', (() => {
+  const n = goalCandidateNote('部署测试通过 + 提交 + 推送 +发布');
+  return n.includes('需弹窗确认') && n.includes('AskUserQuestion') && n.includes('创建目标并持续推进') && n.includes('Vibecoding 四层文档') && !n.includes('已获显式授权');
+})());
 
 check('单点小修复不命中', !classifyGoalCandidate('修复一个按钮文案并提交').candidate);
 check('纯只读审阅不命中', !classifyGoalCandidate('只读审查这个方案并给建议，不要修改文件').candidate);

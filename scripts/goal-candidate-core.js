@@ -6,7 +6,11 @@ const STAGES = [
   { id: 'deploy', pattern: /(?:部署|上线|发布|生产环境|线上)/i },
   { id: 'deliver', pattern: /(?:提交\s*(?:SVN|Git)?|SVN\s*提交|commit|PR|交付)/i },
 ];
-const EXPLICIT_GOAL = /(?:创建|设(?:置)?|建立|进入|使用|开启).{0,8}(?:目标|Goal)|(?:目标|Goal)\s*(?:模式|执行)|持续推进|盯到完成|直到完成/i;
+// 只有祈使/授权语境才算显式目标请求；提问、否定、元提及一律不算，
+// 否则"是否开启目标模式""目标模式是什么"也会被当成已授权并触发 CreateGoal。
+const GOAL_INTENT = /(?:创建|设置|设为|建立|进入|开启|打开|启用|使用|用|按)\s*(?:一个|个)?\s*(?:目标|Goal)\s*(?:模式|执行)?|(?:目标|Goal)\s*(?:模式|执行)\s*(?:推进|来做|做|执行)|持续推进|盯到完成|盯到做完|直到完成/i;
+const GOAL_META = /(?:是什么|什么意思|怎么|如何|为什么|为何|是否|会不会|能不能|要不要|可不可以|有没有|还会|吗|？|\?|这句话|这个词|这个机制|这个规则)/i;
+const GOAL_NEGATION = /(?:不要|不用|无需|不必|取消|关闭|停用|禁用|停止|不(?:开启|进入|创建|设置|建立|使用|启用|打开|用)|别\s*(?:开启|进入|创建|设置|建立|使用|打开|用|再|去))/i;
 const READ_ONLY = /(?:只读|仅审阅|只审查|只分析|仅分析|只评估|仅评估|不要修改|不改文件|仅给建议)/i;
 
 function normalize(prompt) {
@@ -15,7 +19,7 @@ function normalize(prompt) {
 
 function classifyGoalCandidate(prompt, options = {}) {
   const text = normalize(prompt);
-  const explicitGoal = EXPLICIT_GOAL.test(text);
+  const explicitGoal = GOAL_INTENT.test(text) && !GOAL_META.test(text) && !GOAL_NEGATION.test(text);
   const matchedStages = STAGES.filter((stage) => stage.pattern.test(text)).map((stage) => stage.id);
   const minStages = Number.isFinite(options.minStages) ? options.minStages : 3;
   const hasDeliveryBoundary = matchedStages.includes('deploy') || matchedStages.includes('deliver');
