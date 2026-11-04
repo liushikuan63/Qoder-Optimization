@@ -221,6 +221,23 @@ test('redacted JSON recall can be packed and check detects raw-string credential
   assert.ok(checked.json.issues.some(issue => issue.startsWith('SENSITIVE_CONTENT:context.json:')));
 });
 
+test('space-containing quoted credentials cannot be merged and are removed from recall packs', t => {
+  const f = initContext(t), delta = path.join(f.dir, 'delta.json'), recall = path.join(f.dir, 'recall.json');
+  const secret = ['alpha', 'beta', 'gamma'].join(' '), excerpt = JSON.stringify({ password: secret });
+  writeJson(delta, { unitId: 'U1', contextVersion: 1, planDigest: f.context.planDigest, findings: [excerpt] });
+  const before = fs.readFileSync(f.contextFile);
+  const rejected = cli(contextScript, ['merge', '--context', f.contextFile, '--delta', delta]);
+  assert.equal(rejected.status, 1, rejected.stdout);
+  assert.equal(rejected.json.code, 'SENSITIVE_OUTPUT');
+  assert.ok(!rejected.stdout.includes(secret));
+  assert.deepEqual(fs.readFileSync(f.contextFile), before);
+  writeJson(recall, { refs: [{ source: 'project', ref: 'M1', excerpt }] });
+  const packed = cli(contextScript, ['pack', '--context', f.contextFile, '--unit', 'U1', '--recall', recall]);
+  assert.equal(packed.status, 0, packed.stdout);
+  assert.ok(!packed.stdout.includes('alpha') && !packed.stdout.includes('gamma'));
+  assert.ok(packed.json.pack.memoryRefs[0].excerpt.includes('[REDACTED]'));
+});
+
 test('pack rejects quoted credentials in unredacted recall metadata and decisions', t => {
   const f = initContext(t); const recall = path.join(f.dir, 'recall.json'); const out = path.join(f.dir, 'pack.json');
   const secret = ['metadata', 'private', 'value'].join('-'); const dirty = JSON.stringify({ password: secret });

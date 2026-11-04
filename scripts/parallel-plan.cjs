@@ -52,7 +52,9 @@ function safePath(value, name) {
   if (!parts.length || parts.some(part => part === '..' || part === '.' || /[. ]$/.test(part))) {
     fail('INVALID_PATH', name + ' must not escape the workspace: ' + value);
   }
-  return parts.join('/').toLowerCase();
+  // Keep literal case in the approved scope/digest. Collision checks below
+  // remain conservative across platforms; Linux Git paths retain their case.
+  return parts.join('/');
 }
 
 function pathList(value, name) {
@@ -153,12 +155,13 @@ function validatePlan(input) {
   const owned = new Map();
   for (const unit of writes) {
     for (const ownedPath of unit.ownedPaths) {
+      const key = ownedPath.toLowerCase();
       for (const [previousPath, previousUnit] of owned) {
-        if (ownedPath === previousPath || (previousUnit !== unit.id && (ownedPath.startsWith(previousPath + '/') || previousPath.startsWith(ownedPath + '/')))) {
+        if (key === previousPath || (previousUnit !== unit.id && (key.startsWith(previousPath + '/') || previousPath.startsWith(key + '/')))) {
           fail('OVERLAPPING_OWNED_PATHS', 'paths ' + previousPath + ' and ' + ownedPath + ' owned by ' + previousUnit + ' and ' + unit.id);
         }
       }
-      owned.set(ownedPath, unit.id);
+      owned.set(key, unit.id);
     }
   }
   const resources = input.resources;
@@ -199,7 +202,8 @@ function validatePlan(input) {
         for (const readerId of wave.filter(id => id !== writerId)) {
           const reader = byId.get(readerId);
           for (const written of writer.ownedPaths) for (const read of reader.readPaths) {
-            if (written === read || written.startsWith(read + '/') || read.startsWith(written + '/')) {
+            const left = written.toLowerCase(), right = read.toLowerCase();
+            if (left === right || left.startsWith(right + '/') || right.startsWith(left + '/')) {
               fail('READ_WRITE_CONFLICT', writer.id + ' writes ' + written + ' while same-wave ' + reader.id + ' reads ' + read + '; add dependsOn to serialize them');
             }
           }

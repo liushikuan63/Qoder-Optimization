@@ -22,11 +22,20 @@ function collectSkills(root = Q) {
   const entries = [];
   const names = new Set();
   const sources = root === Q ? SRC : [['core', path.join(root, 'skills')], ['library', path.join(root, 'skills-library')]];
+  const ordinary = (file, directory) => {
+    let stat;
+    try { stat = fs.lstatSync(file); }
+    catch (error) { if (error.code === 'ENOENT') return false; throw error; }
+    return !stat.isSymbolicLink() && (directory ? stat.isDirectory() : stat.isFile());
+  };
   for (const [tier, dir] of sources) {
-    if (!fs.existsSync(dir)) continue;
+    // Discovery must not read through a linked tier/skill/entry into unrelated
+    // files. Ignore only the unsafe entry so ordinary local skills still route.
+    if (!ordinary(dir, true)) continue;
     for (const d of fs.readdirSync(dir)) {
+      if (!ordinary(path.join(dir, d), true)) continue;
       const p = path.join(dir, d, 'SKILL.md');
-      if (!fs.existsSync(p)) continue;
+      if (!ordinary(p, false)) continue;
       const key = d.toLowerCase();
       if (names.has(key)) throw new Error('两层技能重名，需核对真源后再建索引；重复项：' + d);
       names.add(key);

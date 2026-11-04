@@ -36,3 +36,17 @@ test('findSensitive resets global regex state between calls', () => {
   const sample = 'token: ' + fakeToken;
   assert.deepEqual(findSensitive(sample), findSensitive(sample));
 });
+
+test('quoted credentials with spaces or escaped quotes are fully redacted', () => {
+  const values = ['alpha beta gamma', 'alpha "beta" gamma', "alpha 'beta' gamma"];
+  for (const value of values) {
+    const samples = [JSON.stringify({ password: value }), 'password: ' + JSON.stringify(value)];
+    for (const input of samples) {
+      assert.ok(findSensitive(input).includes('CREDENTIAL'), input);
+      const output = redact(input);
+      assert.ok(!output.includes('alpha') && !output.includes('gamma'), output);
+      assert.deepEqual(findSensitive(output), [], output);
+      assert.equal(redact(output), output);
+    }
+  }
+});

@@ -3,7 +3,7 @@
 **An opt-in toolkit for making Qoder workflows more repeatable and verifiable.** It adds rules, on-demand skills, hooks, commands, scripts, and MCP templates through Qoder's extension points; it does not modify Qoder itself.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.0.23-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.0.24-blue.svg)](VERSION)
 [![Node](https://img.shields.io/badge/node-24-brightgreen.svg)](https://nodejs.org)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20(primary)-lightgrey.svg)](#requirements-and-limits)
 
@@ -22,6 +22,7 @@ No clone required — pick a version and download it. Every release carries a re
 
 | Version | Released | Highlights | Download |
 |---|---|---|---|
+| 0.0.24 | 2026-11-04 | Integrity fixes; optional offline bundle | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.24/Qoder-Optimization-0.0.24.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.24) |
 | 0.0.23 | 2026-11-04 | Skill reference integrity, Windows CI, release gates and maintainability extraction | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.23/Qoder-Optimization-0.0.23.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.23) |
 | 0.0.22 | 2026-11-04 | Usage-driven resident skills, automatic on-demand discovery and parallel plan/recall fixes | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.22/Qoder-Optimization-0.0.22.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.22) |
 | 0.0.21 | 2026-11-03 | Active capability lifecycle, isolated parallel writes and delivery integrity | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.21/Qoder-Optimization-0.0.21.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.21) |
@@ -189,6 +190,7 @@ MIT; see [LICENSE](LICENSE). This is an unofficial community project and is not 
 
 | 版本 | 发布日期 | 主要内容 | 下载 |
 |---|---|---|---|
+| 0.0.24 | 2026-11-04 | 完整性修复；离线附件按需下载 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.24/Qoder-Optimization-0.0.24.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.24) |
 | 0.0.23 | 2026-11-04 | 技能引用完整性、Windows CI、发布门禁与大脚本拆分 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.23/Qoder-Optimization-0.0.23.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.23) |
 | 0.0.22 | 2026-11-04 | 常驻技能按使用习惯确认、按需技能自动发现、并行计划与召回修复 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.22/Qoder-Optimization-0.0.22.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.22) |
 | 0.0.21 | 2026-11-03 | 能力主动核对与使用、并行写隔离、交付完整性 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.21/Qoder-Optimization-0.0.21.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.21) |
@@ -348,7 +350,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 <!-- offline-bundle:start -->
 ### Optional offline bundle / 可选离线附件
 
-The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.23/Qoder-Optimization-0.0.23-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
+The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.24/Qoder-Optimization-0.0.24-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
 
 核心包不含 MCP 离线二进制；需要时单独下载离线附件，核对各自的 .sha256 后解压到同一目录。无需离线组件时只取核心包；链接仅在对应版本发布后可用。
 <!-- offline-bundle:end -->

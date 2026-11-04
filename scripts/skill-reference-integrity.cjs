@@ -50,22 +50,36 @@ function resolveCandidate(root, skill, fromFile, ref) {
   const bases = [path.dirname(fromFile), skillDir, root];
   for (const base of bases) {
     const candidate = path.resolve(base, ref);
-    if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return candidate;
+    if (!fs.existsSync(candidate) || !fs.statSync(candidate).isFile()) continue;
+    const physical = fs.realpathSync.native(candidate);
+    const relative = path.relative(root, physical);
+    // A developer's neighboring checkout or link target is not shipped in the
+    // ZIP and cannot serve as evidence that this package is self-contained.
+    if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) continue;
+    return physical;
   }
   return null;
 }
 
 function scan(root, options = {}) {
   const transitive = options.transitive !== false;
-  const maxDepth = Number.isInteger(options.maxDepth) ? options.maxDepth : 3;
+  root = fs.realpathSync.native(root);
+  if (!fs.statSync(root).isDirectory()) throw new Error('package root must be a directory');
+  const skills = skillNames(root);
+  if (!skills.length) throw new Error('package contains no skills to check');
   const allowlist = loadAllowlist(root);
   const allowed = new Set(allowlist.map(entry => entry.skill + '\u0000' + entry.ref));
   const missing = [], seen = new Set();
   let refsScanned = 0, filesScanned = 0;
 
-  function visit(skill, file, depth) {
-    if (seen.has(file) || depth > maxDepth) return;
-    seen.add(file);
+  const pending = skills.map(skill => ({ skill, file: path.join(root, 'skills', skill, 'SKILL.md') }));
+  // A visited set terminates cycles without silently truncating deep reference
+  // chains. Scope it by skill so each allowlist is applied to its own traversal.
+  while (pending.length) {
+    const { skill, file } = pending.pop();
+    const identity = skill + '\u0000' + fs.realpathSync(file);
+    if (seen.has(identity)) continue;
+    seen.add(identity);
     filesScanned += 1;
     const text = fs.readFileSync(file, 'utf8');
     for (const ref of refsIn(text)) {
@@ -73,21 +87,30 @@ function scan(root, options = {}) {
       const key = skill + '\u0000' + ref;
       const resolved = resolveCandidate(root, skill, file, ref);
       if (resolved) {
-        if (transitive && resolved.endsWith('.md')) visit(skill, resolved, depth + 1);
+        if (transitive && resolved.endsWith('.md')) pending.push({ skill, file: resolved });
         continue;
       }
       if (!allowed.has(key)) missing.push({ skill, ref, from: path.relative(root, file).replace(/\\/g, '/') });
     }
   }
 
-  for (const skill of skillNames(root)) visit(skill, path.join(root, 'skills', skill, 'SKILL.md'), 0);
   missing.sort((a, b) => a.skill.localeCompare(b.skill) || a.ref.localeCompare(b.ref));
-  return { schema: 1, root, skills: skillNames(root).length, filesScanned, refsScanned, allowlisted: allowlist.length, missing };
+  return { schema: 1, root, skills: skills.length, filesScanned, refsScanned, allowlisted: allowlist.length, missing };
 }
 
 function main(argv) {
-  const rootIndex = argv.indexOf('--root');
-  const root = path.resolve(rootIndex >= 0 ? argv[rootIndex + 1] : path.join(__dirname, '..'));
+  const known = new Set(['--root', '--check', '--json', '--no-transitive']);
+  const seen = new Set();
+  let root = path.join(__dirname, '..');
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (!known.has(arg) || seen.has(arg)) throw new Error('unknown or duplicate option: ' + arg);
+    seen.add(arg);
+    if (arg === '--root') {
+      if (!argv[i + 1] || argv[i + 1].startsWith('--')) throw new Error('--root requires a directory');
+      root = path.resolve(argv[++i]);
+    }
+  }
   const check = argv.includes('--check');
   const json = argv.includes('--json');
   const transitive = !argv.includes('--no-transitive');

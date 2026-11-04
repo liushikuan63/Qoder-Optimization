@@ -74,3 +74,49 @@ test('CLI exits 2 on missing and 0 when clean', () => fixture(root => {
   const good = spawnSync(process.execPath, [cli, '--root', root, '--check'], { encoding: 'utf8' });
   assert.strictEqual(good.status, 0);
 }));
+
+test('transitive traversal checks chains deeper than three documents', () => fixture(root => {
+  write(root, 'skills/deep/SKILL.md', 'Read `references/one.md`.');
+  for (const [name, next] of [['one', 'two'], ['two', 'three'], ['three', 'four'], ['four', 'missing']]) {
+    write(root, `skills/deep/references/${name}.md`, `Read \`references/${next}.md\`.`);
+  }
+  const result = scan(root);
+  assert.strictEqual(result.missing.length, 1);
+  assert.strictEqual(result.missing[0].ref, 'references/missing.md');
+}));
+
+test('reference cycles terminate without suppressing missing siblings', () => fixture(root => {
+  write(root, 'skills/cycle/SKILL.md', 'Read `references/one.md`.');
+  write(root, 'skills/cycle/references/one.md', 'Read `references/two.md`.');
+  write(root, 'skills/cycle/references/two.md', 'Read `references/one.md` and `references/missing.md`.');
+  assert.strictEqual(scan(root).missing.length, 1);
+}));
+
+test('a missing root or empty package cannot produce a clean integrity result', () => fixture(root => {
+  assert.throws(() => scan(path.join(root, 'missing')), /root|directory|ENOENT/i);
+  assert.throws(() => scan(root), /skills|empty|package/i);
+}));
+
+test('CLI rejects missing option values and unknown options', () => fixture(root => {
+  const cli = path.join(__dirname, 'skill-reference-integrity.cjs');
+  for (const args of [['--root'], ['--root', '--check'], ['--root', root, '--check', '--typo']]) {
+    const result = spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8' });
+    assert.strictEqual(result.status, 2, JSON.stringify({ args, stdout: result.stdout, stderr: result.stderr }));
+  }
+}));
+
+test('a dependency outside the package cannot satisfy a shipped reference', () => fixture(root => {
+  const pkg = path.join(root, 'package');
+  write(pkg, 'skills/escape/SKILL.md', 'Read `../../../references/outside.md`.');
+  write(root, 'references/outside.md', '# exists outside the distributed package');
+  assert.strictEqual(scan(pkg).missing.length, 1);
+}));
+
+test('a linked reference directory cannot satisfy a dependency outside the package', () => fixture(root => {
+  const pkg = path.join(root, 'package');
+  write(pkg, 'skills/linked/SKILL.md', 'Read `references/outside.md`.');
+  write(root, 'outside/outside.md', '# external');
+  const link = path.join(pkg, 'skills/linked/references');
+  fs.symlinkSync(path.join(root, 'outside'), link, process.platform === 'win32' ? 'junction' : 'dir');
+  assert.strictEqual(scan(pkg).missing.length, 1);
+}));

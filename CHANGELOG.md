@@ -6,6 +6,25 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.0.24] - 2026-11-04
+
+### Fixed
+- Preserve explicit current skill selections even when previous advice is disabled or excluded, prioritize named local skills before truncating candidates, and respect time-prefixed refusals. Ignore linked local skill entries and derive usage tier suggestions from current unambiguous directories.
+- Treat resident-choice metadata as part of the catalog install transaction: malformed state, failed publication and concurrent changes return failure with rollback. Reject linked tier parents before installation, migration and rollback; skip linked or non-regular entries before reading skill descriptions.
+- Canonicalize Windows checkout aliases consistently for approved checker inputs and parallel worktree identities. Keep Linux ownership checks case-sensitive and reject backslash filenames that cannot be safely represented by a plan path.
+- Redact complete quoted credential values containing whitespace or escaped quotes before publishing parallel context.
+- Traverse complete skill reference chains, terminate cycles, and reject empty/missing roots, malformed CLI options and references resolved outside the distributed package.
+
+### Verification and delivery
+- Run Windows CI fixtures in the runner's non-system temporary directory; keep backup fixtures independent of desktop recycle-bin services while preserving production recycle behavior.
+- Retain the existing v0.0.23 tag and its failed CI evidence; publish these fixes under a new version after Windows/Linux regression and independent installed-package verification.
+
+### 中文摘要
+- 显式能力选择优先于旧关闭/排除偏好；本次、这次、暂时等拒绝生效，使用统计按当前实际层级给建议。
+- 常驻清单纳入安装事务，失败不再假成功；拒绝 linked 层级目录越界写入，读取技能说明前检查链接边界。
+- 修复 Windows 短路径身份误判、Linux 大小写/反斜杠路径越权，以及含空格或转义引号的凭据漏脱敏。
+- 引用校验完整遍历并拒绝空包、错误参数及包外依赖；Windows CI 临时目录与备份夹具适配实际 runner。
+
 ## [0.0.23] - 2026-11-04
 
 ### Package integrity

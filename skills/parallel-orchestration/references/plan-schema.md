@@ -122,4 +122,5 @@
 - 重叠判断会统一分隔符和大小写；`src\a.js` 与 `SRC/A.JS` 视为同一路径；`src` 与 `src/a.js` 的目录/文件祖先关系也算写入重叠。
 - `dependsOn` 不得包含重复单元 ID；无效依赖返回 `INVALID_PLAN`，不进入拓扑执行。
 - 一个路径同一时刻只能有一个写者。
+- 计划保留路径原始大小写并纳入 `planDigest`。提交验收按宿主文件系统语义核对：Linux 的 `src/A.js` 不能冒用 `src/a.js` 的授权，Git 路径中的字面反斜杠也不能当作目录分隔符。Windows 使用 native realpath 统一短文件名与长文件名后核对仓库/工作树身份。
 - 同一波次内，写者 `ownedPaths` 与其他单元 `readPaths` 重叠返回 `READ_WRITE_CONFLICT`；用明确 `dependsOn` 表达读写顺序，后续波次从集成后的新基线创建工作树。
