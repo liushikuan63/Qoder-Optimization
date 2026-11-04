@@ -1,6 +1,6 @@
 {
  "package_name": "Qoder-Optimization",
- "version": "0.0.22",
+ "version": "0.0.23",
  "generated": "2026-11-04",
  "skills": [
   {
@@ -16,7 +16,7 @@
   {
    "name": "async-python-patterns",
    "tier": "library",
-   "files": 1
+   "files": 2
   },
   {
    "name": "audit-ci-cost-levers",
@@ -36,7 +36,7 @@
   {
    "name": "cloudbase-wechat-integration",
    "tier": "library",
-   "files": 1
+   "files": 8
   },
   {
    "name": "concurrent-edit-attribution-check",
@@ -106,12 +106,12 @@
   {
    "name": "encrypted-office-visual-inspection",
    "tier": "library",
-   "files": 6
+   "files": 7
   },
   {
    "name": "frontend-design-ui-ux",
    "tier": "library",
-   "files": 1
+   "files": 9
   },
   {
    "name": "frontend-development",
@@ -121,7 +121,7 @@
   {
    "name": "game-designer-toolkit",
    "tier": "library",
-   "files": 2
+   "files": 5
   },
   {
    "name": "game-numeric-design",
@@ -241,12 +241,12 @@
   {
    "name": "minigame-dev-pro",
    "tier": "library",
-   "files": 3
+   "files": 115
   },
   {
    "name": "miniprogram-development",
    "tier": "library",
-   "files": 1
+   "files": 10
   },
   {
    "name": "mongodb-atlas-stream-processing",
@@ -291,7 +291,7 @@
   {
    "name": "nextjs-app-router-patterns",
    "tier": "library",
-   "files": 1
+   "files": 2
   },
   {
    "name": "nginx-config-builder",
@@ -301,7 +301,7 @@
   {
    "name": "nodejs-backend-patterns",
    "tier": "library",
-   "files": 1
+   "files": 3
   },
   {
    "name": "oauth-login-failure-triage",
@@ -371,12 +371,12 @@
   {
    "name": "python-error-handling",
    "tier": "library",
-   "files": 1
+   "files": 2
   },
   {
    "name": "python-performance-optimization",
    "tier": "library",
-   "files": 1
+   "files": 3
   },
   {
    "name": "python-programmer",
@@ -391,12 +391,12 @@
   {
    "name": "python-testing-patterns",
    "tier": "library",
-   "files": 1
+   "files": 3
   },
   {
    "name": "python-type-safety",
    "tier": "library",
-   "files": 1
+   "files": 2
   },
   {
    "name": "rabbitmq-expert",
@@ -406,7 +406,7 @@
   {
    "name": "react-modernization",
    "tier": "library",
-   "files": 1
+   "files": 2
   },
   {
    "name": "redis-clustering",
@@ -461,7 +461,7 @@
   {
    "name": "senior-devops",
    "tier": "library",
-   "files": 1
+   "files": 7
   },
   {
    "name": "setup-windows-selfhosted-runner",
@@ -521,22 +521,22 @@
   {
    "name": "spring-boot-actuator",
    "tier": "library",
-   "files": 1
+   "files": 15
   },
   {
    "name": "spring-boot-cache",
    "tier": "library",
-   "files": 1
+   "files": 5
   },
   {
    "name": "spring-boot-event-driven-patterns",
    "tier": "library",
-   "files": 1
+   "files": 11
   },
   {
    "name": "spring-boot-resilience4j",
    "tier": "library",
-   "files": 1
+   "files": 4
   },
   {
    "name": "spring-boot-rest-api-standards",
@@ -546,7 +546,7 @@
   {
    "name": "spring-boot-test-patterns",
    "tier": "library",
-   "files": 1
+   "files": 9
   },
   {
    "name": "spring-events",

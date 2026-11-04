@@ -3,9 +3,9 @@
 **An opt-in toolkit for making Qoder workflows more repeatable and verifiable.** It adds rules, on-demand skills, hooks, commands, scripts, and MCP templates through Qoder's extension points; it does not modify Qoder itself.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.0.22-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.0.23-blue.svg)](VERSION)
 [![Node](https://img.shields.io/badge/node-24-brightgreen.svg)](https://nodejs.org)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#requirements-and-limits)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20(primary)-lightgrey.svg)](#requirements-and-limits)
 
 [English](#english) | [简体中文](#简体中文) · [Install guide](README-安装说明.md) · [Skill catalog](SKILLS-清单.md) · [Machine-readable index](catalog.json)
 
@@ -22,6 +22,7 @@ No clone required — pick a version and download it. Every release carries a re
 
 | Version | Released | Highlights | Download |
 |---|---|---|---|
+| 0.0.23 | 2026-11-04 | Skill reference integrity, Windows CI, release gates and maintainability extraction | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.23/Qoder-Optimization-0.0.23.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.23) |
 | 0.0.22 | 2026-11-04 | Usage-driven resident skills, automatic on-demand discovery and parallel plan/recall fixes | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.22/Qoder-Optimization-0.0.22.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.22) |
 | 0.0.21 | 2026-11-03 | Active capability lifecycle, isolated parallel writes and delivery integrity | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.21/Qoder-Optimization-0.0.21.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.21) |
 | 0.0.20 | 2026-11-03 | Parallel orchestration with plan approval and explicit opt-in | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.20/Qoder-Optimization-0.0.20.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.20) |
@@ -54,10 +55,10 @@ AI coding assistants can lose track of process: a check may be claimed without e
 | Included | Count | Examples |
 |---|---:|---|
 | Skills | 133 | Verification, code review, delivery, databases, documents, desktop automation |
-| Scripts | 127 | Guardrails, self-tests, packaging, validation, tool helpers |
+| Scripts | 140 | Guardrails, self-tests, packaging, validation, tool helpers |
 | Commands | 10 | Clarification, checkpoints, skill search, cleanup |
 | Sub-agents | 2 | Runtime-truth and post-deployment verification |
-| Catalog entries | 272 | Skills, scripts, commands, and agents |
+| Catalog entries | 285 | Skills, scripts, commands, and agents |
 
 ### How it fits together
 
@@ -141,12 +142,12 @@ Details: [installation and tiers](README-安装说明.md), [working rules](Qoder
 
 ### Catalog snapshot
 
-In the catalog generated on 2026-11-04, 12 core skill descriptions total 2,582 characters; all 133 skill descriptions total 27,631 characters. The core descriptions are 9.3% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
+In the catalog generated on 2026-11-04, 12 core skill descriptions total 2,578 characters; all 133 skill descriptions total 27,641 characters. The core descriptions are 9.3% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
 
 ### Requirements and limits
 
 - Qoder desktop client: international (`~/.qoder`) or CN (`~/.qoder-cn`). Scripts detect a single-client setup and do not create the other directory.
-- Node.js 24 is recommended; this release uses 24.16.0 for its test pipeline. The suggestion utility needs the built-in `node:sqlite` module.
+- Node.js 24.16+ is required by the installer and continuity tools; this release uses 24.16.0 for its test pipeline. The suggestion utility needs the built-in `node:sqlite` module. The standalone MCP installer only requires Node 18+.
 - Developed and tested on Windows 10/11. Most scripts use Node.js; desktop automation and some cleanup tools are Windows-specific.
 - No service, telemetry, or account is required. MCP configuration contains placeholders and must be configured by you.
 - Hooks only run after you wire them into Qoder. Guards fail open if they crash, so they do not replace operating-system or platform permissions.
@@ -188,6 +189,7 @@ MIT; see [LICENSE](LICENSE). This is an unofficial community project and is not 
 
 | 版本 | 发布日期 | 主要内容 | 下载 |
 |---|---|---|---|
+| 0.0.23 | 2026-11-04 | 技能引用完整性、Windows CI、发布门禁与大脚本拆分 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.23/Qoder-Optimization-0.0.23.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.23) |
 | 0.0.22 | 2026-11-04 | 常驻技能按使用习惯确认、按需技能自动发现、并行计划与召回修复 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.22/Qoder-Optimization-0.0.22.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.22) |
 | 0.0.21 | 2026-11-03 | 能力主动核对与使用、并行写隔离、交付完整性 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.21/Qoder-Optimization-0.0.21.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.21) |
 | 0.0.20 | 2026-11-03 | 并行编排：计划审批与显式 opt-in | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.20/Qoder-Optimization-0.0.20.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.20) |
@@ -222,10 +224,10 @@ AI 编码助手常见的问题包括：没有证据就声称验证通过、失�
 | 内容 | 数量 | 示例 |
 |---|---:|---|
 | 技能 | 133 | 验证、代码评审、交付、数据库、文档、桌面自动化 |
-| 脚本 | 127 | 守卫、自测、打包、校验与工具补强 |
+| 脚本 | 140 | 守卫、自测、打包、校验与工具补强 |
 | 命令 | 10 | 需求澄清、接续检查、技能检索、清理 |
 | 子智能体 | 2 | 运行期真值核验、部署后验收 |
-| 目录条目 | 272 | 技能、脚本、命令与子智能体 |
+| 目录条目 | 285 | 技能、脚本、命令与子智能体 |
 
 ### 工作方式
 
@@ -309,12 +311,12 @@ node ~/.qoder/scripts/build-skills-index.cjs
 
 ### 目录快照
 
-截至 2026-11-04 生成的目录，12 个常驻技能的描述共 2,582 字符；133 个技能的描述共 27,631 字符。常驻描述占全部技能描述文本的 9.3%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
+截至 2026-11-04 生成的目录，12 个常驻技能的描述共 2,578 字符；133 个技能的描述共 27,641 字符。常驻描述占全部技能描述文本的 9.3%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
 
 ### 环境与限制
 
 - 适用于 Qoder 桌面客户端：国际版（`~/.qoder`）或中文版（`~/.qoder-cn`）。脚本可识别单客户端环境，不会创建另一侧目录。
-- 推荐 Node.js 24，本版测试流水线使用 24.16.0；建议状态工具需要内置的 `node:sqlite` 模块。
+- 安装器与接续工具要求 Node.js 24.16+，本版测试流水线使用 24.16.0；建议状态工具需要内置的 `node:sqlite` 模块。独立 MCP 安装器只需 Node 18+。
 - 在 Windows 10/11 上开发和验证。多数脚本使用 Node.js；桌面自动化和部分清理工具仅适用于 Windows。
 - 无需服务端、遥测或账号。MCP 配置仅含占位符，需要自行配置。
 - Hooks 接线后才会运行。守卫崩溃时会 fail-open，因此不能替代操作系统或平台权限。
@@ -346,7 +348,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 <!-- offline-bundle:start -->
 ### Optional offline bundle / 可选离线附件
 
-The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.22/Qoder-Optimization-0.0.22-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
+The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.23/Qoder-Optimization-0.0.23-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
 
 核心包不含 MCP 离线二进制；需要时单独下载离线附件，核对各自的 .sha256 后解压到同一目录。无需离线组件时只取核心包；链接仅在对应版本发布后可用。
 <!-- offline-bundle:end -->

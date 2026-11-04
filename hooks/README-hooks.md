@@ -28,6 +28,29 @@
 | `PostToolUse` | `attempt-lock-guard.js` | 10 | **同类连败计数器**：判据在 `attempt-lock-core.js`，同一目标（family + 去开关后的前三个词）连续失败 3 次即由 Pre 入口硬拦下一次同类调用，成功一次清零；覆盖构建 / 测试 / 部署，不限于数据库认证。解封 `attempt-lock-guard.js --clear`，关 `~/.qoder/attempt-lock.json`。本机 matcher `^Bash$` |
 | `PostToolUse` | `tool-payload-guard.js` | 10 | **返回侧体积**：单条工具返回 >2MB（`TPG_BYTES`）当场提示改用摘要推进，同会话同工具只提醒一次；补 Pre 守卫拦不住的"返回才知道多大"。本机 matcher `^Bash$|^Read$|^Agent$|^Task$|mcp_call` |
 
+## 模板脚本与安装 ID
+
+基础安装只含 `rules-reminder.js` 及其路由依赖。下表其余脚本在接线前先按 ID 安装；未安装时 hook 会 fail-open 静默放行。安装命令在解压包根目录执行，`pkg-catalog` 会补齐依赖。
+
+| 脚本 | catalog ID | 安装 |
+|---|---|---|
+| `rules-reminder.js` | `script:rules-reminder.js` | 基础安装已含 |
+| `session-budget.js` | `script:session-budget.js` | `node scripts/pkg-catalog.cjs install script:session-budget.js --apply` |
+| `fact-ledger.cjs` | `script:fact-ledger.cjs` | `node scripts/pkg-catalog.cjs install script:fact-ledger.cjs --apply` |
+| `stop-gate.js` | `script:stop-gate.js` | `node scripts/pkg-catalog.cjs install script:stop-gate.js --apply` |
+| `global-config-guard.js` | `script:global-config-guard.js` | `node scripts/pkg-catalog.cjs install script:global-config-guard.js --apply` |
+| `edit-guard.js` | `script:edit-guard.js` | `node scripts/pkg-catalog.cjs install script:edit-guard.js --apply` |
+| `huge-output-guard.js` | `script:huge-output-guard.js` | `node scripts/pkg-catalog.cjs install script:huge-output-guard.js --apply` |
+| `commit-scope-guard.js` | `script:commit-scope-guard.js` | `node scripts/pkg-catalog.cjs install script:commit-scope-guard.js --apply` |
+| `cua-cursor-guard.js` | `script:cua-cursor-guard.js` | `node scripts/pkg-catalog.cjs install script:cua-cursor-guard.js --apply` |
+| `risky-match-guard.js` | `script:risky-match-guard.js` | `node scripts/pkg-catalog.cjs install script:risky-match-guard.js --apply` |
+| `win-path-guard.js` | `script:win-path-guard.js` | `node scripts/pkg-catalog.cjs install script:win-path-guard.js --apply` |
+| `auth-lock-guard.js` | `script:auth-lock-guard.js` | `node scripts/pkg-catalog.cjs install script:auth-lock-guard.js --apply` |
+| `attempt-lock-guard.js` | `script:attempt-lock-guard.js` | `node scripts/pkg-catalog.cjs install script:attempt-lock-guard.js --apply` |
+| `tool-payload-guard.js` | `script:tool-payload-guard.js` | `node scripts/pkg-catalog.cjs install script:tool-payload-guard.js --apply` |
+
+安装后运行 `node ~/.qoder/scripts/global-config-guard.js --check`（`~/.qoder-cn` 同理），它会把接线指向不存在脚本的情况报出来。
+
 ## 还需要知道的
 
 - `hook-crash-guard.js` **不需要单独接线**：它是被其它 hook 脚本 `require` 的库（`require("./hook-crash-guard.js").install("<名字>")`），把崩溃写进 `hooks-crash.log` 交给周检，保持 fail-open 语义。

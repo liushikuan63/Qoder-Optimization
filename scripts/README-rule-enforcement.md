@@ -94,8 +94,8 @@ node ~/.qoder/scripts/global-config-guard.test.js # 7 组（沙箱 HOME，按 pi
 - **CN 侧已接线**（2026-09-19 15:15，改前备份 `settings.json.bak-rulefix-20260919T1515`）：`~/.qoder-cn/settings.json` 的 Stop 与 SessionStart 各挂一组；用 CN 同款命令串实测过两脚本（违规样本 → 退避 block；体检 → 零输出）。
   **未在 CN 客户端里端到端跑过一次真实收尾拦截**（需下次在 CN 开会话才会触发，届时看同一份 `tmp/stop-gate/` 台账）。
 - 拦截台账与 `--report` 已加（5 条用例：命中落行 / 放行不落行 / 字段可解析 / 不落原文 / 空台账有显式说明）。
-- **`sync-memory.sh` 重写（2026-09-19 周检首周抓到并修复）**：旧版逐文件 `cmp`/`grep`（84 文件×两侧 ≈200 次 spawn × ~320ms）实测 41.5s，顶穿 SessionStart 的 8s 预算 ⇒ 记忆检查**永远超时、等于没做**，还让每次开会话白等 8s（guard 实测 11.0s）。重写为"通配符列目录 + 内建解析索引 + 每侧一次 md5sum"（零/极少 spawn），实测 0.75~1.1s；guard 实测 4.0~4.4s，且记忆检查真生效（假 HOME 植入分叉端到端已验）。回归套件 `scripts/sync-memory.test.sh` 14 组全绿；备份 `scripts/backups/sync-memory.sh.bak-20260919`。
-- **`sync-global-config.sh` 同法重写（2026-09-19 同一轮）**：旧版逐文件 `cmp` + `ls|sed|sort` 流水线（~15 次 spawn）闲时 2.5~4.5s、**负载高时实测 12.3s** ⇒ 随机顶穿 8s 预算（周检复跑抓到）。改为一次 md5sum 全量取哈希 ⇒ 0.3~0.7s；与旧版做过 4 组夹具差分对照（stdout 逐字节一致、退出码/ stderr 一致），同步行为（取较新侧覆盖、单边补齐）逐条验过。回归套件 `scripts/sync-global-config.test.sh` 8 组全绿；备份 `scripts/backups/sync-global-config.sh.bak-20260919`。
+- **`sync-memory.sh` 重写（2026-09-19 周检首周抓到并修复）**：旧版逐文件 `cmp`/`grep`（84 文件×两侧 ≈200 次 spawn × ~320ms）实测 41.5s，顶穿 SessionStart 的 8s 预算 ⇒ 记忆检查**永远超时、等于没做**，还让每次开会话白等 8s（guard 实测 11.0s）。重写为"通配符列目录 + 内建解析索引 + 每侧一次 md5sum"（零/极少 spawn），实测 0.75~1.1s；guard 实测 4.0~4.4s，且记忆检查真生效（假 HOME 植入分叉端到端已验）。回归套件 `scripts/sync-memory.test.sh` 14 组全绿；备份 `<历史脚本>/backups/sync-memory.sh.bak-20260919`。
+- **`sync-global-config.sh` 同法重写（2026-09-19 同一轮）**：旧版逐文件 `cmp` + `ls|sed|sort` 流水线（~15 次 spawn）闲时 2.5~4.5s、**负载高时实测 12.3s** ⇒ 随机顶穿 8s 预算（周检复跑抓到）。改为一次 md5sum 全量取哈希 ⇒ 0.3~0.7s；与旧版做过 4 组夹具差分对照（stdout 逐字节一致、退出码/ stderr 一致），同步行为（取较新侧覆盖、单边补齐）逐条验过。回归套件 `scripts/sync-global-config.test.sh` 8 组全绿；备份 `<历史脚本>/backups/sync-global-config.sh.bak-20260919`。
 - **`sync-global-config.sh` 的"假绿 COPIED"（2026-10-06 周检抓到并修复）**：另一侧 `rules/`、`commands/` 目录**整个不存在**时（本机 CN 侧实态：12 条 rules + 3 条指令从未到达），脚本 `cp` 报 `No such file or directory` 却**照样打印 `COPIED` 并退 0** ⇒ 周检按退出码判定，每轮都报「[FIX] 两侧漂移，已自动同步」，连修 6 轮、台账 `warn=9 fixed=1` 恒定不动。**判据盲区**：`cp` 的退出码没人接，`changed` 无条件自增。修法＝`mkdir -p "$(dirname dst)"` + `if cp …; then 计数 else COPY-FAIL; cp_fail++ fi`，收尾 `cp_fail>0` 退 1（`--check` 的输出协议与退出码未改，调用方 `global-config-guard.js` / `rules-weekly-audit.js` 不受影响）。回归 T8/T9 三条用例对旧版判红、对新版全绿。
 - **周检新增 2g「关键目录对等」（2026-10-06）**：比较两侧的 `scripts/` 与 `skills/` 是否存在，**只有一侧有 ⇒ 报 warn；两侧同缺 ⇒ 静默**（单能力/单端是合法形态，不能判红）。动机：本机 CN 侧 10-04 重装后这两个目录整个消失（CN 客户端零技能），而当时告警清单一条都没有——`sync-global-config.sh` 只管 `AGENTS.md`/`rules`/`commands`，这两个目录**不在任何同步机制覆盖面内**。用例 V20（缺一侧必红）/ V20b（同缺必静默），并给 harness 加了 `want: 0` 与 `want: 'any'` 两条通道——原先硬要求 `code===1`，"不得出现"型对照组根本写不进来。守卫的承重性用变异验证：删掉 `if (a === b) continue;` 后 V20b 场景确实误报（1 命中），还原后 0 命中。
 - 预算结论：本机 Git Bash 单次 spawn 成本**随负载浮动（实测 130~800ms）**，内联脚本一律按"极少 spawn"写；三个 hook 脚本的预算表在 `rules-weekly-audit.js` 的 `PERF_BUDGETS`。
@@ -127,7 +127,7 @@ Edit 回显 849KB、Bash 无上限输出 454KB、子代理报告 382KB。
 
 **判据 2b（2026-09-21 加）：`node -e "…"` / `python -c "…"` 这类双引号内联脚本里出现反引号 → deny。**
 bash 会**先做命令替换**再交给解释器，所以文本里的 `` `xxx` `` 不是"原样写进目标文件"，而是**当场执行一遍**。
-现场代价（同一会话实测两次）：一次误触发了一次全量 `scripts/build.sh`；另一次把替换结果（空串）写进脚本，
+现场代价（同一会话实测两次）：一次误触发了一次全量 `<历史脚本>/build.sh`；另一次把替换结果（空串）写进脚本，
 让"防重复写"的判断键变成空串 ⇒ `includes('')` 恒真 ⇒ 四条记忆全部报"已写过"而实际一条都没落盘。
 正解：文本走带引号的 heredoc（`<<'EOF'`）落成文件，脚本落成 `.cjs` 再 `node` 跑。
 自测：`node --test huge-output-guard.test.js` 里这组有 5 条（拦 2 / 放行 3），植入一条反向期望后汇总变 `27 PASS / 1 FAIL` 且退 1。

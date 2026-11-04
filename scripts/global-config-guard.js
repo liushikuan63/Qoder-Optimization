@@ -8,6 +8,7 @@ require('./hook-crash-guard.js').install('global-config-guard'); // 崩溃可见
 const fs = require('fs');
 const path = require('path');
 const { clientRoot, counterpart } = require('./client-root.js');
+const { findMissingHookTargets } = require('./hook-targets.cjs');
 const CLIENT_ROOT = clientRoot();
 const { spawnSync } = require('child_process');
 
@@ -115,6 +116,9 @@ function main() {
 
   const dang = danglingRefs();
   if (dang.length) problems.push('规则存在悬空引用: ' + dang.slice(0, 5).join('; '));
+
+  const hookMissing = findMissingHookTargets(path.join(A, 'settings.json'), path.join(A, 'scripts'));
+  if (hookMissing.length) problems.push('hooks 接线指向不存在的脚本: ' + hookMissing.slice(0, 5).join(', '));
 
   if (!problems.length) return;
   const ctx =

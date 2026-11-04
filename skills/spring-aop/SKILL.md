@@ -1,6 +1,6 @@
 ---
 name: spring-aop
-description: "Spring AOP (Aspect-Oriented Programming) per Spring Boot 3.x。中文触发：Spring Boot Java 后端 Bean 依赖注入"
+description: "Spring AOP (Aspect-Oriented Programming) per Spring Boot 3.x。中文触发：Spring AOP、切面、通知、切点、代理"
 allowed-tools: Read, Grep, Glob, Write, Edit
 ---
 # Spring AOP

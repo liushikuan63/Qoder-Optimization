@@ -206,7 +206,7 @@ Qoder/1.0.0 / axios / openai-node  -> 401 unauthorized client detected
 **修法**：Qoder 没有自定义请求头配置面（UI 与 settings schema 均无 headers 字段），只能用本机反代改写 UA：
 
 ```js
-// ~/.qoder/scripts/byok-ua-proxy.js —— 127.0.0.1 反代，转发到上游并覆写 user-agent
+// <本机辅助脚本>/byok-ua-proxy.js —— 127.0.0.1 反代，转发到上游并覆写 user-agent
 headers['user-agent'] = 'claude-cli/1.0.60 (external, cli)';
 ```
 
@@ -230,7 +230,7 @@ headers['user-agent'] = 'claude-cli/1.0.60 (external, cli)';
 
 **根因**：上游首包常在 40–50s（实测 45s / 49s / 50.2s），撞上客户端 60s 硬阈值就断；该失败又被判定「不重试」（§4.1）。
 
-**修法（代理兜底，已落在 `~/.qoder/scripts/byok-ua-proxy.js`）**：
+**修法（代理兜底，已落在 `<本机辅助脚本>/byok-ua-proxy.js`）**：
 - 请求带 `accept: text/event-stream` 且上游在 `BYOK_UA_PROXY_EARLY_HEADERS_MS`（默认 50000）内没回头时，代理先回 `200` + `x-byok-proxy-early: 1`，每 `BYOK_UA_PROXY_HEARTBEAT_MS`（默认 5000）写一行 `: byok-proxy keepalive` 保活；上游真头到达后转为正常 pipe。
 - **阈值怎么选（2026-10-26 实测）**：客户端窗口 ≈ **早期头阈值 + 60s**（20s 阈值时断开点全是 80000±20ms；50s 阈值后正常请求不再撞 80s）。注释行心跳**不能**延长窗口，只有上游有效数据才会重置计时。阈值必须小于客户端 60s 首包上限，故取 50000（窗口 ≈110s）。
 - 上游真头若为非 2xx：状态码已发出无法改，改以 SSE `{"type":"error","error":{"type":"upstream_http_error",...}}` 事件收尾并保留上游原文。

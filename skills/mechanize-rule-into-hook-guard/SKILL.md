@@ -129,7 +129,7 @@ node ~/.qoder/scripts/carrier-preflight.cjs --type hook --name <守卫名>
 - 收口复跑 `node ~/.qoder/scripts/rules-weekly-audit.js --no-fix`（EXIT=0、无悬空引用）与 `--check`。
 - 要进分享包的脚本必须加进 `pack-share-extras.js` 白名单，否则被「剪除旧产物」逻辑删掉；core 与宿主守卫**同批分发**。
 - **`hooks/hooks.example.json` 与 `README-hooks.md` 是 `pack-share-extras.js` 的生成物**：直接编辑会在下次出包时被生成器覆盖回模板，要改**生成器本体**。发现这类「改了不生效」的口径＝解压产出的 zip、断言目标关键字命中数从 0 变成期望值，别肉眼看目录。
-- **判包内脚本是否落后只用 `node ~/.qoder/scripts/pack-share-extras.js <包目录> --check`**：它先套 `SCRIPT_SANITIZE` 脱敏表再逐字节比。**别用裸 md5 对比**——裸比把「已脱敏」读成「已陈旧」，会反向将内网形态的路径样例覆盖回分发包（2026-10-21 实测这样误报 3 个脚本）。
+- **判包内脚本是否落后只用 `node ../../scripts/pack-share-extras.cjs <包目录> --check`**：它先套 `SCRIPT_SANITIZE` 脱敏表再逐字节比。**别用裸 md5 对比**——裸比把「已脱敏」读成「已陈旧」，会反向将内网形态的路径样例覆盖回分发包（2026-10-21 实测这样误报 3 个脚本）。
 - 回写既有载体：`~/.qoder/scripts/README-rule-enforcement.md` 对应小节就地更新 + `rules-reminder.js` 那条提示词补「已由 `<守卫名>` 按目标硬拦」；**不新建平行文档**。
 - hook 是 **fail-open**，不替代平台权限，也不构成安全边界。
 

@@ -1,0 +1,97 @@
+{
+  "version": "1.0.8",
+  "description": "小游戏多平台构建命令与输出差异矩阵。已核实平台（微信/抖音）采用各平台官方开放平台文档数据；其余平台标 pending-verify，禁止猜测构建命令或包体上限。所有硬事实以官方文档为唯一真源。",
+  "lastVerified": "2026-09-03",
+  "matrix": {
+    "wechat": {
+      "name": "微信小游戏",
+      "globalObject": "wx",
+      "tier": 1,
+      "docBase": "https://developers.weixin.qq.com/minigame/dev/",
+      "buildCli": {
+        "tool": "微信开发者工具 CLI",
+        "command": "cli upload --project <project> --appid <appid> --version <v> --desc <desc>",
+        "verified": true,
+        "note": "原生包可由 build.mjs 离线组装（无 CLI 依赖）；CLI 的 preview/upload 负责预览与上传，编译由编辑器完成。命令以官方 CLI 文档为准。"
+      },
+      "outputFormat": "game.js + game.json + 资源目录；主包 <4MB / 总包 <30MB / 独立分包 <4MB",
+      "packageLimitMB": { "main": 4, "total": 30, "independentSub": 4 },
+      "verified": true
+    },
+    "douyin": {
+      "name": "抖音小游戏",
+      "globalObject": "tt",
+      "tier": 1,
+      "docBase": "https://developer.open-douyin.com/",
+      "buildCli": {
+        "tool": "抖音开发者工具 CLI",
+        "command": "pending-verify",
+        "verified": false,
+        "note": "包体已核实：主包 4MB；非分包 16MB；分包整体 20MB(+VP 后 30MB)；单分包 20MB(+VP 后 30MB)。具体 CLI 上传命令执行期二次核实。"
+      },
+      "outputFormat": "game.js + game.json + 资源目录",
+      "packageLimitMB": { "main": 4, "nonSubTotal": 16, "subTotal": 20, "subTotalWithVp": 30, "singleSub": 20, "singleSubWithVp": 30 },
+      "verified": true
+    },
+    "qq": {
+      "name": "QQ 小游戏",
+      "globalObject": "qq",
+      "tier": 2,
+      "docBase": "pending-verify",
+      "buildCli": { "tool": "pending-verify", "command": "pending-verify", "verified": false, "note": "执行期核实官方开放平台文档后补全" },
+      "outputFormat": "pending-verify",
+      "packageLimitMB": "pending-verify",
+      "verified": false
+    },
+    "kuaishou": {
+      "name": "快手小游戏",
+      "globalObject": "ks",
+      "tier": 2,
+      "docBase": "pending-verify",
+      "buildCli": { "tool": "pending-verify", "command": "pending-verify", "verified": false, "note": "执行期核实官方开放平台文档后补全" },
+      "outputFormat": "pending-verify",
+      "packageLimitMB": "pending-verify",
+      "verified": false
+    },
+    "alipay": {
+      "name": "支付宝小游戏",
+      "globalObject": "my",
+      "tier": 2,
+      "docBase": "pending-verify",
+      "buildCli": { "tool": "pending-verify", "command": "pending-verify", "verified": false, "note": "执行期核实官方开放平台文档后补全" },
+      "outputFormat": "pending-verify",
+      "packageLimitMB": "pending-verify",
+      "verified": false
+    },
+    "baidu": {
+      "name": "百度智能小程序小游戏",
+      "globalObject": "swan",
+      "tier": 2,
+      "docBase": "pending-verify",
+      "buildCli": { "tool": "pending-verify", "command": "pending-verify", "verified": false, "note": "执行期核实官方开放平台文档后补全" },
+      "outputFormat": "pending-verify",
+      "packageLimitMB": "pending-verify",
+      "verified": false
+    },
+    "taobao": {
+      "name": "淘宝小游戏",
+      "globalObject": "tb",
+      "tier": 2,
+      "docBase": "pending-verify",
+      "buildCli": { "tool": "pending-verify", "command": "pending-verify", "verified": false, "note": "执行期核实官方开放平台文档后补全" },
+      "outputFormat": "pending-verify",
+      "packageLimitMB": "pending-verify",
+      "verified": false
+    },
+    "qgame": {
+      "name": "快游戏/硬核联盟",
+      "globalObject": "qg",
+      "tier": 3,
+      "docBase": "pending-verify",
+      "buildCli": { "tool": "pending-verify", "command": "pending-verify", "verified": false, "note": "执行期核实官方开放平台文档后补全" },
+      "outputFormat": "pending-verify",
+      "packageLimitMB": "pending-verify",
+      "verified": false
+    }
+  }
+}

@@ -21,14 +21,14 @@ CI 花钱的原因和省钱手段都必须是**测出来的**，不是从博客�
 
 ## 三条固定判据
 
-三条都由 `scripts/ci-cost-measure.cjs` 逐字重跑（子命令 `paths-ignore` / `concurrency` / `gates-read`），脚本不可用时按下面等价手跑命令。每条都自带能失败的对照，**两个方向都核过才能引用自己的读数**。
+三条都由 `<本机辅助脚本>/ci-cost-measure.cjs` 逐字重跑（子命令 `paths-ignore` / `concurrency` / `gates-read`），脚本不可用时按下面等价手跑命令。每条都自带能失败的对照，**两个方向都核过才能引用自己的读数**。
 
 ### 1. paths-ignore 命中率（值不值得加）
 
 判据：最近 N 笔提交里**只动目标路径**的占比。占比低 ⇒ 加了也省不到东西，只会增加漏跑风险。
 
 ```bash
-node scripts/ci-cost-measure.cjs paths-ignore --glob 'docs/**' --since 120 [--ref <起点提交>]
+node <本机辅助脚本>/ci-cost-measure.cjs paths-ignore --glob 'docs/**' --since 120 [--ref <起点提交>]
 ```
 
 两个必分辨的陷阱：
@@ -47,7 +47,7 @@ node scripts/ci-cost-measure.cjs paths-ignore --glob 'docs/**' --since 120 [--re
 ```
 
 ```bash
-node scripts/ci-cost-measure.cjs concurrency --workflow <workflow 名> --pages 5 [--minutes-per-run <D>]
+node <本机辅助脚本>/ci-cost-measure.cjs concurrency --workflow <workflow 名> --pages 5 [--minutes-per-run <D>]
 ```
 
 `D` 默认由样本自测（成功 run 的 `updated_at - run_started_at` 均值），不要假设；示例读数：D=5.6 分钟、命中 40.1%、**净回收 17.9%**（均与手工台账 5.4/36%/≈22% 同量级，差异来自取样窗口滑动）。
@@ -57,7 +57,7 @@ node scripts/ci-cost-measure.cjs concurrency --workflow <workflow 名> --pages 5
 **加忽略规则前必须 grep 门脚本是否真读该类文件。** 门禁的输入往往就住在被忽略的路径里，命中率为 0 的忽略规则照样能把真门静默跳过——CI 全绿但门没跑。
 
 ```bash
-node scripts/ci-cost-measure.cjs gates-read --pattern '\.md$' --dir scripts
+node <本机辅助脚本>/ci-cost-measure.cjs gates-read --pattern '\.md$' --dir scripts
 ```
 
 必须沿 **workflow → 中间脚本** 走传递闭包：只查 workflow 里有没有点名会把经 `check.sh` 调用的那整批门误判成「不在 CI 调用链上」——那是危险方向的假绿。示例读数：读 md 的 20 个脚本里 **19 个在 CI 链上**（直连 3 + 经 `check.sh` 传递 16）。
@@ -112,4 +112,4 @@ node scripts/ci-cost-measure.cjs gates-read --pattern '\.md$' --dir scripts
 
 ## Resources
 
-- `scripts/ci-cost-measure.cjs` — 三条判据的取样与统计，零依赖 Node，子命令 `paths-ignore` / `concurrency` / `gates-read` / `all`；stdout 有界，可直接进上下文。
+- `<本机辅助脚本>/ci-cost-measure.cjs` — 三条判据的取样与统计，零依赖 Node，子命令 `paths-ignore` / `concurrency` / `gates-read` / `all`；stdout 有界，可直接进上下文。

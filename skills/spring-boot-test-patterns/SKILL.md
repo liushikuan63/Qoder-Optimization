@@ -1,6 +1,6 @@
 ---
 name: spring-boot-test-patterns
-description: "Provides comprehensive testing patterns for Spring Boot applications covering unit, integration, slice, and container-based testing with JUnit 5, Mockito, Testcontainers, and performance optimization。中文触发：Spring Boot Java 后端 Bean 依赖注入 测试"
+description: "Provides comprehensive testing patterns for Spring Boot applications covering unit, integration, slice, and container-based testing with JUnit 5, Mockito, Testcontainers, and performance optimization。中文触发：Spring Boot 测试、JUnit 5、Mockito、Testcontainers、切片测试"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 

@@ -12,10 +12,10 @@ Sibling CloudBase skills ship beside this skill. Use local relative paths such a
 If a referenced sibling skill file is missing from this environment, ask the user to install the full CloudBase plugin (or the missing skill). Do **not** HTTP-fetch remote skill or protocol markdown into the agent context.
 
 **Cross-cutting protocols** (required before code changes or deployments):
-- Change Safety Protocol: `../cloudbase-platform/references/protocols/change-safety-protocol.md`
-- Deployment Gate: `../cloudbase-platform/references/protocols/deployment-gate.md`
+- Change Safety Protocol: `references/protocols/change-safety-protocol.md`
+- Deployment Gate: `references/protocols/deployment-gate.md`
 
-**Post-deployment (optional, non-intrusive)**: after a mini program upload/publish is verified successful, you may offer **at most once** to generate anonymized shareables (visual card + paste-ready copy) — see `../cloudbase-platform/references/protocols/deployment-share.md` for trigger boundaries, required information, anonymization red lines, and deliverable formats. Never follow up if declined; never publish on the user's behalf.
+**Post-deployment (optional, non-intrusive)**: after a mini program upload/publish is verified successful, you may offer **at most once** to generate anonymized shareables (visual card + paste-ready copy) — see `references/protocols/deployment-share.md` for trigger boundaries, required information, anonymization red lines, and deliverable formats. Never follow up if declined; never publish on the user's behalf.
 
 ## Activation Contract
 
@@ -50,8 +50,8 @@ If a referenced sibling skill file is missing from this environment, ask the use
 - Inventing `wechatide` tool names or flags instead of using `--help` / Nightly `tools.yaml`.
 - Bypassing wxide CLI / IDE for message-push ops with low-level transport before `cloud_*_msg_push` is exposed (see [message-push-customer-service.md](references/message-push-customer-service.md)).
 - Assuming cloud-function return values auto-reply to customer-service chats (must use `cloud.openapi.customerServiceMessage.send`).
-- Making code or configuration changes without first following the Change Safety Protocol (`cloudbase-platform/references/protocols/change-safety-protocol.md`).
-- Performing mini program upload/publish without first completing the checks in `cloudbase-platform/references/protocols/deployment-gate.md`.
+- Making code or configuration changes without first following the Change Safety Protocol (`references/protocols/change-safety-protocol.md`).
+- Performing mini program upload/publish without first completing the checks in `references/protocols/deployment-gate.md`.
 
 ## When to use this skill
 

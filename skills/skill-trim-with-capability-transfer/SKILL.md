@@ -49,7 +49,7 @@ comm -12 <(ls skills | sort) \
 
 1. **读留存技能的正文核实覆盖，不按名字猜**。名字像不等于覆盖到——实测：小程序域确实已被留存技能覆盖（记一条文档即可）；Python / Redis / Spring / AOP 在留存内容里**有缺口**（必须补）。
 2. **落地形式优先「真代码 > 规则条目 > 纯文档」**：
-   - 真代码：把只此一家的能力写成承接技能里的新脚本（实测：给 `office-docs` 补 `scripts/docx-surgery.js`——解包 / 回包 / 跨 run 文本替换 / 校验，`--selftest` 11 通过 0 失败，含「非 zip 文件头」负对照）。新文件不碰并行会话在改的老文件。
+   - 真代码：把只此一家的能力写成承接技能里的新脚本（实测：给 `office-docs` 补 `../office-docs/scripts/docx-surgery.js`——解包 / 回包 / 跨 run 文本替换 / 校验，`--selftest` 11 通过 0 失败，含「非 zip 文件头」负对照）。新文件不碰并行会话在改的老文件。
    - 规则条目：并入已有 `rules/*.md` 的对口章节（Redis → `rules/databases.md`；Spring / AOP → `rules/java-spring.md`）；整块新领域才新建 `rules/<域>.md` 并用 `glob` 触发（`rules/python.md`：不碰 `.py` 就不吃上下文）。
 3. **被停技能自带的脚本原地保留**（不搬、不覆盖，避免与并行会话互相覆盖），但**必须补齐依赖让它真能跑**。反例：官方 `docx` 的 Python 脚本缺 `defusedxml`，`unpack.py` 直接 `ModuleNotFoundError`；补装（官方源）后 `unpack.py` / `pack.py` / `validate.py` / `comment.py` / `accept_changes.py` 全部 exit=0。**这是「能力还在」的可失败证据，写文档不算。**
 4. **产能力去向表**：在承接技能里落 `CAPABILITIES.md`（谁的能力搬到哪、怎么调、依赖怎么装），并从该技能的 SKILL.md 指过去。

@@ -119,12 +119,26 @@ function metadataFor(root, options = {}) {
   }
   const counts = entries.reduce((result, entry) => { result[entry.category] = (result[entry.category] || 0) + 1; return result; }, {});
   for (const category of ['skill', 'script', 'command', 'agent']) counts[category] ||= 0;
-  const catalog = { ...previous, schema: 1, package: { name, version }, generated: date, counts, entries };
+  const statusLegend = {
+    shipped: '随包可直接安装',
+    external: '仅提供官方安装方式，不在包内',
+    template: '提供合并说明，不直接安装',
+  };
+  const catalog = {
+    ...previous,
+    schema: 1,
+    package: { name, version },
+    generated: date,
+    usage: 'node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search "<关键词>" → install <id> [--apply]',
+    statusLegend,
+    counts,
+    entries,
+  };
   const manifest = { ...previousManifest, package_name: name, version, generated: date, skills };
   const index = [
     `# ${name} - ${version}`, '', '## 分享包索引（按需加装）', '',
-    `共 ${entries.length} 条：` + Object.entries(counts).map(([kind, count]) => `${kind}=${count}`).join(' / '), '',
-    '- 状态：`shipped` 随包可直接装；`external` 只给官方安装方式；`template` 给合并说明。',
+    `共 ${entries.length} 条（全部为 \`shipped\`，可直接安装）：` + Object.entries(counts).map(([kind, count]) => `${kind}=${count}`).join(' / '), '',
+    '- 状态：`shipped` 随包可直接装；`external` 只给官方安装方式；`template` 给合并说明。`external` / `template` 仅在收录非随包条目时出现，当前计数为 0。',
     '- 检索结果会标「本地未发现 / 与包内一致 / 内容与包内不同」；出现 `NEXT_ACTION` 时必须先询问用户是否安装/更新，未获明确选择不得写盘。',
     '- 机器可读版：`catalog.json`。文件存在不代表已安装或已装载。', '',
     '```bash', 'node scripts/pkg-catalog.cjs register <分享包目录>',

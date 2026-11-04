@@ -18,7 +18,7 @@ WebView2 套壳应用的"白屏"绝大多数不是渲染坏了，而是**登录/
 ## Step 1 — 跑只读诊断脚本
 
 ```
-powershell -NoProfile -ExecutionPolicy Bypass -File "<本技能目录>/scripts/wv2-blank-diag.ps1" -Capture
+powershell -NoProfile -ExecutionPolicy Bypass -File "<本技能目录>/<本机辅助脚本>/wv2-blank-diag.ps1" -Capture
 ```
 
 参数（都有可用默认值，一般只加 `-Capture`）：
@@ -123,7 +123,7 @@ Chromium/WebView2 应用**无条件继承 WinINET 系统代理**。代理节点�
 
 ## Resources
 
-- `scripts/wv2-blank-diag.ps1`：Step 1 的只读诊断量具，七段：包形态 / 运行时 / 进程归属 / 窗口与截图 / WinINET 代理状态 / 代理与直连对照 / 应用日志摘要，并打印分段判读与 `ok/no-run/red` 计数。加 `-Capture` 才截图。
+- `<本机辅助脚本>/wv2-blank-diag.ps1`：Step 1 的只读诊断量具，七段：包形态 / 运行时 / 进程归属 / 窗口与截图 / WinINET 代理状态 / 代理与直连对照 / 应用日志摘要，并打印分段判读与 `ok/no-run/red` 计数。加 `-Capture` 才截图。
   本机 2026-10-07 实跑过四种输入：默认（Outlook 未启动 ⇒ 第 3/4 节如实报 RED）、托盘应用（只有 16×16 辅窗 ⇒ 报 NORUN 呾不报 OK）、大窗口应用（1294×1399 + 像素桶数）、不存在的进程与 UDF（全链 RED）。
   **未实跑的一支**：`ProxyEnable=1` 且代理节点退化时的判红分支——验证它需要故意弄坏系统代理，本轮不做；该分支的写法沿用来源会话（2026-10-06）已实测过的探测顺位。
 - 相关记忆：系统代理与 WebView2 继承、第三方窗口截图取证、PowerShell 脚本编码坑——本机事实以脚本实跑输出为准，记忆只作背景。

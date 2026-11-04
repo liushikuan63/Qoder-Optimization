@@ -104,7 +104,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File ~/.qoder/scripts/sendkeys-to
 - MCP `press_key` 报 `foregroundStatus: matched` 也可能整体没生效——**以截图内容为准**。
 - computer-use 的 MCP 连接可能中途掉线（工具列表里消失），上面这个脚本就是备用方案。
 - **用户正在用电脑时不要盲发按键**：注入键打到当前前台窗口，会把方向键与回车打进用户的浏览器或聊天窗口。此时改用第 3 节的无键盘法，或等用户空闲。
-- 留档：`~/.qoder/scripts/send-console-keys.ps1`（AttachConsole + `CreateFile("CONIN$")` + `WriteConsoleInput`，不依赖焦点，理论最稳）本机实测报 `ERROR_ACCESS_DENIED(5)`（疑企业安全套件拦截）——换机器可再试。
+- 留档：`<本机辅助脚本>/send-console-keys.ps1`（AttachConsole + `CreateFile("CONIN$")` + `WriteConsoleInput`，不依赖焦点，理论最稳）本机实测报 `ERROR_ACCESS_DENIED(5)`（疑企业安全套件拦截）——换机器可再试。
 
 ## 5. cmd 高频陷阱清单
 

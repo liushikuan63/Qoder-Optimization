@@ -67,16 +67,19 @@ function ledger(fields) {
   try { fs.mkdirSync(STATE_DIR, { recursive: true }); fs.appendFileSync(LEDGER, `${new Date().toISOString()}|${fields.join('|')}\n`); } catch (e) {}
 }
 function out(obj) { process.stdout.write(JSON.stringify(obj)); }
+function runStub(command, timeout) {
+  return execFileSync(command, { shell: true, encoding: 'utf8', timeout });
+}
 
 // --- cursor read/write: driver first (fast, no compile), user32 fallback ---
 function cursorRead() {
   const viaDriver = (() => {
-    if (!DRIVER || process.env.CUA_GUARD_READ_CMD) {
-      const cmd = process.env.CUA_GUARD_READ_CMD;
-      if (!cmd) return null;
-      try { return JSON.parse(execFileSync(cmd, { shell: true, encoding: 'utf8', timeout: 4000 })); } catch (e) { return null; }
+    if (process.env.CUA_GUARD_READ_CMD) {
+      if (process.env.CUA_GUARD_TEST_STUBS !== '1') return null;
+      try { return JSON.parse(runStub(process.env.CUA_GUARD_READ_CMD, 4000)); } catch (e) { return null; }
     }
-    try { return JSON.parse(execFileSync(`"${DRIVER}" call get_cursor_position`, { shell: true, encoding: 'utf8', timeout: 4000 })); } catch (e) { return null; }
+    if (!DRIVER) return null;
+    try { return JSON.parse(execFileSync(DRIVER, ['call', 'get_cursor_position'], { encoding: 'utf8', timeout: 4000 })); } catch (e) { return null; }
   })();
   if (viaDriver && Number.isFinite(viaDriver.x) && Number.isFinite(viaDriver.y)) return { x: viaDriver.x, y: viaDriver.y, via: 'driver' };
   try {
@@ -89,12 +92,12 @@ function cursorRead() {
 }
 function cursorWrite(x, y) {
   if (process.env.CUA_GUARD_WRITE_CMD) {
-    try { execFileSync(process.env.CUA_GUARD_WRITE_CMD.replace('%X%', x).replace('%Y%', y), { shell: true, encoding: 'utf8', timeout: 4000 }); return 'stub'; } catch (e) { return 'stub-fail'; }
+    if (process.env.CUA_GUARD_TEST_STUBS !== '1') return 'stub-fail';
+    try { runStub(process.env.CUA_GUARD_WRITE_CMD.replace('%X%', x).replace('%Y%', y), 4000); return 'stub'; } catch (e) { return 'stub-fail'; }
   }
   if (DRIVER) {
     try {
-      execFileSync(`"${DRIVER}" call move_cursor --args ${JSON.stringify({ x, y, scope: 'desktop' }).replace(/"/g, '\\"')}`,
-        { shell: true, encoding: 'utf8', timeout: 4000 });
+      execFileSync(DRIVER, ['call', 'move_cursor', '--args', JSON.stringify({ x, y, scope: 'desktop' })], { encoding: 'utf8', timeout: 4000 });
       return 'driver';
     } catch (e) {}
   }
@@ -103,7 +106,8 @@ function cursorWrite(x, y) {
 // 兜底通道：driver 写入"没报错但没落位"（实测 2026-10-13 一例 UNVERIFIED）时用它补写
 function cursorWriteUser32(x, y) {
   if (process.env.CUA_GUARD_WRITE2_CMD) {
-    try { execFileSync(process.env.CUA_GUARD_WRITE2_CMD.replace('%X%', x).replace('%Y%', y), { shell: true, encoding: 'utf8', timeout: 4000 }); return 'stub2'; } catch (e) { return 'stub2-fail'; }
+    if (process.env.CUA_GUARD_TEST_STUBS !== '1') return 'stub2-fail';
+    try { runStub(process.env.CUA_GUARD_WRITE2_CMD.replace('%X%', x).replace('%Y%', y), 4000); return 'stub2'; } catch (e) { return 'stub2-fail'; }
   }
   try {
     const ps = `Add-Type -MemberDefinition 'using System;using System.Runtime.InteropServices;public static class S{[DllImport("user32.dll")] public static extern bool SetCursorPos(int x,int y);}' -Name SS -Namespace Cs; [void][Cs.SS]::SetCursorPos(${x},${y})`;

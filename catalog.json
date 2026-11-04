@@ -2,13 +2,13 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.0.22"
+  "version": "0.0.23"
  },
  "generated": "2026-11-04",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 133,
-  "script": 127,
+  "script": 140,
   "command": 10,
   "agent": 2
  },
@@ -117,7 +117,7 @@
    "name": "concurrent-edit-attribution-check",
    "status": "shipped",
    "tier": "core",
-   "description": "改共享Git工作区或无版本控制目录（~/.qoder/skills、服务器配置目录）的文件时，发现陌生 .bak、现役文件 md5 与自己刚备份内容不一致、疑似并行会话改了同一文件、或平台拦截 SKILL_HASH_CHANGED 时使用。配方：备份后 md5 三方比对判断改动归属，diff 定位对方改动行，全程定点替换不整文件覆盖，改完断言对方改动仍在；含备份保留策略误判与复验判据自洽两个坑。两套改动相撞把回归大面积判红时先二分 harness 漂移/产品缺陷，可协调的启动期校验一律 clamp 到语义安全值并暴露在健康端点，不做拒绝启动。触发词：大面积判红、拒绝启动、clamp、领地预检。",
+   "description": "改共享Git工作区或无版本控制目录（~/.qoder/skills、服务器配置目录）的文件时，发现陌生 .bak、现役文件 md5 与自己刚备份内容不一致、疑似并行会话改了同一文件、或平台拦截 SKILL_HASH_CHANGED 时使用。配方：备份后 md5 三方比对判断改动归属，diff 定位对方改动行，全程定点替换不整文件覆盖，改完断言对方改动仍在；含备份保留策略与复验判据两个坑。两套改动相撞把回归大面积判红时先二分 harness 漂移/产品缺陷，可协调的启动期校验一律 clamp 到语义安全值并暴露在健康端点，不做拒绝启动。触发词：大面积判红、拒绝启动、clamp、领地预检。",
    "install": {
     "mode": "copy-skill",
     "tier": "core"
@@ -453,7 +453,7 @@
    "name": "java-architect",
    "status": "shipped",
    "tier": "library",
-   "description": "Use when building, configuring, or debugging enterprise Java applications with Spring Boot 3.x, microservices, or reactive programming。中文触发：Spring Boot Java 后端 Bean 依赖注入 JVM 组件。分工：本技能管架构取向与疑难排查，Spring 脚手架与端点实现走 springboot-patterns。",
+   "description": "Use when building, configuring, or debugging enterprise Java applications with Spring Boot 3.x, microservices, or reactive programming。中文触发：Java 架构、Spring Boot 分层、模块边界、接口设计、JVM 组件。分工：本技能管架构取向与疑难排查，Spring 脚手架与端点实现走 springboot-patterns。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1447,7 +1447,7 @@
    "name": "spring-aop",
    "status": "shipped",
    "tier": "library",
-   "description": "Spring AOP (Aspect-Oriented Programming) per Spring Boot 3.x。中文触发：Spring Boot Java 后端 Bean 依赖注入",
+   "description": "Spring AOP (Aspect-Oriented Programming) per Spring Boot 3.x。中文触发：Spring AOP、切面、通知、切点、代理",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1503,7 +1503,7 @@
    "name": "spring-boot-resilience4j",
    "status": "shipped",
    "tier": "library",
-   "description": "Provides fault tolerance patterns for Spring Boot 3.x using Resilience4j。中文触发：Spring Boot Java 后端 Bean 依赖注入 模式规范",
+   "description": "Provides fault tolerance patterns for Spring Boot 3.x using Resilience4j。中文触发：Resilience4j、熔断、限流、重试、舱壁、超时",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1531,7 +1531,7 @@
    "name": "spring-boot-test-patterns",
    "status": "shipped",
    "tier": "library",
-   "description": "Provides comprehensive testing patterns for Spring Boot applications covering unit, integration, slice, and container-based testing with JUnit 5, Mockito, Testcontainers, and performance optimization。中文触发：Spring Boot Java 后端 Bean 依赖注入 测试",
+   "description": "Provides comprehensive testing patterns for Spring Boot applications covering unit, integration, slice, and container-based testing with JUnit 5, Mockito, Testcontainers, and performance optimization。中文触发：Spring Boot 测试、JUnit 5、Mockito、Testcontainers、切片测试",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1545,7 +1545,7 @@
    "name": "spring-events",
    "status": "shipped",
    "tier": "library",
-   "description": "Spring Application Events for Spring Boot 3.x。中文触发：Spring Boot Java 后端 Bean 依赖注入。只管进程内 ApplicationEvent；跨进程消息与 outbox 架构用 spring-boot-event-driven-patterns。",
+   "description": "Spring Application Events for Spring Boot 3.x。中文触发：Spring 事件、ApplicationEvent、事务事件、事件监听。只管进程内 ApplicationEvent；跨进程消息与 outbox 架构用 spring-boot-event-driven-patterns。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1573,7 +1573,7 @@
    "name": "springboot-verification",
    "status": "shipped",
    "tier": "library",
-   "description": "Verification loop for Spring Boot projects - build, static analysis, tests with coverage, security scans, and diff review before release or PR。中文触发：Spring Boot Java 后端 Bean 依赖注入 测试 覆盖率",
+   "description": "Verification loop for Spring Boot projects - build, static analysis, tests with coverage, security scans, and diff review before release or PR。中文触发：Spring Boot 验证、构建检查、测试覆盖率、安全扫描、发布前检查",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -2548,6 +2548,7 @@
    "dependencies": [
     "script:client-root.js",
     "script:hook-crash-guard.js",
+    "script:hook-targets.cjs",
     "script:sync-global-config.sh",
     "script:sync-memory.sh"
    ]
@@ -2628,6 +2629,30 @@
    ]
   },
   {
+   "id": "script:hook-targets.cjs",
+   "category": "script",
+   "name": "hook-targets.cjs",
+   "status": "shipped",
+   "source": "scripts/hook-targets.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": []
+  },
+  {
+   "id": "script:hook-targets.test.js",
+   "category": "script",
+   "name": "hook-targets.test.js",
+   "status": "shipped",
+   "source": "scripts/hook-targets.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:hook-targets.cjs"
+   ]
+  },
+  {
    "id": "script:huge-output-guard.js",
    "category": "script",
    "name": "huge-output-guard.js",
@@ -2693,6 +2718,19 @@
     "mode": "copy-file"
    },
    "dependencies": []
+  },
+  {
+   "id": "script:install-package-node.test.js",
+   "category": "script",
+   "name": "install-package-node.test.js",
+   "status": "shipped",
+   "source": "scripts/install-package-node.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:install-package.cjs"
+   ]
   },
   {
    "id": "script:install-package.cjs",
@@ -2807,6 +2845,19 @@
    "dependencies": []
   },
   {
+   "id": "script:pack-share-docs.test.js",
+   "category": "script",
+   "name": "pack-share-docs.test.js",
+   "status": "shipped",
+   "source": "scripts/pack-share-docs.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:pack-share-docs.cjs"
+   ]
+  },
+  {
    "id": "script:pack-share-extras.cjs",
    "category": "script",
    "name": "pack-share-extras.cjs",
@@ -2832,6 +2883,30 @@
    "dependencies": []
   },
   {
+   "id": "script:parallel-context-redact.cjs",
+   "category": "script",
+   "name": "parallel-context-redact.cjs",
+   "status": "shipped",
+   "source": "scripts/parallel-context-redact.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": []
+  },
+  {
+   "id": "script:parallel-context-redact.test.js",
+   "category": "script",
+   "name": "parallel-context-redact.test.js",
+   "status": "shipped",
+   "source": "scripts/parallel-context-redact.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:parallel-context-redact.cjs"
+   ]
+  },
+  {
    "id": "script:parallel-context.cjs",
    "category": "script",
    "name": "parallel-context.cjs",
@@ -2842,6 +2917,7 @@
    },
    "dependencies": [
     "script:client-root.js",
+    "script:parallel-context-redact.cjs",
     "script:parallel-plan.cjs"
    ]
   },
@@ -2896,6 +2972,30 @@
    ]
   },
   {
+   "id": "script:pkg-catalog-score.cjs",
+   "category": "script",
+   "name": "pkg-catalog-score.cjs",
+   "status": "shipped",
+   "source": "scripts/pkg-catalog-score.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": []
+  },
+  {
+   "id": "script:pkg-catalog-score.test.js",
+   "category": "script",
+   "name": "pkg-catalog-score.test.js",
+   "status": "shipped",
+   "source": "scripts/pkg-catalog-score.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:pkg-catalog-score.cjs"
+   ]
+  },
+  {
    "id": "script:pkg-catalog.cjs",
    "category": "script",
    "name": "pkg-catalog.cjs",
@@ -2907,7 +3007,8 @@
    "dependencies": [
     "script:client-root.js",
     "script:pack-share-extras.cjs",
-    "script:package-dependencies.cjs"
+    "script:package-dependencies.cjs",
+    "script:pkg-catalog-score.cjs"
    ]
   },
   {
@@ -3144,6 +3245,41 @@
    "dependencies": []
   },
   {
+   "id": "script:skill-reference-allowlist.cjs",
+   "category": "script",
+   "name": "skill-reference-allowlist.cjs",
+   "status": "shipped",
+   "source": "scripts/skill-reference-allowlist.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": []
+  },
+  {
+   "id": "script:skill-reference-integrity.cjs",
+   "category": "script",
+   "name": "skill-reference-integrity.cjs",
+   "status": "shipped",
+   "source": "scripts/skill-reference-integrity.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": []
+  },
+  {
+   "id": "script:skill-reference-integrity.test.js",
+   "category": "script",
+   "name": "skill-reference-integrity.test.js",
+   "status": "shipped",
+   "source": "scripts/skill-reference-integrity.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:skill-reference-integrity.cjs"
+   ]
+  },
+  {
    "id": "script:skill-usage.cjs",
    "category": "script",
    "name": "skill-usage.cjs",
@@ -3180,6 +3316,30 @@
    "dependencies": []
   },
   {
+   "id": "script:stop-gate-text.js",
+   "category": "script",
+   "name": "stop-gate-text.js",
+   "status": "shipped",
+   "source": "scripts/stop-gate-text.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": []
+  },
+  {
+   "id": "script:stop-gate-text.test.js",
+   "category": "script",
+   "name": "stop-gate-text.test.js",
+   "status": "shipped",
+   "source": "scripts/stop-gate-text.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:stop-gate-text.js"
+   ]
+  },
+  {
    "id": "script:stop-gate.js",
    "category": "script",
    "name": "stop-gate.js",
@@ -3191,6 +3351,7 @@
    "dependencies": [
     "script:client-root.js",
     "script:hook-crash-guard.js",
+    "script:stop-gate-text.js",
     "script:work-queue-check.js"
    ]
   },
@@ -3640,5 +3801,10 @@
    "source": "agents/runtime-truth-verifier.md",
    "dependencies": []
   }
- ]
+ ],
+ "statusLegend": {
+  "shipped": "随包可直接安装",
+  "external": "仅提供官方安装方式，不在包内",
+  "template": "提供合并说明，不直接安装"
+ }
 }

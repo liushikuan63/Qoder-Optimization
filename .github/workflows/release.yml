@@ -4,6 +4,8 @@ on:
   push:
     branches: ['main']
     tags: ['v*']
+  pull_request:
+    branches: ['main']
   workflow_dispatch:
     inputs:
       tag:
@@ -21,6 +23,7 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,6 +35,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24.16.0'
+          cache: npm
+          cache-dependency-path: |
+            skills/office-docs/package-lock.json
+            scripts/convention-runtime/package-lock.json
 
       - name: Install locked test dependencies
         run: |
@@ -56,6 +63,16 @@ jobs:
           fi
           node .github/build-release.js "${TAG}" "${RUNNER_TEMP}/dist" "${REF}"
 
+      - name: Verify skill reference integrity in the built package
+        run: |
+          PKG="$(node -p "JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP + '/dist/build.json', 'utf8')).package")"
+          node scripts/skill-reference-integrity.cjs --root "${RUNNER_TEMP}/dist/${PKG}" --check
+
+      - name: Verify package contract
+        run: |
+          PKG="$(node -p "JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP + '/dist/build.json', 'utf8')).package")"
+          node scripts/share-package-verify.cjs "${RUNNER_TEMP}/dist/${PKG}"
+
       - name: Scan the actual distribution
         run: |
           PKG="$(node -p "JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP + '/dist/build.json', 'utf8')).package")"
@@ -68,3 +85,32 @@ jobs:
         run: |
           TAG="$(node -p "JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP + '/dist/build.json', 'utf8')).tag")"
           node .github/publish-release.js "${TAG}" "${RUNNER_TEMP}/dist"
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.16.0'
+          cache: npm
+          cache-dependency-path: |
+            skills/office-docs/package-lock.json
+            scripts/convention-runtime/package-lock.json
+
+      - name: Install locked test dependencies
+        run: |
+          npm ci --prefix skills/office-docs --ignore-scripts --no-audit --no-fund
+          npm ci --prefix scripts/convention-runtime --ignore-scripts --no-audit --no-fund
+
+      - name: Isolated self-tests and release contracts
+        run: node .github/run-tests.js

@@ -35,7 +35,7 @@ description: "定位 Windows 桌面客户端（尤其 Electron 老客户端、�
 
 ## 3. 在包里 grep 界面原文（不解包）
 
-用 `scripts/asar-inspect.cjs`（`grep` 直接从包内按条目读，不落地；默认拒绝整包解压）。
+用 `<本机辅助脚本>/asar-inspect.cjs`（`grep` 直接从包内按条目读，不落地；默认拒绝整包解压）。
 
 - 中文串一字之差就全落空：截图「请稍**候**」与新版代码「请稍**后**」不是同一处；省略号是 `…`(U+2026) 不是 `...`。两种写法都要试（请稍候 / 请稍后）。**先 grep 短前缀**（如「数据同步中」）再核整句；命中多处时按语言/代次目录（`gen3` / `gen4` / `clientv2`）筛。
 - 老 minified JS 里中文常存成 `\uXXXX` 转义 ⇒ 同一模式必须同时试「原始 UTF-8」与「`\uXXXX`（含大小写、单层/双层反斜杠）」，脚本已内置；实测同一个词只有转义形态能命中主进程脚本。
@@ -101,7 +101,7 @@ RegisterAlterDev(VID, DONGLE_PID)  // 备用：2.4G 接收器 0x5130
 
 ## Resources
 
-- `scripts/asar-inspect.cjs` — asar **结构层**只读取证：头布局自校验（断言不过退 3，并列出 `8/12/16 + u32@4` 三个候选基址各自读出的内容）。子命令 `header`、`list [--filter S] [--limit N]`、`grep <文本> [--path S] [--ctx N] [--max N] [--max-bytes N]`、`cat <包内路径> [--bytes N]`、`extract <包内路径> [--out DIR] [--force]`。grep 对同一模式试 5 种形态（原始 UTF-8 / `\uXXXX` 大小写 / 双层反斜杠），零命中退 2 并提示核对界面用字。
+- `<本机辅助脚本>/asar-inspect.cjs` — asar **结构层**只读取证：头布局自校验（断言不过退 3，并列出 `8/12/16 + u32@4` 三个候选基址各自读出的内容）。子命令 `header`、`list [--filter S] [--limit N]`、`grep <文本> [--path S] [--ctx N] [--max N] [--max-bytes N]`、`cat <包内路径> [--bytes N]`、`extract <包内路径> [--out DIR] [--force]`。grep 对同一模式试 5 种形态（原始 UTF-8 / `\uXXXX` 大小写 / 双层反斜杠），零命中退 2 并提示核对界面用字。
 
 ## 本技能的验证边界
 

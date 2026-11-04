@@ -99,7 +99,7 @@ gh api repos/$R/check-runs/$SJ/annotations --jq '[.[] | select(.message | test("
 ## 配额算术（把"为什么是今天烧穿"算出来）
 
 ```bash
-node scripts/quota-usage.cjs <owner>/<repo> [workflow-name] [--days 30] [--plan 2000]
+node <本机辅助脚本>/quota-usage.cjs <owner>/<repo> [workflow-name] [--days 30] [--plan 2000]
 ```
 
 分页拉取成功 run 的 `run_started_at`→`updated_at`，输出单次平均分钟、窗口总量、日均与月度投影，并与 `--plan` 比较。本机实测：`build-and-gates` 30 天 466 次成功 run，mean 5.3 分钟/次，合计 2452 分钟 > 2000 ⇒ 判"会（或已经）烧穿"。
@@ -127,4 +127,4 @@ node scripts/quota-usage.cjs <owner>/<repo> [workflow-name] [--days 30] [--plan 
 
 ## Resources
 
-- `scripts/quota-usage.cjs` — 分页取样成功 run，折算托管分钟并与配额上限比较（只读 `gh api`，输出已限长）。
+- `<本机辅助脚本>/quota-usage.cjs` — 分页取样成功 run，折算托管分钟并与配额上限比较（只读 `gh api`，输出已限长）。

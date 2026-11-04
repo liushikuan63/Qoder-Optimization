@@ -1,4 +1,4 @@
-# Qoder-Optimization-0.0.22 安装说明
+# Qoder-Optimization-0.0.23 安装说明
 
 ## 包内容与落点
 
@@ -57,12 +57,12 @@ node scripts/install-continuity.cjs --yes --no-auto-bind # 只接线，仍按会
 
 ## 安装
 
-推荐 Node.js 24。在解压包的顶层目录使用包内脚本开始，不假设本机已经安装检索工具；修改已有文件前先备份。
+要求 Node.js 24.16+（安装器与接续功能）；独立 MCP 安装器只需 Node 18+。在解压包的顶层目录使用包内脚本开始，不假设本机已经安装检索工具；修改已有文件前先备份。
 
 1. 高级手工安装基础检索（主安装器已处理路由时不用重复）：先用 `node scripts/pkg-catalog.cjs register .` 登记当前包，再用 `node scripts/pkg-catalog.cjs install script:skill-load.cjs` 预演。确认后加 `--apply`，安装器会列出并安装缺失的包内依赖；已存在的依赖不覆盖，不需要逐个重复安装。
 2. 技能与其他脚本：用包内 `search "<关键词>"` 查找，再按 ID 预演和安装。技能默认进按需库；交互执行 `install <id> --apply` 时会询问是否设为常驻，非交互用 `--tier core|library` 明确选择。不要整目录复制，已存在目标不自动覆盖。
 3. 规则：把 `Qoder-AI编码通用规则.md` 中与你的环境相符的部分并进 `~/.qoder/AGENTS.md`——按你的实际工具与环境删改，不必整篇照抄
-4. **其他 hooks 按需接线**（主安装器已处理能力提醒，勿重复添加该条；未接线的其他脚本不会自行运行）：照 `hooks/README-hooks.md` 把 `hooks.example.json` 的占位符替换后**并入该客户端的** `settings.json` 的 `hooks`（双端都装才各挂一份；只装一个就只挂一个）
+4. **其他 hooks 按需接线**（主安装器已处理能力提醒，勿重复添加该条；未接线的其他脚本不会自行运行）：先按 `hooks/README-hooks.md` 的「模板脚本与安装 ID」安装要用的脚本，再把 `hooks.example.json` 的占位符替换后**并入该客户端的** `settings.json` 的 `hooks`（双端都装才各挂一份；只装一个就只挂一个）。未安装的守卫接线后会 fail-open 静默放行。
 5. MCP：照 `mcp/README-mcp.md` 合并配置，并做一次协议级冒烟（能列出工具名即接线成功）
 6. 记忆：先按 `Qoder-个人规则生成提示词.md` 第 3 步分类勾选；`node scripts/import-memory.cjs <归档>` 仅预演，确认后加 `--apply`。支持平铺和带版本外层目录；与现有文件冲突时整批拒绝，先三方合并，不覆盖索引或复制归档里的脚本到现役目录。
 7. 子智能体：`cp agents/*.md <客户端目录>/agents/`（目录不存在就建；非官方机制不支持时可直接读该目录下的 md 当提示词用）
@@ -93,7 +93,7 @@ node scripts/install-continuity.cjs --yes --no-auto-bind # 只接线，仍按会
 - **按使用记录给建议，不自动改层级**：`skill-load --record` 记录一次检索需求，实际采用后运行 `skill-usage.cjs log <名> --source use`；`skill-usage.cjs report` 查看 30/90 天使用，`suggest` 按阈值给建议——按需技能 30 天 ≥3 次或 90 天 ≥5 次建议晋升；用户自选常驻且 90 天未用建议降级；包内 CORE 默认常驻不建议降级。建议必须先用 `AskUserQuestion` 确认，再运行 `tier-skills --promote/--demote --apply`。原生 Skill 调用无法被脚本自动观测，未显式 log 的使用不进入统计。
 - 包内 12 个常驻只是**默认起点**（基础路由与跨域元技能），不是要求接收者照搬的数量。常驻越多，每轮注入的描述越长；以「这条技能是否靠描述自动命中」为准，不靠堆数量。
 
-包内实物：133 个技能（12 常驻 + 121 按需）；常驻描述 2582 字符，全部技能描述 27631 字符，占比 9.3%。按 catalog 计算，不是接收者的已安装数量；12 只是默认起点，常驻数量由使用者按习惯在安装时与使用中决定。
+包内实物：133 个技能（12 常驻 + 121 按需）；常驻描述 2578 字符，全部技能描述 27641 字符，占比 9.3%。按 catalog 计算，不是接收者的已安装数量；12 只是默认起点，常驻数量由使用者按习惯在安装时与使用中决定。
 
 ## 按需加装（分享包索引）
 
@@ -164,6 +164,6 @@ node scripts/install-continuity.cjs --yes --no-auto-bind # 只接线，仍按会
 
 ## 依赖
 
-- Node.js ≥24.16（脚本使用内置模块，包括归档CRC与SQLite；不适用于Node 20）。
+- Node.js ≥24.16（安装器与接续功能使用内置模块，包括归档 CRC 与 SQLite；不适用于 Node 20）。独立 MCP 安装器只需 Node 18+。
 - `office-docs` 需另行安装锁定依赖，`node_modules` 不随包。默认按需落点使用 `npm ci --ignore-scripts --prefix <客户端目录>/skills-library/office-docs`；显式装到core时使用安装器实际打印的目录。不自动联网装包。
 - Git Bash（Windows）：`sync-*.sh` 与部分守卫要用 bash；非 Windows 直接用系统 bash。

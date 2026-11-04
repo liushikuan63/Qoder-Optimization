@@ -98,7 +98,7 @@ node ~/.qoder/scripts/skill-collisions.cjs     # 期望 触发重叠对=0
 ## 10. 回写与记录
 
 - 记忆：只写「哪个技能承载哪类流程」这类指针，不复制技能正文。
-- 证据：`node ~/.qoder/skills/self-evolution/scripts/evolution.js record --input <证据.json>`，摘要写清合并了哪些候选、落在哪个技能。
+- 证据：`node ../self-evolution/scripts/evolution.js record --input <证据.json>`，摘要写清合并了哪些候选、落在哪个技能。
 
 ## 11. 处理完必须标记完成并汇报
 

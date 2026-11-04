@@ -27,7 +27,7 @@ function reset() {
   const scripts = path.join(SB, '.qoder', 'scripts');
   fs.mkdirSync(scripts, { recursive: true });
   fs.copyFileSync(SCRIPT, path.join(scripts, 'global-config-guard.js'));
-  for (const file of ['client-root.js', 'hook-crash-guard.js']) fs.copyFileSync(path.join(__dirname, file), path.join(scripts, file));
+  for (const file of ['client-root.js', 'hook-crash-guard.js', 'hook-targets.cjs']) fs.copyFileSync(path.join(__dirname, file), path.join(scripts, file));
 }
 
 /** 造一个假检查脚本：`exit <code>` 之前可以先 sleep 若干秒。 */

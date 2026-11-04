@@ -23,7 +23,7 @@ when_to_use: Git Bash 里调 powershell.exe 报错、.ps1 中文炸引号、输�
 1. 一次性产物落 `%TEMP%/qoder-work/<任务>/`，脚本与输出同目录。
 2. 建脚本：Write 工具，或 `cat > x.ps1 <<'EOF'`（**EOF 必须加引号**，否则 bash 又展开一遍）。
 3. 套下面的骨架，脚本体保持 ASCII。
-4. 运行：`node <本技能目录>/scripts/psdiag.cjs x.ps1 --lines 40`。
+4. 运行：`node <本技能目录>/<本机辅助脚本>/psdiag.cjs x.ps1 --lines 40`。
 5. 读结果：stdout 只有摘要 + `EXIT=`，全文在同名 `.out.txt`（UTF-8 无 BOM，grep / Read 可直接用）。
 6. 收尾删临时目录（本机口径：按推荐直接清，不逐个问）。
 
@@ -45,9 +45,9 @@ Get-Process | Where-Object { $_.ProcessName -match $pat } | ForEach-Object { Wri
 - 每节都打 `Sec` 分节头，方便事后 `grep -a '====='` 定位。
 - 结论行自己印出来（`Write-Output "matched=$n"`），别让读的人从表格数行数。
 
-## 运行器 scripts/psdiag.cjs
+## 运行器 <本机辅助脚本>/psdiag.cjs
 
-`node scripts/psdiag.cjs <x.ps1> [--out <file>] [--lines N]`（相对本技能目录；CN 侧绝对路径 `~/.qoder-cn/skills/windows-powershell-from-gitbash/scripts/psdiag.cjs`）
+`node <本机辅助脚本>/psdiag.cjs <x.ps1> [--out <file>] [--lines N]`（相对本技能目录；CN 侧绝对路径 `~/.qoder-cn/skills/windows-powershell-from-gitbash/<本机辅助脚本>/psdiag.cjs`）
 
 - 走 `spawnSync(..., '-File')` **不经过 shell** ⇒ `$_` 类坑天然免疫，脚本里想怎么写就怎么写。
 - 显式解码：`FF FE` 走 utf-16le；严格 UTF-8 失败再走 gbk；落盘为 UTF-8 无 BOM。
@@ -182,4 +182,4 @@ $c = New-Object System.Net.Http.HttpClient($h); $c.Timeout = (New-TimeSpan -Seco
 
 ## Resources
 
-- `scripts/psdiag.cjs` — 执行 `.ps1` + 显式解码 + UTF-8 落盘 + 摘要打印；可 `require()` 复用其 `decode()`。
+- `<本机辅助脚本>/psdiag.cjs` — 执行 `.ps1` + 显式解码 + UTF-8 落盘 + 摘要打印；可 `require()` 复用其 `decode()`。

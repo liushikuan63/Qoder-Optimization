@@ -16,7 +16,7 @@ C 盘紧张时的错误做法是「找到一个目录就搬一个」。本技能
 | 只读候选扫描（分档 + 体积 + 推荐动作） | `bash ~/.qoder/scripts/disk-migration-candidates.sh [--top N]` |
 | 清理执行（一档 / 三档、归档与回取） | `node ~/.qoder/scripts/disk-sweeper.js`（细则见 `/clean-disk`） |
 | Qoder 数据目录搬迁（**主入口：纯批处理，免 Git / Python / Node**） | `~/.qoder/scripts/Qoder数据目录迁移.cmd`（双击 = 菜单；`--status` / `--to D [--apply]` / `--merge-back` / `--revert logs\|projects\|all [--apply]` / `--cleanup --apply` / `--wt-clean`；默认连 `%APPDATA%` / `%LOCALAPPDATA%` 下的 Qoder 目录一起处理，`--no-appdata` 只处理 `~/.qoder*`，`--items` 自定义条目） |
-| 同上 Bash 版（Agent / CLI 可选） | `bash ~/.qoder/scripts/qoder-data-migrate.sh`（防呆只挡 `--apply`，不带参数 = 只读盘点）；旧版 `migrate-data-to-disk.sh` 无条件拒非交互 |
+| 同上 Bash 版（Agent / CLI 可选） | `bash ../../scripts/migrate-data-to-disk.sh`（防呆只挡 `--apply`，不带参数 = 只读盘点）；旧版 `migrate-data-to-disk.sh` 无条件拒非交互 |
 | 免 Git Bash 的 PowerShell 版 | `powershell -File ~/.qoder/scripts/migrate-qoder-data.ps1 -To D [-Apply\|-Undo]` |
 
 边界：清理侧的阈值、档位与归档闭环归 `/clean-disk`，本轮临时产物归 `/clean-temp`，本技能只做**分档路由与搬迁执行安全**；外部分享包并入本机（比对 / 攻击面扫描 / 逐文件分桶）归 `merge-inbound-qoder-package`，那里提到「首次应用分享包要问迁移」时，迁移部分的判据与命令以本技能为准。

@@ -129,9 +129,16 @@ function checkRelease(root, tag, selectedFiles) {
 
 module.exports = { checkRelease, checkOffline, walk };
 if (require.main === module) {
-  const result = checkRelease(process.cwd(), process.argv[2]);
-  for (const problem of result.problems) console.error('FAIL ' + problem);
-  console.log(`checked ${result.files.length} files`);
-  console.log(result.problems.length ? `VERDICT: FAIL (${result.problems.length} problems)` : 'VERDICT: CLEAN');
-  process.exitCode = result.problems.length ? 1 : 0;
+  const cwd = process.cwd();
+  if (fs.existsSync(path.join(cwd, '.git')) && fs.existsSync(path.join(cwd, '.github'))) {
+    console.error('REFUSED: run from the built package directory, not the repository root.');
+    console.error('Example: cd <package> && node <repo>/.github/check-release.js <tag>');
+    process.exitCode = 2;
+  } else {
+    const result = checkRelease(cwd, process.argv[2]);
+    for (const problem of result.problems) console.error('FAIL ' + problem);
+    console.log(`checked ${result.files.length} files`);
+    console.log(result.problems.length ? `VERDICT: FAIL (${result.problems.length} problems)` : 'VERDICT: CLEAN');
+    process.exitCode = result.problems.length ? 1 : 0;
+  }
 }

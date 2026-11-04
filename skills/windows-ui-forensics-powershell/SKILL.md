@@ -157,7 +157,7 @@ Get-IlLevel 0                             # 一调用就红，报错行指向调
 
 - 原生 CLI 的斜杠开关被 MSYS 转盘符路径（`reg` / `whoami` / `sc` / `tasklist`）⇒ **`windows-gitbash-command-safety`**（含封装脚本，已实测）。
 - 语法门必须 `-File`、嵌套双引号、四种写盘的 BOM 差异、退 0 与异常共存、代理与码页自探 ⇒ **`windows-powershell-from-gitbash`《订正与增量》**。
-- 基础三条硬替换 + `scripts/psdiag.cjs` 运行器 ⇒ **`windows-powershell-from-gitbash`**。
+- 基础三条硬替换 + `<本机辅助脚本>/psdiag.cjs` 运行器 ⇒ **`windows-powershell-from-gitbash`**。
 - 托盘图标为何不显示（`Shell_NotifyIconGetRect` 逐 uID、对照注册）⇒ **`electron-tray-icon-diagnosis`**。
 - 需要管理员权限的改动（HKLM 写、服务 ImagePath、计划任务）⇒ **`windows-elevated-changes-from-git-bash`**，并按本机红线先给方案与回滚。
 - 显示栈 / EDID / HDR ⇒ **`powershell-windows-display-interop`**。

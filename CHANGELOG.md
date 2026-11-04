@@ -6,6 +6,37 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.0.23] - 2026-11-04
+
+### Package integrity
+- Add `skill-reference-integrity.cjs`: scan every `SKILL.md` and transitively referenced Markdown for `references/` and `scripts/` paths, ignore code fences and HTML comments, and fail with exit 2 on unresolved references. Two documented cross-skill refs are allowlisted with reasons.
+- Restore 194 referenced skill files from the live skill sources, including minigame references/scripts, Spring and frontend references, and senior-devops assets; repair malformed relative paths and add the three missing miniprogram protocol documents.
+- Add a CI reference-integrity gate and validate the package on every pull request.
+
+### Installer and hooks
+- Enforce Node.js 24.16+ in `install-package.cjs` before any write, with a clear upgrade message; unify the documented requirement and keep the MCP installer's Node 18+ exception explicit.
+- Document every template hook script with its catalog install ID and command, and make `global-config-guard` report hook wiring that points at a script missing from the client.
+
+### Release gates
+- Let `share-package-verify` run as a CI gate and keep `check-release.js` from treating the repository root as a release asset directory.
+- Add a Windows CI job running the full isolated test suite, add `pull_request` triggers, set a 45-minute timeout, and cache npm.
+
+### Skills
+- Remove the exact duplicate trigger phrase shared by six Spring skills so routing can distinguish architecture, AOP, Resilience4j, test patterns, events, and verification.
+
+### Maintainability and docs
+- Extract `stripQuoted` into `stop-gate-text.js`, redaction into `parallel-context-redact.cjs`, and catalog scoring into `pkg-catalog-score.cjs`, each with unit tests; parent behavior is unchanged.
+- Harden the CUA cursor guard to pass driver arguments as argv instead of a shell string, with test-only stubs gated by `CUA_GUARD_TEST_STUBS`.
+- Make `pack-share-docs.cjs` accept `--home` and cover it with positive and negative tests.
+- Add a heading table of contents to the rules document; correct the platform badge to Windows 10/11 (primary); state the shipped status counts in `INDEX.md`; emit a machine-readable `statusLegend` in `catalog.json`.
+
+### 中文摘要
+- 新增技能引用完整性校验器并补齐 194 个断链文件与 3 篇缺失协议文档，CI 与 PR 均执行校验。
+- 安装器在写盘前强制 Node.js 24.16+；hooks 增加脚本安装对照表与接线缺失检查。
+- 发布门禁接入包校验，`check-release` 拒绝把仓库根当资产目录；新增 Windows 全量测试任务。
+- 六个 Spring 技能的重复触发词已去重；三个大脚本拆出公共模块并补单测；CUA 守卫改用 argv 传参。
+- 规则文档增加目录，平台徽章、索引状态计数与 catalog 状态说明已校准。
+
 ## [0.0.22] - 2026-11-04
 
 ### Capability installation

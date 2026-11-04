@@ -112,10 +112,10 @@ node ~/.qoder/scripts/skill-load.cjs "zzz-no-such"; echo EXIT=$?  # 期望 NO_MA
 
 | 站点 | 症状 | 补法 |
 |---|---|---|
-| `~/.qoder/scripts/pack-share-extras.js` 的 `resolveSkillDir` | 打包判“技能缺失” | `skills/` → `skills-library/` → `skills-disabled/` 依次回退 |
-| `~/.qoder/scripts/check-share-docs.js` 计数 | “实际装 N 个”与磁盘不符 | 计数 = core + library |
+| `~/.qoder/scripts/pack-share-extras.cjs` 的 `resolveSkillDir` | 打包判“技能缺失” | `skills/` → `skills-library/` → `skills-disabled/` 依次回退 |
+| `~/.qoder/scripts/share-package-verify.cjs` 计数 | “实际装 N 个”与磁盘不符 | 计数 = core + library |
 | `~/.qoder/scripts/rules-weekly-audit.js` 的 `SKILL_DIRS` | 规则引用库技能被判悬空 | 把两个 `skills-library` 路径加入存在性集合 |
-| `~/.qoder/scripts/verify-global-setup.js` 的技能数下限 | 常驻数低于下限（如 26<40）假红 | 已改为 core+library 计总数（下限 40）并保留“常驻 ≥10”防 `skills/` 被清空；输出写明两层计数 |
+| `~/.qoder/scripts/config-doctor.cjs` 的技能数下限 | 常驻数低于下限（如 26<40）假红 | 已改为 core+library 计总数（下限 40）并保留“常驻 ≥10”防 `skills/` 被清空；输出写明两层计数 |
 | `skill-trim-with-capability-transfer` 的 `skill-mention-scan.cjs` | 库技能被当“不明来源” | 把 `skills-library/` 加入 active 集合；库文件按需纳入扫描 |
 
 **不要盲目给所有工具加 library**：`skills-doctor` / `skill-collisions` 只关心“注入面”，只看 core 是对的；给它们加库会把不注入的描述也拉进质量门禁，制造噪声。判断标准：这个工具问的是“技能是否存在/能否打包/是否被引用”，还是“每轮注入了什么”。
@@ -130,7 +130,7 @@ node ~/.qoder/scripts/skill-load.cjs "zzz-no-such"; echo EXIT=$?  # 期望 NO_MA
 | 无技能丢失 | core+library 总数 vs 迁移前 | 相等；md5 映射一致 |
 | 检索可用 | 正/负查询各一条 | 正例 exit 0 且路径在库；负例 `NO_MATCH` exit 3 |
 | 周检不新增红 | `node ~/.qoder/scripts/rules-weekly-audit.js --no-fix` | 与迁移前对比，新增告警 0 |
-| 全局自检 | `node ~/.qoder/scripts/verify-global-setup.js` | 记录既存红；分层新增红必须为 0 或已解释 |
+| 全局自检 | `node ~/.qoder/scripts/config-doctor.cjs` | 记录既存红；分层新增红必须为 0 或已解释 |
 | 回滚可逆 | `--restore <一个>` → 计数 +1 → `--apply` → 计数复原 | 索引随之重建，内容哈希不变 |
 | 分享包（如本轮出包） | `pack-share-extras --check`、`check-share-docs`、`verify-share-package` | 全 0；包内含 tier/load/build/router/命令/规则说明 |
 | 注入面 | 新会话或 `/skills reload` 后的技能列表 | 只列常驻；report 的 core≈ 明显低于迁移前 |

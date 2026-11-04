@@ -52,7 +52,7 @@ grep -h "failure recorded" ~/.dsh/logs/*.log | tail -5
 **关键陷阱**：`session.v4.jsonl.zstd` 不是单一 zstd 流，**每个追加事件各占一个 zstd 帧**。对整文件 `zlib.zstdDecompressSync` 只会静默返回首帧（本机实测 4.2MB → 解出 **204 字节 1 行**），于是统计出来是空直方图 + `offenders: 0`——**这是假绿，不是干净**。
 
 ```bash
-node scripts/scan-session.cjs "<转录路径>"    # 本机实测：7337 帧 → 13239 事件 → 4984 条消息
+node <本机辅助脚本>/scan-session.cjs "<转录路径>"    # 本机实测：7337 帧 → 13239 事件 → 4984 条消息
 ```
 
 输出顺序——帧数 / 事件数 → 事件类型直方图 → `source.kind` 直方图 → **覆盖度自证** → offender 明细。脚本跑了两遍**相互独立**的扫描（显式映射 + 结构递归 sweep）并比较总数；两遍不一致就印 `PARTIAL` 并点名未映射的事件类型，此时不得拿 offender 数下结论；遇到只有首帧的残缺文件印 `INCONCLUSIVE` 并退 1。
@@ -90,7 +90,7 @@ grep -rn "kind: 'plugin'" ~/.dsh/plugins --include=index.js | grep -v '\.bak'
 不要凭报错文字猜规则，把**当次安装里真实那份**校验器抽出来实跑（版本会漂移，结论不能硬编码）：
 
 ```bash
-node scripts/verify-source-validator.cjs [asar 路径]   # 缺省自动探测
+node <本机辅助脚本>/verify-source-validator.cjs [asar 路径]   # 缺省自动探测
 ```
 
 它提取 `source()` 与 `producerKind()` 跑 10 项带期望的检查，**任一项不符即退 1**——6 个必拒（带 `plugin` 字段的旧包装、裸 `kind` 为 `plugin`、空串 `kind`、缺 `kind`、非字符串 `kind`、`source` 非对象）+ 2 必接受（`plugin:<name>`、`user`）+ `producerKind()` 输出逐字等于修复后的形状 + 拒给报错文本与插件日志逐字一致。asar 里没有这些符号、或切片边界漂移导致编译不过，也会明确退 1 并提示人工重定位——**不得把假绿当验证**。
@@ -157,7 +157,7 @@ powershell -NoProfile -Command "Get-Process | Where-Object Path -like '*DeepSeek
 
 ## Resources
 
-- `scripts/scan-session.cjs`——逐帧解 `session.v4.jsonl.zstd`，输出事件类型 / `source.kind` 直方图 + 两遍扫描覆盖度对账 + offender 明细。参数 `<转录路径> [--top N] [--offenders N]`。只读，不写任何文件；残缺文件退 1。
-- `scripts/verify-source-validator.cjs`——从 `app.asar` 现抽 `source()` / `producerKind()`，跑 10 项带期望的形状矩阵。参数 `[asar 路径]`，缺省自动探测；只读，不写任何文件；符号缺失退 1。
+- `<本机辅助脚本>/scan-session.cjs`——逐帧解 `session.v4.jsonl.zstd`，输出事件类型 / `source.kind` 直方图 + 两遍扫描覆盖度对账 + offender 明细。参数 `<转录路径> [--top N] [--offenders N]`。只读，不写任何文件；残缺文件退 1。
+- `<本机辅助脚本>/verify-source-validator.cjs`——从 `app.asar` 现抽 `source()` / `producerKind()`，跑 10 项带期望的形状矩阵。参数 `[asar 路径]`，缺省自动探测；只读，不写任何文件；符号缺失退 1。
 
 两脚本已在 2026-10-07 对现存 `~/.dsh` 实跑——扫描 7337 帧 / 13239 事件 / 4984 消息且两遍对账一致、0 offender；矩阵 10/10 PASS；三条必红路径（无 asar、无符号、单帧残缺）均如期退 1。

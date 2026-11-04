@@ -28,10 +28,10 @@ argument-hint: "<live-js-path> [patch-marker]"
 
 ## 步骤
 
-助手脚本 `scripts/patch-hygiene.cjs`（Node 18+；输出纯 ASCII；退出码 **0 通过 / 1 判红 / 2 前置或参数失败**）。先把路径存成变量（Git Bash）：
+助手脚本 `<本机辅助脚本>/patch-hygiene.cjs`（Node 18+；输出纯 ASCII；退出码 **0 通过 / 1 判红 / 2 前置或参数失败**）。先把路径存成变量（Git Bash）：
 
 ```bash
-S="node <绝对技能目录>/scripts/patch-hygiene.cjs"
+S="node <绝对技能目录>/<本机辅助脚本>/patch-hygiene.cjs"
 LIVE="/d/Program Files/<App>/resources/app/lib/<name>-<hash>.js"
 ```
 
@@ -143,4 +143,4 @@ $S instances "<scratch-user-data-dir>" --kill     # 经用户同意后才带 --k
 
 ## Resources
 
-- `scripts/patch-hygiene.cjs` — 子命令 `survey` / `backup` / `check` / `selftest` / `diff` / `restore` / `instances`。除 `backup`、`restore` 与显式 `--kill` 外全部只读；无隐式副作用；所有判据以退出码返回。
+- `<本机辅助脚本>/patch-hygiene.cjs` — 子命令 `survey` / `backup` / `check` / `selftest` / `diff` / `restore` / `instances`。除 `backup`、`restore` 与显式 `--kill` 外全部只读；无隐式副作用；所有判据以退出码返回。

@@ -28,7 +28,7 @@ when_to_use: "软件曾从 C 盘手工搬到 D 盘（或删了旧目录）后出
 ## 第 1 步：只读诊断（本机的实测耗时 6 秒）
 
 ```bash
-powershell -NoProfile -ExecutionPolicy Bypass -File "<本技能目录>/scripts/relocated-install-diag.ps1" \
+powershell -NoProfile -ExecutionPolicy Bypass -File "<本技能目录>/<本机辅助脚本>/relocated-install-diag.ps1" \
   -AppName wetype -Vendor Tencent -OldPath "C:\Program Files\Tencent\WeType" -NewPath "D:\Program Files\Tencent\WeType"
 ```
 
@@ -146,4 +146,4 @@ L3 的注入、前台归属断言、回读、以及误动用户内容后的处�
 
 ## Resources
 
-- `scripts/relocated-install-diag.ps1`：第 1 步的只读诊断（七节 + VERDICT 汇总，纯 ASCII，只读——不写注册表、不启停服务）。已在本机三态实测：给 WeType 参数能复现来源会话结论（残余 1 条防火墙规则、sess=1 引擎进程 8 个、SCM 命中 2）；给 OneDrive 作阳性对照（真查出 4 条指向已删版本号目录的键值）；无参数时印 `SKIPPED` 而不是假数。
+- `<本机辅助脚本>/relocated-install-diag.ps1`：第 1 步的只读诊断（七节 + VERDICT 汇总，纯 ASCII，只读——不写注册表、不启停服务）。已在本机三态实测：给 WeType 参数能复现来源会话结论（残余 1 条防火墙规则、sess=1 引擎进程 8 个、SCM 命中 2）；给 OneDrive 作阳性对照（真查出 4 条指向已删版本号目录的键值）；无参数时印 `SKIPPED` 而不是假数。

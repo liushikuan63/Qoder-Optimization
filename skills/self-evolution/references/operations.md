@@ -100,7 +100,7 @@ node ~/.qoder/skills/self-evolution/scripts/evolution.js rollback --id '实际ID
 
 ## 双端同步
 
-本机的 Qoder 与 Qoder CN 各自有独立的 `~/.qoder/evolution/` 和 `~/.qoder-cn/evolution/`。两侧规则/技能通过 `scripts/sync-global-config.sh` 保持同步，但经验记录（records/）各自独立积累。跨端同步经验记录时，用 `scripts/sync-evolution.sh --copy-missing` 只补单边文件（与记忆同步同口径）。
+本机的 Qoder 与 Qoder CN 各自有独立的 `~/.qoder/evolution/` 和 `~/.qoder-cn/evolution/`。两侧规则/技能通过 `scripts/sync-global-config.sh` 保持同步，但经验记录（records/）各自独立积累。跨端同步经验记录时，用 `<本机辅助脚本>/sync-evolution.sh --copy-missing` 只补单边文件（与记忆同步同口径）。
 
 ## 周期候选扫描（证据晋升）
 

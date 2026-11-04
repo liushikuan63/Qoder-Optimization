@@ -18,7 +18,7 @@ MSYS 会在 exec 前改写命令行参数，Windows 原生 exe 又按控制台�
 | `reg query ... /v Path` → `错误: 无效语法。` | MSYS 把以 `/` 开头且「像路径」的参数改写成 `<Git安装盘>:/Program Files/Git/v` 之类 | `MSYS_NO_PATHCONV=1 reg query ... /v Path`；或写双斜杠 `//v`；或整条塞进 `cmd //c "..."` |
 | `whoami /groups` → `whoami: extra operand ‘/groups’`（**`whoami.exe /groups` 同样报**） | Git Bash 的 `whoami` / `whoami.exe` 都命中 `/usr/bin/whoami.exe`（coreutils 版），压根不是 System32 那个 | `MSYS_NO_PATHCONV=1 "$WINDIR/System32/whoami.exe" /groups` —— 两个条件**缺一不可** |
 | Windows 程序报 `workspace path is missing: C:\tmp\trayrepro` | `/tmp` 在 MSYS 里是 `%LOCALAPPDATA%\Temp`，但 Windows 侧按进程 cwd 解析成 `C:\tmp` | 交给原生 exe / 别的应用的路径一律先 `cygpath -w` |
-| 中文在管道里成 `ӳ  PID` / `??Ϣ`，工具返回甚至被打成 `[Binary output: N bytes]` | 原生 exe 的中文文本按码页 936 输出，**重定向到文件也是 GBK** | `iconv -f GBK -t UTF-8`（先探码页，见 §5）；或直接用 `scripts/winrun.cjs` |
+| 中文在管道里成 `ӳ  PID` / `??Ϣ`，工具返回甚至被打成 `[Binary output: N bytes]` | 原生 exe 的中文文本按码页 936 输出，**重定向到文件也是 GBK** | `iconv -f GBK -t UTF-8`（先探码页，见 §5）；或直接用 `<本机辅助脚本>/winrun.cjs` |
 
 ## 2. 开关参数：三种正确写法与取舍
 
@@ -77,9 +77,9 @@ iconv -f GBK -t UTF-8 cn.txt | head -1
 - 要跨回合判定完成：`{ cmd > out.txt 2>&1; echo "EXIT=$?" >> out.txt; touch out.done } &`，判据看 `out.done` + `EXIT=`，别看进程在不在。
 - 要起 Windows GUI 进程再取证：`cmd //c start "" <win路径>` 或 `powershell.exe Start-Process`；裸 `&` 会让子进程丢 cwd 且拿不到句柄。
 
-## 8. 包装器 `scripts/winrun.cjs`
+## 8. 包装器 `<本机辅助脚本>/winrun.cjs`
 
-`MSYS_NO_PATHCONV=1 node <本技能目录>/scripts/winrun.cjs <exe> [args...] [--out <file>] [--lines N] [--no-resolve] [--gbk|--utf8] [--winpath]`
+`MSYS_NO_PATHCONV=1 node <本技能目录>/<本机辅助脚本>/winrun.cjs <exe> [args...] [--out <file>] [--lines N] [--no-resolve] [--gbk|--utf8] [--winpath]`
 
 - **前缀不能省**：转换发生在 bash→node 这一跳，包装器收到时参数已经是 `D:/software/Git/groups`。实测不加前缀跑 `whoami /groups`：`REAL=` 已正确指向 System32，但仍 `EXIT=1`——坏在参数上，脚本修不了它。
 - 不经 shell（`spawnSync` 数组参数 + `windowsVerbatimArguments`）⇒ 引号类坑免疫；脚本内再设 `MSYS_NO_PATHCONV` / `MSYS2_ARG_CONV_EXCL` 只作二道保险。
@@ -98,7 +98,7 @@ iconv -f GBK -t UTF-8 cn.txt | head -1
 
 ## Resources
 
-- `scripts/winrun.cjs` — 执行原生 exe + 解遮蔽 + GBK 解码 + UTF-8 落盘 + 摘要限量；可 `require()` 复用其 `decode()`。
+- `<本机辅助脚本>/winrun.cjs` — 执行原生 exe + 解遮蔽 + GBK 解码 + UTF-8 落盘 + 摘要限量；可 `require()` 复用其 `decode()`。
 
 ## 9. 注册表判据的三条新坑（2026-10-07 实测，都会造成"假阴性＝东西被删了"）
 

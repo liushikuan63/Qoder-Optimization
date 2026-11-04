@@ -21,6 +21,19 @@ const BASE_IDS = [
 const digest = value => crypto.createHash('sha256').update(value).digest('hex');
 const normalized = value => process.platform === 'win32' ? path.resolve(value).toLowerCase() : path.resolve(value);
 const inside = (root, file) => { const rel = path.relative(root, file); return !rel || (!rel.startsWith('..' + path.sep) && rel !== '..' && !path.isAbsolute(rel)); };
+const MIN_NODE = [24, 16, 0];
+function nodeTooOld(version = process.versions.node) {
+  const parts = String(version).split('.').map(part => Number(part));
+  for (let i = 0; i < MIN_NODE.length; i += 1) {
+    const actual = Number.isFinite(parts[i]) ? parts[i] : 0;
+    if (actual > MIN_NODE[i]) return false;
+    if (actual < MIN_NODE[i]) return true;
+  }
+  return false;
+}
+function assertNodeVersion(version = process.versions.node) {
+  if (nodeTooOld(version)) throw new Error('需要 Node.js 24.16+（当前 ' + version + '）；请升级 Node 后重试');
+}
 
 function parseArgs(argv) {
   const result = { install: [], resident: [], yes: false, dryRun: false };
@@ -506,6 +519,7 @@ async function main(argv) {
     return 0;
   }
   if (options.skip) { console.log('已跳过，未修改任何文件。'); return 0; }
+  assertNodeVersion();
   let plan = prepare(options);
   if (!options.yes && !options.dryRun && !options.nonInteractive && process.stdin.isTTY && process.stdout.isTTY) {
     printSummary({ status: 'DRY_RUN', plan });
@@ -538,5 +552,5 @@ async function main(argv) {
   return result.status === 'ACTIVATION_BLOCKED' ? 3 : 0;
 }
 
-module.exports = { BASE_IDS, parseArgs, prepare, apply, settingsFor };
+module.exports = { BASE_IDS, parseArgs, prepare, apply, settingsFor, nodeTooOld, assertNodeVersion };
 if (require.main === module) main(process.argv.slice(2)).then(code => { process.exitCode = code; }).catch(error => { console.error('PACKAGE_INSTALL_ERROR: ' + error.message); process.exitCode = 1; });

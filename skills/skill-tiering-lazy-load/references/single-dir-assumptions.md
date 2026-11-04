@@ -19,12 +19,12 @@
 
 | 站点 | 位置 | 症状 | 补法 |
 |---|---|---|---|
-| `pack-share-extras.js` 的 `resolveSkillDir` | `~/.qoder/scripts/pack-share-extras.js:87` | 打包判“技能缺失” | `skills/` → `skills-library/` → `skills-disabled/` 依次回退 |
-| `pack-share-extras.js` 的自制技能枚举 | `~/.qoder/scripts/pack-share-extras.js:191` | 按需库里的自制技能漏进清单 | 统计“在用”时并入 library，或显式只发布常驻集 |
-| `check-share-docs.js` 计数 | `~/.qoder/scripts/check-share-docs.js:37` | 文档“实际装 N 个”与磁盘不符 | `totalSkills = installed + library`，两层都数 |
+| `pack-share-extras.js` 的 `resolveSkillDir` | `~/.qoder/<历史脚本>/pack-share-extras.js:87` | 打包判“技能缺失” | `skills/` → `skills-library/` → `skills-disabled/` 依次回退 |
+| `pack-share-extras.js` 的自制技能枚举 | `~/.qoder/<历史脚本>/pack-share-extras.js:191` | 按需库里的自制技能漏进清单 | 统计“在用”时并入 library，或显式只发布常驻集 |
+| `check-share-docs.js` 计数 | `~/.qoder/<历史脚本>/check-share-docs.js:37` | 文档“实际装 N 个”与磁盘不符 | `totalSkills = installed + library`，两层都数 |
 | `rules-weekly-audit.js` 的 `SKILL_DIRS` | `~/.qoder/scripts/rules-weekly-audit.js:336` | 规则引用库技能被判悬空 | 存在性集合加入两侧 `skills-library` |
-| `verify-global-setup.js` 的技能数下限 | `~/.qoder/scripts/verify-global-setup.js:96` | 常驻数低于 40 假红（分层后常驻 26，实际总数 114） | 已改为 core+library 计总数（下限 40）+ 常驻 ≥10；两层 frontmatter 一并校验，输出写明“常驻/按需”；**不要静默删判据** |
-| `skill-mention-scan.cjs` 的 active 集合 | `skills/skill-trim-with-capability-transfer/scripts/skill-mention-scan.cjs:60` | 库技能被当“不明来源” | 把 `skills-library/` 加入 active 集合；库文件按需纳入扫描 |
+| `verify-global-setup.js` 的技能数下限 | `~/.qoder/<历史脚本>/verify-global-setup.js:96` | 常驻数低于 40 假红（分层后常驻 26，实际总数 114） | 已改为 core+library 计总数（下限 40）+ 常驻 ≥10；两层 frontmatter 一并校验，输出写明“常驻/按需”；**不要静默删判据** |
+| `skill-mention-scan.cjs` 的 active 集合 | `skills/skill-trim-with-capability-transfer/<历史脚本>/skill-mention-scan.cjs:60` | 库技能被当“不明来源” | 把 `skills-library/` 加入 active 集合；库文件按需纳入扫描 |
 
 补丁写法优先**回退链**而不是二选一：
 
@@ -52,8 +52,8 @@ const resolveSkillDir = (name) => {
 | 引用 | 归属 | 处置 |
 |---|---|---|
 | `merge-inbound-qoder-package` → `~/.qoder/scripts/stop-gate.js`（原文为裸 `scripts/stop-gate.js`） | 全局脚本，正文在 `cd "$HOME/.qoder"` 后的相对语境 | 保持文字说明；已在 `skills-doctor` 的 WAIVERS 中裁定为误报 |
-| `vibecoding-batch-append` → `validate.mjs`（原文为裸 `scripts/validate.mjs`） | 任务包自带校验器，不属于技能目录 | 不改全局脚本，也不复制进技能；在正文标注“任务包内相对路径” |
-| `vibecoding-batch-execution` → `check-wiki-refs.js`（原文为裸 `scripts/check-wiki-refs.js`） | 目标仓库自带校验器 | 同上 |
+| `vibecoding-batch-append` → `validate.mjs`（原文为裸 `<历史脚本>/validate.mjs`） | 任务包自带校验器，不属于技能目录 | 不改全局脚本，也不复制进技能；在正文标注“任务包内相对路径” |
+| `vibecoding-batch-execution` → `check-wiki-refs.js`（原文为裸 `<历史脚本>/check-wiki-refs.js`） | 目标仓库自带校验器 | 同上 |
 
 判定顺序：
 

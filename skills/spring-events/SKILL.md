@@ -1,6 +1,6 @@
 ---
 name: spring-events
-description: "Spring Application Events for Spring Boot 3.x。中文触发：Spring Boot Java 后端 Bean 依赖注入。只管进程内 ApplicationEvent；跨进程消息与 outbox 架构用 spring-boot-event-driven-patterns。"
+description: "Spring Application Events for Spring Boot 3.x。中文触发：Spring 事件、ApplicationEvent、事务事件、事件监听。只管进程内 ApplicationEvent；跨进程消息与 outbox 架构用 spring-boot-event-driven-patterns。"
 allowed-tools: Read, Grep, Glob, Write, Edit
 ---
 # Spring Application Events

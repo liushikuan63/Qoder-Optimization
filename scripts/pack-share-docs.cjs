@@ -3,7 +3,7 @@
  * 生成分享包的《Qoder-AI编码通用规则.md》：第一节 = 本机 AGENTS.md 逐字节；
  * 第二节 = rules/*.md（每篇一个 yaml 块 + 正文）；第三节 = 随包技能按域清单；
  * 第四节 = 沿用上一版文档的设计原则原文。顺带把 README 里的"制作端现场"计数改成实测值。
- * 用法：node pack-share-docs.cjs <包目录> [--name Qoder-Optimization] [--version 0.0.1] [--apply]
+ * 用法：node pack-share-docs.cjs <包目录> [--name Qoder-Optimization] [--version 0.0.1] [--home <目录>] [--apply]
  */
 'use strict';
 const fs = require('fs');
@@ -16,16 +16,17 @@ const argValue = (flag, fallback) => {
   const i = process.argv.indexOf(flag);
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
 };
-if (!out) { console.error('用法：pack-share-docs.cjs <包目录> [--name 名称] [--version x.y.z] [--apply]'); process.exit(2); }
+if (!out) { console.error('用法：pack-share-docs.cjs <包目录> [--name 名称] [--version x.y.z] [--home 目录] [--apply]'); process.exit(2); }
+const home = path.resolve(argValue('--home', HOME));
 const DOC = path.join(out, 'Qoder-AI编码通用规则.md');
-const agentsRaw = fs.readFileSync(HOME + '/.qoder/AGENTS.md', 'utf8').replace(/\r\n/g, '\n');
+const agentsRaw = fs.readFileSync(path.join(home, '.qoder/AGENTS.md'), 'utf8').replace(/\r\n/g, '\n');
 const agentsVer = (agentsRaw.match(/版本：([0-9.]+)/) || [, '0.0.0'])[1];
 const ver = argValue('--version', agentsVer);
 const packageName = argValue('--name', path.basename(out));
 // 校验器口径：文档头已有 H1 与版本行，第一节正文不重复这两段
 const agents = agentsRaw.replace(/^# .*\n+/, '').replace(/^> 版本：.*\n+/, '').trim();
 
-const ruleDir = HOME + '/.qoder/rules';
+const ruleDir = path.join(home, '.qoder/rules');
 const ruleFiles = fs.readdirSync(ruleDir).filter(f => f.endsWith('.md')).sort();
 const sec2 = ruleFiles.map(f => {
   const raw = fs.readFileSync(path.join(ruleDir, f), 'utf8').replace(/\r\n/g, '\n');

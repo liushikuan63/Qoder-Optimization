@@ -1,6 +1,6 @@
 ---
 name: spring-boot-resilience4j
-description: "Provides fault tolerance patterns for Spring Boot 3.x using Resilience4j。中文触发：Spring Boot Java 后端 Bean 依赖注入 模式规范"
+description: "Provides fault tolerance patterns for Spring Boot 3.x using Resilience4j。中文触发：Resilience4j、熔断、限流、重试、舱壁、超时"
 allowed-tools: Read, Write, Edit, Bash
 ---
 

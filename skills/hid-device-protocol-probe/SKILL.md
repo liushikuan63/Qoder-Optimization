@@ -30,7 +30,7 @@ Not for: device disabled / driver missing (read `Win32_PnPEntity` `Status` and `
 ## Step 1 - Enumerate collections, find the vendor channel
 
 ```
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/hid-enum.ps1 -Filter vid_20bc
+powershell -NoProfile -ExecutionPolicy Bypass -File <本机辅助脚本>/hid-enum.ps1 -Filter vid_20bc
 ```
 
 One line per top-level collection: `[VENDOR|OK|ERRn]`, `UP`/`U` (UsagePage/Usage), `In`/`Out`/`Feat` report byte lengths, VID/PID/rev, product and manufacturer strings, device path. The header line totals the vendor-channel candidates.
@@ -52,7 +52,7 @@ Four marshalling traps the bundled script already handles; re-apply them to any 
 ## Step 2 - Prove the device is live (do not trust the first result)
 
 ```
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/joy-check.ps1 -VidPattern 'VID_20BC'
+powershell -NoProfile -ExecutionPolicy Bypass -File <本机辅助脚本>/joy-check.ps1 -VidPattern 'VID_20BC'
 ```
 
 Uses `joyGetPosEx` with `dwSize` and `dwFlags` set before the call, and **prints every slot's return code**. `rc=0` with centred X/Y is proof of a live, reporting controller.
@@ -64,7 +64,7 @@ Uses `joyGetPosEx` with `dwSize` and `dwFlags` set before the call, and **prints
 ## Step 3 - Round trip: send a read-only query, capture replies
 
 ```
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/hid-rw-probe.ps1 \
+powershell -NoProfile -ExecutionPolicy Bypass -File <本机辅助脚本>/hid-rw-probe.ps1 \
   -Select 'vid_20dd&pid_5130' -PayloadHex 0255 -WindowMs 2500
 ```
 
@@ -125,6 +125,6 @@ Always report the write line's return code together with the reply count - a rep
 
 ## Resources
 
-- `scripts/hid-enum.ps1` - `-Filter` (case-insensitive substring of the device path). Prints caps, strings, paths, and the vendor-candidate count. Handles the offset-4 and `CharSet.Unicode` traps.
-- `scripts/joy-check.ps1` - `-Slots`, `-VidPattern`, `-MaxPnp`. `joyGetPosEx` with per-slot return codes plus a VERDICT line, PnP live state, and the ever-attached VID/PID histories.
-- `scripts/hid-rw-probe.ps1` - `-Path` or `-Select` (Select resolves in-process, preferred from Git Bash), `-PayloadHex` (omit for passive listen), `-ReportLen` (0 = derive from caps), `-WindowMs`, `-PreMs`, `-MaxDistinct`, `-TrySetOutputReport` (opt-in ioctl), `-ProbeIdStripped`. Reads and writes both run on `CancelSynchronousIo`-cancellable threads; output is deduped with a reply-kind histogram.
+- `<本机辅助脚本>/hid-enum.ps1` - `-Filter` (case-insensitive substring of the device path). Prints caps, strings, paths, and the vendor-candidate count. Handles the offset-4 and `CharSet.Unicode` traps.
+- `<本机辅助脚本>/joy-check.ps1` - `-Slots`, `-VidPattern`, `-MaxPnp`. `joyGetPosEx` with per-slot return codes plus a VERDICT line, PnP live state, and the ever-attached VID/PID histories.
+- `<本机辅助脚本>/hid-rw-probe.ps1` - `-Path` or `-Select` (Select resolves in-process, preferred from Git Bash), `-PayloadHex` (omit for passive listen), `-ReportLen` (0 = derive from caps), `-WindowMs`, `-PreMs`, `-MaxDistinct`, `-TrySetOutputReport` (opt-in ioctl), `-ProbeIdStripped`. Reads and writes both run on `CancelSynchronousIo`-cancellable threads; output is deduped with a reply-kind histogram.

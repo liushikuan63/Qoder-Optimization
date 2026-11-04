@@ -1,0 +1,37 @@
+{
+  "_meta": {
+    "purpose": "版权/知识产权素材授权合法性检测库（L4，1.0.8）",
+    "usage": "被 scripts/copyright-asset-scan.mjs 读取；缺失时脚本回退内置列表，不中断。",
+    "last_verified": "2026-09-03",
+    "verify_cycle": "90d",
+    "next_verify": "2026-12-02",
+    "source": "国家版权局/《著作权法》通行合规义务；具体品牌授权以权利方官方声明为准（执行期二次核实）"
+  },
+  "unauthorizedIpHints": [
+    "disney", "pokemon", "宝可梦", "米老鼠", "hello kitty",
+    "漫威", "marvel", "王者荣耀", "和平精英", "原神", "精灵宝可梦"
+  ],
+  "assetTypes": {
+    "font": {
+      "requireLicense": true,
+      "notes": "字体须商用授权或开源许可（如 SIL OFL）；禁用未授权商业字体。"
+    },
+    "music": {
+      "requireLicense": true,
+      "notes": "音乐须正版授权或使用平台曲库；禁用未授权背景音乐/BGM。"
+    },
+    "art": {
+      "requireLicense": true,
+      "notes": "美术须原创或获书面授权；禁用未授权 IP/品牌角色/同人二创商用。"
+    },
+    "sdk": {
+      "requireLicense": true,
+      "notes": "第三方 SDK 须合规授权；禁用未授权破解/逆向 SDK。"
+    },
+    "map": {
+      "requireLicense": true,
+      "notes": "地图素材须含台湾、南海九段线，来源须合法（自然资源部标准地图服务 mapservice.bnimd.cn）；禁用缺失领土要素或来源不明的地图。"
+    }
+  },
+  "mapRequirement": "必须含台湾省、南海九段线；优先使用自然资源部标准地图服务（mapservice.bnimd.cn）合法来源。"
+}

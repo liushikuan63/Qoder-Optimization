@@ -24,6 +24,10 @@ fs.writeFileSync(CURSOR, JSON.stringify({ x: 1079, y: 583 }));
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('PASS  ' + name); } else { fail++; console.log('FAIL  ' + name + (extra ? '  <- ' + extra : '')); } };
+const guardSource = fs.readFileSync(GUARD, 'utf8');
+ok('driver calls use argv, not a shell', /execFileSync\(DRIVER, \['call', 'get_cursor_position'\]/.test(guardSource) && /execFileSync\(DRIVER, \['call', 'move_cursor', '--args'/.test(guardSource));
+ok('test stubs are explicitly gated', /CUA_GUARD_TEST_STUBS !== '1'/.test(guardSource));
+ok('shell:true is confined to the gated stub helper', (guardSource.match(/shell:\s*true/g) || []).length === 1 && /function runStub[\s\S]{0,200}shell:\s*true/.test(guardSource));
 
 function run(event, toolName, input, opts = {}) {
   const payload = { hook_event_name: event, tool_name: toolName, tool_input: input, session_id: opts.session || 's-' + Math.random().toString(36).slice(2, 8) };
@@ -33,6 +37,7 @@ function run(event, toolName, input, opts = {}) {
     CUA_STUB_CURSOR: CURSOR,
     CUA_GUARD_READ_CMD: `node "${STUB}" read`,
     CUA_GUARD_WRITE_CMD: opts.writeCmd || `node "${STUB}" set %X% %Y%`,
+    CUA_GUARD_TEST_STUBS: '1',
     CUA_GUARD_BIN: '',
   });
   if (opts.write2Cmd) env.CUA_GUARD_WRITE2_CMD = opts.write2Cmd;
