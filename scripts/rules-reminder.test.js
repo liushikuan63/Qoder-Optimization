@@ -263,6 +263,65 @@ const b05OrigCtx = JSON.parse(run(b05Neg).stdout).hookSpecificOutput.additionalC
 const b05MutNegCtx = JSON.parse(runB05Mut(b05Neg).stdout).hookSpecificOutput.additionalContext;
 check('㊳ 模式隔离：B05 负例在原件与变异体逐字节一致', b05OrigCtx === b05MutNegCtx, `orig=${b05OrigCtx.length} mut=${b05MutNegCtx.length}`);
 
+const TOOL_RESEARCH_MARK = '【主动联网查证】';
+const TOOL_ACQUIRE_MARK = '【工具获取 · 安装先询问】';
+const toolingCase = (label, prompt, expected) => {
+  const result = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt }));
+  let context = '';
+  try { context = JSON.parse(result.stdout).hookSpecificOutput.additionalContext || ''; } catch {}
+  const instructions = context.split('\n【本轮请求摘要 · 可能截断，完整用户消息为准】')[0];
+  check(label, result.status === 0 && instructions.includes(TOOL_RESEARCH_MARK) === expected, `exit=${result.status}`);
+  return instructions;
+};
+const toolingContext = toolingCase('联网查证：主动搜索与工具获取正例', '主动联网搜索官方资料，核对下载工具的来源', true);
+for (const prompt of [
+  '查询框架最新稳定版本及版本兼容',
+  '缺少代码格式化工具，寻找可用工具',
+  '请查官方文档解释发布资产校验',
+  'command not found, find the official docs',
+]) toolingCase('联网查证正例：' + prompt, prompt, true);
+for (const prompt of [
+  '修复一个按钮文案',
+  '修复文件下载按钮的文案',
+  '当我说联网搜索时你如何处理',
+  '规则里要求联网搜索官方资料',
+  '把“下载工具”替换为“获取助手”',
+  '把“【主动联网查证】”几个字删掉',
+  '只用本地资料核对官方文档，不要联网',
+  'offline only: check official docs',
+  '解释这段日志：\n```text\ncommand not found\n```',
+]) toolingCase('联网查证负例：' + prompt, prompt, false);
+const readOnlyResearch = toolingCase('只读查证不追加下载建议', '只读联网查官方文档，不下载任何工具', true);
+check('只读查证保持零下载边界', !readOnlyResearch.includes(TOOL_ACQUIRE_MARK));
+const noDownloadResearch = toolingCase('禁止下载仍可执行获准查证', '联网查询工具缺口，但不要下载工具', true);
+check('禁止下载不追加工具获取建议', !noDownloadResearch.includes(TOOL_ACQUIRE_MARK));
+const toolingBoundaries = ['下载不等于执行授权', 'AskUserQuestion', '长期复用获准后', '不改变平台权限'];
+check('工具获取提示包含安装询问、长期留存与平台边界', toolingBoundaries.every(value => toolingContext.includes(value)));
+check('工具获取边界断言可失败', !toolingBoundaries.every(value => toolingContext.replace('下载不等于执行授权', '').includes(value)));
+
+const TOOL_MUT_DIR = path.join(SB, 'mutated-tooling');
+fs.mkdirSync(TOOL_MUT_DIR, { recursive: true });
+for (const name of ['rules-reminder.js', 'client-root.js', 'hook-crash-guard.js', 'goal-candidate-core.js', 'recheck-protocol.cjs', 'verification-trigger-core.js']) {
+  fs.copyFileSync(path.join(__dirname, name), path.join(TOOL_MUT_DIR, name));
+}
+const toolMutFile = path.join(TOOL_MUT_DIR, 'rules-reminder.js');
+const toolSource = fs.readFileSync(toolMutFile, 'utf8');
+const toolMutated = toolSource.replace(' + toolResearchNote(prompt)', '');
+if (toolMutated !== toolSource) fs.writeFileSync(toolMutFile, toolMutated);
+check('联网查证变异体已移除实际调用', toolMutated !== toolSource);
+const runToolMut = input => spawnSync(process.execPath, [toolMutFile], {
+  input, encoding: 'utf8', timeout: 15000,
+  env: { ...process.env, USERPROFILE: HOME, HOME },
+});
+const toolPositive = JSON.stringify({ prompt: '主动联网搜索官方资料，核对下载工具的来源' });
+const toolMutResult = runToolMut(toolPositive);
+let toolMutContext = '';
+try { toolMutContext = JSON.parse(toolMutResult.stdout).hookSpecificOutput.additionalContext || ''; } catch {}
+check('移除联网查证调用后正例提示必须消失', toolMutResult.status === 0 && !toolMutContext.includes(TOOL_RESEARCH_MARK));
+const toolNegative = JSON.stringify({ prompt: '修复一个按钮文案' });
+const toolOriginalNegative = run(toolNegative), toolMutatedNegative = runToolMut(toolNegative);
+check('联网查证非触发轮与变异体逐字节一致', toolOriginalNegative.status === 0 && toolMutatedNegative.status === 0 && toolOriginalNegative.stdout === toolMutatedNegative.stdout);
+
 function runChunked(input, split) {
   return new Promise(resolve => {
     const source = `process.stdin.once('data', () => process.stderr.write('CHUNK_READY')); require(${JSON.stringify(SCRIPT)});`;

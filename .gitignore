@@ -8,11 +8,13 @@ desktop.ini
 *.bak.*
 *.bak_*
 *.bak-*
+*.bak[0-9]*
 *~
 *.log
 .qoder-work-queue.md
 /docs/
 .qoder/parallel-runs/
+.qoder/parallel-plans/
 
 # Node dependencies (this repository ships no node_modules)
 node_modules/

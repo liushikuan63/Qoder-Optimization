@@ -92,7 +92,7 @@
 }
 ```
 
-预期：退出 0，`PARALLEL_WORKTREE`，`requiresUserOptIn: true`；用户显式 opt-in 后才派发。
+预期：退出 0，`PARALLEL_WORKTREE`，`requiresUserOptIn: true`；用户显式 opt-in 后才派发。校验时加 `--markdown .qoder/parallel-plans/<taskId>.md` 生成待审计划文档，文档必须包含单元/依赖/写入路径/验收、波次、审批状态和 vibecoding 映射；未生成文档不得询问或派发。真实任务不得用 `--preview` 跳过文档；它只用于测试或工具预演。
 
 ## 判定与退出码
 
@@ -104,7 +104,9 @@
 | `BLOCKED_HUMAN` | 生产/数据库/破坏性/凭据/外部副作用/共享服务/共享文件写 | 2 | 先请人决定 |
 | `INVALID_PLAN` | 同文件写、缺 `ownedPaths`、缺 worktree、成环、超限、字段非法 | 1 | 修正计划 |
 
-判定可并行时，`--json` 结果还包含 `requiresPlanApproval: true`、`requiresUserOptIn: true` 与 `optInKind: read-only|worktree-write`；必须先展示计划摘要并询问方案是否合适，未收到明确确认前不得派发。用户选择调整时改计划并重跑校验；拒绝或取消时顺序执行，并在汇报中说明“未获并行授权”。
+判定可并行时，`--json` 结果还包含 `requiresPlanApproval: true`、`requiresUserOptIn: true` 与 `optInKind: read-only|worktree-write`；必须先写出计划文档、展示摘要并询问方案是否合适，未收到明确确认前不得派发。用户选择调整时改计划并重跑校验；拒绝或取消时顺序执行，并在汇报中说明“未获并行授权”。
+
+需要用户确认的计划（`PARALLEL_READ` / `PARALLEL_WORKTREE`）不带 `--markdown` 时返回 `PLAN_DOC_REQUIRED`（exit 2），不输出 verdict；`--preview` 仅用于测试或工具预演，不能替代计划文档或用户确认。
 
 ## 硬门槛
 

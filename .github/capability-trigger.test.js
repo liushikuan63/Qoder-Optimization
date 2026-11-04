@@ -64,6 +64,18 @@ test('registered installed capability becomes a concrete use question once per s
   assert.equal(ledger.includes('session-a'), false);
 });
 
+test('AUTO_USE injects an auto-load directive without a use question and dedupes per session', t => {
+  const f = fixture(t), item = f.skill('parallel-orchestration', 'AUTO_USE'); f.setItems([item]); f.register();
+  const text = f.run('把订单、用户、报表三个模块拆分开发', 'auto-a');
+  const capabilityLine = text.split('\n').find(line => line.includes('parallel-orchestration（AUTO_USE）')) || '';
+  assert.match(capabilityLine, /已自动触发/);
+  assert.ok(capabilityLine.includes(item.entryPath.replace(/\\/g, '/')));
+  assert.match(capabilityLine, /计划.*确认/);
+  assert.doesNotMatch(capabilityLine, /是否使用|AskUserQuestion/);
+  assert.equal(f.run('把订单、用户、报表三个模块拆分开发', 'auto-a').includes(marker), false);
+  assert.equal(f.run('把订单、用户、报表三个模块拆分开发', 'auto-b').includes(marker), true);
+});
+
 test('the installed hook command binds a custom client without an inherited QODER_HOME', t => {
   const f = fixture(t), item = f.skill(); f.setItems([item]); f.register();
   fs.cpSync(f.scripts, path.join(f.client, 'scripts'), { recursive: true });

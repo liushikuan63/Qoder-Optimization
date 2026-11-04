@@ -6,7 +6,7 @@
 |---|---|---|
 | `Qoder-AI编码通用规则.md` | 全局规则与纪律（分层机制 / 验证 / 交付 / 排查 / 文档 / 记忆等） | 摘录进 `~/.qoder/AGENTS.md` |
 | `Qoder-个人规则生成提示词.md` | 让 AI 按你的环境生成个人规则的提示词 | 直接喂给 AI 使用 |
-| `skills/` | 随包技能源码（每个子目录一份 `SKILL.md`，tier 见 manifest/catalog） | **默认不整目录复制**；先登记包，再按任务用 `pkg-catalog.cjs search/install` 选择 |
+| `skills/` | 随包技能源码（每个子目录一份 `SKILL.md`；manifest/catalog 的 tier 只是默认值） | **默认不整目录复制**；先登记包，再按任务用 `pkg-catalog.cjs search/install` 选择；安装时按你的使用习惯决定是否常驻 |
 | `agents/` | 全局子智能体（运行期真值核验 / 部署后真实验收） | 拷到 `~/.qoder/agents/`（用户级，官方机制） |
 | `plugins/` | 推荐插件清单（装哪些 / 为什么 / settings.json 怎么写） | 见 `plugins/README-plugins.md` |
 | `scripts/` | 技能与规则引用的脚本（办公文档 / wiki 校验 / 临时产物清理 / 规则强制层 hook / 同步与打包工具） | 主安装器按依赖闭包安装到 `~/.qoder/scripts/`；高级手动安装需自行核对依赖 |
@@ -22,12 +22,14 @@ Windows 从包根 `install.cmd` 开始；跨平台可运行 `node scripts/instal
 node scripts/install-package.cjs --dry-run
 node scripts/install-package.cjs --yes
 node scripts/install-package.cjs --yes --install skill:parallel-orchestration
+node scripts/install-package.cjs --yes --install skill:parallel-orchestration --resident skill:parallel-orchestration
 ```
 
+- 常驻选择：所选技能默认进按需库；交互运行会询问是否设为常驻，非交互用 `--resident <exact-id>`（需与 `--install` 同时给出）。已安装技能换层用 `tier-skills --promote/--demote`，不重复安装。常驻数量按你的实际使用频率决定，包内默认值不是强制值。
 - 已有能力：与新包比较，只有本地完整匹配旧登记包的条目才自动更新；本地自改、额外文件或旧基线不明时列为 `REVIEW_UPDATE`，先核对，不覆盖。
 - 缺失能力：通用或符合明确偏好的才询问是否安装，专业不匹配的跳过。`--yes` 不代表同意全部可选条目，`--install <exact-id>` 才选择对应能力。
 - 基础路由：安装规则提醒、能力规划与检索依赖，合并唯一 `UserPromptSubmit` 接线，登记当前包并维护完整技能索引；冲突保留现场，不能把半套安装报成功。
-- 任务使用：相关已装能力主动提示是否用于本任务；已有明确指名或适用授权就读取入口执行，不重复询问。hook 不安装、不联网、不执行业务，问答与实际使用仍须宿主完成。
+- 任务使用：相关已装能力主动提示是否用于本任务；`parallel-orchestration` 命中多模块/并行编排任务时自动触发加载与判定（派发前仍须计划确认，自动触发不等于自动派发）。已有明确指名或适用授权就读取入口执行，不重复询问。hook 不安装、不联网、不执行业务，问答与实际使用仍须宿主完成。
 - 详细偏好、更新与验收边界见[能力闭环](skills/skills-router/references/capability-lifecycle.md)。本机现役客户端是否完成真实触发须单独核验。
 
 ## 接续记忆与追回（安装时可选启用）
@@ -58,7 +60,7 @@ node scripts/install-continuity.cjs --yes --no-auto-bind # 只接线，仍按会
 推荐 Node.js 24。在解压包的顶层目录使用包内脚本开始，不假设本机已经安装检索工具；修改已有文件前先备份。
 
 1. 高级手工安装基础检索（主安装器已处理路由时不用重复）：先用 `node scripts/pkg-catalog.cjs register .` 登记当前包，再用 `node scripts/pkg-catalog.cjs install script:skill-load.cjs` 预演。确认后加 `--apply`，安装器会列出并安装缺失的包内依赖；已存在的依赖不覆盖，不需要逐个重复安装。
-2. 技能与其他脚本：用包内 `search "<关键词>"` 查找，再按 ID 预演和安装。技能层级由 manifest/catalog 指定，`--tier core` 可显式选择常驻；不要整目录复制，已存在目标不自动覆盖。
+2. 技能与其他脚本：用包内 `search "<关键词>"` 查找，再按 ID 预演和安装。技能默认进按需库；交互执行 `install <id> --apply` 时会询问是否设为常驻，非交互用 `--tier core|library` 明确选择。不要整目录复制，已存在目标不自动覆盖。
 3. 规则：把 `Qoder-AI编码通用规则.md` 中与你的环境相符的部分并进 `~/.qoder/AGENTS.md`——按你的实际工具与环境删改，不必整篇照抄
 4. **其他 hooks 按需接线**（主安装器已处理能力提醒，勿重复添加该条；未接线的其他脚本不会自行运行）：照 `hooks/README-hooks.md` 把 `hooks.example.json` 的占位符替换后**并入该客户端的** `settings.json` 的 `hooks`（双端都装才各挂一份；只装一个就只挂一个）
 5. MCP：照 `mcp/README-mcp.md` 合并配置，并做一次协议级冒烟（能列出工具名即接线成功）
@@ -83,7 +85,14 @@ node scripts/install-continuity.cjs --yes --no-auto-bind # 只接线，仍按会
 - 重建索引：任何增删移技能后显式跑 `node ~/.qoder/scripts/build-skills-index.cjs`；`skill-load` 只读扫描实际文件，不在查询时写盘。包候选会标「本地未发现 / 与包内一致 / 内容与包内不同」；本地已命中但包内内容不同时输出 `NEXT_ACTION: ASK_UPDATE`，包候选可安装/可更新时输出 `NEXT_ACTION: ASK_INSTALL_OR_UPDATE`。出现这两类信号时必须先询问用户是否安装/更新，未获明确选择不得写盘
 - **新增技能先判层级**：元/跨域高频或被 AGENTS·rules 硬引用（引用处未注明按需检索）→ `skills/`；单领域专用 → `skills-library/`；拿不准默认进库。创建前用 `node ~/.qoder/scripts/carrier-preflight.cjs --type skill --name <名> --path ~/.qoder/skills-library/<名>/SKILL.md` 预检——会列出两层同名/同类候选、提示本次拟入层与常驻预算（40 软 / 60 硬）
 
-包内实物：133 个技能（12 常驻 + 121 按需）；常驻描述 2543 字符，全部技能描述 27530 字符，占比 9.2%。按 catalog 计算，不是接收者的已安装数量。
+**常驻数量由使用者决定，不由分享包写死**：
+
+- 安装技能时默认按需；交互执行 `install <id> --apply` 会询问「是否设为常驻」，回答 `y` 进 `skills/`，直接回车进 `skills-library/`。非交互安装必须用 `--tier core|library` 明确选择，不会静默把技能加入常驻。
+- 用了一段时间后按实际频率调整：`node ~/.qoder/scripts/tier-skills.cjs --promote <常用技能>` 升到常驻，`--demote <低频技能>` 退回按需；都先 dry-run，加 `--apply` 才移动并重建索引。**promote/demote 会写入 `<客户端>/skills-resident.json`**，后续默认分层不会把你的选择移回去；包升级不覆盖这个文件。`--keep` 和 `--restore-all` 只影响本次操作。
+- 想恢复包内默认层级：删除 `skills-resident.json` 后运行一次 `tier-skills --apply`；升级包时若不想保留旧选择，也按这个方式处理。
+- 包内 12 个常驻只是**默认起点**（基础路由与跨域元技能），不是要求接收者照搬的数量。常驻越多，每轮注入的描述越长；以「这条技能是否靠描述自动命中」为准，不靠堆数量。
+
+包内实物：133 个技能（12 常驻 + 121 按需）；常驻描述 2582 字符，全部技能描述 27631 字符，占比 9.3%。按 catalog 计算，不是接收者的已安装数量；12 只是默认起点，常驻数量由使用者按习惯在安装时与使用中决定。
 
 ## 按需加装（分享包索引）
 
@@ -91,7 +100,7 @@ node scripts/install-continuity.cjs --yes --no-auto-bind # 只接线，仍按会
 
 - 登记位置（一次）：`node ~/.qoder/scripts/pkg-catalog.cjs register <分享包目录>`
 - 检索：`node ~/.qoder/scripts/pkg-catalog.cjs search "<关键词>"`，或 `/pkg-find "<关键词>"`；结果标「本地未发现 / 与包内一致 / 内容与包内不同」，出现 `NEXT_ACTION` 时必须先用 `AskUserQuestion` 询问（安装/更新（推荐） / 查看差异 / 保持现状），未获明确选择不得写盘
-- 安装：`install <id>` 先预演依赖闭包，确认后加 `--apply`；技能按 manifest/catalog 的 tier 落点安装。另一层已有同名技能时拒绝写入，迁移请使用 tier-skills；索引先暂存再以归属/内容核对和独占创建提交。失败只回滚本批仍属本事务且未变化的文件；检测到并发修改时保留目标与备份目录、明确报告未完整回滚，先裁决再重试。
+- 安装：`install <id>` 先预演依赖闭包，确认后加 `--apply`；技能默认按按需库落点，交互 `--apply` 会询问是否常驻，非交互用 `--tier core|library` 指定。另一层已有同名技能时拒绝写入，迁移请使用 tier-skills；索引先暂存再以归属/内容核对和独占创建提交。失败只回滚本批仍属本事务且未变化的文件；检测到并发修改时保留目标与备份目录、明确报告未完整回滚，先裁决再重试。
 - 更新：`内容与包内不同` 表示可更新；先三路比对并备份，保留本地较新内容，确认后 `install <id> --apply --force`，再重建索引并跑 `skills-doctor`
 - 批量漂移：`node ~/.qoder/scripts/pkg-catalog.cjs drift` 核对全部已安装副本，列出与包内不同的条目；升版部署询问必须带上这份清单。已安装条目的包源缺失或不可比对时输出 `DRIFT_UNVERIFIED` 并退出 2，不能当作一致。额外本地文件与备份仍不纳入包内文件比对。
 - 参数缺值、重复或未知选项会在写盘前拒绝；含空格的目录需整体引用，`--catalog` / `--tier` 不能留空。

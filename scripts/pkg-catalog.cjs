@@ -26,7 +26,8 @@ const has = (f) => argv.includes('--' + f);
 const opt = (name) => { const i = argv.indexOf('--' + name); return i >= 0 ? String(argv[i + 1] || '') : ''; };
 const APPLY = has('apply');
 const FORCE = has('force');
-const TIER = opt('tier');
+const NON_INTERACTIVE = has('non-interactive');
+let TIER = opt('tier');
 const CATEGORY = opt('category');
 const CATALOG_ARG = opt('catalog');
 const positionals = argv.slice(1).filter((a, i) => {
@@ -44,7 +45,7 @@ const readJson = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
 function validateArgs() {
   const allowed = {
     search: ['catalog'], show: ['catalog'], list: ['catalog', 'category'],
-    drift: ['catalog'], install: ['catalog', 'tier', 'apply', 'force'], register: ['catalog'],
+    drift: ['catalog'], install: ['catalog', 'tier', 'apply', 'force', 'non-interactive'], register: ['catalog'],
   }[CMD];
   if (!allowed) return;
   const seen = new Set(), words = [];
@@ -333,6 +334,22 @@ function rebuildIndex(output) {
   return '索引已重建';
 }
 
+function promptResidentTier(entry) {
+  process.stdout.write(`「${entry.name}」是否设为常驻？常驻技能描述每轮注入、占上下文；按需库只在 skill-load 命中后读取。[y/N] `);
+  const buf = Buffer.alloc(256);
+  let text = '';
+  try {
+    while (!text.includes('\n')) {
+      const read = fs.readSync(0, buf, 0, buf.length, null);
+      if (!read) break;
+      text += buf.toString('utf8', 0, read);
+    }
+  } catch {}
+  const resident = /^(?:y|yes|是|同意)$/i.test(text.trim());
+  console.log(resident ? '→ 常驻（core）' : '→ 按需（library，默认）');
+  return resident ? 'core' : 'library';
+}
+
 function cmdInstall() {
   const { root, entries } = loadCatalog();
   if (!value) fail(2, '用法：pkg-catalog.cjs install <id|名称> [--apply] [--tier core|library] [--force]');
@@ -350,6 +367,11 @@ function cmdInstall() {
     console.log(`[模板] ${e.name} 需手工合并：`);
     console.log('  ' + (e.install.note || '见 mcp/README-mcp.md'));
     return;
+  }
+  // Resident count is a per-user choice, not a package constant: ask only for
+  // the skill actually selected, once, and only in a real interactive apply.
+  if (APPLY && !TIER && e.category === 'skill' && !NON_INTERACTIVE && process.stdin.isTTY && process.stdout.isTTY) {
+    TIER = promptResidentTier(e);
   }
   const assertNoLinks = (file, skipModules = false) => {
     const st = fs.lstatSync(file);
@@ -432,6 +454,7 @@ function cmdInstall() {
   };
   visit(e);
   for (const item of plan) console.log(`[${APPLY ? '安装' : '预演'}] ${item.entry.id} → ${item.target}`);
+  if (e.category === 'skill' && !TIER) console.log('  技能默认进按需库；交互执行 --apply 时会询问是否常驻，非交互请显式 --tier core|library。');
   if (!APPLY) { console.log('  未写盘；确认后加 --apply。'); return; }
   fs.mkdirSync(QODER, { recursive: true });
   const stage = fs.mkdtempSync(path.join(QODER, '.pkg-install-'));
@@ -552,7 +575,7 @@ const usage = () => console.log([
   '  show <id>                       查看条目详情',
   '  list [--category skill]         列出全部条目',
   '  drift                           列出已安装但与包内内容不同的随包条目',
-  '  install <id> [--apply]          安装随包条目（默认 dry-run；技能默认入按需库，--tier core 进常驻）',
+  '  install <id> [--apply]          安装随包条目（默认 dry-run；技能默认入按需库，交互 --apply 会询问是否常驻，非交互用 --tier core|library）',
   '  register [<包目录>]             登记分享包位置（供 skill-load 兜底检索）',
 ].join('\n'));
 

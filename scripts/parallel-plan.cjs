@@ -302,12 +302,88 @@ function render(result) {
   return lines.join('\n');
 }
 
+function markdownCell(value) {
+  return String(value === undefined || value === null ? '' : value).replace(/\r?\n/g, ' ').replace(/\|/g, '\\|').trim() || '-';
+}
+
+function renderPlanMarkdown(plan, result) {
+  const approval = result.requiresPlanApproval ? 'PENDING_USER_APPROVAL' : (result.verdict === 'BLOCKED_HUMAN' ? 'BLOCKED_HUMAN' : 'NOT_REQUIRED');
+  const lines = [
+    '# 并行计划：' + plan.taskId,
+    '',
+    '- goal: ' + plan.goal,
+    '- verdict: ' + result.verdict + '（exit ' + result.exitCode + '）',
+    '- reason: ' + (result.reasonCodes || []).join(', '),
+    '- planDigest: ' + result.planDigest,
+    '- waves: ' + (result.waves.length ? result.waves.map(wave => wave.join(' + ')).join(' -> ') : 'none'),
+    '- works: ' + plan.execution.maxConcurrency + ' 个并发 / ' + plan.units.length + ' 个单元',
+    '- cost: 并行调用成本约为单线的 5–20 倍',
+    '- approval: ' + approval,
+    '- optIn: ' + (result.optInKind || 'none'),
+    '',
+    '## 单元与所有权',
+    '',
+    '| 单元 | 类型 | 标题 | 依赖 | 写入路径 | 读取路径 | 验收 |',
+    '|---|---|---|---|---|---|---|',
+    ...plan.units.map(unit => '| ' + [
+      unit.id,
+      unit.kind,
+      markdownCell(unit.title),
+      (unit.dependsOn || []).join(', ') || '-',
+      (unit.ownedPaths || []).join(', ') || '-',
+      (unit.readPaths || []).join(', ') || '-',
+      (unit.acceptance || []).join('; ') || '-',
+    ].join(' | ') + ' |'),
+    '',
+    '## 约束与资源',
+    '',
+    '- constraints: ' + (plan.constraints.length ? plan.constraints.join('; ') : 'none'),
+    '- sharedFiles: ' + (plan.resources.sharedFiles.length ? plan.resources.sharedFiles.join(', ') : 'none'),
+    '- sharedServices: ' + (plan.resources.sharedServices.length ? plan.resources.sharedServices.join(', ') : 'none'),
+    '- production/databaseWrites/destructive/credentials/externalSideEffects: ' + [
+      plan.resources.production ? 'production' : '',
+      plan.resources.databaseWrites ? 'databaseWrites' : '',
+      plan.resources.destructive ? 'destructive' : '',
+      plan.resources.credentials ? 'credentials' : '',
+      plan.resources.externalSideEffects ? 'externalSideEffects' : '',
+    ].filter(Boolean).join(', ') || 'none',
+    '',
+    '## Vibecoding 文档映射',
+    '',
+    '- 多模块/跨会话任务先维护 `AGENTS.md` / `spec.md` / `plan.md` / `tasks.md`；本计划是 `plan.md`/`tasks.md` 的执行细化。',
+    '- 每个单元必须映射到 `tasks.md` 任务卡和 `spec.md` 验收项；没有映射不派发。',
+    '- 已有文档只更新对应章节；需求变化先同步 spec/tasks，再改本计划。',
+    '',
+    '## 审批记录',
+    '',
+    '- [ ] 用户已确认方案（单元、波次、路径、worker 数、成本）',
+    '- [ ] 若含写单元，用户已单独显式 opt-in worktree 写并行',
+    '- [ ] 已记录用户选择（执行 `parallel-context.cjs init --decision ...`）',
+    '',
+  ];
+  return lines.join('\n');
+}
+
 function main(argv) {
   const args = [...argv];
-  const json = args.includes('--json');
-  const files = args.filter(arg => arg !== '--json');
-  if (files.length !== 1 || files[0].startsWith('-') || args.filter(arg => arg === '--json').length > 1) {
-    const message = '用法：node scripts/parallel-plan.cjs <plan.json> [--json]';
+  let json = false, markdown = null, preview = false;
+  const files = [];
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    if (arg === '--json') {
+      if (json) { files.push(arg); break; }
+      json = true;
+    } else if (arg === '--preview') {
+      if (preview) { files.push(arg); break; }
+      preview = true;
+    } else if (arg === '--markdown') {
+      const next = args[++index];
+      if (!next || next.startsWith('-') || markdown !== null) { files.push('--markdown'); break; }
+      markdown = next;
+    } else files.push(arg);
+  }
+  if (files.length !== 1 || files[0].startsWith('-')) {
+    const message = '用法：node scripts/parallel-plan.cjs <plan.json> [--json] [--markdown <file>] [--preview]';
     if (json) console.log(JSON.stringify({ ok: false, code: 'USAGE', message }));
     else console.error(message);
     process.exitCode = 2;
@@ -333,9 +409,35 @@ function main(argv) {
     return;
   }
   const result = evaluatePlan(input);
+  if (result.requiresPlanApproval && !markdown && !preview) {
+    const failure = {
+      ok: false,
+      code: 'PLAN_DOC_REQUIRED',
+      message: '需要用户确认的并行计划必须先带 --markdown 生成计划文档；--preview 仅用于工具或测试。',
+      verdict: result.verdict,
+      planDigest: result.planDigest,
+      requiresPlanApproval: true,
+    };
+    if (json) console.log(JSON.stringify(failure, null, 2));
+    else console.error(failure.message);
+    process.exitCode = 2;
+    return;
+  }
+  if (markdown && result.verdict !== 'INVALID_PLAN') {
+    try {
+      const plan = validatePlan(input);
+      const target = path.resolve(markdown);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, renderPlanMarkdown(plan, result));
+      result.planDoc = target;
+    } catch (error) {
+      result.planDocError = error.code || error.message;
+      result.exitCode = 1;
+    }
+  }
   console.log(json ? JSON.stringify(result, null, 2) : render(result));
   process.exitCode = result.exitCode;
 }
 
-module.exports = { validatePlan, evaluatePlan, digestPlan, topologicalWaves, stable };
+module.exports = { validatePlan, evaluatePlan, digestPlan, topologicalWaves, stable, renderPlanMarkdown };
 if (require.main === module) main(process.argv.slice(2));

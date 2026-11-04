@@ -44,7 +44,7 @@ function writePlan(plan) {
 function runCli(plan) {
   const { dir, file } = writePlan(plan);
   try {
-    const result = spawnSync(process.execPath, [SCRIPT, file, '--json'], { encoding: 'utf8' });
+    const result = spawnSync(process.execPath, [SCRIPT, file, '--json', '--preview'], { encoding: 'utf8' });
     const output = result.stdout ? JSON.parse(result.stdout) : null;
     return { status: result.status, output, stderr: result.stderr };
   } finally {
@@ -250,4 +250,58 @@ test('CLI returns documented exit codes and JSON', () => {
   const blocked = runCli(base({ resources: { ...base().resources, production: true } }));
   assert.equal(blocked.status, 2);
   assert.equal(blocked.output.verdict, 'BLOCKED_HUMAN');
+});
+
+test('approval-required plans need a plan document unless preview is explicit', () => {
+  const { dir, file } = writePlan(base());
+  try {
+    const missing = spawnSync(process.execPath, [SCRIPT, file, '--json'], { encoding: 'utf8' });
+    assert.equal(missing.status, 2);
+    const output = JSON.parse(missing.stdout);
+    assert.equal(output.code, 'PLAN_DOC_REQUIRED');
+    assert.equal(output.verdict, 'PARALLEL_READ');
+    const preview = spawnSync(process.execPath, [SCRIPT, file, '--json', '--preview'], { encoding: 'utf8' });
+    assert.equal(preview.status, 0);
+    assert.equal(JSON.parse(preview.stdout).verdict, 'PARALLEL_READ');
+    assert.equal(JSON.parse(preview.stdout).planDoc, undefined);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('CLI writes a reviewable plan document before approval', () => {
+  const { dir, file } = writePlan(base());
+  const doc = path.join(dir, '.qoder/parallel-plans/TASK-1.md');
+  try {
+    const result = spawnSync(process.execPath, [SCRIPT, file, '--json', '--markdown', doc], { encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.planDoc, doc);
+    const text = fs.readFileSync(doc, 'utf8');
+    assert.match(text, /PENDING_USER_APPROVAL/);
+    assert.match(text, /U1/);
+    assert.match(text, /src\/a/);
+    assert.match(text, /Vibecoding 文档映射/);
+    assert.match(text, /用户已确认方案/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('invalid plans never produce an approval document', () => {
+  const { dir, file } = writePlan(base({
+    units: [
+      { id: 'U1', kind: 'write', title: 'write a', ownedPaths: ['src/a.js'], acceptance: ['a'], evidence: ['diff'] },
+      { id: 'U2', kind: 'write', title: 'write b', ownedPaths: ['src/a.js'], acceptance: ['b'], evidence: ['diff'] },
+    ],
+    execution: { maxConcurrency: 2, isolation: 'worktree', workerTool: 'general-purpose' },
+  }));
+  const doc = path.join(dir, 'PLAN.md');
+  try {
+    const result = spawnSync(process.execPath, [SCRIPT, file, '--json', '--markdown', doc], { encoding: 'utf8' });
+    assert.equal(result.status, 1);
+    assert.equal(fs.existsSync(doc), false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

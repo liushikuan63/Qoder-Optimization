@@ -91,7 +91,7 @@ test('rule header skill count is regenerated from disk on every run', () => with
   f.put('Qoder-AI编码通用规则.md', '# Qoder-Optimization - 0.0.2\n\n> 版本：0.0.2；fixture\n> 包内技能 99 个（99 常驻 + 0 按需），不等于接收者已安装数量。\n');
   f.refresh();
   const text = fs.readFileSync(path.join(f.root, 'Qoder-AI编码通用规则.md'), 'utf8');
-  assert.ok(text.includes('> 包内技能 1 个（0 常驻 + 1 按需），不等于接收者已安装数量。'), text);
+  assert.ok(text.includes('> 包内技能 1 个（0 常驻 + 1 按需），不等于接收者已安装数量；常驻数量由使用者按习惯在安装时与使用中决定。'), text);
 }));
 
 test('generated package can register, search and install through its own consumer', () => withFixture(f => {

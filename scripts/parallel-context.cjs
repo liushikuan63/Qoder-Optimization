@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { validatePlan, evaluatePlan, digestPlan, stable } = require('./parallel-plan.cjs');
+const { clientRoot, counterpart } = require('./client-root.js');
 
 const SCHEMA = 1;
 const UNIT_STATUSES = new Set(['planned', 'dispatched', 'running', 'done', 'failed', 'blocked', 'verified', 'merged']);
@@ -235,6 +236,207 @@ function selectRecall(unit, refs, maxChars) {
   return { refs: selected, omitted, chars: used };
 }
 
+const MEMORY_INDEX = 'MEMORY.md';
+const MEMORY_MAX_FILES = 300;
+
+function projectSlug(dir) {
+  // Qoder 的项目目录名：每个非字母数字（除连字符）都替换成 '-'，连续分隔符不折叠。
+  return path.resolve(dir).replace(/[^A-Za-z0-9-]/g, '-');
+}
+
+function clientRoots() {
+  const roots = [];
+  try {
+    const primary = clientRoot();
+    roots.push(primary);
+    const other = counterpart(primary);
+    if (other) roots.push(other);
+  } catch { /* Fall back to cwd-only project memory. */ }
+  return roots;
+}
+
+function defaultMemoryDirs() {
+  const candidates = [];
+  const roots = clientRoots();
+  for (const root of roots) candidates.push(path.join(root, 'memory'));
+  candidates.push(path.join(process.cwd(), '.qoder', 'memory'));
+  for (const root of roots) candidates.push(path.join(root, 'projects', projectSlug(process.cwd()), 'memory'));
+  const dirs = [];
+  for (const dir of candidates) {
+    if (!fs.existsSync(dir)) continue;
+    const resolved = path.resolve(dir);
+    if (!dirs.some(existing => path.resolve(existing).toLowerCase() === resolved.toLowerCase())) dirs.push(resolved);
+  }
+  return dirs;
+}
+
+function memoryLabel(dir) {
+  const resolved = path.resolve(dir).toLowerCase();
+  for (const root of clientRoots()) {
+    if (resolved === path.resolve(root, 'memory').toLowerCase()) return 'user-memory';
+  }
+  return 'project-memory';
+}
+
+function memoryFiles(dir) {
+  const files = [];
+  const walk = (current, depth) => {
+    if (files.length >= MEMORY_MAX_FILES || depth > 2) return;
+    let entries;
+    try { entries = fs.readdirSync(current, { withFileTypes: true }); } catch { return; }
+    for (const entry of entries) {
+      if (files.length >= MEMORY_MAX_FILES) return;
+      if (entry.name.startsWith('.') || /\.bak(?:[.-]|$)/i.test(entry.name)) continue;
+      const file = path.join(current, entry.name);
+      if (entry.isDirectory()) walk(file, depth + 1);
+      else if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')) files.push(file);
+    }
+  };
+  walk(dir, 0);
+  return files;
+}
+
+function queryTerms(query) {
+  const raw = String(query).normalize('NFKC').toLowerCase();
+  const terms = raw.split(/[\s,，。；;、:：/\\|()（）\[\]【】{}"'“”‘’<>]+/)
+    .map(term => term.trim()).filter(term => term.length >= 2 && term.length <= 40);
+  return [...new Set(terms)].slice(0, 16);
+}
+
+function termHits(text, terms) {
+  const hay = String(text).toLowerCase();
+  return terms.reduce((count, term) => count + (hay.includes(term) ? 1 : 0), 0);
+}
+
+function markdownSections(text) {
+  const sections = [];
+  let heading = '';
+  let body = [];
+  const flush = () => {
+    if (body.some(line => line.trim())) sections.push({ heading, text: body.join('\n') });
+    body = [];
+  };
+  for (const line of String(text).split(/\r?\n/)) {
+    const match = /^(#{1,6})\s+(.+)$/.exec(line);
+    if (match) { flush(); heading = match[2].trim(); }
+    else body.push(line);
+  }
+  flush();
+  return sections;
+}
+
+function parseMemoryIndex(text) {
+  const entries = [];
+  for (const line of String(text).split(/\r?\n/)) {
+    const match = /^\s*[-*]\s+\[([^\]]+)\]\(([^)]+)\)\s*(?:—|-)\s*(.*)$/.exec(line);
+    if (!match) continue;
+    const link = match[2].trim();
+    if (!link || /^[a-z]+:/i.test(link) || link.startsWith('#')) continue;
+    entries.push({ title: match[1].trim(), link: link.split('#')[0], hook: match[3].trim() });
+  }
+  return entries;
+}
+
+function memoryExcerpt(text, terms, maxChars) {
+  const sections = markdownSections(text);
+  let best = null, bestScore = 0;
+  for (const section of sections) {
+    const score = termHits(section.heading, terms) * 2 + termHits(section.text, terms);
+    if (score > bestScore) { best = section; bestScore = score; }
+  }
+  const source = best || { heading: '', text: String(text) };
+  let excerpt = (source.heading ? source.heading + '\n' : '') + source.text.trim();
+  excerpt = redact(excerpt).trim();
+  if (!excerpt || findSensitive(excerpt).length) return { excerpt: '', score: 0 };
+  if (excerpt.length > maxChars) excerpt = excerpt.slice(0, Math.max(0, maxChars - 1)).trimEnd() + '…';
+  return { excerpt, score: bestScore };
+}
+
+function extractPaths(text) {
+  return [...new Set((String(text).match(/\b(?:src|app|packages|scripts|docs|skills|\.qoder)\/[A-Za-z0-9._\/-]+/g) || [])
+    .map(normalizePath).filter(Boolean))].slice(0, 20);
+}
+
+function recall(options) {
+  if (!isText(options.query, 500)) fail('USAGE', 'recall needs --query');
+  const terms = queryTerms(options.query);
+  if (!terms.length) fail('INVALID_QUERY', 'query needs at least one term of 2+ characters');
+  const dirs = (Array.isArray(options.memory) && options.memory.length ? options.memory : defaultMemoryDirs())
+    .map(dir => path.resolve(dir)).filter((dir, index, list) => list.indexOf(dir) === index);
+  const maxItems = options['max-items'] === undefined ? 5 : Number(options['max-items']);
+  const maxChars = options['max-chars'] === undefined ? 1200 : Number(options['max-chars']);
+  if (!Number.isInteger(maxItems) || maxItems < 1 || maxItems > 20) fail('INVALID_MAX_ITEMS', 'max-items must be 1..20');
+  if (!Number.isInteger(maxChars) || maxChars < 200 || maxChars > 8000) fail('INVALID_MAX_CHARS', 'max-chars must be 200..8000');
+  const candidates = new Map();
+  for (const dir of dirs) {
+    let stat;
+    try { stat = fs.statSync(dir); } catch { continue; }
+    if (!stat.isDirectory()) continue;
+    const source = memoryLabel(dir);
+    const files = memoryFiles(dir);
+    const indexFile = path.join(dir, MEMORY_INDEX);
+    const hooks = new Map();
+    if (fs.existsSync(indexFile)) {
+      for (const entry of parseMemoryIndex(fs.readFileSync(indexFile, 'utf8'))) {
+        const file = path.resolve(dir, entry.link);
+        if (!file.startsWith(path.resolve(dir) + path.sep)) continue;
+        hooks.set(file, entry);
+      }
+    }
+    for (const file of files) {
+      let text;
+      try { text = fs.readFileSync(file, 'utf8'); } catch { continue; }
+      const hook = hooks.get(file);
+      const sections = markdownSections(text);
+      const candidatesInFile = [];
+      if (hook) candidatesInFile.push({ heading: hook.title, text, boost: termHits(hook.title + ' ' + hook.hook, terms) * 3, lead: hook.hook });
+      else for (const section of sections) candidatesInFile.push({ heading: section.heading, text: section.text, boost: 0, lead: '' });
+      for (const section of candidatesInFile) {
+        const contextScore = termHits(section.heading, terms) * 2 + termHits(section.text, terms) + (section.boost || 0);
+        if (!contextScore) continue;
+        const rendered = memoryExcerpt(section.heading ? section.heading + '\n' + section.text : section.text, terms, maxChars);
+        if (!rendered.excerpt) continue;
+        const relative = path.relative(dir, file).replace(/\\/g, '/');
+        const heading = section.heading && !hook ? '#' + section.heading : (hook ? '#' + hook.title : '');
+        const ref = relative + heading;
+        if (findSensitive(ref).length || findSensitive(source).length) continue;
+        let excerpt = section.lead ? redact(section.lead + '\n' + rendered.excerpt).trim() : rendered.excerpt;
+        if (excerpt.length > maxChars) excerpt = excerpt.slice(0, Math.max(0, maxChars - 1)).trimEnd() + '…';
+        if (!excerpt || findSensitive(excerpt).length) continue;
+        const item = {
+          source,
+          ref,
+          asOf: fs.statSync(file).mtime.toISOString(),
+          confidence: contextScore + rendered.score >= 6 ? 'high' : contextScore + rendered.score >= 3 ? 'medium' : 'low',
+          paths: extractPaths(excerpt),
+          excerpt,
+          score: contextScore + rendered.score,
+        };
+        // Synced user-memory directories contain the same note; dedupe by
+        // visible reference + excerpt, not by the physical root path.
+        const key = ref + '\u0000' + excerpt;
+        const previous = candidates.get(key);
+        if (!previous || item.score > previous.score) candidates.set(key, item);
+      }
+    }
+  }
+  const sorted = [...candidates.values()].sort((a, b) => b.score - a.score || a.ref.localeCompare(b.ref));
+  const refs = sorted.slice(0, maxItems).map(({ score, ...item }) => item);
+  const result = {
+    schema: SCHEMA,
+    query: options.query.trim(),
+    refs,
+    omitted: Math.max(0, sorted.length - refs.length),
+    sources: dirs,
+    notice: refs.length ? '记忆是某时刻的快照；使用前用当前代码/测试复核，冲突以现场为准。' : '记忆无此项',
+  };
+  if (options.out) {
+    atomicWrite(options.out, JSON.stringify(result, null, 2) + '\n');
+    return { ok: true, out: path.resolve(options.out), recall: result };
+  }
+  return { ok: true, recall: result };
+}
+
 function renderContextMd(context) {
   const lines = [
     '# Parallel run context',
@@ -337,6 +539,7 @@ function init(options) {
     fail('INVALID_PLAN', (result.problems || []).map(problem => problem.code + ': ' + problem.message).join('; '));
   }
   if (!['PARALLEL_READ', 'PARALLEL_WORKTREE'].includes(result.verdict)) fail('PLAN_NOT_PARALLEL', 'cannot initialize a parallel run for ' + result.verdict + ': ' + result.reasonCodes.join(', '));
+  if (options.decision === undefined && !options.preview) fail('DECISION_REQUIRED', 'init needs --decision after user confirmation; use --preview only for tooling or tests');
   const plan = validatePlan(input);
   const contextFile = path.join(path.resolve(options.out), 'context.json');
   if (options.decision !== undefined && !isText(options.decision, 500)) fail('INVALID_DECISION', 'decision must be non-empty text');
@@ -589,27 +792,29 @@ function parseArgs(argv) {
   const args = [...argv];
   const command = args.shift();
   const allowed = {
-    init: new Set(['plan', 'out', 'decision', 'force', 'json']),
+    init: new Set(['plan', 'out', 'decision', 'force', 'preview', 'json']),
     pack: new Set(['context', 'unit', 'recall', 'out', 'max-chars', 'json']),
     merge: new Set(['context', 'delta', 'out', 'json']),
     'merge-batch': new Set(['context', 'delta', 'json']),
     check: new Set(['run', 'json']),
+    recall: new Set(['query', 'memory', 'out', 'max-items', 'max-chars', 'json']),
   }[command];
-  if (!allowed) fail('USAGE', 'command must be init, pack, merge, merge-batch or check');
+  if (!allowed) fail('USAGE', 'command must be init, pack, merge, merge-batch, check or recall');
   const values = {};
   const flags = new Set();
   const seen = new Set();
   while (args.length) {
     const arg = args.shift();
     const key = arg.startsWith('--') ? arg.slice(2) : '';
-    if (!allowed.has(key) || (seen.has(key) && !(command === 'merge-batch' && key === 'delta'))) fail('USAGE', 'unknown or repeated argument: ' + arg);
+    const repeatable = (command === 'merge-batch' && key === 'delta') || (command === 'recall' && key === 'memory');
+    if (!allowed.has(key) || (seen.has(key) && !repeatable)) fail('USAGE', 'unknown or repeated argument: ' + arg);
     seen.add(key);
-    if (arg === '--json' || arg === '--force') {
+    if (arg === '--json' || arg === '--force' || arg === '--preview') {
       flags.add(arg);
     } else if (arg.startsWith('--')) {
       const value = args.shift();
       if (!value || !value.trim() || value.startsWith('--')) fail('USAGE', 'missing value for ' + arg);
-      if (command === 'merge-batch' && key === 'delta') (values.delta ||= []).push(value);
+      if (repeatable) (values[key] ||= []).push(value);
       else values[key] = value;
     } else {
       fail('USAGE', 'unexpected argument: ' + arg);
@@ -623,18 +828,21 @@ function main(argv) {
   let parsed;
   try {
     parsed = parseArgs(argv);
-    const values = { ...parsed.values, json: parsed.flags.has('--json'), force: parsed.flags.has('--force') };
+    const values = { ...parsed.values, json: parsed.flags.has('--json'), force: parsed.flags.has('--force'), preview: parsed.flags.has('--preview') };
     let result;
     if (parsed.command === 'init') result = init(values);
     else if (parsed.command === 'pack') result = pack(values);
     else if (parsed.command === 'merge') result = merge(values);
     else if (parsed.command === 'merge-batch') result = mergeBatch(values);
     else if (parsed.command === 'check') result = check(values);
-    else fail('USAGE', 'command must be init, pack, merge, merge-batch or check');
-    if (json || (parsed.command === 'pack' && !values.out)) {
+    else if (parsed.command === 'recall') result = recall(values);
+    else fail('USAGE', 'command must be init, pack, merge, merge-batch, check or recall');
+    if (json || (parsed.command === 'pack' && !values.out) || (parsed.command === 'recall' && !values.out)) {
       console.log(JSON.stringify(result, null, 2));
     } else if (parsed.command === 'check') {
       console.log((result.ok ? 'OK' : 'ISSUES') + ' version=' + result.contextVersion + ' units=' + result.units + (result.issues.length ? ' ' + result.issues.join(',') : ''));
+    } else if (parsed.command === 'recall') {
+      console.log('RECALL OK ' + result.out + ' refs=' + result.recall.refs.length);
     } else {
       console.log(parsed.command.toUpperCase() + ' OK ' + (result.out || result.dir || ''));
     }
@@ -643,9 +851,9 @@ function main(argv) {
     const code = error.code || 'ERROR';
     if (json) console.log(JSON.stringify({ ok: false, code, message: error.message }, null, 2));
     else console.error(code + ': ' + error.message);
-    process.exitCode = code === 'USAGE' ? 2 : 1;
+    process.exitCode = ['USAGE', 'DECISION_REQUIRED'].includes(code) ? 2 : 1;
   }
 }
 
-module.exports = { init, pack, merge, mergeBatch, check, redact, findSensitive, renderContextMd, selectRecall };
+module.exports = { init, pack, merge, mergeBatch, check, recall, redact, findSensitive, renderContextMd, selectRecall };
 if (require.main === module) main(process.argv.slice(2));

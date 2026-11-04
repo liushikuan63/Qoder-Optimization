@@ -54,6 +54,30 @@ test('tiering and restoration preserve bytes and rebuild usable routes', () => f
   assert.equal(f.run('skill-load.cjs', ['definitely-no-such-capability']).status, 3);
 }));
 
+test('promote and demote follow actual usage without a fixed resident count', () => fixture(f => {
+  const residentFile = path.join(f.root, 'skills-resident.json');
+  assert.equal(f.run('tier-skills.cjs', ['--apply']).status, 0);
+  assert.equal(fs.existsSync(path.join(f.root, 'skills-library/demo/SKILL.md')), true);
+  assert.equal(f.run('tier-skills.cjs', ['--promote', 'demo', '--apply']).status, 0);
+  assert.equal(fs.existsSync(path.join(f.root, 'skills/demo/SKILL.md')), true);
+  assert.deepEqual(JSON.parse(fs.readFileSync(residentFile, 'utf8')).skills, ['demo']);
+  const rerun = f.run('tier-skills.cjs', ['--apply']);
+  assert.equal(rerun.status, 0, rerun.stderr);
+  assert.match(rerun.stdout, /library=0/);
+  assert.equal(fs.existsSync(path.join(f.root, 'skills/demo/SKILL.md')), true);
+  assert.equal(f.run('tier-skills.cjs', ['--demote', 'demo', '--apply']).status, 0);
+  assert.equal(fs.existsSync(path.join(f.root, 'skills-library/demo/SKILL.md')), true);
+  assert.deepEqual(JSON.parse(fs.readFileSync(residentFile, 'utf8')).skills, []);
+  assert.equal(f.run('tier-skills.cjs', ['--demote', 'skills-router']).status, 2);
+}));
+
+test('an invalid resident list stops before moving anything', () => fixture(f => {
+  f.put('skills-resident.json', '{"schema":1,"skills":["../outside"]}');
+  assert.equal(f.run('tier-skills.cjs', ['--apply']).status, 2);
+  assert.equal(fs.existsSync(path.join(f.root, 'skills/demo/asset.bin')), true);
+  assert.equal(fs.existsSync(path.join(f.root, 'skills-library')), false);
+}));
+
 test('explicit keep does not move the extra resident entry', () => fixture(f => {
   assert.equal(f.run('tier-skills.cjs', ['--keep', 'demo', '--apply']).status, 0);
   assert.equal(fs.existsSync(path.join(f.root, 'skills/demo/SKILL.md')), true);

@@ -1,17 +1,19 @@
 ---
 name: parallel-orchestration
-description: 主会话协调的多 agent 并行编排：开工前判定任务能否并行，可并行时先列出计划并询问用户方案是否合适，确认后再启用只读子代理、独立 worktree 或后台会话派发，维护共享上下文与记忆召回，串行合并并重新验收。触发词：并行、多 agent、多agent、协调者、orchestrator、任务拆分、依赖图、worktree、并行编排、共享上下文、记忆召回、并行判断。
+description: 主会话协调的多 agent 并行编排：多模块/跨端/多文件任务开工前必须判定能否并行，可并行时先生成计划文档并询问用户方案是否合适，确认后再启用只读子代理、独立 worktree 或后台会话派发，维护共享上下文与记忆召回，串行合并并重新验收。触发词：并行、多 agent、多agent、协调者、orchestrator、任务拆分、依赖图、worktree、并行编排、共享上下文、记忆召回、并行判断、多模块、跨模块、同时处理、分工、并发、子代理、前后端。
 ---
 
 # 并行编排
 
-主会话是唯一协调者。默认不主动并行；判定为可并行后，**必须先列出计划摘要、询问用户方案是否合适，再取得启用授权**，不得静默跳过、也不得未确认先派发。并行不是“多开几个 agent”，而是**先判定、再列计划、再确认、再共享上下文、再派发、最后统一验收**。
+主会话是唯一协调者。默认不自动派发 worker，但**多模块、跨端、多文件或用户明确要求并行/分工的任务，必须主动判定，不得以“默认顺序”为由跳过**。判定为可并行后，**必须先生成计划文档、再询问用户方案是否合适，确认后才取得启用授权**，不得静默跳过、也不得未确认先派发。并行不是“多开几个 agent”，而是**先判定、再生成计划文档、再确认、再共享上下文、再派发、最后统一验收**。
 
 ## 什么时候用
 
 - 多个互不依赖的只读调研/审查/验证任务；
 - 多个互斥文件、可隔离到独立 worktree 的小改；
-- 需要 2–4 个 worker 同时推进、由主会话统一汇总的长任务。
+- 需要 2–4 个 worker 同时推进、由主会话统一汇总的长任务；
+- 用户明确说“并行 / 分工 / 多 agent / 子代理 / 同时处理”，或任务本身横跨多个模块、前后端、多个独立文件（即使没说“并行”）。
+- 单文件、单函数、单命令能完成，或存在共享文件/共享服务/数据库/外部副作用的，判定为顺序执行并说明理由，不强行并行。
 
 ## 什么时候不用
 
@@ -23,10 +25,12 @@ description: 主会话协调的多 agent 并行编排：开工前判定任务能
 
 ## 硬规则
 
-- 判定为 `PARALLEL_READ`/`PARALLEL_WORKTREE` 后，先展示计划摘要（单元、波次、读写路径、worker 数、验收/证据、5–20 倍成本），再用 `AskUserQuestion` 询问“方案是否合适”；未获确认不得创建运行目录、上下文包或派发 worker。
+- 由能力路由自动触发（`AUTO_USE`）时同样执行“判定 → 生成计划文档 → 确认”；自动触发不等于自动派发，未确认按顺序执行。
+- 判定为 `PARALLEL_READ`/`PARALLEL_WORKTREE` 后，必须先用 `--markdown .qoder/parallel-plans/<taskId>.md` 生成计划文档，再展示计划摘要（单元、波次、读写路径、worker 数、验收/证据、5–20 倍成本），最后用 `AskUserQuestion` 询问“方案是否合适”；未生成文档不得询问或派发，未获确认不得创建运行目录、上下文包或派发 worker。
+- 用户明确要求并行/分工时，不得以“用户已经要求”为由跳过计划文档和方案确认；只有用户已对同一份计划逐项确认，才不重复询问。
 - 计划确认与启用授权可以合并为同一次询问，但选项必须明确写出启用范围（只读并行 / worktree 写并行）；写并行还必须单独取得显式 opt-in，列出 worktree 隔离方式、`ownedPaths` 与成本。
 - 用户选择“调整计划”时，修改 JSON 并重跑校验器后再次展示；用户选择“顺序执行”/取消即按顺序继续并说明“未获并行授权”，不是什么都不做。
-- 即使本轮用户已要求并行，也要展示计划并确认方案；只有用户已逐项确认同一份计划时才不重复询问。任务范围、单元或写路径变化时重新确认。`SEQUENTIAL_REQUIRED` 不提供并行开关，`BLOCKED_HUMAN` 只请人决定是否继续。
+- 任务范围、单元或写路径变化时重新确认。`SEQUENTIAL_REQUIRED` 不提供并行开关，`BLOCKED_HUMAN` 只请人决定是否继续。
 - 最多 4 个 worker（默认 3）、8 个单元、2 轮；worker 只能一层，不得再嵌套委派。
 - 协调者唯一维护共享上下文 canonical；worker 只返回 delta，禁止直接改 `context.json` 或全局记忆。
 - 召回统一由协调者执行；worker 禁止直接读全局记忆或 continuity；召回必须带来源与 as-of。
@@ -43,13 +47,15 @@ description: 主会话协调的多 agent 并行编排：开工前判定任务能
 
 ### 1. 判定
 
+先做一次记忆召回，再写计划 JSON：运行 `node scripts/parallel-context.cjs recall --query "<目标 + 模块/路径/错误码>" --out .qoder/parallel-plans/<taskId>.recall.json`。默认检索 `~/.qoder{,-cn}/memory` 与当前项目的 `projects/<slug>/memory`；自定义目录用 `--memory` 追加。把命中的硬约束/已知坑补进 `plan.constraints`；没有命中写“记忆无此项”。召回是证据，与当前代码冲突时以现场为准。
+
 写计划 JSON（模板见 [references/plan-schema.md](references/plan-schema.md)），然后运行：
 
 ```bash
-node scripts/parallel-plan.cjs <plan.json> --json
+node scripts/parallel-plan.cjs <plan.json> --json --markdown .qoder/parallel-plans/<taskId>.md
 ```
 
-仓库内用 `scripts/`；安装后用 `node ~/.qoder/scripts/parallel-plan.cjs <plan.json> --json`（Git Bash）。
+仓库内用 `scripts/`；安装后用 `node ~/.qoder/scripts/parallel-plan.cjs <plan.json> --json --markdown .qoder/parallel-plans/<taskId>.md`（Git Bash）。基础安装会随包安装 `parallel-plan.cjs` 与 `parallel-context.cjs`；若两者缺失，先运行 `install-package.cjs` 补基础集。计划文档在用户确认前生成，属于待审计划，不是运行上下文。真实任务不得用 `--preview` 跳过计划文档；`--preview` 只用于测试或工具预演。
 
 退出码与动作：
 
@@ -63,7 +69,7 @@ node scripts/parallel-plan.cjs <plan.json> --json
 
 #### 1.1 计划预览与方案确认（强制）
 
-判定可并行后，先把校验器输出整理成用户能判断的计划摘要，再用 `AskUserQuestion` 询问方案是否合适：
+判定可并行后，先确认 `.qoder/parallel-plans/<taskId>.md` 已生成，再把文档路径和校验器输出整理成用户能判断的计划摘要，最后用 `AskUserQuestion` 询问方案是否合适。用户明确要求并行时也走这一步，不直接派发。
 
 ```text
 计划：<taskId> / <goal>
@@ -98,10 +104,17 @@ worker：<workerTool> × <N>；成本约为单线 5–20 倍
 
 ```bash
 node scripts/parallel-context.cjs init --plan <plan.json> --out .qoder/parallel-runs/<taskId> --decision "用户确认计划并启用<只读|worktree写>并行"
-node scripts/parallel-context.cjs pack --context .qoder/parallel-runs/<taskId>/context.json --unit U1 --recall <recall.json> --out .qoder/parallel-runs/<taskId>/packs/U1.json
+
+# 复用计划阶段的召回文件；计划或单元变化时用新关键词重新检索
+node scripts/parallel-context.cjs recall --query "<目标 + 单元标题 + 关键路径/错误码>" --out .qoder/parallel-plans/<taskId>.recall.json --max-items 5 --max-chars 1200
+
+# 审阅召回候选：只把与单元路径/验收相关的 refs 留给 pack，删除无关或过期条目
+node scripts/parallel-context.cjs pack --context .qoder/parallel-runs/<taskId>/context.json --unit U1 --recall .qoder/parallel-plans/<taskId>.recall.json --out .qoder/parallel-runs/<taskId>/packs/U1.json
 ```
 
-- 召回由协调者完成：先查项目/用户记忆索引，按目标/模块/路径/错误码筛选；continuity 仅在已显式 enable 且任务绑定时查询；不要自动 enable。
+- 召回由协调者完成：`recall` 会检索 `MEMORY.md` 索引及其链接文件，按目标/模块/路径/错误码评分，并对摘录脱敏、限量；每条带 source/ref/asOf/confidence，默认每个 worker ≤2,000 字符；没有命中就写“记忆无此项”，不要编造。
+- continuity 仅在已显式 enable 且任务绑定时查询；如需使用，先按已绑定会话执行 `node scripts/continuity.cjs search --cwd <项目> --session <会话> --query "<关键词>"`，人工核对后再并入 recall.json；不要自动 enable。
+- 每个 worker 的 pack 只带与自身单元相关的召回；不要把完整记忆、完整会话或凭据发给 worker。
 - 每条召回带来源、as-of、confidence；摘录先脱敏、再限量（默认每个 worker ≤2,000 字符，可配置）。
 - 没有命中就写“记忆无此项”，继续用 spec/代码；不要编造记忆。
 - 详细字段、冲突处理、写入权限见 [references/context-protocol.md](references/context-protocol.md)。

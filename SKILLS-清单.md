@@ -2,7 +2,7 @@
 
 共 133 个源码随包技能：常驻 12 / 按需 121。机器可读版见 skills-manifest.json 与 catalog.json。
 
-默认按需选择安装；层级与依赖以 catalog 为准。
+默认按需选择安装，安装时按使用习惯询问是否常驻；层级默认值与依赖以 catalog 为准，最终常驻数量由使用者决定。
 
 ## 源码随包
 
@@ -13,7 +13,7 @@
 - `awesome-design-md`（按需）—— A bundled library of 74 DESIGN.md design-system documents analyzed from real product websites (Apple, Claude, Stripe, Linear, Figma, Nike, Vercel, Tesla, Starbucks, Notion and more)。中文触发：前端样式 设计系统 UI 组件库 设计
 - `byok-model-retry`（按需）—— 诊断和验收模型/BYOK 请求失败、Qoder CN 自定义模型保存校验与本地中转接入：401/403/429、输出上限/maxOutputTokens、配置落盘负对照、网络/协议/流式终包/代理对照、UA 指纹、首包超时与重试。默认只读，鉴权失败不重试，密钥只报掩码；覆盖 providers.qoder-custom-*、openai-responses、general.maxAttempts 与本地反代运行态。
 - `cloudbase-wechat-integration`（按需）—— CloudBase WeChat integration guide for Mini Program WeChat Pay, Mini Program virtual payment (虚拟支付, wx.requestVirtualPayment), Official Account JSAPI Pay, Native QR-code Pay, Official Account OAuth, openid handling, payment callbacks, and CloudBase Integration Center generated functions。中文触发：微信小程序
-- `concurrent-edit-attribution-check`（常驻）—— 改无版本控制目录（如 ~/.qoder/skills、服务器配置目录）中的共享文件时，发现陌生 .bak、现役文件 md5 与自己刚备份内容不一致、疑似并行会话改了同一文件、或平台拦截 SKILL_HASH_CHANGED 时使用。配方：备份后 md5 三方比对判断改动归属，diff 定位对方改动行，全程定点替换不整文件覆盖，改完断言对方改动仍在；含备份保留策略误判与复验判据自洽两个坑。两套改动相撞把回归大面积判红时先二分 harness 漂移/产品缺陷，可协调的启动期校验一律 clamp 到语义安全值并暴露在健康端点，不做拒绝启动。触发词：大面积判红、拒绝启动、clamp、领地预检。
+- `concurrent-edit-attribution-check`（常驻）—— 改共享Git工作区或无版本控制目录（~/.qoder/skills、服务器配置目录）的文件时，发现陌生 .bak、现役文件 md5 与自己刚备份内容不一致、疑似并行会话改了同一文件、或平台拦截 SKILL_HASH_CHANGED 时使用。配方：备份后 md5 三方比对判断改动归属，diff 定位对方改动行，全程定点替换不整文件覆盖，改完断言对方改动仍在；含备份保留策略误判与复验判据自洽两个坑。两套改动相撞把回归大面积判红时先二分 harness 漂移/产品缺陷，可协调的启动期校验一律 clamp 到语义安全值并暴露在健康端点，不做拒绝启动。触发词：大面积判红、拒绝启动、clamp、领地预检。
 - `continuation-state-audit`（常驻）—— Audit continuation queues/goal files before resuming，claimed done vs real artifacts，detect stale items；也核对当前会话交付结论与原始验收逐项对账。Qoder 异常会话恢复（定位会话、最小窗口读取、单次结构化恢复消息、终态回调＝成功判据）。触发：接续/继续上次/看队列/核对上次完成状态/上次说做完了但没生效/交付结论复核/原始验收对账/会话恢复/异常会话。Not for goal tracking/checkpoint writes（→goal-driven-execution）。
 - `counterexample-driven-plan-review`（按需）—— 反例驱动的只读方案审查。触发词：审方案、任务卡、判据反证、关键词假通过、同源证据冒充复核、固定轮数冒充收敛、计划被当成实施授权。用零写入纯函数探针构造正负反例，核对命令适用性、依赖闭包与验收层级，输出收敛后的任务卡。不用于代码实现或正式验收（verify-before-claim）。
 - `deliver-prd`（按需）—— Creates a comprehensive Product Requirements Document that aligns stakeholders on what to build, why, and how success will be measured. Use when specifying features, epics, or product initiatives for engineering handoff.
@@ -70,7 +70,7 @@
 - `office-docs`（按需）—— 不依赖 Python 用 Node 读写 Excel（.xlsx/.csv）与 Word（.docx）——读表格转 markdown/JSON（支持按范围/行数截断、列工作表、读公式原文）、按 JSON 规格生成工作簿（列宽/冻结/数字格式/CSV 直转）、改既有工作簿的单元格、抽取 Word 正文与表格、生成 Word 文档（含样式/图片/分页，支持 Markdown 直转含插图）、往既有 docx 模板插入新表格（解包改 XML 回包、保模板样式）。
 - `open-code-review-delegate`（按需）—— Delegation mode for open-code-review (OCR). Use when the host agent should drive the review with its own LLM capabilities。中文触发：代码评审 审查 评审
 - `oracledb`（按需）—— Use these skills to manage and monitor Oracle databases by executing SQL statements, exploring schema metadata, analyzing query performance, monitoring active sessions and resource consumption, and managing storage and object health.
-- `parallel-orchestration`（按需）—— 主会话协调的多 agent 并行编排：开工前判定任务能否并行，可并行时先列出计划并询问用户方案是否合适，确认后再启用只读子代理、独立 worktree 或后台会话派发，维护共享上下文与记忆召回，串行合并并重新验收。触发词：并行、多 agent、多agent、协调者、orchestrator、任务拆分、依赖图、worktree、并行编排、共享上下文、记忆召回、并行判断。
+- `parallel-orchestration`（按需）—— 主会话协调的多 agent 并行编排：多模块/跨端/多文件任务开工前必须判定能否并行，可并行时先生成计划文档并询问用户方案是否合适，确认后再启用只读子代理、独立 worktree 或后台会话派发，维护共享上下文与记忆召回，串行合并并重新验收。触发词：并行、多 agent、多agent、协调者、orchestrator、任务拆分、依赖图、worktree、并行编排、共享上下文、记忆召回、并行判断、多模块、跨模块、同时处理、分工、并发、子代理、前后端。
 - `pause-writer-before-shared-file-edit`（按需）—— 编辑会被并行会话/自动机制改写的文件（技能 description、记忆索引、台账、evolution 状态）时的防竞态流程：先证明有并发写入方（mtime+字节数）→ 官方 CLI 暂停（evolution.js pause，不手写 control.json）→ 暂停后重新扫描再动手 → 扫描红当「暂定」，复跑一次再判 → 改完 resume 并记录基线。触发词：并发写入、并行会话改了我的文件、description 被回滚、悬空引用假红、mtime/size 变了、evolution pause/resume。
 - `postgresql-optimization`（按需）—— Expert in PostgreSQL performance tuning, query optimization, and database administration. Specializes in EXPLAIN analysis, indexing strategies, connection pooling, partitioning, and production-grade
 - `postgresql-table-design`（按需）—— Design a PostgreSQL-specific schema. Covers best-practices, data types, indexing, constraints, performance patterns, and advanced features
@@ -94,7 +94,7 @@
 - `redis-search`（按需）—— Redis Search guidance covering FT.CREATE schema design, field type selection (TEXT, TAG, NUMERIC, GEO, GEOSHAPE, VECTOR, JSON path), DIALECT 2 query syntax, FT.SEARCH / FT.AGGREGATE / FT.HYBRID command selection, vector similarity with HNSW or FLAT, hybrid retrieval combining lexical and vector
 - `redis-security`（按需）—— Redis security guidance covering authentication (requirepass and ACL users), TLS, ACL-based least-privilege access control, restricting network exposure via bind and protected-mode, firewall rules, and disabling dangerous commands。中文触发：Redis 缓存 键值 TTL 集群 鉴权 安全
 - `redis-semantic-cache`（按需）—— Redis LangCache guidance for semantic caching of LLM responses on Redis Cloud — calling search/set via the SDK or REST API, tuning the similarity threshold, separating caches per task type, and filtering with custom attributes。中文触发：Redis 缓存 键值 TTL 集群 向量检索 全文检索 接口 检索
-- `rules-conflict-audit`（按需）—— 规则体系冲突与验证主张审计：只读交叉核对 AGENTS、提醒、收尾门禁、领域规则、技能描述和记忆，输出引用、行号、行为影响、具体改文与扩权标注；核对证明力、真实问答、多项阻塞与历史授权反例。报告交付即完成审阅；批准实施后才修改，保留平台强制审批。扩展：技能/文档家族一致性审计——按四层模型核对 description、正文、校验器、规则文件、分享包五个面，正负夹具防校验器假绿，修复后同批同步分享包。
+- `rules-conflict-audit`（按需）—— 规则体系冲突与验证主张审计：只读交叉核对 AGENTS、提醒、收尾门禁、领域规则、技能描述和记忆，输出引用、行号、行为影响、具体改文与扩权标注；核对证明力、真实问答、多项阻塞与历史授权反例。报告交付即完成审阅；批准实施后才修改，保留平台强制审批。扩展：技能/文档家族一致性审计——按四层模型核对 description、正文、校验器、规则文件、分享包五个面，正负夹具防校验器假绿，修复后同批同步分享包。触发词：规则冲突、规则审计、规则体系冲突。
 - `safe-text-editing`（常驻）—— 改文件与传参的字符安全 playbook。当"内容写出来不对"时用：引号/反斜杠/反引号/`$` 被 shell 先解释、中文进 .cmd 变乱码、CRLF 与 GBK 被改写、整文件覆盖丢内容、替换串手抄失配、管道吞掉退出码、命令成功但改错地方。触发词：编辑出错、字符被吃掉、内容不对、乱码、转义、引号问题、sed 替换没生效、写进去的不是我要的、编码、GBK、CRLF、退出码不对。不用于：纯文本内容校对（走文档类技能）、.cmd 工具的整套改/验/发链（走 verify-windows-cmd-tool）。
 - `self-evolution`（常驻）—— 将用户明确的长期偏好、重复纠正、验证过的复用经验和持续能力缺口转为有证据的规则、技能或工具配置更新；也用于查看、暂停、恢复与回退自动调整。触发词：自进化、学到的规则、暂停自动调整、恢复自进化、撤销最近学到的、查看学到的规则、经验沉淀、证据门槛。不用于：单次临时指令和普通成功任务。
 - `senior-devops`（按需）—— Comprehensive DevOps skill for CI/CD, infrastructure automation, containerization, and cloud platforms (AWS, GCP, Azure)。中文触发：CI 流水线 容器
@@ -107,7 +107,7 @@
 - `skill-reference-integrity-audit`（按需）—— 技能/文档悬空引用审计与修复决策流程：提取引用清单→存在性核查→会话归档考古判定『从未落盘 vs 丢失』→同域技能功能映射让渡或按真值重建；含并行会话竞态处置（对象消失先查 skills-disabled）。触发词：悬空引用、缺失文件、引用审计、归档考古、技能完整性检查、skills-disabled 竞态。不适用于：代码层面的 import/require 缺失（走静态分析）、文档内部链接失效（走 link-checker）。
 - `skill-tiering-lazy-load`（按需）—— 技能分层懒加载 playbook：注入过大时，把 ~/.qoder/skills 拆成「常驻元/高频 + skills-library 按需库」，用 tier-skills 迁移、build-skills-index 重建索引、skill-load 检索；含常驻集拍板、library 回退修补、注入降幅测量、可失败验收、回滚与分享包复现。触发词：技能分层、按需库、skills-library、skill-load。不用于停用合并（skill-trim-with-capability-transfer）、描述瘦身（skill-description-route-cue-rewrite）。
 - `skill-trim-with-capability-transfer`（按需）—— 技能降量的可执行 playbook（停入口、不丢能力）。当用户说「技能太多要精简」「降量 / 停用技能」「同域不装第二个」「几个技能抢同一个触发」「停掉的技能能力不能丢」「skills-disabled 怎么回退」「降量后周检 / 全局体检判红」时使用。按引用关系分档决定谁能停，把只此一家的能力用真代码或规则条目搬进留存内容，同步会被钉死的机械判据，再用周检加提及扫描收口。不用于外部分享包并入（走 merge-inbound-qoder-package）、C 盘腾空间（走 disk-junction-migration）、本机出包发给别人（走 update-share-package）。
-- `skills-router`（常驻）—— 任务能力路由入口。先核对已安装能力与登记包，相关已装能力主动询问是否用于本任务；用户明确指名或已有授权时直接读取入口使用。缺失仅通用、符合明确偏好或本轮明确选择时询问安装，专业不匹配跳过。本地自改先审差异，有可靠旧包基线才自动更新。触发词：技能索引、skill-load、按需技能、能力安装、能力更新、主动使用、路由回归。
+- `skills-router`（常驻）—— 任务能力路由入口。先核对已装与登记包，相关能力先问使用；明确指名或已有授权直接加载。缺失仅通用、明确偏好或本轮选择才问安装，专业不匹配跳过；本地自改先审，有可靠旧基线才更新。技术不确定、版本敏感或工具缺口时主动联网查证与核验下载；试用/安装/接入先问，长期复用获准后落盘。触发词：技能路由、技能索引、skill-load、按需技能、能力安装、能力更新、主动使用、路由回归、联网搜索、工具下载。
 - `spring-aop`（按需）—— Spring AOP (Aspect-Oriented Programming) per Spring Boot 3.x。中文触发：Spring Boot Java 后端 Bean 依赖注入
 - `spring-boot-actuator`（按需）—— Provides patterns to configure Spring Boot Actuator for production-grade monitoring, health probes, secured management endpoints, and Micrometer metrics across JVM services. Use when setting up monitoring, health checks, or metrics for Spring Boot applications.
 - `spring-boot-cache`（按需）—— Provides patterns for implementing Spring Boot caching - configures Redis/Caffeine/EhCache providers with TTL and eviction policies, applies @Cacheable/@CacheEvict/@CachePut annotations, validates cache hit/miss behavior, and exposes metrics via Actuator。中文触发：Redis 缓存 键值 TTL 集群 Spring Boot Java 后端

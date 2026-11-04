@@ -14,6 +14,7 @@ const { isPublicFile } = require('./pack-share-extras.cjs');
 const BASE_IDS = [
   'script:rules-reminder.js', 'script:capability-advisor.cjs',
   'script:skill-load.cjs', 'script:pkg-catalog.cjs', 'script:build-skills-index.cjs',
+  'script:parallel-plan.cjs', 'script:parallel-context.cjs',
   'skill:skills-router', 'command:skill-load', 'command:pkg-find',
 ];
 const digest = value => crypto.createHash('sha256').update(value).digest('hex');
@@ -21,22 +22,23 @@ const normalized = value => process.platform === 'win32' ? path.resolve(value).t
 const inside = (root, file) => { const rel = path.relative(root, file); return !rel || (!rel.startsWith('..' + path.sep) && rel !== '..' && !path.isAbsolute(rel)); };
 
 function parseArgs(argv) {
-  const result = { install: [], yes: false, dryRun: false };
+  const result = { install: [], resident: [], yes: false, dryRun: false };
   const seen = new Set();
   const flags = new Map([['--yes', 'yes'], ['--dry-run', 'dryRun'], ['--json', 'json'], ['--continuity', 'continuity'], ['--no-auto-bind', 'noAutoBind'], ['--help', 'help'], ['-h', 'help'], ['--no', 'skip'], ['--skip', 'skip'], ['--non-interactive', 'nonInteractive']]);
-  const values = new Map([['--client-root', 'client'], ['--catalog', 'catalogFile'], ['--preferences', 'preferencesFile'], ['--install', 'install']]);
+  const values = new Map([['--client-root', 'client'], ['--catalog', 'catalogFile'], ['--preferences', 'preferencesFile'], ['--install', 'install'], ['--resident', 'resident']]);
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg !== '--install' && seen.has(arg)) throw new Error('重复参数：' + arg);
+    if (!['--install', '--resident'].includes(arg) && seen.has(arg)) throw new Error('重复参数：' + arg);
     seen.add(arg);
     if (flags.has(arg)) result[flags.get(arg)] = true;
     else if (values.has(arg)) {
       const value = argv[++i];
       if (!value || !value.trim() || value.startsWith('-')) throw new Error(arg + ' 需要明确值');
-      if (arg === '--install') {
-        if (!/^(?:skill|script|command|agent):[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value)) throw new Error('--install 需要完整的精确条目 id');
-        if (result.install.includes(value)) throw new Error('重复安装选择：' + value);
-        result.install.push(value);
+      if (arg === '--install' || arg === '--resident') {
+        if (!/^(?:skill|script|command|agent):[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value)) throw new Error(arg + ' 需要完整的精确条目 id');
+        const list = result[values.get(arg)];
+        if (list.includes(value)) throw new Error('重复选择：' + value);
+        list.push(value);
       } else result[values.get(arg)] = path.resolve(value);
     } else throw new Error('未知参数：' + arg);
   }
@@ -121,9 +123,9 @@ function assertPath(plan, file) {
   }
 }
 
-function targetFor(entry, client, item) {
+function targetFor(entry, client, item, resident = new Set()) {
   if (item?.installedPaths?.length === 1) return path.resolve(item.installedPaths[0]);
-  if (entry.category === 'skill') return path.join(client, entry.install?.tier === 'core' || entry.tier === 'core' ? 'skills' : 'skills-library', entry.name);
+  if (entry.category === 'skill') return path.join(client, resident.has(entry.id) || entry.install?.tier === 'core' || entry.tier === 'core' ? 'skills' : 'skills-library', entry.name);
   return path.join(client, { script: 'scripts', command: 'commands', agent: 'agents' }[entry.category], path.basename(entry.source));
 }
 
@@ -186,7 +188,12 @@ function prepare(options = {}) {
     preferences = { ...(preferences || { schema: 1 }), preferredIds: [...new Set([...(preferences?.preferredIds || []), ...options.install])], excludedIds: (preferences?.excludedIds || []).filter(id => !options.install.includes(id)) };
   }
   const entries = new Map(catalog.entries.map(entry => [entry.id, entry]));
-  for (const id of [...BASE_IDS, ...(options.install || [])]) if (!entries.has(id)) throw new Error('包内缺少精确条目：' + id);
+  for (const id of [...BASE_IDS, ...(options.install || []), ...(options.resident || [])]) if (!entries.has(id)) throw new Error('包内缺少精确条目：' + id);
+  const resident = new Set(options.resident || []);
+  for (const id of resident) {
+    if (entries.get(id).category !== 'skill') throw new Error('--resident 只接受技能：' + id);
+    if (!(options.install || []).includes(id)) throw new Error('--resident 需要同时用 --install 选择该技能：' + id);
+  }
   const closure = ids => {
     const order = [], visiting = new Set(), visited = new Set();
     const visit = id => {
@@ -215,6 +222,7 @@ function prepare(options = {}) {
   plan.items = advice.items || [];
   plan.diagnostics = advice.diagnostics || advice.warnings || [];
   const items = new Map(plan.items.map(item => [item.id || item.entry?.id, item]));
+  for (const id of resident) if (items.get(id)?.action === 'KEEP') throw new Error('已安装技能不能通过 --resident 换层，请用 tier-skills --promote：' + id);
   plan.acceptedInstallIds = [...new Set([...explicitClosure, ...plan.items.filter(item => item.action === 'UPDATE').map(item => item.id)])];
   const blocked = id => items.get(id)?.action === 'REVIEW_UPDATE' || (items.get(id)?.installedPaths?.length || 0) > 1;
   plan.baseBlocked = baseClosure.filter(blocked);
@@ -237,7 +245,7 @@ function prepare(options = {}) {
   for (const id of closure([...selected])) {
     if (!selected.has(id)) continue;
     const entry = entries.get(id), item = items.get(id);
-    const target = targetFor(entry, client, item);
+    const target = targetFor(entry, client, item, resident);
     assertPath(plan, target);
     const before = snapshot(target);
     const source = path.join(root, entry.source);
@@ -469,16 +477,22 @@ function printSummary(result) {
 async function main(argv) {
   const options = parseArgs(argv);
   if (options.help) {
-    console.log('用法：node scripts/install-package.cjs [--yes] [--dry-run] [--client-root <目录>] [--catalog <catalog.json>] [--install <exact-id>] [--preferences <json>] [--continuity] [--no-auto-bind] [--json]\n默认只核对；--yes 安装基础路由并更新与旧包一致的已安装条目。缺失可选项另用 --install 明确选择，个人修改只报告。接续存储仅在 --continuity 单独同意时调用旧安装器。');
+    console.log('用法：node scripts/install-package.cjs [--yes] [--dry-run] [--client-root <目录>] [--catalog <catalog.json>] [--install <exact-id>] [--resident <exact-id>] [--preferences <json>] [--continuity] [--no-auto-bind] [--json]\n默认只核对；--yes 安装基础路由并更新与旧包一致的已安装条目。缺失可选项另用 --install 明确选择，个人修改只报告。所选技能默认进按需库；交互运行会询问是否常驻，非交互用 --resident 选择常驻（需与 --install 同时给出）。已安装技能换层请用 tier-skills --promote。接续存储仅在 --continuity 单独同意时调用旧安装器。');
     return 0;
   }
   if (options.skip) { console.log('已跳过，未修改任何文件。'); return 0; }
-  const plan = prepare(options);
+  let plan = prepare(options);
   if (!options.yes && !options.dryRun && !options.nonInteractive && process.stdin.isTTY && process.stdout.isTTY) {
     printSummary({ status: 'DRY_RUN', plan });
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    try { options.yes = /^(?:y|yes|是|同意)$/i.test((await rl.question('安装基础路由并更新有安全旧包基线的已有能力？[y/N] ')).trim()); }
-    finally { rl.close(); }
+    try {
+      options.yes = /^(?:y|yes|是|同意)$/i.test((await rl.question('安装基础路由并更新有安全旧包基线的已有能力？[y/N] ')).trim());
+      const installSkills = (options.install || []).filter(id => id.startsWith('skill:') && plan.items.find(item => (item.id || item.entry?.id) === id)?.action !== 'KEEP');
+      if (options.yes && installSkills.length && !(options.resident || []).length) {
+        options.resident = /^(?:y|yes|是|同意)$/i.test((await rl.question('本次选择的技能（' + installSkills.join(', ') + '）是否设为常驻？常驻描述每轮注入。[y/N] ')).trim()) ? installSkills : [];
+        plan = prepare(options);
+      }
+    } finally { rl.close(); }
   }
   const result = apply(plan, options);
   let continuityExit = 0;

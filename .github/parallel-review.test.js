@@ -43,7 +43,7 @@ function cli(script, args) {
 function initContext(t) {
   const dir = fixture(t); const file = path.join(dir, 'input.json'); const runDir = path.join(dir, 'run');
   writeJson(file, plan());
-  const run = cli(contextScript, ['init', '--plan', file, '--out', runDir]);
+  const run = cli(contextScript, ['init', '--plan', file, '--out', runDir, '--preview']);
   assert.equal(run.status, 0, run.stdout + run.stderr);
   return { dir, file, runDir, contextFile: path.join(runDir, 'context.json'), context: run.json.context };
 }
@@ -237,7 +237,7 @@ test('pack rejects quoted credentials in unredacted recall metadata and decision
 test('forced reinitialization advances the version and rejects a previous-run delta', t => {
   const f = initContext(t); const delta = path.join(f.dir, 'delta.json');
   writeJson(delta, { unitId: 'U1', contextVersion: 1, planDigest: f.context.planDigest, findings: ['old run'] });
-  const forced = cli(contextScript, ['init', '--plan', f.file, '--out', f.runDir, '--force']);
+  const forced = cli(contextScript, ['init', '--plan', f.file, '--out', f.runDir, '--preview', '--force']);
   assert.equal(forced.status, 0, forced.stdout);
   assert.equal(forced.json.context.version, 2);
   const before = fs.readFileSync(f.contextFile);
@@ -427,7 +427,7 @@ test('exported batch API rejects detached out and init still accepts an adjacent
   const rejected = spawnSync(process.execPath, ['-e', code, contextScript, f.contextFile, delta, detached], { encoding: 'utf8', timeout: 15000 });
   assert.equal(rejected.status, 2, rejected.stdout + rejected.stderr); assert.match(rejected.stdout, /USAGE/);
   assert.deepEqual(fs.readFileSync(f.contextFile), before); assert.equal(fs.existsSync(detached), false);
-  const initialized = cli(contextScript, ['init', '--plan', path.join(f.runDir, 'plan.json'), '--out', f.runDir, '--force']);
+  const initialized = cli(contextScript, ['init', '--plan', path.join(f.runDir, 'plan.json'), '--out', f.runDir, '--preview', '--force']);
   assert.equal(initialized.status, 0, initialized.stdout);
   assert.equal(initialized.json.context.version, 2);
   assert.equal(cli(contextScript, ['check', '--run', f.runDir]).status, 0);

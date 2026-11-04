@@ -40,8 +40,8 @@ function writeJson(file, value) {
   fs.writeFileSync(file, JSON.stringify(value, null, 2));
 }
 
-function run(args) {
-  const result = spawnSync(process.execPath, [SCRIPT, ...args, '--json'], { encoding: 'utf8' });
+function run(args, options = {}) {
+  const result = spawnSync(process.execPath, [SCRIPT, ...args, '--json'], { encoding: 'utf8', ...options });
   let output = null;
   try { output = result.stdout ? JSON.parse(result.stdout) : null; } catch {}
   return { status: result.status, output, stdout: result.stdout, stderr: result.stderr };
@@ -52,7 +52,7 @@ function initRun() {
   const planFile = path.join(dir, 'input-plan.json');
   const runDir = path.join(dir, 'run');
   writeJson(planFile, basePlan());
-  const result = run(['init', '--plan', planFile, '--out', runDir]);
+  const result = run(['init', '--plan', planFile, '--out', runDir, '--decision', '用户确认测试计划']);
   assert.equal(result.status, 0, result.stderr);
   return { dir, runDir, planFile, result };
 }
@@ -88,10 +88,10 @@ test('init records the user opt-in decision with source metadata', () => {
 
 test('init refuses to overwrite an existing context without force', () => {
   const { planFile, runDir } = initRun();
-  const again = run(['init', '--plan', planFile, '--out', runDir]);
+  const again = run(['init', '--plan', planFile, '--out', runDir, '--decision', '用户再次确认']);
   assert.equal(again.status, 1);
   assert.equal(again.output.code, 'CONTEXT_EXISTS');
-  const forced = run(['init', '--plan', planFile, '--out', runDir, '--force']);
+  const forced = run(['init', '--plan', planFile, '--out', runDir, '--force', '--decision', '用户再次确认']);
   assert.equal(forced.status, 0);
 });
 
@@ -229,4 +229,127 @@ test('selectRecall prioritizes path matches and enforces the character cap', () 
   assert.equal(selected.refs[0].ref, 'relevant');
   assert.equal(selected.omitted, 1);
   assert.ok(selected.chars <= 40);
+});
+
+test('recall reads memory indexes, returns sources/as-of and redacts secrets', () => {
+  const dir = tempDir();
+  const memory = path.join(dir, 'memory');
+  fs.mkdirSync(memory);
+  fs.writeFileSync(path.join(memory, 'MEMORY.md'), [
+    '# 用户记忆索引',
+    '',
+    '- [并行编排试点](parallel-note.md) — 协调者与 worker 的召回约束',
+    '- [无关条目](unrelated.md) — 天气记录',
+    '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(memory, 'parallel-note.md'), [
+    '# 并行编排试点',
+    '',
+    '## 召回约束',
+    '协调者必须先查记忆索引，worker 只读上下文包。',
+    '示例凭据 ' + fakeToken + ' 不应进入上下文。',
+    '示例内网地址 ' + fakeIp + ' 也不应外泄。',
+    '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(memory, 'unrelated.md'), '# 天气\n今天晴。\n');
+  const out = path.join(dir, 'recall.json');
+  const result = run(['recall', '--query', '并行 召回', '--memory', memory, '--out', out, '--max-items', '3', '--max-chars', '400']);
+  assert.equal(result.status, 0, result.stderr);
+  const data = JSON.parse(fs.readFileSync(out, 'utf8'));
+  assert.ok(data.refs.length >= 1);
+  const first = data.refs[0];
+  assert.equal(first.source, 'project-memory');
+  assert.match(first.ref, /parallel-note\.md/);
+  assert.match(first.excerpt, /协调者必须先查记忆索引/);
+  assert.ok(first.asOf);
+  assert.ok(['high', 'medium', 'low'].includes(first.confidence));
+  const serialized = JSON.stringify(data);
+  assert.ok(!serialized.includes(fakeToken));
+  assert.ok(!serialized.includes(fakeIp));
+  assert.match(serialized, /\[REDACTED_TOKEN\]/);
+  assert.match(serialized, /\[REDACTED_IP\]/);
+  assert.match(data.notice, /快照/);
+});
+
+test('recall reports memory-none without fabricating references', () => {
+  const dir = tempDir();
+  const memory = path.join(dir, 'memory');
+  fs.mkdirSync(memory);
+  fs.writeFileSync(path.join(memory, 'MEMORY.md'), '- [无关](other.md) — 天气\n');
+  fs.writeFileSync(path.join(memory, 'other.md'), '# 天气\n今天晴。\n');
+  const out = path.join(dir, 'none.json');
+  const result = run(['recall', '--query', '完全不存在的主题词', '--memory', memory, '--out', out]);
+  assert.equal(result.status, 0, result.stderr);
+  const data = JSON.parse(fs.readFileSync(out, 'utf8'));
+  assert.deepEqual(data.refs, []);
+  assert.equal(data.notice, '记忆无此项');
+});
+
+test('recall defaults cover a CN-only client memory without QODER_HOME', () => {
+  const dir = tempDir();
+  const home = path.join(dir, 'home');
+  const memory = path.join(home, '.qoder-cn', 'memory');
+  fs.mkdirSync(memory, { recursive: true });
+  fs.writeFileSync(path.join(memory, 'MEMORY.md'), '- [CN 记忆](cn-note.md) — 并行 召回\n');
+  fs.writeFileSync(path.join(memory, 'cn-note.md'), '# CN 记忆\n并行 召回 约束。\n');
+  const project = path.join(dir, 'proj');
+  fs.mkdirSync(project);
+  const out = path.join(dir, 'cn.json');
+  const result = run(['recall', '--query', '并行 召回', '--out', out], {
+    cwd: project,
+    env: { ...process.env, HOME: home, USERPROFILE: home, QODER_HOME: '' },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const data = JSON.parse(fs.readFileSync(out, 'utf8'));
+  assert.ok(data.refs.length >= 1);
+  assert.equal(data.refs[0].source, 'user-memory');
+  assert.match(data.refs[0].ref, /cn-note\.md/);
+});
+
+test('recall defaults include project memory under the client projects slug', () => {
+  const dir = tempDir();
+  const home = path.join(dir, 'home');
+  const project = path.join(dir, 'my-project');
+  fs.mkdirSync(project);
+  const slug = path.resolve(project).replace(/[^A-Za-z0-9-]/g, '-');
+  const memory = path.join(home, '.qoder', 'projects', slug, 'memory');
+  fs.mkdirSync(memory, { recursive: true });
+  fs.writeFileSync(path.join(memory, 'MEMORY.md'), '- [项目记忆](project-note.md) — 并行 召回\n');
+  fs.writeFileSync(path.join(memory, 'project-note.md'), '# 项目记忆\n并行 召回 只在本项目。\n');
+  const out = path.join(dir, 'project.json');
+  const result = run(['recall', '--query', '并行 召回', '--out', out], {
+    cwd: project,
+    env: { ...process.env, HOME: home, USERPROFILE: home, QODER_HOME: '' },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const data = JSON.parse(fs.readFileSync(out, 'utf8'));
+  assert.ok(data.refs.some(ref => ref.source === 'project-memory' && ref.ref.includes('project-note.md')));
+});
+
+test('init requires a recorded user decision unless preview is explicit', () => {
+  const dir = tempDir();
+  const planFile = path.join(dir, 'plan.json');
+  const runDir = path.join(dir, 'run');
+  writeJson(planFile, basePlan());
+  const blocked = run(['init', '--plan', planFile, '--out', runDir]);
+  assert.equal(blocked.status, 2);
+  assert.equal(blocked.output.code, 'DECISION_REQUIRED');
+  const preview = run(['init', '--plan', planFile, '--out', runDir, '--preview']);
+  assert.equal(preview.status, 0, preview.stderr);
+  assert.deepEqual(preview.output.context.decisions, []);
+});
+
+test('recall dedupes synced memory roots with identical content', () => {
+  const dir = tempDir();
+  const first = path.join(dir, 'memory-a'), second = path.join(dir, 'memory-b');
+  for (const root of [first, second]) {
+    fs.mkdirSync(root, { recursive: true });
+    fs.writeFileSync(path.join(root, 'MEMORY.md'), '- [并行召回](note.md) — 同步目录重复条目\n');
+    fs.writeFileSync(path.join(root, 'note.md'), '# 并行召回\n同一份记忆在两个客户端目录各有一份。\n');
+  }
+  const out = path.join(dir, 'dedupe.json');
+  const result = run(['recall', '--query', '并行 召回', '--memory', first, '--memory', second, '--out', out]);
+  assert.equal(result.status, 0, result.stderr);
+  const data = JSON.parse(fs.readFileSync(out, 'utf8'));
+  assert.equal(data.refs.filter(ref => ref.ref.includes('note.md')).length, 1);
 });

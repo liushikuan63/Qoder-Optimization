@@ -19,6 +19,12 @@ function fixture(t) {
     { id: 'mcp:database', name: 'database', category: 'mcp', status: 'shipped', source: 'mcp/database.json', install: { mode: 'merge' } },
   ];
   const put = (file, bytes) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, bytes); };
+  const local = (name, description) => {
+    const file = path.join(client, 'skills-library', name, 'SKILL.md');
+    put(file, `---\nname: ${name}\ndescription: ${description}\n---\n`);
+    return file;
+  };
+  const index = (list) => put(path.join(client, 'skills-index.json'), JSON.stringify({ entries: list }));
   const catalog = { schema: 1, entries };
   for (const [base, version] of [[current, 'new'], [previous, 'old']]) {
     put(path.join(base, 'catalog.json'), JSON.stringify(catalog));
@@ -31,7 +37,7 @@ function fixture(t) {
     return target;
   };
   const args = { catalogFile: path.join(current, 'catalog.json'), clientRoot: client, phase: 'install' };
-  return { dir, client, current, previous, entries, put, install, args, plan: override => advisor({ ...args, ...override }) };
+  return { dir, client, current, previous, entries, put, local, index, install, args, plan: override => advisor({ ...args, ...override }) };
 }
 const item = (result, id) => result.items.find(entry => entry.id === id);
 
@@ -119,9 +125,57 @@ test('ordinary task routing matches relevant installed capabilities and caps the
   for (const entry of f.entries.filter(entry => entry.category === 'skill')) f.install(entry.id, f.current);
   const result = f.plan({ phase: 'task', prompt: '请修改文本文件，完成并行开发并测试验证，给出修复证据' });
   assert.ok(result.items.length > 0 && result.items.length <= 3);
-  assert.ok(result.items.every(entry => entry.action === 'ASK_USE'));
+  assert.ok(result.items.every(entry => ['ASK_USE', 'AUTO_USE'].includes(entry.action)));
+  assert.equal(item(result, 'skill:parallel-orchestration').action, 'AUTO_USE');
   assert.equal(item(result, 'skill:kafka-best-practices'), undefined);
   assert.equal(item(result, 'skill:redis-security'), undefined);
+});
+
+test('multi-module tasks auto-trigger parallel orchestration while unrelated splits stay quiet', t => {
+  const f = fixture(t); f.install('skill:parallel-orchestration', f.current);
+  for (const prompt of ['把订单、用户、报表三个模块拆分开发', '这是多模块任务，先判断能否并行', '按依赖图拆分任务']) {
+    const result = item(f.plan({ phase: 'task', prompt }), 'skill:parallel-orchestration');
+    assert.equal(result.action, 'AUTO_USE', prompt);
+    assert.equal(result.reason, 'AUTO_TRIGGERED_INSTALLED_CAPABILITY');
+    assert.equal(result.requiresConfirmation, false);
+  }
+  assert.equal(item(f.plan({ phase: 'task', prompt: '拆分字符串函数并补测试' }), 'skill:parallel-orchestration'), undefined);
+});
+
+test('installed local-only library skills surface when no catalog capability matches', t => {
+  const f = fixture(t);
+  const file = f.local('kafka-development', 'Kafka 开发指南。触发词：kafka、消费延迟、分区');
+  f.index([{ name: 'kafka-development', tier: 'library', path: file, description: 'Kafka 开发指南。触发词：kafka、消费延迟、分区' }]);
+  const result = f.plan({ phase: 'task', prompt: 'Kafka 消费延迟怎么排查' });
+  const local = item(result, 'skill:kafka-development');
+  assert.equal(local.action, 'ASK_USE');
+  assert.equal(local.reason, 'RELEVANT_LOCAL_LIBRARY_SKILL');
+  assert.equal(local.entryPath, file);
+  assert.equal(local.requiresConfirmation, true);
+});
+
+test('local fallback stays quiet for unrelated prompts and when the catalog already matches', t => {
+  const f = fixture(t);
+  const file = f.local('kafka-development', 'Kafka 开发指南。触发词：kafka、消费延迟');
+  f.index([{ name: 'kafka-development', tier: 'library', path: file, description: 'Kafka 开发指南。触发词：kafka、消费延迟' }]);
+  assert.equal(item(f.plan({ phase: 'task', prompt: '修复按钮文案' }), 'skill:kafka-development'), undefined);
+  f.install('skill:safe-text-editing', f.current);
+  const result = f.plan({ phase: 'task', prompt: '修改文本并检查 Kafka' });
+  assert.equal(item(result, 'skill:kafka-development'), undefined);
+  assert.ok(result.items.length <= 3);
+});
+
+test('local fallback prefers the domain prefix over a generic later token', t => {
+  const f = fixture(t);
+  const spring = f.local('spring-boot', 'Spring Boot 3.x：REST API、JPA。');
+  const legacy = f.local('legacy-java-webapp-boot-verification', '遗留 Java Web 启动取证。触发词：启动失败、遗留应用起不来。');
+  f.index([
+    { name: 'spring-boot', tier: 'library', path: spring, description: 'Spring Boot 3.x：REST API、JPA。' },
+    { name: 'legacy-java-webapp-boot-verification', tier: 'library', path: legacy, description: '遗留 Java Web 启动取证。触发词：启动失败、遗留应用起不来。' },
+  ]);
+  const local = f.plan({ phase: 'task', prompt: 'Spring Boot 启动失败' }).items.filter(entry => entry.reason === 'RELEVANT_LOCAL_LIBRARY_SKILL');
+  assert.equal(local.length, 1);
+  assert.equal(local[0].id, 'skill:spring-boot');
 });
 
 test('unrelated or empty task text does not ask to use everything', t => {

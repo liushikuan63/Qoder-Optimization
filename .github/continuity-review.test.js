@@ -184,7 +184,9 @@ for (const scenario of ['winget-failure', 'child-failure', 'node-missing']) {
       exit $LASTEXITCODE
     `);
     const env = { ...f.env, ProgramFiles: f.dir, 'ProgramFiles(x86)': f.dir, LOCALAPPDATA: f.dir, APPDATA: f.dir, PATH: scenario === 'node-missing' ? path.join(process.env.SystemRoot, 'System32') : process.env.PATH };
-    const ps = path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe');
+    // Enterprise policy blocks Windows PowerShell 5.1 scripts; prefer pwsh 7.
+    const pwsh7 = path.join(process.env.ProgramW6432 || 'C:\\Program Files', 'PowerShell', '7', 'pwsh.exe');
+    const ps = fs.existsSync(pwsh7) ? pwsh7 : path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe');
     const r = spawnSync(ps, ['-NoProfile', '-NonInteractive', '-File', wrapper], { env, encoding: 'utf8', timeout: 30000, windowsHide: true });
     assert.equal(r.status, scenario === 'winget-failure' ? 53 : scenario === 'child-failure' ? 71 : 3, r.stdout + r.stderr);
   });

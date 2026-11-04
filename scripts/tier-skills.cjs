@@ -10,6 +10,28 @@ const CORE = [
   'ship-clean-pr', 'self-evolution', 'safe-text-editing', 'structured-edit-safety',
   'continuation-state-audit', 'concurrent-edit-attribution-check', 'vibecoding-doc', 'vibe-coding-workflow',
 ];
+const RESIDENT_FILE = 'skills-resident.json';
+
+function readResident(file) {
+  if (!fs.existsSync(file)) return [];
+  const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+  if (!data || data.schema !== 1 || !Array.isArray(data.skills)
+    || data.skills.some(name => typeof name !== 'string' || !/^[a-z0-9][a-z0-9-]*$/.test(name))) {
+    throw new Error(RESIDENT_FILE + ' 格式无效：需要 {"schema":1,"skills":["..."]}');
+  }
+  return [...new Set(data.skills)];
+}
+
+function writeResident(file, skills) {
+  const temp = file + '.tmp-' + process.pid;
+  try {
+    fs.writeFileSync(temp, JSON.stringify({ schema: 1, skills: [...new Set(skills)].sort() }, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
+    fs.renameSync(temp, file);
+  } catch (error) {
+    try { fs.unlinkSync(temp); } catch {}
+    throw error;
+  }
+}
 
 function main(argv) {
   let apply = false, restoreAll = false, keep = [], restore = [], only = [];
@@ -21,13 +43,13 @@ function main(argv) {
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--apply') apply = true;
     else if (argv[i] === '--restore-all') restoreAll = true;
-    else if (['--keep', '--restore', '--only'].includes(argv[i]) && argv[i + 1] && !argv[i + 1].startsWith('--')) {
+    else if (['--keep', '--restore', '--promote', '--only', '--demote'].includes(argv[i]) && argv[i + 1] && !argv[i + 1].startsWith('--')) {
       const option = argv[i++];
       if (option === '--keep') keep = names(argv[i]);
-      else if (option === '--only') only = names(argv[i]);
-      else restore = names(argv[i]);
+      else if (option === '--only' || option === '--demote') only = [...new Set([...only, ...names(argv[i])])];
+      else restore = [...new Set([...restore, ...names(argv[i])])];
     } else if (argv[i] === '--help') {
-      console.log('tier-skills.cjs [--apply] [--keep a,b] [--only a,b] | [--apply] (--restore a,b | --restore-all)');
+      console.log('tier-skills.cjs [--apply] [--keep a,b] [--demote a,b | --only a,b] | [--apply] (--promote a,b | --restore a,b | --restore-all)\n--promote/--demote 会写入 <客户端>/skills-resident.json；--keep 与 --restore-all 只影响本次。');
       return 0;
     } else throw new Error('未知或缺值参数：' + argv[i]);
   }
@@ -35,11 +57,16 @@ function main(argv) {
   const root = clientRoot();
   const resident = path.join(root, 'skills');
   const library = path.join(root, 'skills-library');
+  const residentFile = path.join(root, RESIDENT_FILE);
+  const extras = readResident(residentFile);
   const list = dir => fs.existsSync(dir) ? fs.readdirSync(dir).filter(name => fs.existsSync(path.join(dir, name, 'SKILL.md'))).sort() : [];
   const restoring = restoreAll || restore.length > 0;
-  const kept = new Set([...CORE, ...keep]);
+  const kept = new Set([...CORE, ...extras, ...keep]);
   const movable = list(resident).filter(name => !kept.has(name));
-  if (only.some(name => !movable.includes(name))) throw new Error('--only 含不存在或应保留的技能');
+  // Explicit demote must also reach skills the user previously promoted; the
+  // extras list only protects them from the default whole-tier migration.
+  const demotable = list(resident).filter(name => !CORE.includes(name) && !keep.includes(name));
+  if (only.some(name => !demotable.includes(name))) throw new Error('--only 含不存在或应保留的技能');
   const selected = restoring ? (restoreAll ? list(library) : restore) : (only.length ? only : movable);
   const plan = selected.map(name => ({ name, from: path.join(restoring ? library : resident, name), to: path.join(restoring ? resident : library, name) }));
   for (const item of plan) {
@@ -58,6 +85,10 @@ function main(argv) {
     for (const item of plan) { fs.renameSync(item.from, item.to); moved.push(item); }
     const result = spawnSync(process.execPath, [builder], { encoding: 'utf8', timeout: 60000 });
     if (result.error || result.status !== 0) throw new Error('索引重建失败，exit=' + result.status);
+    // Persist only explicit promote/demote choices; --keep and --restore-all
+    // remain one-off operations. Package upgrades never own this file.
+    if (restoring && !restoreAll) writeResident(residentFile, [...extras, ...restore]);
+    else if (only.length) writeResident(residentFile, extras.filter(name => !only.includes(name)));
     process.stdout.write(result.stdout || '');
     console.log('VERIFIED moved=' + moved.length);
     return 0;

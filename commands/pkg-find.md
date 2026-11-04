@@ -15,7 +15,7 @@ node ~/.qoder/scripts/pkg-catalog.cjs search "$ARGUMENTS"
 
 - `shipped` + `本地未发现` → **可安装**；`本地文件已存在（…内容与包内不同…）` → **可更新**；`与包内一致` → 已安装，不重复询问。
 - 检索输出带 `NEXT_ACTION: ASK_INSTALL_OR_UPDATE` 时，**必须用 `AskUserQuestion` 询问用户**，给真实备选：① 安装/更新（推荐）；② 查看差异（逐文件列出包内与本地差异）；③ 保持现状。**未获明确选择不得执行安装或更新**；沉默、取消只保留检索结果。
-- 安装先预演：`node ~/.qoder/scripts/pkg-catalog.cjs install <id>`；确认后加 `--apply`。技能默认进 `~/.qoder/skills-library/`（不注入），要常驻加 `--tier core`，安装后自动重建索引。
+- 安装先预演：`node ~/.qoder/scripts/pkg-catalog.cjs install <id>`；确认后加 `--apply`。技能默认进 `~/.qoder/skills-library/`（不注入）；交互安装会询问是否常驻，非交互用 `--tier core|library` 明确选择，安装后自动重建索引。**常驻数量按用户习惯决定**：常用者再用 `tier-skills.cjs --promote <名>` 升上去，低频用 `--demote <名>` 退回，选择会写入 `skills-resident.json` 并在后续分层中保留；不要求照搬包内默认数。
 - **更新**（内容与包内不同）先做三路比对：包内当前版本 / 本地当前版本 / 上次安装来源；备份本地文件，保留本地较新或用户自改内容；确认后再 `install <id> --apply --force`，随后重建索引并跑 `skills-doctor`。不得把本地改动直接覆盖掉。
 - 同一任务内用户已明确拒绝的条目不再重复询问；任务范围变化或用户重新要求时才再问。
 - `external` 只给官方安装方式；`template` 给合并说明；`disabled` 本机已停用、按需恢复。插件 / 社区技能 / MCP 不代装、不转发源码。

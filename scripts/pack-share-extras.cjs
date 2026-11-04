@@ -20,7 +20,7 @@ const PUBLIC_PATHS = [
   'SKILLS-清单.md', 'catalog.json', 'skills-manifest.json', 'qoder-memory-export-generic.tar.gz',
   'install.cmd', 'skills', 'scripts', 'commands', 'agents', 'hooks', 'mcp', 'plugins',
 ];
-const PRIVATE_FILE = /(^|\/)(?:\.git|\.github|node_modules|logs?|backups|credentials(?:\.[^/]*)?|settings\.json|share-package\.json|\.env(?:\.[^/]*)?|\.qoder-work-queue\.md|\.export-[^/]*|Thumbs\.db|desktop\.ini|\.DS_Store)(?:\/|$)|\.bak(?:[._-]|$)|(?:~|\.tmp|\.swp|\.orig|\.log|\.pem|\.key)$/i;
+const PRIVATE_FILE = /(^|\/)(?:\.git|\.github|node_modules|logs?|backups|credentials(?:\.[^/]*)?|settings\.json|share-package\.json|\.env(?:\.[^/]*)?|\.qoder-work-queue\.md|\.export-[^/]*|Thumbs\.db|desktop\.ini|\.DS_Store)(?:\/|$)|\.bak(?:[._-]|\d|$)|(?:~|\.tmp|\.swp|\.orig|\.log|\.pem|\.key)$/i;
 
 function isPublicFile(rel) {
   return typeof rel === 'string' && !/[\\:\x00-\x1f]/.test(rel) &&
@@ -163,16 +163,16 @@ function metadataFor(root, options = {}) {
   const offlineUrl = 'https://github.com/liushikuan63/Qoder-Optimization/releases/download/v' + version + '/' + name + '-' + version + '-offline.zip';
   readme = readme.replace(/\n<!-- offline-bundle:start -->[\s\S]*?<!-- offline-bundle:end -->\n?/g, '').trimEnd() + '\n\n<!-- offline-bundle:start -->\n### Optional offline bundle / 可选离线附件\n\nThe core ZIP excludes MCP offline binaries. Download the [offline bundle](' + offlineUrl + ') only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.\n\n核心包不含 MCP 离线二进制；需要时单独下载离线附件，核对各自的 .sha256 后解压到同一目录。无需离线组件时只取核心包；链接仅在对应版本发布后可用。\n<!-- offline-bundle:end -->\n';
   let install = readDoc('README-安装说明.md').replace(/^# Qoder-Optimization[^\n]*/, '# Qoder-Optimization-' + version + ' 安装说明');
-  install = install.replace(/^包内实物：.*$/m, `包内实物：${skills.length} 个技能（${core.length} 常驻 + ${skills.length - core.length} 按需）；常驻描述 ${coreChars} 字符，全部技能描述 ${totalChars} 字符，占比 ${percentage}%。按 catalog 计算，不是接收者的已安装数量。`);
+  install = install.replace(/^包内实物：.*$/m, `包内实物：${skills.length} 个技能（${core.length} 常驻 + ${skills.length - core.length} 按需）；常驻描述 ${coreChars} 字符，全部技能描述 ${totalChars} 字符，占比 ${percentage}%。按 catalog 计算，不是接收者的已安装数量；${core.length} 只是默认起点，常驻数量由使用者按习惯在安装时与使用中决定。`);
   const oldList = readDoc('SKILLS-清单.md');
   const exclusion = oldList.indexOf('## 明确不随包');
-  const skillList = [`# ${name} - ${version} 技能清单`, '', `共 ${skills.length} 个源码随包技能：常驻 ${core.length} / 按需 ${skills.length - core.length}。机器可读版见 skills-manifest.json 与 catalog.json。`, '', '默认按需选择安装；层级与依赖以 catalog 为准。', '', '## 源码随包', '', ...skillEntries.map(e => '- `' + e.name + '`（' + (e.tier === 'core' ? '常驻' : '按需') + '）—— ' + e.description), '', exclusion >= 0 ? oldList.slice(exclusion).trimEnd() : '', ''].join('\n');
+  const skillList = [`# ${name} - ${version} 技能清单`, '', `共 ${skills.length} 个源码随包技能：常驻 ${core.length} / 按需 ${skills.length - core.length}。机器可读版见 skills-manifest.json 与 catalog.json。`, '', '默认按需选择安装，安装时按使用习惯询问是否常驻；层级默认值与依赖以 catalog 为准，最终常驻数量由使用者决定。', '', '## 源码随包', '', ...skillEntries.map(e => '- `' + e.name + '`（' + (e.tier === 'core' ? '常驻' : '按需') + '）—— ' + e.description), '', exclusion >= 0 ? oldList.slice(exclusion).trimEnd() : '', ''].join('\n');
   return { catalog, manifest, files: {
     VERSION: `v${version}\n${date}\n`,
     'README.md': readme,
     'README-安装说明.md': install,
     'SKILLS-清单.md': skillList,
-    'Qoder-AI编码通用规则.md': readDoc('Qoder-AI编码通用规则.md').replace(/^# Qoder-Optimization[^\n]*/, '# Qoder-Optimization - ' + version).replace(/^> 版本：.*$/m, '> 版本：' + version + '；制作日期：' + date + '。版本、计数与目录由公开包元数据同步；是否已发布以对应 Release 为准。').replace(/^> (?:制作端家用机实际装.*|包内技能 .*)$/m, '> 包内技能 ' + skills.length + ' 个（' + core.length + ' 常驻 + ' + (skills.length - core.length) + ' 按需），不等于接收者已安装数量。'),
+    'Qoder-AI编码通用规则.md': readDoc('Qoder-AI编码通用规则.md').replace(/^# Qoder-Optimization[^\n]*/, '# Qoder-Optimization - ' + version).replace(/^> 版本：.*$/m, '> 版本：' + version + '；制作日期：' + date + '。版本、计数与目录由公开包元数据同步；是否已发布以对应 Release 为准。').replace(/^> (?:制作端家用机实际装.*|包内技能 .*)$/m, '> 包内技能 ' + skills.length + ' 个（' + core.length + ' 常驻 + ' + (skills.length - core.length) + ' 按需），不等于接收者已安装数量；常驻数量由使用者按习惯在安装时与使用中决定。'),
     'Qoder-个人规则生成提示词.md': readDoc('Qoder-个人规则生成提示词.md').replace(/配套包：Qoder-Optimization-\d+\.\d+\.\d+（\d{4}-\d{2}-\d{2}）/, '配套包：Qoder-Optimization-' + version + '（' + date + '）'),
     'catalog.json': JSON.stringify(catalog, null, 1) + '\n',
     'skills-manifest.json': JSON.stringify(manifest, null, 1) + '\n',

@@ -174,6 +174,19 @@ function evolutionNote(promptText) {
     : '';
 }
 
+function toolResearchNote(promptText) {
+  if (typeof promptText !== 'string') return '';
+  const text = promptText.normalize('NFKC')
+    .replace(/```[\s\S]*?```|`[^`\n]*`|“[^”\n]*”|‘[^’\n]*’|「[^」\n]*」|『[^』\n]*』|"[^"\n]*"|'[^'\n]*'/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+  if (!text || EVOLUTION_META.test(text) || /(?:规则|AGENTS|提示词).{0,16}(?:说|写着|要求|规定)/i.test(text)) return '';
+  if (/(?:不要|禁止|不许|无需|不得|不允许).{0,8}(?:联网|上网|网络搜索)|只用本地|仅离线|\b(?:offline only|no network|do not (?:browse|search online))\b/i.test(text)) return '';
+  if (!/主动联网|联网(?:搜索|查证|查询)|官方(?:文档|资料|发布)|(?:最新|稳定|当前).{0,12}(?:版本|文档)|版本.{0,12}兼容|工具(?:缺口|缺失|下载)|(?:缺少|缺失|找不到).{0,12}(?:工具|依赖|命令)|下载.{0,12}(?:工具|依赖|CLI)|(?:命令|工具).{0,12}(?:找不到|不可用)|根因不明|\b(?:latest docs?|official docs?|release notes?|command not found|cannot find module|tool downloads?)\b/i.test(text)) return '';
+  const research = '\n【主动联网查证】按当前联网授权先复用已有能力，技术不确定、版本敏感或工具缺口时主动查官方原文，不等反复失败；只用必要公开技术词，不外发私有源码、内网地址或凭据。核对适用版本与来源，搜索摘要不是结论。具体流程按已装 skills-router 的“主动联网与工具获取”读取。';
+  if (/只读|仅(?:调研|建议|提供方案)|只(?:提供方案|给建议)|(?:不要|禁止|不许|无需|不得|不允许|不).{0,8}下载|\b(?:read.only|no downloads?|do not download)\b/i.test(text)) return research;
+  return research + '\n【工具获取 · 安装先询问】先确认真实工具缺口与质量收益，再按当前写入授权下载；核对来源/许可/权限、固定版本、非系统盘路径与官方 SHA-256 或签名，下载不等于执行授权。新工具试用/安装/接入先用 AskUserQuestion 主动询问；已有明确同批批准不重复问，拒绝或取消不安装、不反复催问。长期复用获准后固定落盘，实测路径/版本/功能并更新既有资源记忆和相关技能；hook 本身不联网、不下载、不执行安装，不改变平台权限。';
+}
+
 // B05 自动选档触发（2026-11-03）：并入每轮必跑的 rules-reminder，避免再占一条 UserPromptSubmit 接线。
 // 开关 ~/.qoder/verification-trigger.json {"enabled":false}；决策日志只记判定，不记请求原文。
 function verificationEnabled() {
@@ -299,8 +312,8 @@ function capabilityNote(promptText) {
       const name = item.name.replace(/[\x00-\x1f`]/g, ' ').trim().slice(0, 100);
       if (!name) continue;
       const authorized = item.action === 'KEEP' && item.requested === true && item.authorized === true;
-      const installed = authorized || ['ASK_USE', 'UPDATE', 'REVIEW_UPDATE'].includes(item.action);
-      if (!authorized && !['ASK_USE', 'ASK_INSTALL', 'UPDATE', 'REVIEW_UPDATE'].includes(item.action)) continue;
+      const installed = authorized || ['ASK_USE', 'AUTO_USE', 'UPDATE', 'REVIEW_UPDATE'].includes(item.action);
+      if (!authorized && !['ASK_USE', 'AUTO_USE', 'ASK_INSTALL', 'UPDATE', 'REVIEW_UPDATE'].includes(item.action)) continue;
       const entry = capabilityEntry(item, catalogFile, installed);
       if (!entry) continue;
       const reference = JSON.stringify(entry.replace(/\\/g, '/'));
@@ -310,13 +323,17 @@ function capabilityNote(promptText) {
         continue;
       }
       if (!capabilityClaim(item)) continue;
+      if (item.action === 'AUTO_USE') {
+        lines.push(`- ${name}（AUTO_USE）：已自动触发；现在读取入口 ${reference}，按其判定流程执行。可并行也须先展示计划并取得确认，未确认按顺序执行；不得自动派发 worker。`);
+        continue;
+      }
       const verb = item.action === 'ASK_USE' ? '使用' : item.action === 'ASK_INSTALL' ? '安装' : '更新';
       const question = item.action === 'ASK_USE' ? `是否使用 ${name} 来完成当前任务？` : `是否${verb} ${name} 用于当前任务？`;
       const qualifier = item.action === 'REVIEW_UPDATE' ? '本地已有差异，先展示并审查差异，不覆盖本地内容。' : '';
       lines.push(`- ${name}（${item.action}）：可核对入口 ${reference}。${qualifier}用 AskUserQuestion 提问：${JSON.stringify(question)}，给出“${verb} / 本次不用”选项；用户未明确选择前保留原状态。`);
     }
     return lines.length ? '\n【当前任务能力建议】\n' + lines.join('\n')
-      + '\n以上是能力建议或本轮明确指名路由；投递记录不等于用户批准。已有适用授权不重复询问，能力使用也不扩大安装、发布或生产操作权限。' : '';
+      + '\n以上是能力建议或本轮明确指名路由；自动触发只自动加载与判定，不等于派发授权；投递记录不等于用户批准。已有适用授权不重复询问，能力使用也不扩大安装、发布或生产操作权限。' : '';
   } catch { return ''; }
 }
 
@@ -328,7 +345,7 @@ function emit() {
   const payload = JSON.stringify({
     hookSpecificOutput: {
       hookEventName: 'UserPromptSubmit',
-      additionalContext: REMINDER + suppressedNote() + goalCandidateNote(prompt) + evolutionNote(prompt) + verificationNote(prompt) + recheckNoteFor(prompt) + capabilityNote(prompt) + requestEcho(prompt),
+      additionalContext: REMINDER + suppressedNote() + goalCandidateNote(prompt) + evolutionNote(prompt) + toolResearchNote(prompt) + verificationNote(prompt) + recheckNoteFor(prompt) + capabilityNote(prompt) + requestEcho(prompt),
     },
   });
   process.stdout.write(payload + '\n', (error) => {

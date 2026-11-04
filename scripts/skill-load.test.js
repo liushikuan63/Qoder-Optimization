@@ -184,6 +184,18 @@ test('包内搜索与 fallback 使用相同的多词规则', t => {
   assert.equal(r.status, 3); assert.ok(!r.stdout.includes('script:demo.cjs'));
 });
 
+test('中文触发词整词命中优先返回对应技能', t => {
+  const f = fixture(t);
+  f.skill('core', 'skills-router', '任务能力路由入口。触发词：技能路由、skill-load');
+  f.skill('library', 'rules-conflict-audit', '规则体系冲突审计。触发词：规则冲突、规则审计');
+  const routed = f.run('skill-load.cjs', ['技能路由']);
+  assert.equal(routed.status, 0, routed.stderr);
+  assert.match(routed.stdout.split('\n')[0], /skills-router/);
+  const rules = f.run('skill-load.cjs', ['规则冲突']);
+  assert.equal(rules.status, 0, rules.stderr);
+  assert.match(rules.stdout.split('\n')[0], /rules-conflict-audit/);
+});
+
 test('两层同名不静默选一个，保留原索引', t => {
   const f = fixture(t); f.index(); f.skill('core', 'duplicate', '共同功能'); f.skill('library', 'duplicate', '共同功能');
   const before = fs.readFileSync(path.join(f.q, 'skills-index.json'), 'utf8');

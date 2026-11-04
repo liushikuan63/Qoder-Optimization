@@ -7,13 +7,15 @@ const crypto = require('node:crypto');
 const { readCatalog, localPresence } = require('./pkg-catalog.cjs');
 const { clientRoot: resolveClientRoot } = require('./client-root.js');
 
-const ACTIONS = ['UPDATE', 'REVIEW_UPDATE', 'ASK_INSTALL', 'ASK_USE', 'KEEP', 'SKIP'];
+const ACTIONS = ['UPDATE', 'REVIEW_UPDATE', 'ASK_INSTALL', 'ASK_USE', 'AUTO_USE', 'KEEP', 'SKIP'];
 const GENERIC = new Set([
   'skill:parallel-orchestration', 'skill:office-docs', 'skill:write-repowiki',
   'skill:counterexample-driven-plan-review', 'skill:rules-conflict-audit',
   'script:rules-reminder.js', 'script:capability-advisor.cjs', 'script:pkg-catalog.cjs',
   'script:skill-load.cjs', 'script:build-skills-index.cjs',
 ]);
+// 已安装且命中即自动加载并执行判定的能力；派发仍由技能自身的计划确认把关。
+const AUTO_USE_IDS = new Set(['skill:parallel-orchestration']);
 // Curated phrases route tasks; a whole natural-language request is never an AND query.
 // Each alternative is an AND group; alternatives are ORed. More specific groups win.
 const ROUTES = {
@@ -23,8 +25,8 @@ const ROUTES = {
   'verify-ui-in-browser': [['浏览器'], ['页面'], ['界面'], ['playwright'], ['browser'], ['ui']],
   'ship-clean-pr': [['提交'], ['推送'], ['pull request'], ['pr'], ['commit']],
   'continuation-state-audit': [['接续'], ['继续任务'], ['恢复进度'], ['压缩'], ['continuation']],
-  'concurrent-edit-attribution-check': [['并行'], ['同一文件'], ['concurrent'], ['多人编辑']],
-  'parallel-orchestration': [['并行'], ['多 agent'], ['多agent'], ['parallel'], ['worktree']],
+  'concurrent-edit-attribution-check': [['同一文件'], ['多人编辑'], ['并发编辑'], ['并行会话'], ['共享工作区'], ['concurrent']],
+  'parallel-orchestration': [['并行'], ['多 agent'], ['多agent'], ['parallel'], ['worktree'], ['多模块'], ['多个模块'], ['跨模块'], ['多文件'], ['任务拆分'], ['模块拆分'], ['独立模块'], ['依赖图'], ['拆分', '模块'], ['同时', '处理'], ['同时', '做'], ['一起', '做'], ['分工'], ['并发'], ['子代理'], ['subagent'], ['前后端']],
   'vibe-coding-workflow': [['实现功能'], ['开发功能'], ['vibecoding'], ['vibe coding']],
   'vibecoding-doc': [['需求文档'], ['任务文档'], ['开发方案'], ['spec']],
   'goal-driven-execution': [['目标模式'], ['goal mode']],
@@ -115,6 +117,47 @@ function routeScore(entry, prompt) {
   let score = 0;
   for (const words of ROUTES[entry.name] || []) if (words.every(word => termMatches(prompt, word))) score = Math.max(score, 10 + words.length * 5 + words.reduce((sum, word) => sum + word.length, 0));
   return score;
+}
+
+function localSkillEntries(clientDir, catalog) {
+  let entries;
+  try {
+    const index = JSON.parse(fs.readFileSync(path.join(clientDir, 'skills-index.json'), 'utf8'));
+    entries = Array.isArray(index.entries) ? index.entries : [];
+  } catch { return []; }
+  const catalogNames = new Set(catalog.entries.map(entry => String(entry.name).toLowerCase()));
+  const seen = new Set();
+  return entries.filter(entry => {
+    if (!entry || typeof entry.name !== 'string' || entry.tier !== 'library') return false;
+    if (catalogNames.has(entry.name.toLowerCase())) return false;
+    if (typeof entry.path !== 'string' || !fs.existsSync(entry.path)) return false;
+    const key = entry.name.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function triggerWords(description) {
+  const match = /触发词[:：]\s*([^。\n]+)/.exec(String(description || ''));
+  if (!match) return [];
+  return match[1].split(/[、,，/|]+/).map(word => word.trim()).filter(word => word.length >= 2 && word.length <= 20);
+}
+
+function localSkillScore(entry, prompt) {
+  let score = 0;
+  const first = String(entry.name).split('-')[0];
+  if (first.length >= 4 && termMatches(prompt, first)) score = 100;
+  for (const word of triggerWords(entry.description)) {
+    if (termMatches(prompt, word)) score = Math.max(score, 20);
+  }
+  return score;
+}
+
+function excludedLocalSkill(entry, prefs) {
+  if (prefs.excludedIds.includes('skill:' + entry.name)) return true;
+  const metadata = entry.name + ' ' + (entry.description || '');
+  return prefs.excludedKeywords.some(keyword => termMatches(metadata, keyword));
 }
 function expectedSource(entry) {
   if (!entry.name || entry.name === '.' || entry.name === '..' || /[\\/:\x00-\x1f]/.test(entry.name)) return null;
@@ -226,13 +269,38 @@ function planCapabilities(options = {}) {
         if (presence.differs === true && output.baseline.verified) { decide('UPDATE', 'PRISTINE_PREVIOUS_SOURCE'); output.autoUpdate = true; }
         else decide('REVIEW_UPDATE', output.baseline.reason);
       } else if (phase === 'task' && intent === 'use') decide('REVIEW_UPDATE', 'LOCAL_ENTRY_UNVERIFIABLE');
-      else if (phase === 'task' && intent !== 'install') decide('ASK_USE', 'RELEVANT_INSTALLED_CAPABILITY');
+      else if (phase === 'task' && intent !== 'install') decide(AUTO_USE_IDS.has(entry.id) ? 'AUTO_USE' : 'ASK_USE', AUTO_USE_IDS.has(entry.id) ? 'AUTO_TRIGGERED_INSTALLED_CAPABILITY' : 'RELEVANT_INSTALLED_CAPABILITY');
       else decide('KEEP', 'ALREADY_CURRENT');
     } else if (presence.present === false && (generic || preferred || requested)) decide('ASK_INSTALL', requested ? 'CURRENT_EXPLICIT_REQUEST' : preferred ? 'PREFERRED_MISSING_CAPABILITY' : 'GENERIC_MISSING_CAPABILITY');
     else decide('SKIP', presence.present === false ? 'SPECIALIZED_NOT_PREFERRED' : 'LOCAL_STATE_UNVERIFIED');
     output.requiresConfirmation = ['ASK_INSTALL', 'ASK_USE', 'REVIEW_UPDATE'].includes(output.action) || (phase === 'task' && output.action === 'UPDATE');
     planned.push({ output, score: score + (requested ? 1000 : 0) + (preferred ? 3 : 0), index });
   });
+  const visible = planned.some(item => item.output.action !== 'SKIP');
+  if (phase === 'task' && !discussion && prefs.enabled && !visible) {
+    const local = localSkillEntries(clientDir, catalog)
+      .filter(entry => !excludedLocalSkill(entry, prefs))
+      .map(entry => ({ entry, score: localSkillScore(entry, routeText) }))
+      .filter(item => item.score > 0)
+      .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name))
+      .slice(0, 1);
+    for (const { entry, score } of local) {
+      const installedPath = path.dirname(entry.path);
+      planned.push({
+        output: {
+          id: 'skill:' + entry.name, name: entry.name, category: 'skill', action: 'ASK_USE',
+          reason: 'RELEVANT_LOCAL_LIBRARY_SKILL', entry: null, present: true, differs: false,
+          installedPaths: [installedPath], installedPath, entryPath: path.resolve(entry.path),
+          generic: false, preferred: false, matched: true, requested: false, authorized: false,
+          autoUpdate: false, maintenanceNeeded: false,
+          baseline: { verified: false, catalogFile: previous.file, reason: 'NOT_NEEDED' },
+          requiresConfirmation: true, local: true,
+        },
+        score: score + 1,
+        index: catalog.entries.length,
+      });
+    }
+  }
   if (phase === 'task') planned.sort((a, b) => (a.output.action === 'SKIP') - (b.output.action === 'SKIP') || b.score - a.score || a.index - b.index);
   const items = (phase === 'task' ? planned.slice(0, 3) : planned).map(item => item.output);
   return { schema: 1, items, summary: { phase, reason: 'OK', total: items.length, considered: catalog.entries.length, omitted: planned.length - items.length, counts: Object.fromEntries(ACTIONS.map(action => [action, items.filter(item => item.action === action).length])), requiresConfirmation: items.filter(item => item.requiresConfirmation).length } };
@@ -261,6 +329,7 @@ function main(argv) {
       for (const item of result.items) console.log(item.action + ' ' + item.id + ' — ' + item.reason + (item.entryPath ? '\n  ' + item.entryPath : ''));
       if (!result.items.length) console.log(result.summary.reason);
       if (result.items.some(item => item.action === 'ASK_USE')) console.log('NEXT_ACTION: ASK_USE — 询问是否使用已安装的相关能力；未确认不自动执行。');
+      if (result.items.some(item => item.action === 'AUTO_USE')) console.log('NEXT_ACTION: AUTO_USE — 自动加载已安装能力并执行判定；派发前仍须计划确认。');
       if (result.items.some(item => item.action === 'ASK_INSTALL')) console.log('NEXT_ACTION: ASK_INSTALL — 询问是否安装缺失的通用或已选能力；不自动安装。');
       if (result.items.some(item => item.action === 'REVIEW_UPDATE' || (result.summary.phase === 'task' && item.action === 'UPDATE'))) console.log('NEXT_ACTION: ASK_UPDATE — 核对差异并询问更新选择；保留本地修改。');
     }

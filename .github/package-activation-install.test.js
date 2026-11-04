@@ -114,6 +114,21 @@ test('an exact current install selection can override a prior profile exclusion 
   assert.equal(fs.existsSync(path.join(f.client, 'skills-library/office-docs')), false);
 });
 
+test('--resident installs the selected skill into the resident tier and refuses to move an installed skill silently', t => {
+  const f = fixture(t);
+  const bad = f.run(['--yes', '--resident', 'skill:fixture-specialized', '--json']);
+  assert.notEqual(bad.status, 0);
+  const r = f.run(['--yes', '--install', 'skill:fixture-specialized', '--resident', 'skill:fixture-specialized', '--json']);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(fs.existsSync(path.join(f.client, 'skills/fixture-specialized/SKILL.md')), true);
+  assert.equal(fs.existsSync(path.join(f.client, 'skills-library/fixture-specialized')), false);
+  const index = JSON.parse(fs.readFileSync(path.join(f.client, 'skills-index.json'), 'utf8'));
+  assert.equal(index.entries.find(entry => entry.name === 'fixture-specialized').tier, 'core');
+  const second = f.run(['--yes', '--install', 'skill:fixture-specialized', '--resident', 'skill:fixture-specialized', '--json']);
+  assert.notEqual(second.status, 0);
+  assert.match(second.stdout + second.stderr, /tier-skills --promote/);
+});
+
 test('an activated client treats the complete explicit install closure as selected despite disabled suggestions', t => {
   const f = fixture(t), initial = f.run(['--yes', '--json']);
   assert.equal(initial.status, 0, initial.stdout + initial.stderr);
