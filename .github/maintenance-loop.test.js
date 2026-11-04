@@ -155,7 +155,9 @@ function migrationFixture(f) {
       "& '" + quote(script) + "' " + args,
       'exit $LASTEXITCODE',
     ].join('\n'));
-    return spawnSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', wrapper], { env: f.env, encoding: 'utf8', timeout: 30000 });
+    // Cold Windows PowerShell startup plus the migration probe can exceed 30s
+    // on GitHub's runners; keep the fixture bounded but not artificially tight.
+    return spawnSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', wrapper], { env: f.env, encoding: 'utf8', timeout: 120000 });
   };
   return { target, link, marker, invoke };
 }
