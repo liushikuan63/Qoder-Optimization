@@ -223,7 +223,8 @@ function verificationNote(promptText) {
 }
 
 function capabilityEntry(item, catalogFile, installed) {
-  const base = installed ? CLIENT_ROOT : path.dirname(catalogFile);
+  const base = installed ? CLIENT_ROOT : (typeof catalogFile === 'string' ? path.dirname(catalogFile) : '');
+  if (!base) return '';
   const candidates = [item.entryPath];
   if (installed && typeof item.installedPath === 'string') candidates.push(item.installedPath, path.join(item.installedPath, 'SKILL.md'));
   if (!installed && typeof item.entry?.source === 'string') {
@@ -299,11 +300,15 @@ function capabilityNote(promptText) {
   if (!capabilityAdvisor || typeof capabilityAdvisor.planCapabilities !== 'function' || !promptText.trim()) return '';
   try {
     try { if (JSON.parse(fs.readFileSync(CAPABILITY_CONFIG, 'utf8')).enabled === false) return ''; } catch {}
-    // Only an explicitly registered package is consulted. Repository fallback
-    // would inject package suggestions on machines that never installed it.
-    const pointer = JSON.parse(fs.readFileSync(path.join(CLIENT_ROOT, 'share-package.json'), 'utf8'));
-    if (typeof pointer?.catalog !== 'string' || !pointer.catalog.trim()) return '';
-    const catalogFile = path.resolve(CLIENT_ROOT, pointer.catalog);
+    // 包登记只决定包内候选；本地按需库发现不依赖它。仍未登记的包不会被当成可推荐来源。
+    let catalogFile;
+    try {
+      const pointer = JSON.parse(fs.readFileSync(path.join(CLIENT_ROOT, 'share-package.json'), 'utf8'));
+      if (typeof pointer?.catalog === 'string' && pointer.catalog.trim()) {
+        const candidate = path.resolve(CLIENT_ROOT, pointer.catalog);
+        if (fs.existsSync(candidate)) catalogFile = candidate;
+      }
+    } catch {}
     const result = capabilityAdvisor.planCapabilities({ catalogFile, clientRoot: CLIENT_ROOT, prompt: promptText, phase: 'task' });
     if (result?.schema !== 1 || !Array.isArray(result.items)) return '';
     const lines = [];
@@ -312,14 +317,19 @@ function capabilityNote(promptText) {
       const name = item.name.replace(/[\x00-\x1f`]/g, ' ').trim().slice(0, 100);
       if (!name) continue;
       const authorized = item.action === 'KEEP' && item.requested === true && item.authorized === true;
-      const installed = authorized || ['ASK_USE', 'AUTO_USE', 'UPDATE', 'REVIEW_UPDATE'].includes(item.action);
-      if (!authorized && !['ASK_USE', 'AUTO_USE', 'ASK_INSTALL', 'UPDATE', 'REVIEW_UPDATE'].includes(item.action)) continue;
+      const installed = authorized || ['ASK_USE', 'AUTO_USE', 'AUTO_LOAD', 'UPDATE', 'REVIEW_UPDATE'].includes(item.action);
+      if (!authorized && !['ASK_USE', 'AUTO_USE', 'AUTO_LOAD', 'ASK_INSTALL', 'UPDATE', 'REVIEW_UPDATE'].includes(item.action)) continue;
       const entry = capabilityEntry(item, catalogFile, installed);
       if (!entry) continue;
       const reference = JSON.stringify(entry.replace(/\\/g, '/'));
       if (authorized) {
         const local = item.differs === true ? '当前使用已安装的本地版本，与注册包有差异；保留该版本，更新另行确认，不作为当前任务前置。' : '';
         lines.push(`- 用户本轮已明确指定 ${name}：现在读取对应入口 ${reference} 并按其适用步骤执行；无需重复询问是否使用。${local}`);
+        continue;
+      }
+      if (item.action === 'AUTO_LOAD') {
+        // 只读加载不进入永久去重台账：投递只证明提示已送达，未读取时下一轮仍须提示。
+        lines.push(`- ${name}（AUTO_LOAD）：已按需发现本地技能，只读加载；现在读取入口 ${reference}，按其适用步骤执行；不得据此安装、更新、发布或扩大操作授权；投递不等于已读取。`);
         continue;
       }
       if (!capabilityClaim(item)) continue;
@@ -334,7 +344,10 @@ function capabilityNote(promptText) {
     }
     return lines.length ? '\n【当前任务能力建议】\n' + lines.join('\n')
       + '\n以上是能力建议或本轮明确指名路由；自动触发只自动加载与判定，不等于派发授权；投递记录不等于用户批准。已有适用授权不重复询问，能力使用也不扩大安装、发布或生产操作权限。' : '';
-  } catch { return ''; }
+  } catch (error) {
+    process.stderr.write('CAPABILITY_NOTE_ERROR: ' + (error && error.message ? error.message : 'unknown') + '\n');
+    return '';
+  }
 }
 
 function emit() {

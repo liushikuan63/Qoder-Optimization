@@ -17,13 +17,15 @@ function desc(p) {
   return d ? d[1].trim().replace(/^\|\s*/, '').replace(/\s+/g, ' ').replace(/^"|"$/g, '') : '';
 }
 
-function collectSkills() {
+// root 可显式指定：检索与每轮发现必须查询调用方绑定的客户端，不能落到默认一侧。
+function collectSkills(root = Q) {
   const entries = [];
   const names = new Set();
-  for (const [tier, root] of SRC) {
-    if (!fs.existsSync(root)) continue;
-    for (const d of fs.readdirSync(root)) {
-      const p = path.join(root, d, 'SKILL.md');
+  const sources = root === Q ? SRC : [['core', path.join(root, 'skills')], ['library', path.join(root, 'skills-library')]];
+  for (const [tier, dir] of sources) {
+    if (!fs.existsSync(dir)) continue;
+    for (const d of fs.readdirSync(dir)) {
+      const p = path.join(dir, d, 'SKILL.md');
       if (!fs.existsSync(p)) continue;
       const key = d.toLowerCase();
       if (names.has(key)) throw new Error('两层技能重名，需核对真源后再建索引；重复项：' + d);

@@ -148,21 +148,45 @@ test('installed local-only library skills surface when no catalog capability mat
   f.index([{ name: 'kafka-development', tier: 'library', path: file, description: 'Kafka 开发指南。触发词：kafka、消费延迟、分区' }]);
   const result = f.plan({ phase: 'task', prompt: 'Kafka 消费延迟怎么排查' });
   const local = item(result, 'skill:kafka-development');
-  assert.equal(local.action, 'ASK_USE');
+  assert.equal(local.action, 'AUTO_LOAD');
   assert.equal(local.reason, 'RELEVANT_LOCAL_LIBRARY_SKILL');
   assert.equal(local.entryPath, file);
-  assert.equal(local.requiresConfirmation, true);
+  assert.equal(local.requiresConfirmation, false);
 });
 
-test('local fallback stays quiet for unrelated prompts and when the catalog already matches', t => {
+test('local discovery stays quiet for unrelated prompts but coexists with unrelated catalog matches', t => {
   const f = fixture(t);
-  const file = f.local('kafka-development', 'Kafka 开发指南。触发词：kafka、消费延迟');
-  f.index([{ name: 'kafka-development', tier: 'library', path: file, description: 'Kafka 开发指南。触发词：kafka、消费延迟' }]);
+  f.local('kafka-development', 'Kafka 开发指南。触发词：kafka、消费延迟');
   assert.equal(item(f.plan({ phase: 'task', prompt: '修复按钮文案' }), 'skill:kafka-development'), undefined);
   f.install('skill:safe-text-editing', f.current);
   const result = f.plan({ phase: 'task', prompt: '修改文本并检查 Kafka' });
-  assert.equal(item(result, 'skill:kafka-development'), undefined);
+  assert.equal(item(result, 'skill:kafka-development')?.action, 'AUTO_LOAD');
+  assert.ok(result.items.some(entry => entry.id === 'skill:safe-text-editing'));
   assert.ok(result.items.length <= 3);
+});
+
+test('local discovery needs no registered catalog and follows the live filesystem instead of the index', t => {
+  const f = fixture(t);
+  const file = f.local('postgresql', 'PostgreSQL 开发指南。触发词：PostgreSQL、慢查询');
+  f.index([{ name: 'deleted-skill', tier: 'library', path: path.join(f.client, 'skills-library/gone/SKILL.md'), description: 'PostgreSQL 慢查询' }]);
+  const result = f.plan({ phase: 'task', catalogFile: undefined, prompt: '排查 PostgreSQL 慢查询' });
+  const local = item(result, 'skill:postgresql');
+  assert.equal(result.summary.reason, 'LOCAL_DISCOVERY_ONLY');
+  assert.equal(local?.action, 'AUTO_LOAD');
+  assert.equal(local?.entryPath, file);
+  assert.equal(item(result, 'skill:deleted-skill'), undefined);
+});
+
+test('local library discovery honors explicit use, decline and exclusion', t => {
+  const f = fixture(t);
+  f.local('postgresql', 'PostgreSQL 开发指南。触发词：PostgreSQL、慢查询');
+  const explicit = item(f.plan({ phase: 'task', prompt: '请使用 postgresql 排查慢查询' }), 'skill:postgresql');
+  assert.equal(explicit?.action, 'KEEP');
+  assert.equal(explicit?.authorized, true);
+  assert.equal(item(f.plan({ phase: 'task', prompt: '不要使用 postgresql' }), 'skill:postgresql'), undefined);
+  const preferences = { schema: 1, excludedIds: ['skill:postgresql'] };
+  assert.equal(item(f.plan({ phase: 'task', prompt: '排查 PostgreSQL 慢查询', preferences }), 'skill:postgresql'), undefined);
+  assert.equal(item(f.plan({ phase: 'task', prompt: '请使用 postgresql 排查慢查询', preferences }), 'skill:postgresql')?.action, 'KEEP');
 });
 
 test('local fallback prefers the domain prefix over a generic later token', t => {
@@ -212,10 +236,10 @@ test('localPresence supports an explicit client without falling back to a live r
   assert.deepEqual(presence.installedPaths, [path.join(f.client, 'skills-library', entry.name)]);
 });
 
-test('absent catalog is a read-only empty result while malformed preferences and phase fail closed', t => {
+test('absent catalog keeps local discovery read-only while malformed preferences and phase fail closed', t => {
   const f = fixture(t);
   assert.deepEqual(f.plan({ catalogFile: path.join(f.dir, 'absent') }).items, []);
-  assert.equal(f.plan({ catalogFile: path.join(f.dir, 'absent') }).summary.reason, 'CATALOG_UNAVAILABLE');
+  assert.equal(f.plan({ catalogFile: path.join(f.dir, 'absent') }).summary.reason, 'LOCAL_DISCOVERY_ONLY');
   assert.throws(() => f.plan({ phase: 'other' }), /phase/i);
   assert.throws(() => f.plan({ preferences: { schema: 1, preferredIds: 'all' } }), /prefer/i);
   assert.equal(fs.existsSync(f.client), false);

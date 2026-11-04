@@ -76,6 +76,20 @@ test('AUTO_USE injects an auto-load directive without a use question and dedupes
   assert.equal(f.run('把订单、用户、报表三个模块拆分开发', 'auto-b').includes(marker), true);
 });
 
+test('local library skill auto-loads without any registered package and is not permanently deduped', t => {
+  const f = fixture(t);
+  const file = path.join(f.client, 'skills-library/postgresql/SKILL.md');
+  f.write(file, '---\nname: postgresql\ndescription: PostgreSQL 开发指南。触发词：PostgreSQL、慢查询\n---\n# postgresql\n');
+  const first = f.runActual('排查 PostgreSQL 慢查询', 'local-a');
+  const line = first.split('\n').find(item => item.includes('postgresql（AUTO_LOAD）')) || '';
+  assert.match(line, /读取入口/);
+  assert.ok(line.includes(file.replace(/\\/g, '/')));
+  assert.match(line, /只读/);
+  assert.doesNotMatch(line, /是否使用|AskUserQuestion/);
+  assert.match(f.runActual('排查 PostgreSQL 慢查询', 'local-a'), /postgresql（AUTO_LOAD）/);
+  assert.equal(fs.existsSync(path.join(f.client, 'tmp/capability-advisor/sessions')), false);
+});
+
 test('the installed hook command binds a custom client without an inherited QODER_HOME', t => {
   const f = fixture(t), item = f.skill(); f.setItems([item]); f.register();
   fs.cpSync(f.scripts, path.join(f.client, 'scripts'), { recursive: true });

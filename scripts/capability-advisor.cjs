@@ -5,9 +5,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { readCatalog, localPresence } = require('./pkg-catalog.cjs');
+const { collectSkills } = require('./build-skills-index.cjs');
 const { clientRoot: resolveClientRoot } = require('./client-root.js');
 
-const ACTIONS = ['UPDATE', 'REVIEW_UPDATE', 'ASK_INSTALL', 'ASK_USE', 'AUTO_USE', 'KEEP', 'SKIP'];
+const ACTIONS = ['UPDATE', 'REVIEW_UPDATE', 'ASK_INSTALL', 'ASK_USE', 'AUTO_USE', 'AUTO_LOAD', 'KEEP', 'SKIP'];
 const GENERIC = new Set([
   'skill:parallel-orchestration', 'skill:office-docs', 'skill:write-repowiki',
   'skill:counterexample-driven-plan-review', 'skill:rules-conflict-audit',
@@ -119,12 +120,9 @@ function routeScore(entry, prompt) {
   return score;
 }
 
+// 现场扫描两层技能：索引是派生快照，可能落后；发现必须跟随调用方绑定的客户端。
 function localSkillEntries(clientDir, catalog) {
-  let entries;
-  try {
-    const index = JSON.parse(fs.readFileSync(path.join(clientDir, 'skills-index.json'), 'utf8'));
-    entries = Array.isArray(index.entries) ? index.entries : [];
-  } catch { return []; }
+  const entries = collectSkills(clientDir);
   const catalogNames = new Set(catalog.entries.map(entry => String(entry.name).toLowerCase()));
   const seen = new Set();
   return entries.filter(entry => {
@@ -232,13 +230,16 @@ function planCapabilities(options = {}) {
   if (typeof client !== 'string' || !client.trim()) fail('USAGE', 'clientRoot must be an explicit non-empty path');
   if (typeof prompt !== 'string') fail('USAGE', 'prompt must be text');
   const clientDir = path.resolve(client);
-  if (typeof catalogFile !== 'string' || !catalogFile.trim() || !fs.existsSync(catalogFile)) return { schema: 1, items: [], summary: { phase, reason: 'CATALOG_UNAVAILABLE', total: 0, counts: Object.fromEntries(ACTIONS.map(action => [action, 0])) } };
-  const file = path.resolve(catalogFile), root = path.dirname(file), catalog = readCatalog(file);
+  // 包只负责包内候选与维护；包不可用不得阻断本地按需库发现。
+  const hasCatalog = typeof catalogFile === 'string' && Boolean(catalogFile.trim()) && fs.existsSync(catalogFile);
+  const file = hasCatalog ? path.resolve(catalogFile) : null;
+  const root = file ? path.dirname(file) : '';
+  const catalog = hasCatalog ? readCatalog(file) : { schema: 1, entries: [] };
   if (new Set(catalog.entries.map(entry => entry.id)).size !== catalog.entries.length) fail('INVALID_CATALOG', 'duplicate catalog capability IDs');
   const prefs = loadPreferences(clientDir, options.preferences), previous = previousCatalog(clientDir, options.previousCatalogFile);
   const routeText = taskRouteText(prompt), discussion = discussionOnly(routeText);
   const planned = [];
-  catalog.entries.forEach((entry, index) => {
+  if (hasCatalog) catalog.entries.forEach((entry, index) => {
     const intent = intentFor(prompt, entry), requested = intent === 'use' || intent === 'install';
     const score = phase === 'task' ? routeScore(entry, routeText) : 0;
     if (phase === 'task' && !score && !requested) return;
@@ -276,34 +277,38 @@ function planCapabilities(options = {}) {
     output.requiresConfirmation = ['ASK_INSTALL', 'ASK_USE', 'REVIEW_UPDATE'].includes(output.action) || (phase === 'task' && output.action === 'UPDATE');
     planned.push({ output, score: score + (requested ? 1000 : 0) + (preferred ? 3 : 0), index });
   });
-  const visible = planned.some(item => item.output.action !== 'SKIP');
-  if (phase === 'task' && !discussion && prefs.enabled && !visible) {
+  if (phase === 'task' && !discussion && prefs.enabled) {
+    // 本地候选与包候选共同筛选：领域技能不再被通用候选挤掉；当前拒绝与点名使用同路处理。
     const local = localSkillEntries(clientDir, catalog)
-      .filter(entry => !excludedLocalSkill(entry, prefs))
-      .map(entry => ({ entry, score: localSkillScore(entry, routeText) }))
-      .filter(item => item.score > 0)
+      .map(entry => ({ entry, intent: intentFor(prompt, { id: 'skill:' + entry.name, name: entry.name }) }))
+      .filter(({ entry, intent }) => intent !== 'decline' && (intent === 'use' || !excludedLocalSkill(entry, prefs)))
+      .map(({ entry, intent }) => ({ entry, intent, score: localSkillScore(entry, routeText) }))
+      .filter(item => item.intent === 'use' || item.score > 0)
       .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name))
       .slice(0, 1);
-    for (const { entry, score } of local) {
+    for (const { entry, intent, score } of local) {
       const installedPath = path.dirname(entry.path);
+      const authorized = intent === 'use';
       planned.push({
         output: {
-          id: 'skill:' + entry.name, name: entry.name, category: 'skill', action: 'ASK_USE',
-          reason: 'RELEVANT_LOCAL_LIBRARY_SKILL', entry: null, present: true, differs: false,
+          id: 'skill:' + entry.name, name: entry.name, category: 'skill',
+          action: authorized ? 'KEEP' : 'AUTO_LOAD',
+          reason: authorized ? 'EXPLICIT_USE_REQUEST' : 'RELEVANT_LOCAL_LIBRARY_SKILL',
+          entry: null, present: true, differs: false,
           installedPaths: [installedPath], installedPath, entryPath: path.resolve(entry.path),
-          generic: false, preferred: false, matched: true, requested: false, authorized: false,
+          generic: false, preferred: false, matched: true, requested: authorized, authorized,
           autoUpdate: false, maintenanceNeeded: false,
           baseline: { verified: false, catalogFile: previous.file, reason: 'NOT_NEEDED' },
-          requiresConfirmation: true, local: true,
+          requiresConfirmation: false, local: true,
         },
-        score: score + 1,
+        score: score + (authorized ? 1000 : 1),
         index: catalog.entries.length,
       });
     }
   }
   if (phase === 'task') planned.sort((a, b) => (a.output.action === 'SKIP') - (b.output.action === 'SKIP') || b.score - a.score || a.index - b.index);
   const items = (phase === 'task' ? planned.slice(0, 3) : planned).map(item => item.output);
-  return { schema: 1, items, summary: { phase, reason: 'OK', total: items.length, considered: catalog.entries.length, omitted: planned.length - items.length, counts: Object.fromEntries(ACTIONS.map(action => [action, items.filter(item => item.action === action).length])), requiresConfirmation: items.filter(item => item.requiresConfirmation).length } };
+  return { schema: 1, items, summary: { phase, reason: hasCatalog ? 'OK' : 'LOCAL_DISCOVERY_ONLY', total: items.length, considered: catalog.entries.length, omitted: planned.length - items.length, counts: Object.fromEntries(ACTIONS.map(action => [action, items.filter(item => item.action === action).length])), requiresConfirmation: items.filter(item => item.requiresConfirmation).length } };
 }
 
 function parseArgs(argv) {
