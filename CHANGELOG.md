@@ -6,11 +6,32 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.0.22] - 2026-11-04
+
 ### Capability installation
 - Ask during interactive skill installation whether the selected skill should be resident; the default remains on-demand, and non-interactive installs must pass `--tier core|library`. The final resident count is a per-user usage decision rather than a fixed package constant.
 - Add `tier-skills --promote/--demote` for adjusting resident status after real usage; both preview by default, persist explicit choices in `<client>/skills-resident.json`, and rebuild the index only with `--apply`. `--keep` and `--restore-all` remain one-off operations, so package upgrades do not reset the user's resident set.
 - Record skills installed directly into the resident tier (`pkg-catalog install --tier core` and `install-package --resident`) in `<client>/skills-resident.json`, so a later default tiering pass does not silently demote them.
 - Add `skill-usage.cjs` for local usage records and tier suggestions: `/skill-load --record` logs a search demand, explicit `log` records actual use, and `suggest` recommends promotion after repeated use or demotion after 90 idle days for user-promoted skills. Package CORE defaults are never suggested for demotion, and no tier changes are applied without user confirmation. Only skill names, timestamps and sources are stored.
+- Discover relevant on-demand skills from live skill tiers even when no package is registered; local and package candidates merge, while explicit use, refusal and exclusion still win. Read-only AUTO_LOAD directives require a real entry read and are not permanently deduped by delivered markers.
+- Install `build-skills-index.cjs` together with `capability-advisor.cjs`, because live skill discovery requires the local index builder.
+
+### Parallel planning and recall
+- Require a plan document before parallel dispatch and a decision before run initialization.
+- Add a real recall command that discovers memory through the client root instead of a protocol-only description.
+- Surface installed on-demand skills as ASK_USE candidates while registered package capabilities keep their existing behavior.
+- Install the parallel plan and context scripts with the base package, and exclude `.bak` process files from packages and the repository.
+- Add package regression tests and a working-tree consumer probe.
+
+### Fixed
+- Stage unchanged sibling modules for staged script updates, so an upgrade that changes both a skill and the index builder rebuilds the staged index instead of rolling back.
+- Treat `别用 X` and `不要用 X` as explicit refusals during capability routing instead of auto-loading the named skill.
+- Redact full-width credential separators and non-HTTP URL userinfo in recall context, and report them as sensitive content.
+
+### 中文摘要
+- 常驻技能改为按使用习惯确认并持久化，新增使用记录与晋升/降级建议；按需技能不依赖注册包也能从本地技能库自动发现并以只读方式加载。
+- 并行派发前必须先有计划文档，运行前必须有明确决定；新增真实召回命令，基础包随装并行计划与上下文脚本。
+- 随包能力声明本地技能索引依赖，确保安装后自动发现链路完整。
 
 ## [0.0.21] - 2026-11-03
 

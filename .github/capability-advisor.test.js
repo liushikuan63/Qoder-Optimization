@@ -274,7 +274,7 @@ test('quoted capability discussion is not a route while an explicit quoted capab
 
 test('polite current refusals override generic advice and never become a use authorization', t => {
   const f = fixture(t); f.install('skill:parallel-orchestration', f.current);
-  for (const prompt of ['请不要使用 parallel-orchestration', '请不要使用“parallel-orchestration”', 'please do not use parallel-orchestration']) {
+  for (const prompt of ['请不要使用 parallel-orchestration', '请不要使用“parallel-orchestration”', 'please do not use parallel-orchestration', '别用 parallel-orchestration', '不要用 parallel-orchestration']) {
     const result = item(f.plan({ phase: 'task', prompt }), 'skill:parallel-orchestration');
     assert.ok(!result || result.action === 'SKIP', prompt + ': ' + JSON.stringify(result));
     assert.ok(!result || !result.authorized);

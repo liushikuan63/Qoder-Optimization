@@ -94,7 +94,7 @@ function intentFor(prompt, entry) {
     const before = clause.slice(0, match.index).trim();
     const after = clause.slice(match.index + name.length).trim().replace(/^[`"'”’」』]+/, '');
     if (/如何|怎么|是否|合适|应该|\?|？|\b(?:how|whether|should)\b/i.test(after)) continue;
-    if (/^(?:(?:请|帮我|请帮我|现在)\s*|please\s+)*(?:不要|别|不用|无需|不必|不需要|do not|don't|avoid)\s*(?:使用|调用|启用|加载|安装|use|load|install)?\s*(?:技能|skill)?\s*[`"'“‘「『]?$/i.test(before)) intent = 'decline';
+    if (/^(?:(?:请|帮我|请帮我|现在)\s*|please\s+)*(?:不要|别|不用|无需|不必|不需要|do not|don't|avoid)\s*(?:使用|用|调用|启用|加载|安装|use|load|install)?\s*(?:技能|skill)?\s*[`"'“‘「『]?$/i.test(before)) intent = 'decline';
     else {
       const use = /^(?:(?:请|帮我|请帮我|并|然后|同时|现在|直接)\s*|please\s+)*(使用|调用|启用|加载|安装|use|load|install)\s*(?:技能\s*|skill\s+)?[`"'“‘「『]?$/i.exec(before);
       if (use) intent = /安装|install/i.test(use[1]) ? 'install' : 'use';

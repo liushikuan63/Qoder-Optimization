@@ -9,6 +9,7 @@ const root = path.resolve(__dirname, '..');
 const installer = path.join(root, 'scripts/install-package.cjs');
 const { BASE_IDS } = require(installer);
 const { dependenciesFor } = require('../scripts/package-dependencies.cjs');
+const { isPublicFile } = require('../scripts/pack-share-extras.cjs');
 
 function fixture(t) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'qo-package-activation-'));
@@ -31,7 +32,7 @@ function fixture(t) {
       const target = path.join(pkg, entry.source); fs.mkdirSync(path.dirname(target), { recursive: true });
       if (entry.id === 'script:fixture-update.js') fs.writeFileSync(target, 'console.log(' + JSON.stringify(version) + ');\n');
       else if (['skill:office-docs', 'skill:write-repowiki', 'skill:fixture-specialized'].includes(entry.id)) { fs.mkdirSync(target); fs.writeFileSync(path.join(target, 'SKILL.md'), '---\nname: ' + entry.name + '\ndescription: fixture capability\n---\nFixture.\n'); }
-      else fs.cpSync(path.join(root, entry.source), target, { recursive: true, force: false, errorOnExist: true });
+      else fs.cpSync(path.join(root, entry.source), target, { recursive: true, force: false, errorOnExist: true, filter: file => isPublicFile(path.relative(root, file).split(path.sep).join('/')) });
     }
     const file = path.join(pkg, 'catalog.json'); fs.writeFileSync(file, JSON.stringify({ schema: 1, package: { name: 'Qoder-Optimization', version }, entries }));
     return { root: pkg, catalog: file };
@@ -188,6 +189,23 @@ test('--yes updates only pristine old-package copies and preserves local edits',
   const edited = f.run(['--yes', '--json']); assert.equal(edited.status, 0, edited.stdout + edited.stderr);
   assert.equal(JSON.parse(edited.stdout).plan.items.find(item => item.id === 'script:fixture-update.js').action, 'REVIEW_UPDATE');
   assert.equal(fs.readFileSync(file, 'utf8'), 'user local edits');
+});
+
+test('an upgrade that changes the index builder and a skill stages unchanged sibling modules', t => {
+  const f = fixture(t);
+  const runCatalog = catalog => spawnSync(process.execPath, [installer, '--client-root', f.client, '--catalog', catalog, '--yes', '--json'], { env: f.env, encoding: 'utf8', input: '', timeout: 120000 });
+  const first = runCatalog(f.old.catalog);
+  assert.equal(first.status, 0, first.stdout + first.stderr);
+  fs.appendFileSync(path.join(f.next.root, 'scripts/build-skills-index.cjs'), '\n// next fixture revision\n');
+  fs.appendFileSync(path.join(f.next.root, 'skills/skills-router/SKILL.md'), '\n<!-- next fixture revision -->\n');
+  const upgrade = runCatalog(f.next.catalog);
+  assert.equal(upgrade.status, 0, upgrade.stdout + upgrade.stderr);
+  assert.equal(JSON.parse(upgrade.stdout).status, 'INSTALLED');
+  assert.match(fs.readFileSync(path.join(f.client, 'skills/skills-router/SKILL.md'), 'utf8'), /next fixture revision/);
+  assert.match(fs.readFileSync(path.join(f.client, 'scripts/build-skills-index.cjs'), 'utf8'), /next fixture revision/);
+  assert.equal(fs.existsSync(path.join(f.client, 'scripts/client-root.js')), true);
+  const index = JSON.parse(fs.readFileSync(path.join(f.client, 'skills-index.json'), 'utf8'));
+  assert.equal(index.entries.some(entry => entry.name === 'skills-router'), true);
 });
 
 test('a locally changed base blocks activation and retains the old package pointer', t => {

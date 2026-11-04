@@ -192,6 +192,10 @@ test('credential redaction and merge validation include quoted JSON keys', t => 
   const excerpt = JSON.stringify({ password: secret });
   assert.ok(!redact(excerpt).includes(secret));
   assert.ok(findSensitive(excerpt).includes('CREDENTIAL'));
+  assert.ok(!redact('密码：' + secret).includes(secret));
+  assert.ok(findSensitive('密码：' + secret).includes('CREDENTIAL'));
+  assert.ok(!redact('redis://:' + secret + '@cache.example:6379').includes(secret));
+  assert.ok(findSensitive('redis://:' + secret + '@cache.example:6379').includes('URL_CREDENTIALS'));
   const f = initContext(t); const delta = path.join(f.dir, 'delta.json');
   writeJson(delta, { unitId: 'U1', contextVersion: 1, planDigest: f.context.planDigest, findings: [excerpt] });
   const before = fs.readFileSync(f.contextFile);

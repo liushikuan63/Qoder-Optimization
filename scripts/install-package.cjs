@@ -259,6 +259,15 @@ function prepare(options = {}) {
     if (before && item?.action !== 'UPDATE') throw new Error('已有目标没有安全更新基线：' + id);
     plan.changes.push({ id, entry, source, sourceBefore, target, before, tier: entry.category === 'skill' ? path.basename(path.dirname(target)) === 'skills' ? 'core' : 'library' : undefined });
   }
+  // A staged script must be able to load its unchanged sibling modules; otherwise
+  // the staged index rebuild fails even though the real client has those files.
+  const changedIds = new Set(plan.changes.map(item => item.id));
+  plan.stageDependencies = [...new Set(closure(plan.changes.filter(item => item.entry.category === 'script').map(item => item.id)))]
+    .filter(id => !changedIds.has(id))
+    .map(id => entries.get(id))
+    .filter(entry => entry && entry.category === 'script')
+    .map(entry => path.join(client, 'scripts', path.basename(entry.source)))
+    .filter(file => fs.existsSync(file) && fs.lstatSync(file).isFile());
   const approvedSources = new Map([...plan.changes, ...plan.verifyTargets].map(item => [item.id, { id: item.id, source: item.source, sourceRel: item.entry?.source || item.sourceRel, sourceBefore: item.sourceBefore }]));
   // The catalog installer and index builder execute code as well as copy data.
   // Approve their closure even when activation is blocked and only an
@@ -382,6 +391,12 @@ function apply(plan, options = {}) {
       fs.mkdirSync(path.dirname(target), { recursive: true });
       fs.cpSync(item.target, target, { recursive: true, force: false, errorOnExist: true });
       if (!same(snapshot(item.target), item.before)) throw new Error('安装目标在暂存时改变：' + item.id);
+    }
+    for (const source of plan.stageDependencies) {
+      const target = path.join(stagedClient, 'scripts', path.basename(source));
+      if (fs.existsSync(target)) continue;
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.copyFileSync(source, target);
     }
     const env = { ...process.env, QODER_HOME: stagedClient };
     for (const item of plan.changes) {
