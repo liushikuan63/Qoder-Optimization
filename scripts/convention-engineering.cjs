@@ -41,25 +41,28 @@ function runTrusted(definition, context, authority) {
   const expected = definition.expect;
   if (!expected || !Number.isInteger(expected.exitCode) || !Array.isArray(expected.stdoutIncludes) || !expected.stdoutIncludes.length || !expected.stdoutIncludes.every(core.text)) return result(id, 'UNVERIFIED', ['freeze a nonempty independent expectation before execution']);
   try {
+    // Resolve checkout aliases once: CI TEMP can contain a Windows 8.3 name.
+    // Argument fingerprints and the child cwd must use the same physical root.
+    const projectRoot = core.projectRoot(context.projectRoot);
     const executable = fs.realpathSync.native(definition.executable);
     if (core.hash(fs.readFileSync(executable)) !== definition.sha256) return result(id, 'FAIL', ['approved executable has changed'], { executed: false });
     for (const arg of definition.args) {
       const candidate = arg.startsWith('--') && arg.includes('=') ? arg.slice(arg.indexOf('=') + 1) : arg;
       if (!candidate || candidate.startsWith('-')) continue;
-      const absolute = path.resolve(context.projectRoot, candidate);
+      const absolute = path.resolve(projectRoot, candidate);
       if (!fs.existsSync(absolute) || !fs.statSync(absolute).isFile()) continue;
-      const relative = path.relative(core.projectRoot(context.projectRoot), absolute).split(path.sep).join('/');
+      const relative = path.relative(projectRoot, absolute).split(path.sep).join('/');
       if (!definition.inputs.some(source => source.path === relative)) return result(id, 'UNVERIFIED', ['file arguments must be included in the approved implementation fingerprints'], { executed: false });
     }
-    for (const source of definition.inputs) core.verifySource(core.projectRoot(context.projectRoot), source);
+    for (const source of definition.inputs) core.verifySource(projectRoot, source);
     const env = {};
     for (const key of ['PATH', 'Path', 'SYSTEMROOT', 'SystemRoot', 'WINDIR', 'COMSPEC', 'ComSpec', 'HOME', 'USERPROFILE', 'TEMP', 'TMP', 'TMPDIR', 'APPDATA', 'LOCALAPPDATA']) if (process.env[key]) env[key] = process.env[key];
     const beganAt = new Date().toISOString();
-    const child = spawnSync(executable, definition.args, { cwd: core.projectRoot(context.projectRoot), env, encoding: 'utf8', shell: false, windowsHide: true, timeout: 15000, maxBuffer: 256 * 1024 });
+    const child = spawnSync(executable, definition.args, { cwd: projectRoot, env, encoding: 'utf8', shell: false, windowsHide: true, timeout: 15000, maxBuffer: 256 * 1024 });
     const record = { schema: 1, commandDigest: stamp, taskId: context.taskId, worktreeId: authority.worktreeId, beganAt, endedAt: new Date().toISOString(), executable, level: 'runtime', termination: child.error || child.signal || child.status === null ? 'incomplete' : 'completed', exitCode: child.status, stdout: child.stdout || '', stderr: child.stderr || '' };
     if (record.termination !== 'completed') return result(id, 'UNVERIFIED', ['checker timed out, crashed or exceeded output limits'], { executed: true, record });
     if (core.hash(fs.readFileSync(executable)) !== definition.sha256) return result(id, 'FAIL', ['executable changed during the check'], { executed: true, record });
-    for (const source of definition.inputs) core.verifySource(core.projectRoot(context.projectRoot), source);
+    for (const source of definition.inputs) core.verifySource(projectRoot, source);
     const matched = record.exitCode === expected.exitCode && expected.stdoutIncludes.every(s => record.stdout.includes(s));
     return result(id, matched ? 'PASS' : 'FAIL', matched ? [] : ['actual observation differs from the frozen expectation'], { executed: true, record });
   } catch (error) { return result(id, 'UNVERIFIED', [error.code || 'CHECKER_UNAVAILABLE'], { executed: false }); }

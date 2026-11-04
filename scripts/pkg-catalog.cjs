@@ -43,9 +43,9 @@ const value = positionals.join(' ').trim();
 const fail = (code, msg) => { console.error(msg); process.exit(code); };
 const readJson = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
 
-// Keep pkg-catalog standalone: record a resident install directly instead of
-// taking a dependency on tier-skills.cjs.
-function rememberResident(file, names) {
+// Keep pkg-catalog standalone while making a resident choice part of the
+// same rollback boundary as the skill and its derived index.
+function residentBytes(file, names) {
   let current = [];
   if (fs.existsSync(file)) {
     const data = readJson(file);
@@ -56,16 +56,8 @@ function rememberResident(file, names) {
     current = [...new Set(data.skills)];
   }
   const next = [...new Set([...current, ...names])].sort();
-  if (next.length === current.length && next.every((name, index) => name === current[index])) return false;
-  const temp = file + '.tmp-' + process.pid;
-  try {
-    fs.writeFileSync(temp, JSON.stringify({ schema: 1, skills: next }, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
-    fs.renameSync(temp, file);
-  } catch (error) {
-    try { fs.unlinkSync(temp); } catch {}
-    throw error;
-  }
-  return true;
+  if (next.length === current.length && next.every((name, index) => name === current[index])) return null;
+  return Buffer.from(JSON.stringify({ schema: 1, skills: next }, null, 2) + '\n');
 }
 
 function validateArgs() {
@@ -413,6 +405,20 @@ function cmdInstall() {
       try { fs.writeFileSync(fd, bytes); } finally { fs.closeSync(fd); }
     }
   };
+  // A valid leaf is insufficient: a linked tier/scripts parent would publish
+  // outside the selected client. Check again at each write/rollback boundary.
+  const assertDestination = target => {
+    const relative = path.relative(QODER, target);
+    if (!relative || relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) throw new Error('安装目标越界');
+    let parent = path.dirname(target);
+    while (parent !== QODER) {
+      let stat;
+      try { stat = fs.lstatSync(parent); }
+      catch (error) { if (error.code !== 'ENOENT') throw error; }
+      if (stat && (stat.isSymbolicLink() || !stat.isDirectory())) throw new Error('安装目标父路径必须是普通目录：' + parent);
+      parent = path.dirname(parent);
+    }
+  };
   const plan = [], visiting = new Set(), visited = new Set();
   const visit = entry => {
     if (visited.has(entry.id)) return;
@@ -437,6 +443,7 @@ function cmdInstall() {
       visit(dependency);
     }
     const t = installTarget(entry, root);
+    assertDestination(t.target);
     if (entry.category === 'skill') {
       const other = path.join(QODER, t.tier === 'core' ? 'skills-library' : 'skills', entry.name);
       if (fs.existsSync(other)) {
@@ -474,12 +481,22 @@ function cmdInstall() {
     return { ino: st.ino, dev: st.dev, hash: createHash('sha256').update(fs.readFileSync(file)).digest('hex') };
   };
   const sameIndex = (a, b) => !a || !b ? a === b : a.ino === b.ino && a.dev === b.dev && a.hash === b.hash;
+  const residentPath = path.join(QODER, 'skills-resident.json');
+  const residentBackup = path.join(stage, 'old-resident.json');
+  const stagedResident = path.join(stage, 'new-resident.json');
+  const coreSkills = plan.filter(item => item.entry.category === 'skill' && path.basename(path.dirname(item.target)) === 'skills').map(item => item.entry.name);
   const applied = [];
   const rebuildSkills = plan.some(item => item.entry.category === 'skill');
-  let restored = false, indexBefore, indexMoved = false;
-  const indexOwned = [];
+  let restored = false, indexBefore, indexMoved = false, residentBefore, residentMoved = false;
+  const indexOwned = [], residentOwned = [];
   try {
     if (rebuildSkills) indexBefore = indexSnapshot(indexPath);
+    if (coreSkills.length) {
+      residentBefore = indexSnapshot(residentPath);
+      const bytes = residentBytes(residentPath, coreSkills);
+      if (!sameIndex(indexSnapshot(residentPath), residentBefore)) throw new Error('常驻清单在读取期间已变化');
+      if (bytes) fs.writeFileSync(stagedResident, bytes, { flag: 'wx', mode: 0o600 });
+    }
     for (let i = 0; i < plan.length; i++) {
       const item = plan[i];
       item.staged = path.join(stage, 'new-' + i);
@@ -488,7 +505,9 @@ function cmdInstall() {
         filter: file => isPublicFile(path.relative(root, file).split(path.sep).join('/')) });
     }
     for (const item of plan) {
+      assertDestination(item.target);
       fs.mkdirSync(path.dirname(item.target), { recursive: true });
+      assertDestination(item.target);
       applied.push(item);
       if (item.previous) {
         if (fingerprint(item.target) !== item.before) throw new Error('目标在预检后已变化：' + item.entry.id);
@@ -513,11 +532,17 @@ function cmdInstall() {
       }
       console.log('  ' + message);
     }
-    const coreSkills = plan.filter(item => item.entry.category === 'skill' && path.basename(path.dirname(item.target)) === 'skills').map(item => item.entry.name);
     if (coreSkills.length) {
-      try {
-        if (rememberResident(path.join(QODER, 'skills-resident.json'), coreSkills)) console.log('  已记入常驻清单：' + coreSkills.join(', '));
-      } catch (error) { console.error('  WARN 常驻清单未更新：' + error.message); }
+      if (!sameIndex(indexSnapshot(residentPath), residentBefore)) throw new Error('常驻清单在安装期间已变化，保留其他写入者的内容');
+      if (fs.existsSync(stagedResident)) {
+        if (residentBefore) {
+          fs.renameSync(residentPath, residentBackup);
+          residentMoved = true;
+          if (!sameIndex(indexSnapshot(residentBackup), residentBefore)) throw new Error('常驻清单在提交时已变化，保留实际移入备份的内容');
+        }
+        copyExclusive(stagedResident, residentPath, residentOwned);
+        console.log('  已记入常驻清单：' + coreSkills.join(', '));
+      }
     }
     console.log('  已安装全部包内依赖并通过入口校验；第三方依赖与现役装载未验证。');
     for (const item of plan) if (fs.statSync(item.target).isDirectory() && fs.existsSync(path.join(item.target, 'package-lock.json'))) {
@@ -529,6 +554,7 @@ function cmdInstall() {
     try {
       let conflict = false;
       for (const item of applied.reverse()) {
+        assertDestination(item.target);
         for (const owned of item.owned.reverse()) {
           if (!fs.existsSync(owned.path)) continue;
           const st = fs.lstatSync(owned.path);
@@ -559,6 +585,19 @@ function cmdInstall() {
         // Linking is exclusive: restoring a backup must never replace a path
         // created by another writer while skill-file rollback was running.
         try { fs.linkSync(indexBackup, indexPath); }
+        catch (restoreError) { if (restoreError.code === 'EEXIST') conflict = true; else throw restoreError; }
+      }
+      if (residentOwned.length) {
+        const owned = residentOwned[0];
+        let current;
+        try { current = indexSnapshot(residentPath); } catch { conflict = true; }
+        if (current) {
+          if (sameIndex(current, owned)) fs.unlinkSync(residentPath);
+          else conflict = true;
+        }
+      }
+      if (residentMoved) {
+        try { fs.linkSync(residentBackup, residentPath); }
         catch (restoreError) { if (restoreError.code === 'EEXIST') conflict = true; else throw restoreError; }
       }
       if (conflict) throw new Error('目标内容或归属变化，未完整回滚；保留文件与备份供核对：' + stage);

@@ -114,4 +114,10 @@ jobs:
           npm ci --prefix scripts/convention-runtime --ignore-scripts --no-audit --no-fund
 
       - name: Isolated self-tests and release contracts
+        # Cua install fixtures require a non-system drive. GitHub's Windows
+        # runner workspace/temp are on D:, unlike the default user TEMP on C:.
+        env:
+          TEMP: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
+          TMPDIR: ${{ runner.temp }}
         run: node .github/run-tests.js

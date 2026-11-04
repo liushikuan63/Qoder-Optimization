@@ -156,3 +156,69 @@ test('consumer cannot report success when an available index builder fails', () 
   assert.match(result.stderr, /已回滚.*索引重建失败/);
   assert.equal(fs.existsSync(path.join(f.root, 'skills-library/install-demo/SKILL.md')), false);
 }));
+
+
+test('tier migration rejects a linked destination parent before moving a skill', () => fixture(f => {
+  const outside = path.join(f.base, 'outside'); fs.mkdirSync(outside);
+  fs.symlinkSync(outside, path.join(f.root, 'skills-library'), process.platform === 'win32' ? 'junction' : 'dir');
+  const result = f.run('tier-skills.cjs', ['--apply']);
+  assert.notEqual(result.status, 0, result.stdout + result.stderr);
+  assert.equal(fs.existsSync(path.join(f.root, 'skills/demo/SKILL.md')), true);
+  assert.deepEqual(fs.readdirSync(outside), []);
+}));
+
+
+for (const mode of ['tier', 'skill', 'entry-directory']) test('live skill collection skips unsafe ' + mode + ' before reading and preserves ordinary skills', () => fixture(f => {
+  const outside = path.join(f.base, 'outside');
+  fs.mkdirSync(path.join(outside, 'foreign'), { recursive: true });
+  fs.writeFileSync(path.join(outside, 'SKILL.md'), '---\nname: foreign\ndescription: external fixture\n---\n');
+  fs.writeFileSync(path.join(outside, 'foreign/SKILL.md'), '---\nname: foreign\ndescription: external fixture\n---\n');
+  if (mode === 'tier') fs.symlinkSync(outside, path.join(f.root, 'skills-library'), process.platform === 'win32' ? 'junction' : 'dir');
+  else if (mode === 'skill') fs.symlinkSync(outside, path.join(f.root, 'skills/foreign'), process.platform === 'win32' ? 'junction' : 'dir');
+  else fs.mkdirSync(path.join(f.root, 'skills/foreign/SKILL.md'), { recursive: true });
+  f.put('scripts/collect-probe.cjs', `const fs=require('node:fs'),path=require('node:path'),read=fs.readFileSync;const outside=${JSON.stringify(outside)};fs.readFileSync=function(file,...args){if(String(file).endsWith('SKILL.md')&&fs.realpathSync(file).startsWith(outside+path.sep))throw new Error('external description was read');return read.call(this,file,...args);};console.log(JSON.stringify(require('./build-skills-index.cjs').collectSkills()));`);
+  const result = f.run('collect-probe.cjs');
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const names = JSON.parse(result.stdout).map(item => item.name);
+  assert.deepEqual(names, ['demo', 'skills-router']);
+}));
+
+
+for (const priorIndex of [false, true]) test('concurrent resident selection aborts promotion and restores owned paths: priorIndex=' + priorIndex, () => fixture(f => {
+  assert.equal(f.run('tier-skills.cjs', ['--only', 'demo', '--apply']).status, 0);
+  const resident = path.join(f.root, 'skills-resident.json');
+  f.put('skills-resident.json', '{"schema":1,"skills":["old"]}');
+  const index = path.join(f.root, 'skills-index.json');
+  const indexBefore = priorIndex ? fs.readFileSync(index) : null;
+  if (!priorIndex) fs.unlinkSync(index);
+  const concurrent = '{"schema":1,"skills":["concurrent-selection","old"]}';
+  const builder = fs.readFileSync(path.join(f.root, 'scripts/build-skills-index.cjs'), 'utf8');
+  f.put('scripts/build-skills-index.cjs', builder + '\nrequire("node:fs").writeFileSync(' + JSON.stringify(resident) + ',' + JSON.stringify(concurrent) + ');\n');
+  const result = f.run('tier-skills.cjs', ['--promote', 'demo', '--apply']);
+  assert.notEqual(result.status, 0, result.stdout + result.stderr);
+  assert.equal(fs.readFileSync(resident, 'utf8'), concurrent);
+  assert.equal(fs.existsSync(path.join(f.root, 'skills/demo')), false);
+  assert.equal(fs.existsSync(path.join(f.root, 'skills-library/demo/SKILL.md')), true);
+  if (priorIndex) assert.deepEqual(fs.readFileSync(index), indexBefore);
+  else assert.equal(fs.existsSync(index), false);
+}));
+
+
+for (const editIndex of [false, true]) test('late resident conflict restores only the tier transaction index: concurrentIndex=' + editIndex, () => fixture(f => {
+  assert.equal(f.run('tier-skills.cjs', ['--only', 'demo', '--apply']).status, 0);
+  const resident = path.join(f.root, 'skills-resident.json'), index = path.join(f.root, 'skills-index.json');
+  f.put('skills-resident.json', '{"schema":1,"skills":["old"]}');
+  const indexBefore = fs.readFileSync(index);
+  const concurrent = '{"schema":1,"skills":["concurrent-selection","old"]}';
+  const concurrentIndex = '{"generated_at":"concurrent","count":0,"entries":[]}';
+  const preload = path.join(f.base, 'late-resident.cjs');
+  fs.writeFileSync(preload, `const fs=require('node:fs'),link=fs.linkSync;let fired=false;fs.linkSync=function(from,to){const r=link.call(this,from,to);if(!fired&&to===${JSON.stringify(index)}){fired=true;fs.writeFileSync(${JSON.stringify(resident)},${JSON.stringify(concurrent)});if(${editIndex})fs.writeFileSync(to,${JSON.stringify(concurrentIndex)});}return r;};`);
+  f.env.NODE_OPTIONS = '--require ' + preload;
+  const result = f.run('tier-skills.cjs', ['--promote', 'demo', '--apply']);
+  assert.notEqual(result.status, 0, result.stdout + result.stderr);
+  assert.equal(fs.readFileSync(resident, 'utf8'), concurrent);
+  assert.equal(fs.existsSync(path.join(f.root, 'skills/demo')), false);
+  assert.equal(fs.existsSync(path.join(f.root, 'skills-library/demo/SKILL.md')), true);
+  if (editIndex) assert.equal(fs.readFileSync(index, 'utf8'), concurrentIndex);
+  else assert.deepEqual(fs.readFileSync(index), indexBefore);
+}));

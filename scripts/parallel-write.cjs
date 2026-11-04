@@ -7,6 +7,9 @@ const crypto = require('node:crypto');
 const { spawnSync } = require('node:child_process');
 const { evaluatePlan, validatePlan, digestPlan } = require('./parallel-plan.cjs');
 const fail = (code, message) => { throw Object.assign(new Error(message), { code }); };
+// The JS realpath implementation retains Windows 8.3 names (RUNNER~1);
+// native realpath resolves them to the same identity returned by Git.
+const realpath = file => fs.realpathSync.native(file);
 const samePath = (a, b) => (process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b);
 const inside = (root, file) => { const rel = path.relative(root, file); return !rel || (!rel.startsWith('..' + path.sep) && rel !== '..' && !path.isAbsolute(rel)); };
 const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -30,7 +33,7 @@ function git(repo, args, options = {}) {
   return result;
 }
 const output = (repo, args) => git(repo, args).stdout.trim();
-const commonDir = repo => fs.realpathSync(output(repo, ['rev-parse', '--path-format=absolute', '--git-common-dir']));
+const commonDir = repo => realpath(output(repo, ['rev-parse', '--path-format=absolute', '--git-common-dir']));
 const head = repo => output(repo, ['rev-parse', '--verify', 'HEAD^{commit}']);
 const clean = repo => !git(repo, ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--ignore-submodules=none']).stdout;
 const configDigest = common => crypto.createHash('sha256').update(fs.readFileSync(path.join(common, 'config'))).digest('hex');
@@ -70,17 +73,17 @@ function prepare(options) {
   if (verdict.verdict !== 'PARALLEL_WORKTREE') fail('WRITE_PLAN_REQUIRED', 'prepare requires a parallel worktree write plan');
   if (!options['write-opt-in'] || options['approved-plan'] !== digest) fail('APPROVAL_REQUIRED', 'supply the reviewed plan digest and separate --write-opt-in after user approval');
   if (plan.units.some(unit => unit.dependsOn.length)) fail('WAVE_REQUIRED', 'prepare one independent wave; integrate and verify prerequisites before preparing the next wave from its new baseline');
-  const repo = fs.realpathSync(options.repo), common = commonDir(repo), base = head(repo);
+  const repo = realpath(options.repo), common = commonDir(repo), base = head(repo);
   if (output(repo, ['rev-parse', '--is-bare-repository']) !== 'false') fail('BARE_REPOSITORY', 'a working checkout is required');
-  if (!samePath(fs.realpathSync(output(repo, ['rev-parse', '--show-toplevel'])), repo)) fail('REPOSITORY_ROOT_REQUIRED', '--repo must name the checkout root');
+  if (!samePath(realpath(output(repo, ['rev-parse', '--show-toplevel'])), repo)) fail('REPOSITORY_ROOT_REQUIRED', '--repo must name the checkout root');
   if (!clean(repo)) fail('DIRTY_SOURCE', 'preserve and commit source changes before preparing an isolated baseline');
   noSpecialTree(repo, base);
   const requested = path.resolve(options.out);
   // Resolve the existing parent before creating anything, including through junctions.
-  const out = path.join(fs.realpathSync(path.dirname(requested)), path.basename(requested));
+  const out = path.join(realpath(path.dirname(requested)), path.basename(requested));
   if (fs.existsSync(out)) fail('OUTPUT_EXISTS', 'use a fresh run directory');
   const existing = worktrees(repo);
-  if (inside(common, out) || existing.some(item => inside(fs.realpathSync(item.worktree), out))) fail('OUTPUT_IN_REPOSITORY', 'run directory must be outside every registered checkout and the Git common directory');
+  if (inside(common, out) || existing.some(item => inside(realpath(item.worktree), out))) fail('OUTPUT_IN_REPOSITORY', 'run directory must be outside every registered checkout and the Git common directory');
   fs.mkdirSync(out, { mode: 0o700 });
   fs.mkdirSync(path.join(out, 'worktrees'));
   const manifest = { schema: 1, status: 'PREPARING', runId: crypto.randomUUID(), repo, commonDir: common, base, configDigest: configDigest(common), protectedRefs: refs(repo), planDigest: digest, plan, createdAt: new Date().toISOString(), units: [], recovery: [] };
@@ -92,7 +95,7 @@ function prepare(options) {
       const record = { id: unit.id, kind: unit.kind, path: target, branch, status: 'CREATING' };
       manifest.units.push(record); writeReceipt(out, manifest);
       git(repo, ['worktree', 'add', '--lock', '--reason', 'Qoder parallel ' + manifest.runId, '-b', branch, '--', target, base]);
-      record.gitDir = fs.realpathSync(output(target, ['rev-parse', '--absolute-git-dir']));
+      record.gitDir = realpath(output(target, ['rev-parse', '--absolute-git-dir']));
       record.status = 'PREPARED';
       manifest.recovery.push({ path: target, branch, note: 'Retain changed worktrees. After review, unlock and remove only this named clean worktree; never force-remove unknown or changed data.' });
       writeReceipt(out, manifest);
@@ -110,32 +113,36 @@ function prepare(options) {
 }
 
 function allowed(file, owned) {
-  const name = file.replace(/\\/g, '/').toLowerCase();
-  return owned.some(root => name === root || name.startsWith(root + '/'));
+  // Git emits slash-separated paths on every platform. A literal backslash
+  // on POSIX is not a separator; case folding there would also grant a
+  // different file the ownership of an approved path.
+  const key = value => process.platform === 'win32' ? value.toLowerCase() : value;
+  const name = key(file);
+  return owned.some(root => name === key(root) || name.startsWith(key(root) + '/'));
 }
 
 function verify(options) {
   if (!options.run) fail('USAGE', 'verify needs --run <run.json>');
-  const file = path.resolve(options.run), dir = fs.realpathSync(path.dirname(file)), run = read(file);
+  const file = path.resolve(options.run), dir = realpath(path.dirname(file)), run = read(file);
   if (!run || run.schema !== 1 || run.status !== 'PREPARED' || !Array.isArray(run.units) || !run.protectedRefs || typeof run.protectedRefs !== 'object' || Array.isArray(run.protectedRefs)) fail('INVALID_RUN', 'run is not a completed preparation');
   const plan = validatePlan(run.plan);
   if (run.planDigest !== digestPlan(plan) || run.units.length !== plan.units.length) fail('PLAN_MISMATCH', 'run plan or units changed');
   if (evaluatePlan(plan).verdict !== 'PARALLEL_WORKTREE' || plan.units.some(unit => unit.dependsOn.length)) fail('INVALID_RUN', 'run must contain one independent write wave');
-  const repo = fs.realpathSync(run.repo), common = commonDir(repo);
-  if (!samePath(common, fs.realpathSync(run.commonDir)) || head(repo) !== run.base) fail('BASE_MOVED', 'source identity or HEAD changed; review and prepare a new baseline');
+  const repo = realpath(run.repo), common = commonDir(repo);
+  if (!samePath(common, realpath(run.commonDir)) || head(repo) !== run.base) fail('BASE_MOVED', 'source identity or HEAD changed; review and prepare a new baseline');
   if (!clean(repo)) fail('DIRTY_SOURCE', 'source has changes; preserve them before integration review');
   protectedState(run);
   const registered = worktrees(repo), units = [];
-  const root = fs.realpathSync(path.join(dir, 'worktrees'));
+  const root = realpath(path.join(dir, 'worktrees'));
   if (!inside(dir, root)) fail('WORKTREE_MISMATCH', 'worktree container escaped the run');
   for (let i = 0; i < plan.units.length; i++) {
     const planned = plan.units[i], unit = run.units[i];
     const name = String(i + 1).padStart(2, '0') + '-' + planned.id.toLowerCase();
     const expected = path.join(root, name), branch = 'codex/parallel-' + String(run.runId).slice(0, 8) + '-' + name;
     if (unit.id !== planned.id || unit.kind !== planned.kind || unit.branch !== branch || unit.status !== 'PREPARED' || !samePath(path.resolve(unit.path), expected) || fs.lstatSync(unit.path).isSymbolicLink()) fail('WORKTREE_MISMATCH', 'worker path or identity changed');
-    const real = fs.realpathSync(unit.path), registration = registered.find(item => samePath(path.resolve(item.worktree), real));
+    const real = realpath(unit.path), registration = registered.find(item => samePath(realpath(item.worktree), real));
     if (!registration || registration.branch !== 'refs/heads/' + unit.branch || registration.locked !== 'Qoder parallel ' + run.runId
-      || !samePath(commonDir(real), common) || !samePath(fs.realpathSync(output(real, ['rev-parse', '--absolute-git-dir'])), fs.realpathSync(unit.gitDir))) fail('WORKTREE_MISMATCH', 'worker registration, branch or Git directory changed');
+      || !samePath(commonDir(real), common) || !samePath(realpath(output(real, ['rev-parse', '--absolute-git-dir'])), realpath(unit.gitDir))) fail('WORKTREE_MISMATCH', 'worker registration, branch or Git directory changed');
     if (!clean(real)) fail('DIRTY_WORKER', 'commit or preserve worker changes before verification: ' + planned.id);
     const tip = head(real);
     if (git(real, ['merge-base', '--is-ancestor', run.base, tip], { allowFailure: true }).status !== 0) fail('FOREIGN_HISTORY', 'worker is not based on the recorded source: ' + planned.id);

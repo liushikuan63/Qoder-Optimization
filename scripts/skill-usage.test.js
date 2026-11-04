@@ -40,6 +40,16 @@ function fixture(t) {
 const NOW = '2026-11-04T00:00:00.000Z';
 const old = days => new Date(Date.parse(NOW) - days * 86400000).toISOString();
 
+test('standalone help succeeds without requiring a command or writing client state', t => {
+  const f = fixture(t);
+  const result = f.runRaw('skill-usage.cjs', ['--help']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /log\|report\|suggest\|prune/);
+  assert.equal(fs.existsSync(path.join(f.client, 'skills-usage.jsonl')), false);
+  const unknown = f.runRaw('skill-usage.cjs', ['--help', '--unknown']);
+  assert.equal(unknown.status, 2); assert.match(unknown.stderr, /未知参数/);
+});
+
 test('log, dedupe, report and suggest promote after repeated use', t => {
   const f = fixture(t);
   for (const day of [1, 2, 3]) {
@@ -120,4 +130,32 @@ test('prune previews and removes only expired entries', t => {
   assert.match(applied.stdout, /PRUNED removed=1 keep=1/);
   const report = JSON.parse(f.run('skill-usage.cjs', ['report', '--json', '--now', NOW]).stdout);
   assert.equal(report.skills[0].total, 1);
+});
+
+test('tier suggestions follow live installed paths after a move despite a stale index', t => {
+  const f = fixture(t);
+  const library = path.join(f.client, 'skills-library/office-docs');
+  const resident = path.join(f.client, 'skills/office-docs');
+  fs.renameSync(library, resident);
+  // A stale index path still exists when the old tier was replaced by another
+  // ordinary file; the live skill entry remains the authoritative location.
+  fs.mkdirSync(library); fs.writeFileSync(path.join(library, 'README.md'), 'moved');
+  const stale = JSON.parse(fs.readFileSync(path.join(f.client, 'skills-index.json'), 'utf8'));
+  stale.entries.find(entry => entry.name === 'office-docs').path = path.join(library, 'README.md');
+  f.put('skills-index.json', JSON.stringify(stale));
+  for (const day of [1, 2, 3]) f.run('skill-usage.cjs', ['log', 'office-docs', '--now', old(day)]);
+  const result = f.run('skill-usage.cjs', ['suggest', '--json', '--now', NOW]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).suggestions.some(entry => entry.skill === 'office-docs'), false);
+  const report = JSON.parse(f.run('skill-usage.cjs', ['report', '--json', '--now', NOW]).stdout);
+  assert.equal(report.skills.find(entry => entry.skill === 'office-docs').tier, 'core');
+});
+
+test('tier suggestions do not resolve a skill installed in both tiers', t => {
+  const f = fixture(t);
+  f.put('skills/office-docs/SKILL.md', '# ambiguous copy');
+  for (const day of [1, 2, 3]) f.run('skill-usage.cjs', ['log', 'office-docs', '--now', old(day)]);
+  const result = f.run('skill-usage.cjs', ['suggest', '--json', '--now', NOW]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).suggestions.some(entry => entry.skill === 'office-docs'), false);
 });

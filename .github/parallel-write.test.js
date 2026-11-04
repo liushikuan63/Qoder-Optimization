@@ -41,7 +41,7 @@ function fixture(t) {
 test('parallel writers get actual distinct worktrees and a mergeable committed result', t => {
   const f = fixture(t), manifest = f.prepare(), before = f.git(f.repo, ['rev-parse', 'HEAD']);
   assert.equal(manifest.units.length, 2);
-  assert.notEqual(fs.realpathSync(manifest.units[0].path), fs.realpathSync(manifest.units[1].path));
+  assert.notEqual(fs.realpathSync.native(manifest.units[0].path), fs.realpathSync.native(manifest.units[1].path));
   for (const u of manifest.units) f.commit(u, 'src/' + u.id.toLowerCase() + '.txt', u.id + ' changed\n');
   const r = f.run(['verify', '--run', path.join(f.out, 'run.json')]);
   assert.equal(r.status, 0, r.stdout + r.stderr);
@@ -96,7 +96,7 @@ test('Git environment overrides cannot redirect preparation to another repositor
   f.git(foreign, ['init', '-q']);
   const r = f.run(['prepare', '--plan', f.planFile, '--repo', f.repo, '--out', f.out, '--approved-plan', digestPlan(validatePlan(f.plan)), '--write-opt-in'], { GIT_DIR: path.join(foreign, '.git'), GIT_WORK_TREE: foreign });
   assert.equal(r.status, 0, r.stdout + r.stderr);
-  const m = JSON.parse(r.stdout); assert.equal(fs.realpathSync(m.repo), fs.realpathSync(f.repo));
+  const m = JSON.parse(r.stdout); assert.equal(fs.realpathSync.native(m.repo), fs.realpathSync.native(f.repo));
   assert.equal(f.git(foreign, ['worktree', 'list', '--porcelain']).includes(f.out.replace(/\\/g, '/')), false);
 });
 
@@ -122,3 +122,43 @@ test('preparation and verification never run Git hooks or content filters', t =>
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.equal(fs.existsSync(marker), false);
 });
+
+test('Git root identity uses native canonical paths when legacy realpath retains an alias', t => {
+  const f = fixture(t), alias = path.join(f.base, 'repo-alias'), preload = path.join(f.base, 'legacy-realpath.cjs');
+  fs.symlinkSync(f.repo, alias, process.platform === 'win32' ? 'junction' : 'dir');
+  f.put(preload, 'const fs=require("node:fs");const original=fs.realpathSync;const repo=' + JSON.stringify(fs.realpathSync(f.repo)) + ';const alias=' + JSON.stringify(alias) + ';fs.realpathSync=Object.assign(function(p,...args){const value=original(p,...args);return value===repo?alias:value;},{native:original.native});');
+  const result = f.run(['prepare', '--plan', f.planFile, '--repo', f.repo, '--out', f.out, '--approved-plan', digestPlan(validatePlan(f.plan)), '--write-opt-in'], { NODE_OPTIONS: '--require=' + JSON.stringify(preload) });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const manifest = JSON.parse(result.stdout);
+  assert.equal(manifest.repo, fs.realpathSync.native(f.repo));
+  for (const u of manifest.units) f.commit(u, 'src/' + u.id.toLowerCase() + '.txt', u.id + ' result');
+  assert.equal(f.run(['verify', '--run', path.join(f.out, 'run.json')]).status, 0);
+});
+
+test('literal uppercase ownership remains usable on all platforms', t => {
+  const f = fixture(t);
+  f.plan.units[0].ownedPaths = ['src/Upper.txt'];
+  f.plan.units[0].readPaths = [];
+  f.put(f.planFile, JSON.stringify(f.plan));
+  const manifest = f.prepare();
+  f.commit(manifest.units[0], 'src/Upper.txt', 'owned uppercase file');
+  f.commit(manifest.units[1], 'src/b.txt', 'B result');
+  const result = f.run(['verify', '--run', path.join(f.out, 'run.json')]);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+});
+
+for (const foreignPath of ['src/A.txt', 'src\\a.txt']) {
+  test('POSIX ownership rejects a distinct Git path: ' + foreignPath, { skip: process.platform === 'win32' ? 'requires case-sensitive and backslash-literal paths' : false }, t => {
+    const f = fixture(t), manifest = f.prepare();
+    // Git paths always use slash separators. A backslash is a literal filename
+    // on POSIX and must not gain ownership by Windows-style normalization.
+    f.put(path.join(manifest.units[0].path, foreignPath), 'unowned path');
+    f.git(manifest.units[0].path, ['add', '--', foreignPath]);
+    f.git(manifest.units[0].path, ['commit', '-qm', 'distinct unowned path']);
+    f.commit(manifest.units[1], 'src/b.txt', 'B result');
+    const result = f.run(['verify', '--run', path.join(f.out, 'run.json')]);
+    assert.notEqual(result.status, 0, result.stdout + result.stderr);
+    assert.equal(JSON.parse(result.stderr).code, 'OUTSIDE_OWNERSHIP');
+    assert.equal(fs.existsSync(path.join(manifest.units[0].path, foreignPath)), true);
+  });
+}

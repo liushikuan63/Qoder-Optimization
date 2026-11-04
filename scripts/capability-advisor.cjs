@@ -94,7 +94,7 @@ function intentFor(prompt, entry) {
     const before = clause.slice(0, match.index).trim();
     const after = clause.slice(match.index + name.length).trim().replace(/^[`"'”’」』]+/, '');
     if (/如何|怎么|是否|合适|应该|\?|？|\b(?:how|whether|should)\b/i.test(after)) continue;
-    if (/^(?:(?:请|帮我|请帮我|现在)\s*|please\s+)*(?:不要|别|不用|无需|不必|不需要|do not|don't|avoid)\s*(?:使用|用|调用|启用|加载|安装|use|load|install)?\s*(?:技能|skill)?\s*[`"'“‘「『]?$/i.test(before)) intent = 'decline';
+    if (/^(?:(?:请|帮我|请帮我|现在|本次|这次|暂时|先)\s*|please\s+)*(?:不要|别|不用|无需|不必|不需要|do not|don't|avoid)\s*(?:使用|用|调用|启用|加载|安装|use|load|install)?\s*(?:技能|skill)?\s*[`"'“‘「『]?$/i.test(before)) intent = 'decline';
     else {
       const use = /^(?:(?:请|帮我|请帮我|并|然后|同时|现在|直接)\s*|please\s+)*(使用|调用|启用|加载|安装|use|load|install)\s*(?:技能\s*|skill\s+)?[`"'“‘「『]?$/i.exec(before);
       if (use) intent = /安装|install/i.test(use[1]) ? 'install' : 'use';
@@ -128,7 +128,7 @@ function localSkillEntries(clientDir, catalog) {
   return entries.filter(entry => {
     if (!entry || typeof entry.name !== 'string' || entry.tier !== 'library') return false;
     if (catalogNames.has(entry.name.toLowerCase())) return false;
-    if (typeof entry.path !== 'string' || !fs.existsSync(entry.path)) return false;
+    if (typeof entry.path !== 'string' || !ordinaryWithin(clientDir, entry.path)) return false;
     const key = entry.name.toLowerCase();
     if (seen.has(key)) return false;
     seen.add(key);
@@ -277,16 +277,19 @@ function planCapabilities(options = {}) {
     output.requiresConfirmation = ['ASK_INSTALL', 'ASK_USE', 'REVIEW_UPDATE'].includes(output.action) || (phase === 'task' && output.action === 'UPDATE');
     planned.push({ output, score: score + (requested ? 1000 : 0) + (preferred ? 3 : 0), index });
   });
-  if (phase === 'task' && !discussion && prefs.enabled) {
+  if (phase === 'task') {
     // 本地候选与包候选共同筛选：领域技能不再被通用候选挤掉；当前拒绝与点名使用同路处理。
     const local = localSkillEntries(clientDir, catalog)
       .map(entry => ({ entry, intent: intentFor(prompt, { id: 'skill:' + entry.name, name: entry.name }) }))
-      .filter(({ entry, intent }) => intent !== 'decline' && (intent === 'use' || !excludedLocalSkill(entry, prefs)))
+      .filter(({ entry, intent }) => intent !== 'decline' && (intent === 'use' || (!discussion && prefs.enabled && !excludedLocalSkill(entry, prefs))))
       .map(({ entry, intent }) => ({ entry, intent, score: localSkillScore(entry, routeText) }))
       .filter(item => item.intent === 'use' || item.score > 0)
-      .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name))
-      .slice(0, 1);
+      .sort((a, b) => (b.intent === 'use') - (a.intent === 'use') || b.score - a.score || a.entry.name.localeCompare(b.entry.name));
+    // Explicit current choices outrank suggestions. Only automatic discovery is
+    // limited to one local candidate; the final three-item cap still applies.
+    let automaticCount = 0;
     for (const { entry, intent, score } of local) {
+      if (intent !== 'use' && automaticCount++ >= 1) continue;
       const installedPath = path.dirname(entry.path);
       const authorized = intent === 'use';
       planned.push({

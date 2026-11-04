@@ -46,6 +46,7 @@ function parseArgs(argv) {
   result.command = words.shift() || '';
   result.skill = words.shift() || '';
   if (words.length) throw new Error('多余参数：' + words.join(' '));
+  if (result.help) return result;
   if (result.command === 'log') {
     if (!result.skill) throw new Error('用法：skill-usage.cjs log <技能名> [--source use]');
     if (!/^[a-z0-9][a-z0-9-]*$/.test(result.skill)) throw new Error('技能名必须为小写字母、数字或连字符');
@@ -120,23 +121,17 @@ function aggregate(entries, nowMs) {
 
 function installedTiers(root) {
   const tiers = new Map();
-  const index = path.join(root, 'skills-index.json');
-  if (fs.existsSync(index)) {
-    try {
-      const data = JSON.parse(fs.readFileSync(index, 'utf8'));
-      for (const entry of Array.isArray(data.entries) ? data.entries : []) {
-        if (!entry || typeof entry.name !== 'string' || !['core', 'library'].includes(entry.tier)) continue;
-        if (typeof entry.path !== 'string' || !fs.existsSync(entry.path)) continue;
-        tiers.set(entry.name, entry.tier);
-      }
-    } catch {}
-  }
+  const ambiguous = new Set();
+  // An index is a derived snapshot, not evidence of the currently installed
+  // tier. In particular, never suggest promoting an already moved skill.
   for (const [tier, dir] of [['core', 'skills'], ['library', 'skills-library']]) {
     const base = path.join(root, dir);
     let names = [];
     try { names = fs.readdirSync(base); } catch {}
     for (const name of names) {
-      if (!tiers.has(name) && fs.existsSync(path.join(base, name, 'SKILL.md'))) tiers.set(name, tier);
+      if (!fs.existsSync(path.join(base, name, 'SKILL.md'))) continue;
+      if (tiers.has(name)) { tiers.delete(name); ambiguous.add(name); }
+      else if (!ambiguous.has(name)) tiers.set(name, tier);
     }
   }
   return tiers;

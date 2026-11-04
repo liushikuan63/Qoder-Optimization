@@ -189,6 +189,54 @@ test('local library discovery honors explicit use, decline and exclusion', t => 
   assert.equal(item(f.plan({ phase: 'task', prompt: '请使用 postgresql 排查慢查询', preferences }), 'skill:postgresql')?.action, 'KEEP');
 });
 
+test('local automatic or explicit routing rejects linked skill directories outside the client', t => {
+  const f = fixture(t);
+  const outside = path.join(f.dir, 'external/postgresql');
+  f.put(path.join(outside, 'SKILL.md'), '---\nname: postgresql\ndescription: PostgreSQL helper\n---\n');
+  const link = path.join(f.client, 'skills-library/postgresql');
+  fs.mkdirSync(path.dirname(link), { recursive: true });
+  fs.symlinkSync(outside, link, process.platform === 'win32' ? 'junction' : 'dir');
+  for (const prompt of ['排查 PostgreSQL 查询', '请使用 postgresql 排查查询']) {
+    assert.equal(item(f.plan({ phase: 'task', catalogFile: undefined, prompt }), 'skill:postgresql'), undefined, prompt);
+  }
+});
+
+test('an explicit local selection overrides disabled ordinary advice and outranks other domain matches', t => {
+  const f = fixture(t);
+  f.local('sql', 'SQL task helper');
+  f.local('mysql-review', 'MySQL review helper');
+  const prompt = '请使用 sql 排查 MySQL 查询';
+  for (const preferences of [{ schema: 1 }, { schema: 1, enabled: false, excludedIds: ['skill:sql'] }]) {
+    const selected = item(f.plan({ phase: 'task', catalogFile: undefined, prompt, preferences }), 'skill:sql');
+    assert.equal(selected?.action, 'KEEP', JSON.stringify(preferences));
+    assert.equal(selected?.authorized, true);
+  }
+});
+
+test('disabled ordinary advice does not discard a current explicit local use request', t => {
+  const f = fixture(t); f.local('postgresql', 'PostgreSQL helper');
+  const preferences = { schema: 1, enabled: false, excludedIds: ['skill:postgresql'] };
+  const selected = item(f.plan({ phase: 'task', catalogFile: undefined, prompt: '请使用 postgresql 检查查询', preferences }), 'skill:postgresql');
+  assert.equal(selected?.action, 'KEEP'); assert.equal(selected?.authorized, true);
+  assert.deepEqual(f.plan({ phase: 'task', catalogFile: undefined, prompt: '检查 PostgreSQL 查询', preferences }).items, []);
+});
+
+test('explicitly selected local skills are not reduced to the single automatic discovery slot', t => {
+  const f = fixture(t); f.local('sql', 'SQL helper'); f.local('db', 'Database helper');
+  const result = f.plan({ phase: 'task', catalogFile: undefined, prompt: '请使用 sql 检查查询，同时使用 db 检查连接' });
+  for (const name of ['sql', 'db']) assert.equal(item(result, 'skill:' + name)?.authorized, true, name);
+});
+
+test('current refusals with temporal prefixes suppress package and local auto routes', t => {
+  const f = fixture(t); f.install('skill:parallel-orchestration', f.current);
+  f.local('postgresql', 'PostgreSQL helper。触发词：慢查询');
+  for (const prefix of ['本次', '这次', '暂时', '先']) {
+    const packageItem = item(f.plan({ phase: 'task', prompt: prefix + '不要使用 parallel-orchestration' }), 'skill:parallel-orchestration');
+    assert.ok(!packageItem || packageItem.action === 'SKIP', prefix + ': ' + JSON.stringify(packageItem));
+    assert.equal(item(f.plan({ phase: 'task', prompt: prefix + '不要使用 postgresql 排查慢查询' }), 'skill:postgresql'), undefined);
+  }
+});
+
 test('local fallback prefers the domain prefix over a generic later token', t => {
   const f = fixture(t);
   const spring = f.local('spring-boot', 'Spring Boot 3.x：REST API、JPA。');

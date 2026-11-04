@@ -90,6 +90,17 @@ test('local library skill auto-loads without any registered package and is not p
   assert.equal(fs.existsSync(path.join(f.client, 'tmp/capability-advisor/sessions')), false);
 });
 
+test('the actual hook honors explicit local choices and current refusals without a registered package', t => {
+  const f = fixture(t);
+  for (const name of ['sql', 'db', 'mysql-review']) f.write(path.join(f.client, 'skills-library', name, 'SKILL.md'), `---\nname: ${name}\ndescription: ${name} helper\n---\n`);
+  f.write(path.join(f.client, 'capability-preferences.json'), { schema: 1, enabled: false, excludedIds: ['skill:sql', 'skill:db'] });
+  const selected = f.runActual('请使用 sql 排查 MySQL 查询，同时使用 db 检查连接', 'selected-local');
+  assert.match(selected, /已明确指定 sql/); assert.match(selected, /已明确指定 db/);
+  assert.doesNotMatch(selected, /mysql-review（AUTO_LOAD）/);
+  f.write(path.join(f.client, 'capability-preferences.json'), { schema: 1 });
+  assert.equal(f.runActual('本次不要使用 mysql-review 检查 MySQL', 'declined-local').includes(marker), false);
+});
+
 test('the installed hook command binds a custom client without an inherited QODER_HOME', t => {
   const f = fixture(t), item = f.skill(); f.setItems([item]); f.register();
   fs.cpSync(f.scripts, path.join(f.client, 'scripts'), { recursive: true });

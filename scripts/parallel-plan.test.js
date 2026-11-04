@@ -226,6 +226,12 @@ test('path normalization catches case and separator overlap', () => {
   assert.ok(result.reasonCodes.includes('OVERLAPPING_OWNED_PATHS'));
 });
 
+test('normalization preserves literal path case while overlap checks remain case insensitive', () => {
+  const input = base();
+  input.units[0].readPaths = ['src/MyComponent.ts'];
+  assert.deepEqual(validatePlan(input).units[0].readPaths, ['src/MyComponent.ts']);
+});
+
 test('plan digest is stable across key order and rejects mutation', () => {
   const first = validatePlan(base());
   const second = validatePlan(base());

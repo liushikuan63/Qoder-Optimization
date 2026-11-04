@@ -39,6 +39,17 @@ test('trusted invocation runs a real process with frozen nonempty expectation', 
   assert.equal(result.status, 'PASS'); assert.equal(result.executed, true); assert.equal(result.record.termination, 'completed');
   assert.match(result.record.stdout, /PROBE_OK/);
 });
+test('trusted file arguments resolve through a checkout directory alias', t => {
+  const f = fixture(t), c = command(f);
+  const alias = f.root + '-alias';
+  fs.symlinkSync(f.root, alias, process.platform === 'win32' ? 'junction' : 'dir');
+  t.after(() => fs.unlinkSync(alias));
+  const context = { ...f.context, projectRoot: alias };
+  const actual = engine.runTrusted(c.definition, context, c.authority);
+  assert.equal(actual.status, 'PASS', JSON.stringify(actual));
+  assert.match(actual.record.stdout, /PROBE_OK/);
+});
+
 test('read-only, unapproved arguments and wrong task never run the checker', t => {
   const f = fixture(t), { definition, authority } = command(f);
   f.context.mode = 'read-only'; assert.equal(engine.runTrusted(definition, f.context, authority).status, 'UNVERIFIED');
