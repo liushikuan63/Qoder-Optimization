@@ -155,7 +155,15 @@ function migrationFixture(f) {
       "& '" + quote(script) + "' " + args,
       'exit $LASTEXITCODE',
     ].join('\n'));
-    return spawnSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', wrapper], { env: f.env, encoding: 'utf8', timeout: 30000 });
+    // A Windows PowerShell cold start on the hosted runner can consume most of
+    // 30s before these tiny fixtures finish. Match the other isolated children;
+    // each test remains bounded by 180s and uses at most two 60s invocations.
+    const started = Date.now();
+    const result = spawnSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', wrapper], { env: f.env, encoding: 'utf8', timeout: 60000, windowsHide: true });
+    if (result.error || result.status === null) {
+      result.stderr = (result.stderr || '') + '\nMIGRATION_CHILD_ERROR ' + JSON.stringify({ elapsedMs: Date.now() - started, timeoutMs: 60000, code: result.error?.code, error: result.error?.message, signal: result.signal, status: result.status });
+    }
+    return result;
   };
   return { target, link, marker, invoke };
 }
