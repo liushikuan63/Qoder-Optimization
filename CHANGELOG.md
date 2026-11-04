@@ -24,6 +24,10 @@ During the 0.x line, minor versions may contain breaking changes.
 ### Skills
 - Remove the exact duplicate trigger phrase shared by six Spring skills so routing can distinguish architecture, AOP, Resilience4j, test patterns, events, and verification.
 
+### Windows compatibility
+- Canonicalize project roots and run/output paths in the trusted checker and parallel-write so Windows short (8.3) temp paths resolve to the same location as Git's long paths; include the extracted catalog helper in test sandboxes.
+- Skip the recycle-bin hop in CI and point the Windows job at the runner's non-system temp drive, so backup and CUA installation tests exercise real behavior instead of failing on runner layout.
+
 ### Maintainability and docs
 - Extract `stripQuoted` into `stop-gate-text.js`, redaction into `parallel-context-redact.cjs`, and catalog scoring into `pkg-catalog-score.cjs`, each with unit tests; parent behavior is unchanged.
 - Harden the CUA cursor guard to pass driver arguments as argv instead of a shell string, with test-only stubs gated by `CUA_GUARD_TEST_STUBS`.

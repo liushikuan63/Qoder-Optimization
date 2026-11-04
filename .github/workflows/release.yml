@@ -92,6 +92,9 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
+    env:
+      TEMP: ${{ runner.temp }}
+      TMP: ${{ runner.temp }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

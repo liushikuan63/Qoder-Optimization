@@ -7,8 +7,26 @@ const crypto = require('node:crypto');
 const { spawnSync } = require('node:child_process');
 const { evaluatePlan, validatePlan, digestPlan } = require('./parallel-plan.cjs');
 const fail = (code, message) => { throw Object.assign(new Error(message), { code }); };
-const samePath = (a, b) => (process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b);
-const inside = (root, file) => { const rel = path.relative(root, file); return !rel || (!rel.startsWith('..' + path.sep) && rel !== '..' && !path.isAbsolute(rel)); };
+const canonicalPath = p => {
+  let current = path.resolve(p);
+  const tail = [];
+  while (!fs.existsSync(current)) {
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    tail.unshift(path.basename(current));
+    current = parent;
+  }
+  try { current = fs.realpathSync.native(current); } catch { /* keep resolved path */ }
+  return path.join(current, ...tail);
+};
+const samePath = (a, b) => {
+  const left = canonicalPath(a), right = canonicalPath(b);
+  return process.platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right;
+};
+const inside = (root, file) => {
+  const rel = path.relative(canonicalPath(root), canonicalPath(file));
+  return !rel || (!rel.startsWith('..' + path.sep) && rel !== '..' && !path.isAbsolute(rel));
+};
 const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^GIT_/i.test(key)));
 Object.assign(env, { GIT_TERMINAL_PROMPT: '0', GIT_NO_LAZY_FETCH: '1' });

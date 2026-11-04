@@ -16,7 +16,7 @@ const ok = (name, cond, extra) => { if (cond) { pass++; console.log('PASS  ' + n
 
 const run = (args) => {
   try {
-    return { code: 0, out: execFileSync(process.execPath, [SCRIPT, ...args], { encoding: 'utf8', timeout: 20000 }) };
+    return { code: 0, out: execFileSync(process.execPath, [SCRIPT, ...args], { encoding: 'utf8', timeout: 20000, env: { ...process.env, BACKUP_NO_RECYCLE: '1' } }) };
   } catch (e) {
     return { code: e.status || 1, out: String(e.stdout || '') + String(e.stderr || '') };
   }

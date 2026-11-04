@@ -21,7 +21,7 @@ const { execFileSync } = require('child_process');
 
 // 删除一律进回收站（Windows；可还原），失败或非 Windows 才直接删。测试可设 BACKUP_NO_RECYCLE=1 跳过。
 function removeFile(p) {
-  if (process.platform === 'win32' && process.env.BACKUP_NO_RECYCLE !== '1') {
+  if (process.platform === 'win32' && process.env.BACKUP_NO_RECYCLE !== '1' && process.env.CI !== 'true') {
     try {
       execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
         `Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('${p.replace(/'/g, "''")}','OnlyErrorDialogs','SendToRecycleBin')`],

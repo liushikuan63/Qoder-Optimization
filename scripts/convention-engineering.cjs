@@ -43,19 +43,20 @@ function runTrusted(definition, context, authority) {
   try {
     const executable = fs.realpathSync.native(definition.executable);
     if (core.hash(fs.readFileSync(executable)) !== definition.sha256) return result(id, 'FAIL', ['approved executable has changed'], { executed: false });
+    const projectRoot = core.projectRoot(context.projectRoot);
     for (const arg of definition.args) {
       const candidate = arg.startsWith('--') && arg.includes('=') ? arg.slice(arg.indexOf('=') + 1) : arg;
       if (!candidate || candidate.startsWith('-')) continue;
-      const absolute = path.resolve(context.projectRoot, candidate);
+      const absolute = path.resolve(projectRoot, candidate);
       if (!fs.existsSync(absolute) || !fs.statSync(absolute).isFile()) continue;
-      const relative = path.relative(core.projectRoot(context.projectRoot), absolute).split(path.sep).join('/');
+      const relative = path.relative(projectRoot, absolute).split(path.sep).join('/');
       if (!definition.inputs.some(source => source.path === relative)) return result(id, 'UNVERIFIED', ['file arguments must be included in the approved implementation fingerprints'], { executed: false });
     }
     for (const source of definition.inputs) core.verifySource(core.projectRoot(context.projectRoot), source);
     const env = {};
     for (const key of ['PATH', 'Path', 'SYSTEMROOT', 'SystemRoot', 'WINDIR', 'COMSPEC', 'ComSpec', 'HOME', 'USERPROFILE', 'TEMP', 'TMP', 'TMPDIR', 'APPDATA', 'LOCALAPPDATA']) if (process.env[key]) env[key] = process.env[key];
     const beganAt = new Date().toISOString();
-    const child = spawnSync(executable, definition.args, { cwd: core.projectRoot(context.projectRoot), env, encoding: 'utf8', shell: false, windowsHide: true, timeout: 15000, maxBuffer: 256 * 1024 });
+    const child = spawnSync(executable, definition.args, { cwd: projectRoot, env, encoding: 'utf8', shell: false, windowsHide: true, timeout: 15000, maxBuffer: 256 * 1024 });
     const record = { schema: 1, commandDigest: stamp, taskId: context.taskId, worktreeId: authority.worktreeId, beganAt, endedAt: new Date().toISOString(), executable, level: 'runtime', termination: child.error || child.signal || child.status === null ? 'incomplete' : 'completed', exitCode: child.status, stdout: child.stdout || '', stderr: child.stderr || '' };
     if (record.termination !== 'completed') return result(id, 'UNVERIFIED', ['checker timed out, crashed or exceeded output limits'], { executed: true, record });
     if (core.hash(fs.readFileSync(executable)) !== definition.sha256) return result(id, 'FAIL', ['executable changed during the check'], { executed: true, record });
