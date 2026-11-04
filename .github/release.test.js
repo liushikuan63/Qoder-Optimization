@@ -25,7 +25,7 @@ function fixture() {
   put('VERSION', 'v0.0.2\n2026-10-28\n');
   put('skills/demo/SKILL.md', '---\nname: demo\ndescription: 离线报表 export report\n---\n\n# Demo\n');
   put('skills/demo/LICENSE', 'Fixture license retained\n');
-  for (const name of ['pkg-catalog.cjs', 'client-root.js', 'package-dependencies.cjs', 'archive-entries.cjs', 'import-memory.cjs', 'pack-folder.js', 'pack-share-extras.cjs']) put('scripts/' + name, fs.readFileSync(path.join(source, 'scripts', name)));
+  for (const name of ['pkg-catalog.cjs', 'pkg-catalog-score.cjs', 'client-root.js', 'package-dependencies.cjs', 'archive-entries.cjs', 'import-memory.cjs', 'pack-folder.js', 'pack-share-extras.cjs']) put('scripts/' + name, fs.readFileSync(path.join(source, 'scripts', name)));
   put('qoder-memory-export-generic.tar.gz', require('zlib').gzipSync(require('../scripts/archive-entries.cjs').encodeTar([{ name: 'MEMORY.md', data: Buffer.from('fixture memory') }])));
   put('scripts/demo.cmd', Buffer.from([64, 101, 99, 104, 111, 32, 0x81, 0x40, 10]));
   put('commands/demo.md', '# Command\n');
