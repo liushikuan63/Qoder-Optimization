@@ -88,8 +88,9 @@ node scripts/install-continuity.cjs --yes --no-auto-bind # 只接线，仍按会
 **常驻数量由使用者决定，不由分享包写死**：
 
 - 安装技能时默认按需；交互执行 `install <id> --apply` 会询问「是否设为常驻」，回答 `y` 进 `skills/`，直接回车进 `skills-library/`。非交互安装必须用 `--tier core|library` 明确选择，不会静默把技能加入常驻。
-- 用了一段时间后按实际频率调整：`node ~/.qoder/scripts/tier-skills.cjs --promote <常用技能>` 升到常驻，`--demote <低频技能>` 退回按需；都先 dry-run，加 `--apply` 才移动并重建索引。**promote/demote 会写入 `<客户端>/skills-resident.json`**，后续默认分层不会把你的选择移回去；包升级不覆盖这个文件。`--keep` 和 `--restore-all` 只影响本次操作。
+- 用了一段时间后按实际频率调整：`node ~/.qoder/scripts/tier-skills.cjs --promote <常用技能>` 升到常驻，`--demote <低频技能>` 退回按需；都先 dry-run，加 `--apply` 才移动并重建索引。**promote/demote 会写入 `<客户端>/skills-resident.json`**，后续默认分层不会把你的选择移回去；安装时选常驻（`--tier core` / `--resident`）也会自动记入该清单；包升级不覆盖这个文件。`--keep` 和 `--restore-all` 只影响本次操作。
 - 想恢复包内默认层级：删除 `skills-resident.json` 后运行一次 `tier-skills --apply`；升级包时若不想保留旧选择，也按这个方式处理。
+- **按使用记录给建议，不自动改层级**：`skill-load --record` 记录一次检索需求，实际采用后运行 `skill-usage.cjs log <名> --source use`；`skill-usage.cjs report` 查看 30/90 天使用，`suggest` 按阈值给建议——按需技能 30 天 ≥3 次或 90 天 ≥5 次建议晋升；用户自选常驻且 90 天未用建议降级；包内 CORE 默认常驻不建议降级。建议必须先用 `AskUserQuestion` 确认，再运行 `tier-skills --promote/--demote --apply`。原生 Skill 调用无法被脚本自动观测，未显式 log 的使用不进入统计。
 - 包内 12 个常驻只是**默认起点**（基础路由与跨域元技能），不是要求接收者照搬的数量。常驻越多，每轮注入的描述越长；以「这条技能是否靠描述自动命中」为准，不靠堆数量。
 
 包内实物：133 个技能（12 常驻 + 121 按需）；常驻描述 2582 字符，全部技能描述 27631 字符，占比 9.3%。按 catalog 计算，不是接收者的已安装数量；12 只是默认起点，常驻数量由使用者按习惯在安装时与使用中决定。
@@ -150,6 +151,7 @@ node scripts/install-continuity.cjs --yes --no-auto-bind # 只接线，仍按会
 - `node ~/.qoder/scripts/disk-sweeper.js` —— C 盘水位三档报告与清理（默认只列，`--apply` 才删；配套指令 `/clean-disk`）
 - `node ~/.qoder/scripts/stop-gate.js` / `rules-reminder.js` / `huge-output-guard.js` / `session-budget.js` / `edit-guard.js` / `global-config-guard.js` / `commit-scope-guard.js` / `rules-weekly-audit.js` —— 规则强制层与守卫脚本，**需要在 `~/.qoder/settings.json` 的 `hooks` 里自行接线**才生效（说明见 `scripts/README-rule-enforcement.md`）
 - `node ~/.qoder/scripts/work-queue-check.js` —— 接续队列可恢复性校验（四要素齐不齐 / 阻塞有没有理由 / 关键入口路径还在不在；相对入口以队列所在目录为基准，`--file` 可检查其它目录的队列；退出码 3 = 没有队列文件）；配套指令 `/checkpoint` 与 stop-gate 的 R6c 门禁
+- `node ~/.qoder/scripts/skill-usage.cjs report|suggest|log <名>` —— 技能使用记录与晋升/降级建议（只记技能名 / 时间 / 来源；建议必须经用户确认后交给 `tier-skills --promote/--demote`）
 - `node ~/.qoder/scripts/skills-doctor.cjs` / `config-doctor.cjs` / `skill-collisions.cjs` —— 技能门禁（描述长度 / 悬空引用 / 两侧可见性）、配置面对齐（插件 / hooks / MCP / 安全开关）、技能撞名扫描；均带 `--selftest`
 - `node ~/.qoder/scripts/edge-net-check.cjs [--fix]` / `gh-accel-plan.cjs` —— 浏览器打不开网页的定性诊断与"该不该交还直连"的六桶清单；配套指令 `/edge-net-check`
 - `node ~/.qoder/scripts/pack-folder.js <目录> <zip>` —— 生成 Unix 来源 zip（中文文件名在 unzip 下不乱码）

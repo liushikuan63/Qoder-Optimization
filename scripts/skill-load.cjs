@@ -4,9 +4,11 @@ const path = require('path');
 const { collectSkills } = require('./build-skills-index.cjs');
 const { resolveCatalog, readCatalog, searchEntries, formatEntry, localPresence, needsAsk, compareWithPackage } = require('./pkg-catalog.cjs');
 
-const query = process.argv.slice(2).join(' ').trim();
+const args = process.argv.slice(2);
+const record = args.includes('--record');
+const query = args.filter(arg => arg !== '--record').join(' ').trim();
 if (!query) {
-  console.error('用法: node skill-load.cjs "<关键词…>"');
+  console.error('用法: node skill-load.cjs [--record] "<关键词…>"');
   process.exit(2);
 }
 
@@ -40,6 +42,16 @@ function packageUpdatesFor(hits) {
 
 const hits = searchEntries(entries, query, 6);
 if (hits.length) {
+  if (record) {
+    // Explicit /skill-load demand signal only; normal programmatic searches
+    // stay read-only. Lazy require keeps older clients without the new script
+    // working, and native Skill tool invocations still need an explicit log.
+    try {
+      const { appendUsage, LOG_FILE } = require('./skill-usage.cjs');
+      const { clientRoot } = require('./client-root.js');
+      appendUsage(path.join(clientRoot(), LOG_FILE), hits[0].e.name, 'skill-load');
+    } catch (error) { console.error('USAGE_LOG_WARN: ' + error.message); }
+  }
   hits.forEach(({ e, s }, i) => {
     console.log(`${i + 1}. ${e.name}   [${e.tier}]  score=${s}`);
     console.log(`   ${e.path}`);

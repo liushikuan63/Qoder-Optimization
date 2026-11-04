@@ -10,6 +10,7 @@ const { clientRoot } = require('./client-root.js');
 const { dependenciesFor } = require('./package-dependencies.cjs');
 const { readCatalog } = require('./pkg-catalog.cjs');
 const { isPublicFile } = require('./pack-share-extras.cjs');
+const { readResident } = require('./tier-skills.cjs');
 
 const BASE_IDS = [
   'script:rules-reminder.js', 'script:capability-advisor.cjs',
@@ -171,11 +172,11 @@ function prepare(options = {}) {
   const catalogFile = path.resolve(options.catalogFile || path.join(__dirname, '..', 'catalog.json'));
   const catalog = readCatalog(catalogFile), root = path.dirname(catalogFile);
   const client = path.resolve(options.client || clientRoot());
-  const pointer = path.join(client, 'share-package.json'), settings = path.join(client, 'settings.json');
+  const pointer = path.join(client, 'share-package.json'), settings = path.join(client, 'settings.json'), residentFile = path.join(client, 'skills-resident.json');
   const plan = { catalogFile, catalogHash: digest(fs.readFileSync(catalogFile)), root, client, realClient: physical(client), items: [], changes: [], baseIds: BASE_IDS, diagnostics: [] };
   try { const stat = fs.statSync(client); if (!stat.isDirectory()) throw new Error('客户端路径不是目录'); plan.clientIdentity = { ino: stat.ino, dev: stat.dev }; }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
-  for (const file of [pointer, settings, path.join(client, 'skills-index.json'), path.join(client, 'package-activation.json')]) { assertPath(plan, file); snapshot(file); }
+  for (const file of [pointer, settings, path.join(client, 'skills-index.json'), path.join(client, 'package-activation.json'), residentFile]) { assertPath(plan, file); snapshot(file); }
   let previous = {};
   if (fs.existsSync(pointer)) {
     try { previous = JSON.parse(fs.readFileSync(pointer, 'utf8')); }
@@ -194,6 +195,10 @@ function prepare(options = {}) {
     if (entries.get(id).category !== 'skill') throw new Error('--resident 只接受技能：' + id);
     if (!(options.install || []).includes(id)) throw new Error('--resident 需要同时用 --install 选择该技能：' + id);
   }
+  const previousResident = readResident(residentFile).sort();
+  plan.residentBefore = snapshot(residentFile);
+  plan.residentNames = [...new Set([...previousResident, ...[...resident].map(id => entries.get(id).name)])].sort();
+  plan.residentChanged = plan.residentNames.join('\u0000') !== previousResident.join('\u0000');
   const closure = ids => {
     const order = [], visiting = new Set(), visited = new Set();
     const visit = id => {
@@ -222,7 +227,7 @@ function prepare(options = {}) {
   plan.items = advice.items || [];
   plan.diagnostics = advice.diagnostics || advice.warnings || [];
   const items = new Map(plan.items.map(item => [item.id || item.entry?.id, item]));
-  for (const id of resident) if (items.get(id)?.action === 'KEEP') throw new Error('已安装技能不能通过 --resident 换层，请用 tier-skills --promote：' + id);
+  for (const id of resident) if (items.get(id)?.action === 'KEEP' || items.get(id)?.installedPaths?.length) throw new Error('已安装技能不能通过 --resident 换层，请用 tier-skills --promote：' + id);
   plan.acceptedInstallIds = [...new Set([...explicitClosure, ...plan.items.filter(item => item.action === 'UPDATE').map(item => item.id)])];
   const blocked = id => items.get(id)?.action === 'REVIEW_UPDATE' || (items.get(id)?.installedPaths?.length || 0) > 1;
   plan.baseBlocked = baseClosure.filter(blocked);
@@ -412,6 +417,11 @@ function apply(plan, options = {}) {
     if (plan.baseReady) {
       const pointer = path.join(stage, 'share-package.json'); fs.writeFileSync(pointer, JSON.stringify(plan.pointerValue, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
       publish({ id: 'metadata:share-package', target: path.join(plan.client, 'share-package.json'), before: plan.pointerBefore, staged: pointer });
+    }
+    if (plan.residentChanged) {
+      const file = path.join(stage, 'skills-resident.json');
+      fs.writeFileSync(file, JSON.stringify({ schema: 1, skills: plan.residentNames }, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
+      publish({ id: 'metadata:skills-resident', target: path.join(plan.client, 'skills-resident.json'), before: plan.residentBefore, staged: file });
     }
     const receipt = { schema: 1, installedAt: new Date().toISOString(), catalog: plan.catalogFile, catalogSha256: plan.catalogHash, ready: plan.baseReady, hook: plan.baseReady ? plan.hook.state : 'BLOCKED', baseBlocked: plan.baseBlocked, installedIds: plan.changes.map(item => item.id), recoveryDirectory: stage };
     const receiptFile = path.join(stage, 'package-activation.json'); fs.writeFileSync(receiptFile, JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx', mode: 0o600 });

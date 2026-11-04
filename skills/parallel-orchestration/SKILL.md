@@ -47,15 +47,15 @@ description: 主会话协调的多 agent 并行编排：多模块/跨端/多文�
 
 ### 1. 判定
 
-先做一次记忆召回，再写计划 JSON：运行 `node scripts/parallel-context.cjs recall --query "<目标 + 模块/路径/错误码>" --out .qoder/parallel-plans/<taskId>.recall.json`。默认检索 `~/.qoder{,-cn}/memory` 与当前项目的 `projects/<slug>/memory`；自定义目录用 `--memory` 追加。把命中的硬约束/已知坑补进 `plan.constraints`；没有命中写“记忆无此项”。召回是证据，与当前代码冲突时以现场为准。
+先做一次记忆召回，再写计划 JSON：运行 `node ~/.qoder/scripts/parallel-context.cjs recall --query "<目标 + 模块/路径/错误码>" --out .qoder/parallel-plans/<taskId>.recall.json`。默认检索 `~/.qoder{,-cn}/memory` 与当前项目的 `projects/<slug>/memory`；自定义目录用 `--memory` 追加。把命中的硬约束/已知坑补进 `plan.constraints`；没有命中写“记忆无此项”。召回是证据，与当前代码冲突时以现场为准。
 
 写计划 JSON（模板见 [references/plan-schema.md](references/plan-schema.md)），然后运行：
 
 ```bash
-node scripts/parallel-plan.cjs <plan.json> --json --markdown .qoder/parallel-plans/<taskId>.md
+node ~/.qoder/scripts/parallel-plan.cjs <plan.json> --json --markdown .qoder/parallel-plans/<taskId>.md
 ```
 
-仓库内用 `scripts/`；安装后用 `node ~/.qoder/scripts/parallel-plan.cjs <plan.json> --json --markdown .qoder/parallel-plans/<taskId>.md`（Git Bash）。基础安装会随包安装 `parallel-plan.cjs` 与 `parallel-context.cjs`；若两者缺失，先运行 `install-package.cjs` 补基础集。计划文档在用户确认前生成，属于待审计划，不是运行上下文。真实任务不得用 `--preview` 跳过计划文档；`--preview` 只用于测试或工具预演。
+以上命令按安装后的客户端路径书写（Git Bash）；在源码仓库里把 `~/.qoder/scripts` 换成仓库的 `scripts` 目录。基础安装会随包安装 `parallel-plan.cjs` 与 `parallel-context.cjs`；若两者缺失，先运行 `install-package.cjs` 补基础集。计划文档在用户确认前生成，属于待审计划，不是运行上下文。真实任务不得用 `--preview` 跳过计划文档；`--preview` 只用于测试或工具预演。
 
 退出码与动作：
 
@@ -103,17 +103,17 @@ worker：<workerTool> × <N>；成本约为单线 5–20 倍
 在项目内创建运行目录 `.qoder/parallel-runs/<taskId>/`：
 
 ```bash
-node scripts/parallel-context.cjs init --plan <plan.json> --out .qoder/parallel-runs/<taskId> --decision "用户确认计划并启用<只读|worktree写>并行"
+node ~/.qoder/scripts/parallel-context.cjs init --plan <plan.json> --out .qoder/parallel-runs/<taskId> --decision "用户确认计划并启用<只读|worktree写>并行"
 
 # 复用计划阶段的召回文件；计划或单元变化时用新关键词重新检索
-node scripts/parallel-context.cjs recall --query "<目标 + 单元标题 + 关键路径/错误码>" --out .qoder/parallel-plans/<taskId>.recall.json --max-items 5 --max-chars 1200
+node ~/.qoder/scripts/parallel-context.cjs recall --query "<目标 + 单元标题 + 关键路径/错误码>" --out .qoder/parallel-plans/<taskId>.recall.json --max-items 5 --max-chars 1200
 
 # 审阅召回候选：只把与单元路径/验收相关的 refs 留给 pack，删除无关或过期条目
-node scripts/parallel-context.cjs pack --context .qoder/parallel-runs/<taskId>/context.json --unit U1 --recall .qoder/parallel-plans/<taskId>.recall.json --out .qoder/parallel-runs/<taskId>/packs/U1.json
+node ~/.qoder/scripts/parallel-context.cjs pack --context .qoder/parallel-runs/<taskId>/context.json --unit U1 --recall .qoder/parallel-plans/<taskId>.recall.json --out .qoder/parallel-runs/<taskId>/packs/U1.json
 ```
 
 - 召回由协调者完成：`recall` 会检索 `MEMORY.md` 索引及其链接文件，按目标/模块/路径/错误码评分，并对摘录脱敏、限量；每条带 source/ref/asOf/confidence，默认每个 worker ≤2,000 字符；没有命中就写“记忆无此项”，不要编造。
-- continuity 仅在已显式 enable 且任务绑定时查询；如需使用，先按已绑定会话执行 `node scripts/continuity.cjs search --cwd <项目> --session <会话> --query "<关键词>"`，人工核对后再并入 recall.json；不要自动 enable。
+- continuity 仅在已显式 enable 且任务绑定时查询；如需使用，先按已绑定会话执行 `node ~/.qoder/scripts/continuity.cjs search --cwd <项目> --session <会话> --query "<关键词>"`，人工核对后再并入 recall.json；不要自动 enable。
 - 每个 worker 的 pack 只带与自身单元相关的召回；不要把完整记忆、完整会话或凭据发给 worker。
 - 每条召回带来源、as-of、confidence；摘录先脱敏、再限量（默认每个 worker ≤2,000 字符，可配置）。
 - 没有命中就写“记忆无此项”，继续用 spec/代码；不要编造记忆。

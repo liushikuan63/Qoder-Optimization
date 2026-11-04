@@ -9,6 +9,8 @@ During the 0.x line, minor versions may contain breaking changes.
 ### Capability installation
 - Ask during interactive skill installation whether the selected skill should be resident; the default remains on-demand, and non-interactive installs must pass `--tier core|library`. The final resident count is a per-user usage decision rather than a fixed package constant.
 - Add `tier-skills --promote/--demote` for adjusting resident status after real usage; both preview by default, persist explicit choices in `<client>/skills-resident.json`, and rebuild the index only with `--apply`. `--keep` and `--restore-all` remain one-off operations, so package upgrades do not reset the user's resident set.
+- Record skills installed directly into the resident tier (`pkg-catalog install --tier core` and `install-package --resident`) in `<client>/skills-resident.json`, so a later default tiering pass does not silently demote them.
+- Add `skill-usage.cjs` for local usage records and tier suggestions: `/skill-load --record` logs a search demand, explicit `log` records actual use, and `suggest` recommends promotion after repeated use or demotion after 90 idle days for user-promoted skills. Package CORE defaults are never suggested for demotion, and no tier changes are applied without user confirmation. Only skill names, timestamps and sources are stored.
 
 ## [0.0.21] - 2026-11-03
 

@@ -42,6 +42,31 @@ const value = positionals.join(' ').trim();
 const fail = (code, msg) => { console.error(msg); process.exit(code); };
 const readJson = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
 
+// Keep pkg-catalog standalone: record a resident install directly instead of
+// taking a dependency on tier-skills.cjs.
+function rememberResident(file, names) {
+  let current = [];
+  if (fs.existsSync(file)) {
+    const data = readJson(file);
+    if (!data || data.schema !== 1 || !Array.isArray(data.skills)
+      || data.skills.some(name => typeof name !== 'string' || !/^[a-z0-9][a-z0-9-]*$/.test(name))) {
+      throw new Error('skills-resident.json 格式无效：需要 {"schema":1,"skills":["..."]}');
+    }
+    current = [...new Set(data.skills)];
+  }
+  const next = [...new Set([...current, ...names])].sort();
+  if (next.length === current.length && next.every((name, index) => name === current[index])) return false;
+  const temp = file + '.tmp-' + process.pid;
+  try {
+    fs.writeFileSync(temp, JSON.stringify({ schema: 1, skills: next }, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
+    fs.renameSync(temp, file);
+  } catch (error) {
+    try { fs.unlinkSync(temp); } catch {}
+    throw error;
+  }
+  return true;
+}
+
 function validateArgs() {
   const allowed = {
     search: ['catalog'], show: ['catalog'], list: ['catalog', 'category'],
@@ -506,6 +531,12 @@ function cmdInstall() {
         copyExclusive(stagedIndex, indexPath, indexOwned);
       }
       console.log('  ' + message);
+    }
+    const coreSkills = plan.filter(item => item.entry.category === 'skill' && path.basename(path.dirname(item.target)) === 'skills').map(item => item.entry.name);
+    if (coreSkills.length) {
+      try {
+        if (rememberResident(path.join(QODER, 'skills-resident.json'), coreSkills)) console.log('  已记入常驻清单：' + coreSkills.join(', '));
+      } catch (error) { console.error('  WARN 常驻清单未更新：' + error.message); }
     }
     console.log('  已安装全部包内依赖并通过入口校验；第三方依赖与现役装载未验证。');
     for (const item of plan) if (fs.statSync(item.target).isDirectory() && fs.existsSync(path.join(item.target, 'package-lock.json'))) {

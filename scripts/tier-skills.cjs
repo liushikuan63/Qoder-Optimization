@@ -33,6 +33,14 @@ function writeResident(file, skills) {
   }
 }
 
+function rememberResident(file, names) {
+  const current = readResident(file);
+  const next = [...new Set([...current, ...names])].sort();
+  if (next.length === current.length && next.every((name, index) => name === current[index])) return false;
+  writeResident(file, next);
+  return true;
+}
+
 function main(argv) {
   let apply = false, restoreAll = false, keep = [], restore = [], only = [];
   const names = value => {
@@ -106,7 +114,7 @@ function main(argv) {
   }
 }
 
-module.exports = { CORE };
+module.exports = { CORE, RESIDENT_FILE, readResident, writeResident, rememberResident };
 if (require.main === module) {
   try { process.exitCode = main(process.argv.slice(2)); }
   catch (error) { console.error('TIER_ERROR: ' + error.message); process.exitCode = 2; }

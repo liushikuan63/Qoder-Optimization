@@ -55,7 +55,10 @@ caseRun('多词查询要求全部命中', ['search', '报表 zzz'], (r) => r.cod
 caseRun('默认 dry-run 不写盘', ['install', 'skill:demo-skill'], (r, c) => r.code === 0 && !fs.existsSync(target(c)) && r.out.includes('预演'));
 caseRun('默认 dry-run 提示常驻需询问或显式选择', ['install', 'skill:demo-skill'], (r) => r.code === 0 && r.out.includes('交互执行 --apply 时会询问是否常驻'));
 caseRun('--apply 安装到按需库', ['install', 'skill:demo-skill', '--apply'], (r, c) => r.code === 0 && fs.existsSync(target(c)) && !fs.existsSync(path.join(c.home, '.qoder', 'skills', 'demo-skill')));
-caseRun('--tier core 安装到常驻目录', ['install', 'skill:demo-skill', '--apply', '--tier', 'core'], (r, c) => r.code === 0 && fs.existsSync(path.join(c.home, '.qoder', 'skills', 'demo-skill', 'SKILL.md')));
+caseRun('--tier core 安装到常驻目录并记入用户常驻清单', ['install', 'skill:demo-skill', '--apply', '--tier', 'core'], (r, c) => {
+  const resident = JSON.parse(fs.readFileSync(path.join(c.home, '.qoder', 'skills-resident.json'), 'utf8'));
+  return r.code === 0 && fs.existsSync(path.join(c.home, '.qoder', 'skills', 'demo-skill', 'SKILL.md')) && resident.skills.includes('demo-skill');
+});
 caseRun('先装再装 → exit 1', ['install', 'skill:demo-skill', '--apply'], (r, c) => {
   const second = run(c, ['install', 'skill:demo-skill', '--apply']);
   return r.code === 0 && second.code === 1 && second.out.includes('已存在');

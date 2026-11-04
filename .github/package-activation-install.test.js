@@ -122,6 +122,8 @@ test('--resident installs the selected skill into the resident tier and refuses 
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.equal(fs.existsSync(path.join(f.client, 'skills/fixture-specialized/SKILL.md')), true);
   assert.equal(fs.existsSync(path.join(f.client, 'skills-library/fixture-specialized')), false);
+  const resident = JSON.parse(fs.readFileSync(path.join(f.client, 'skills-resident.json'), 'utf8'));
+  assert.ok(resident.skills.includes('fixture-specialized'));
   const index = JSON.parse(fs.readFileSync(path.join(f.client, 'skills-index.json'), 'utf8'));
   assert.equal(index.entries.find(entry => entry.name === 'fixture-specialized').tier, 'core');
   const second = f.run(['--yes', '--install', 'skill:fixture-specialized', '--resident', 'skill:fixture-specialized', '--json']);

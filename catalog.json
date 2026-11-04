@@ -8,7 +8,7 @@
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 133,
-  "script": 125,
+  "script": 127,
   "command": 10,
   "agent": 2
  },
@@ -2707,7 +2707,8 @@
     "script:client-root.js",
     "script:pack-share-extras.cjs",
     "script:package-dependencies.cjs",
-    "script:pkg-catalog.cjs"
+    "script:pkg-catalog.cjs",
+    "script:tier-skills.cjs"
    ]
   },
   {
@@ -3125,7 +3126,9 @@
    "source": "scripts/skill-load.cjs",
    "dependencies": [
     "script:build-skills-index.cjs",
-    "script:pkg-catalog.cjs"
+    "script:client-root.js",
+    "script:pkg-catalog.cjs",
+    "script:skill-usage.cjs"
    ]
   },
   {
@@ -3137,6 +3140,31 @@
     "mode": "copy-file"
    },
    "source": "scripts/skill-load.test.js",
+   "dependencies": []
+  },
+  {
+   "id": "script:skill-usage.cjs",
+   "category": "script",
+   "name": "skill-usage.cjs",
+   "status": "shipped",
+   "source": "scripts/skill-usage.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:client-root.js",
+    "script:tier-skills.cjs"
+   ]
+  },
+  {
+   "id": "script:skill-usage.test.js",
+   "category": "script",
+   "name": "skill-usage.test.js",
+   "status": "shipped",
+   "source": "scripts/skill-usage.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
    "dependencies": []
   },
   {

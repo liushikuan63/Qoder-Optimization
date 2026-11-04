@@ -53,10 +53,10 @@ AI coding assistants can lose track of process: a check may be claimed without e
 | Included | Count | Examples |
 |---|---:|---|
 | Skills | 133 | Verification, code review, delivery, databases, documents, desktop automation |
-| Scripts | 125 | Guardrails, self-tests, packaging, validation, tool helpers |
+| Scripts | 127 | Guardrails, self-tests, packaging, validation, tool helpers |
 | Commands | 10 | Clarification, checkpoints, skill search, cleanup |
 | Sub-agents | 2 | Runtime-truth and post-deployment verification |
-| Catalog entries | 270 | Skills, scripts, commands, and agents |
+| Catalog entries | 272 | Skills, scripts, commands, and agents |
 
 ### How it fits together
 
@@ -111,7 +111,7 @@ The design aims to keep context focused, make mistakes recoverable, and tie comp
 #### Focused context and reuse
 
 - **Separate responsibilities.** Global rules hold lasting constraints, domain rules load when relevant, skills describe repeatable workflows, and scripts perform deterministic checks. Keep detail out of the always-loaded prompt.
-- **Reuse before expanding.** Follow the project's existing conventions and tools; search the catalog before adding another capability. Install only what is needed, keep frequent skills resident, and preserve routing cues and unique capabilities when slimming or merging skills.
+- **Reuse before expanding.** Follow the project's existing conventions and tools; search the catalog before adding another capability. Install only what is needed; the installer asks whether a selected skill should be resident, and local usage records suggest later promotion or demotion for user approval rather than hardcoding a resident count. Preserve routing cues and unique capabilities when slimming or merging skills.
 - **Keep one source for each fact or check.** Share guard decision logic between pre-call and post-call hooks; derive catalog and manifest data from public sources. Check for drift instead of maintaining competing hand-edited copies.
 
 #### Bounded execution and continuity
@@ -220,10 +220,10 @@ AI 编码助手常见的问题包括：没有证据就声称验证通过、失�
 | 内容 | 数量 | 示例 |
 |---|---:|---|
 | 技能 | 133 | 验证、代码评审、交付、数据库、文档、桌面自动化 |
-| 脚本 | 125 | 守卫、自测、打包、校验与工具补强 |
+| 脚本 | 127 | 守卫、自测、打包、校验与工具补强 |
 | 命令 | 10 | 需求澄清、接续检查、技能检索、清理 |
 | 子智能体 | 2 | 运行期真值核验、部署后验收 |
-| 目录条目 | 270 | 技能、脚本、命令与子智能体 |
+| 目录条目 | 272 | 技能、脚本、命令与子智能体 |
 
 ### 工作方式
 
