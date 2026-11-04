@@ -2049,6 +2049,7 @@
     "mode": "copy-file"
    },
    "dependencies": [
+    "script:build-skills-index.cjs",
     "script:client-root.js",
     "script:pkg-catalog.cjs"
    ]
