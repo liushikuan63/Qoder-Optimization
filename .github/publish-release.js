@@ -58,11 +58,12 @@ function publishRelease({ repo, tag, dest, gh = officialGh, root = process.cwd()
   const reconcileLatest = published => {
     const version = item => !item.draft && !item.prerelease && /^v\d+\.\d+\.\d+$/.test(item.tag_name || '')
       ? item.tag_name.slice(1).split('.').map(BigInt) : null;
+    const observed = [];
     const highest = () => {
       const pages = JSON.parse(invoke(['api', `repos/${repo}/releases?per_page=100`, '--paginate', '--slurp']));
       if (!Array.isArray(pages) || pages.some(page => !Array.isArray(page))) throw new Error('invalid release listing for Latest reconciliation');
       // Include the just-verified release while the listing is catching up.
-      return [...pages.flat(), published].filter(item => item && version(item)).reduce((best, item) => {
+      return [...pages.flat(), published, ...observed].filter(item => item && version(item)).reduce((best, item) => {
         if (!Number.isSafeInteger(item.id) || item.id <= 0) throw new Error('invalid stable release identity');
         if (!best) return item;
         const a = version(item), b = version(best);
@@ -77,11 +78,17 @@ function publishRelease({ repo, tag, dest, gh = officialGh, root = process.cwd()
     // Publication jobs share a repository-wide lock. Re-read as well because
     // older workflows and manual publishers do not participate in that lock.
     for (let attempt = 0; attempt < 3; attempt++) {
+      // A stale paginated list must not erase a higher stable release already
+      // returned by /latest, including one observed in a previous attempt.
+      const current = latest();
+      if (current) observed.push(current);
       const target = highest();
       if (!target) throw new Error('no stable release is available for Latest');
-      if (latest()?.id !== target.id) invoke(['api', '--method', 'PATCH', `repos/${repo}/releases/${target.id}`, '-f', 'make_latest=true']);
-      const confirmed = latest(), refreshed = highest();
-      if (confirmed?.id === target.id && refreshed.id === target.id) return target.tag_name;
+      if (current?.id !== target.id) invoke(['api', '--method', 'PATCH', `repos/${repo}/releases/${target.id}`, '-f', 'make_latest=true']);
+      const confirmed = latest();
+      if (confirmed) observed.push(confirmed);
+      const refreshed = highest();
+      if (confirmed?.id === target.id && confirmed.tag_name === target.tag_name && refreshed.id === target.id) return target.tag_name;
     }
     throw new Error('Latest did not stabilize within the reconciliation budget; published assets retained');
   };

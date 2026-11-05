@@ -416,7 +416,7 @@ test('a tracked private file blocks the build rather than being silently exporte
   assert.equal(fs.existsSync(path.join(f.base, 'dist/Qoder-Optimization-0.0.2.zip')), false);
 }));
 
-function publicationFixture(f, { existing = true, mismatch = false, error = false, wrongCommit = false, draft = false, history = [], latestTag, stuckLatest = false, afterPromotion } = {}) {
+function publicationFixture(f, { existing = true, mismatch = false, error = false, wrongCommit = false, draft = false, history = [], listHistory = true, latestTag, stuckLatest = false, afterPromotion } = {}) {
   const dest = path.join(f.base, 'publish');
   fs.mkdirSync(dest);
   const name = 'Qoder-Optimization-0.0.2';
@@ -452,7 +452,7 @@ function publicationFixture(f, { existing = true, mismatch = false, error = fals
         }
         return { status: 0, stdout: JSON.stringify(target) };
       }
-      if (endpoint.includes('/releases?')) return { status: 0, stdout: JSON.stringify([[...others, ...(visibleInList && release ? [release] : [])]]) };
+      if (endpoint.includes('/releases?')) return { status: 0, stdout: JSON.stringify([[...(listHistory ? others : []), ...(visibleInList && release ? [release] : [])]]) };
       if (endpoint.endsWith('/releases/latest')) return latest ? { status: 0, stdout: JSON.stringify(latest) } : { status: 1, stderr: 'gh: Not Found (HTTP 404)' };
       return release && !release.draft ? { status: 0, stdout: JSON.stringify(release) } : { status: 1, stderr: 'gh: Not Found (HTTP 404)' };
     }
@@ -563,6 +563,15 @@ test('a delayed older release cannot replace a newer stable Latest', () => withF
   assert.equal(result.latestTag, 'v0.0.10');
   const publish = p.calls.find(a => a.includes('draft=false'));
   assert.ok(publish.includes('make_latest=false'));
+}));
+
+test('a stale release list cannot erase a higher stable Latest already observed', () => withFixture(f => {
+  const newer = { id: 910, tag_name: 'v0.0.10', draft: false, prerelease: false };
+  const p = publicationFixture(f, { existing: false, history: [newer], listHistory: false, latestTag: newer.tag_name });
+  const result = publishRelease({ repo: 'example/project', tag: 'v0.0.2', ...p });
+  assert.equal(p.latest().tag_name, 'v0.0.10');
+  assert.equal(result.latestTag, 'v0.0.10');
+  assert.equal(p.calls.some(a => a.includes('make_latest=true') && a.includes('repos/example/project/releases/901')), false);
 }));
 
 test('new releases explicitly avoid automatic Latest before verification', () => withFixture(f => {
