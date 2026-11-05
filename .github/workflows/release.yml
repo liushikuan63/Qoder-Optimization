@@ -58,6 +58,7 @@ jobs:
     concurrency:
       group: release-publish-${{ (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') && github.repository || github.run_id }}
       cancel-in-progress: false
+      queue: max
     steps:
       - name: Checkout
         uses: actions/checkout@v4

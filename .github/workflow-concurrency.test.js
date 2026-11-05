@@ -77,6 +77,14 @@ test('all publication versions share a lock while validation runs stay independe
   assert.equal(key('workflow_dispatch', 'refs/heads/main', 3), key('push', 'refs/tags/v0.0.2', 2));
   assert.notEqual(key('push', 'refs/heads/main', 4), key('pull_request', 'refs/pull/5/merge', 5));
   assert.notEqual(key('push', 'refs/heads/main', 4), key('push', 'refs/tags/v0.0.2', 2));
+  const block = job('publish');
+  const queue = block.match(/^      queue: (\w+)$/m)?.[1] || 'single';
+  // GitHub's default single queue replaces the previous pending job. With one
+  // version publishing, two more versions must both remain eligible to publish.
+  const pending = [];
+  for (const tag of ['v0.0.2', 'v0.0.3']) { if (queue === 'single') pending.length = 0; pending.push(tag); }
+  assert.deepEqual(pending, ['v0.0.2', 'v0.0.3']);
+  assert.match(block, /^      cancel-in-progress: false$/m);
 });
 
 test('checkout references cannot substitute a newer real branch tree for the recorded source', t => {
