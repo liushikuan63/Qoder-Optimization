@@ -10,7 +10,7 @@ function memoryArchiveFor(root) {
   const name = 'qoder-memory-export-generic.tar.gz';
   const entries = new Map(archiveEntries(name, fs.readFileSync(path.join(root, name))).map(e => [e.name, e.data]));
   entries.set('scripts/import-memory.sh', Buffer.from('#!/bin/bash\nset -euo pipefail\nSCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"\nexec node "$SCRIPT_DIR/import-memory.cjs" "$@"\n'));
-  for (const file of ['import-memory.cjs', 'archive-entries.cjs', 'client-root.js']) entries.set('scripts/' + file, fs.readFileSync(path.join(root, 'scripts', file)));
+  for (const file of ['import-memory.cjs', 'archive-entries.cjs', 'client-root.js', 'capability-roots.cjs']) entries.set('scripts/' + file, fs.readFileSync(path.join(root, 'scripts', file)));
   return normalizeGzipHeader(gzipSync(encodeTar([...entries].sort(([a], [b]) => a.localeCompare(b, 'en')).map(([name, data]) => ({ name, data }))), { level: 9 }));
 }
 
@@ -20,7 +20,7 @@ const PUBLIC_PATHS = [
   'SKILLS-清单.md', 'catalog.json', 'skills-manifest.json', 'qoder-memory-export-generic.tar.gz',
   'install.cmd', 'skills', 'scripts', 'commands', 'agents', 'hooks', 'mcp', 'plugins',
 ];
-const PRIVATE_FILE = /(^|\/)(?:\.git|\.github|node_modules|logs?|backups|credentials(?:\.[^/]*)?|settings\.json|share-package\.json|\.env(?:\.[^/]*)?|\.qoder-work-queue\.md|\.export-[^/]*|Thumbs\.db|desktop\.ini|\.DS_Store)(?:\/|$)|\.bak(?:[._-]|\d|$)|(?:~|\.tmp|\.swp|\.orig|\.log|\.pem|\.key)$/i;
+const PRIVATE_FILE = /(^|\/)(?:\.git|\.github|node_modules|logs?|backups|credentials(?:\.[^/]*)?|settings\.json|share-package\.json|capability-roots\.json|\.env(?:\.[^/]*)?|\.qoder-work-queue\.md|\.export-[^/]*|Thumbs\.db|desktop\.ini|\.DS_Store)(?:\/|$)|\.bak(?:[._-]|\d|$)|(?:~|\.tmp|\.swp|\.orig|\.log|\.pem|\.key)$/i;
 
 function isPublicFile(rel) {
   return typeof rel === 'string' && !/[\\:\x00-\x1f]/.test(rel) &&

@@ -15,7 +15,9 @@ if (!query) {
 let entries;
 try {
   // 查询现场而非可漂移的生成物；纯检索不修改索引或安装状态。
-  entries = collectSkills().map(e => ({ ...e, id: 'skill:' + e.name, category: 'skill' }));
+  const collected = collectSkills();
+  if (collected.diagnostics?.length) console.error('INDEX_NOTE 同名能力已隔离，不影响其他技能：' + collected.diagnostics.map(item => item.name).join(', '));
+  entries = collected.map(e => ({ ...e, id: 'skill:' + e.name, category: 'skill' }));
 } catch (error) {
   console.error('INDEX_ERROR: ' + error.message);
   process.exit(2);

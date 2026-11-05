@@ -3,6 +3,15 @@ const fs = require('fs');
 const path = require('path');
 
 function dependenciesFor(root, entry) {
+  // First-party workflows name installed helpers, rather than shipping another
+  // private copy inside the skill. Selecting the workflow includes its runtime.
+  const skillRuntime = {
+    'skill:parallel-orchestration': ['script:parallel-context.cjs', 'script:parallel-plan.cjs', 'script:parallel-write.cjs'],
+    'skill:concurrent-edit-attribution-check': ['script:backup-file.js'],
+    'skill:self-evolution': ['script:carrier-preflight.cjs'],
+    'skill:skills-router': ['script:skill-load.cjs'],
+  };
+  if (entry.category === 'skill') return skillRuntime[entry.id] || [];
   if (entry.category !== 'script' || entry.install?.mode === 'copy-directory' || !/\.[cm]?js$/.test(entry.source || '')) return [];
   const source = path.join(root, entry.source);
   const text = fs.readFileSync(source, 'utf8');

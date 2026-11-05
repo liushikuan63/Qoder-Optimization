@@ -121,14 +121,14 @@ function routeScore(entry, prompt) {
 }
 
 // 现场扫描两层技能：索引是派生快照，可能落后；发现必须跟随调用方绑定的客户端。
-function localSkillEntries(clientDir, catalog) {
-  const entries = collectSkills(clientDir);
+function localSkillEntries(clientDir, catalog, bindings) {
+  const entries = collectSkills(clientDir, { bindings });
   const catalogNames = new Set(catalog.entries.map(entry => String(entry.name).toLowerCase()));
   const seen = new Set();
   return entries.filter(entry => {
     if (!entry || typeof entry.name !== 'string' || entry.tier !== 'library') return false;
     if (catalogNames.has(entry.name.toLowerCase())) return false;
-    if (typeof entry.path !== 'string' || !ordinaryWithin(clientDir, entry.path)) return false;
+    if (typeof entry.path !== 'string' || !ordinaryWithin(clientDir, entry.path, false, bindings)) return false;
     const key = entry.name.toLowerCase();
     if (seen.has(key)) return false;
     seen.add(key);
@@ -185,18 +185,8 @@ function treeDigest(target) {
   };
   visit(target, ''); return hash.digest('hex');
 }
-function ordinaryWithin(client, target, directory = false) {
-  try {
-    const base = path.resolve(client), file = path.resolve(target), relative = path.relative(base, file);
-    if (!relative || relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) return false;
-    const rootStat = fs.lstatSync(base);
-    if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) return false;
-    let current = base;
-    for (const part of relative.split(path.sep)) { current = path.join(current, part); if (fs.lstatSync(current).isSymbolicLink()) return false; }
-    const stat = fs.lstatSync(file), realRelative = path.relative(fs.realpathSync(base), fs.realpathSync(file));
-    if (!realRelative || realRelative === '..' || realRelative.startsWith('..' + path.sep) || path.isAbsolute(realRelative) || (directory ? !stat.isDirectory() : !stat.isFile())) return false;
-    fs.accessSync(file, fs.constants.R_OK); return true;
-  } catch { return false; }
+function ordinaryWithin(client, target, directory = false, bindings) {
+  return require('./capability-roots.cjs').ordinaryWithin(client, target, directory, bindings);
 }
 function previousCatalog(client, explicit) {
   let file = explicit;
@@ -208,7 +198,7 @@ function previousCatalog(client, explicit) {
   try { return { file: path.resolve(file), catalog: readCatalog(path.resolve(file)) }; }
   catch { return { file: path.resolve(file), catalog: null }; }
 }
-function baselineFor(entry, paths, previous, client) {
+function baselineFor(entry, paths, previous, client, bindings) {
   const baseline = { verified: false, catalogFile: previous.file, reason: 'PREVIOUS_SOURCE_UNAVAILABLE' };
   if (!previous.catalog || !paths.length) return baseline;
   const matches = previous.catalog.entries.filter(old => old.id === entry.id && old.name === entry.name && old.category === entry.category && old.source === entry.source && old.install?.mode === entry.install?.mode);
@@ -217,7 +207,7 @@ function baselineFor(entry, paths, previous, client) {
   if (!source) return baseline;
   try {
     const directory = entry.category === 'skill' || (entry.category === 'script' && entry.install?.mode === 'copy-directory');
-    if (paths.some(target => !ordinaryWithin(client, target, directory))) return { ...baseline, reason: 'LOCAL_CONTENT_UNVERIFIABLE' };
+    if (paths.some(target => !ordinaryWithin(client, target, directory, bindings))) return { ...baseline, reason: 'LOCAL_CONTENT_UNVERIFIABLE' };
     const sourceDigest = treeDigest(source), targets = paths.map(file => ({ path: file, digest: treeDigest(file) }));
     if (targets.some(target => target.digest !== sourceDigest)) return { ...baseline, reason: 'LOCAL_CHANGES_OR_EXTRA_FILES' };
     return { ...baseline, verified: true, reason: 'PRISTINE_PREVIOUS_SOURCE', sourceDigest, targets };
@@ -247,7 +237,7 @@ function planCapabilities(options = {}) {
     const preferred = prefs.preferredIds.includes(text(entry.id)) || prefs.preferredKeywords.some(keyword => termMatches(metadata, keyword));
     const excluded = prefs.excludedIds.includes(text(entry.id)) || prefs.excludedKeywords.some(keyword => termMatches(metadata, keyword));
     const generic = entry.tier === 'core' || entry.install?.tier === 'core' || GENERIC.has(entry.id);
-    const presence = localPresence(entry, root, clientDir), installedPaths = presence.installedPaths || [];
+    const presence = localPresence(entry, root, clientDir, options.bindings), installedPaths = presence.installedPaths || [];
     const installedPath = installedPaths[0] || null;
     const output = {
       id: entry.id, name: entry.name, category: entry.category, action: 'SKIP', reason: 'NOT_APPLICABLE',
@@ -264,9 +254,9 @@ function planCapabilities(options = {}) {
     else if (!sourcePath(entry, root)) decide('SKIP', ['plugin', 'mcp'].includes(entry.category) ? 'PLATFORM_STATE_UNVERIFIED' : 'PACKAGE_SOURCE_UNAVAILABLE');
     else if (installedPaths.length > 1) decide('REVIEW_UPDATE', 'AMBIGUOUS_INSTALLED_TIERS');
     else if (presence.present === true) {
-      if (phase === 'task' && intent === 'use' && ordinaryWithin(clientDir, output.entryPath)) { decide('KEEP', 'EXPLICIT_USE_REQUEST'); output.authorized = true; }
+      if (phase === 'task' && intent === 'use' && ordinaryWithin(clientDir, output.entryPath, false, options.bindings)) { decide('KEEP', 'EXPLICIT_USE_REQUEST'); output.authorized = true; }
       else if (presence.differs !== false) {
-        output.baseline = baselineFor(entry, installedPaths, previous, clientDir);
+        output.baseline = baselineFor(entry, installedPaths, previous, clientDir, options.bindings);
         if (presence.differs === true && output.baseline.verified) { decide('UPDATE', 'PRISTINE_PREVIOUS_SOURCE'); output.autoUpdate = true; }
         else decide('REVIEW_UPDATE', output.baseline.reason);
       } else if (phase === 'task' && intent === 'use') decide('REVIEW_UPDATE', 'LOCAL_ENTRY_UNVERIFIABLE');
@@ -279,7 +269,7 @@ function planCapabilities(options = {}) {
   });
   if (phase === 'task') {
     // 本地候选与包候选共同筛选：领域技能不再被通用候选挤掉；当前拒绝与点名使用同路处理。
-    const local = localSkillEntries(clientDir, catalog)
+    const local = localSkillEntries(clientDir, catalog, options.bindings)
       .map(entry => ({ entry, intent: intentFor(prompt, { id: 'skill:' + entry.name, name: entry.name }) }))
       .filter(({ entry, intent }) => intent !== 'decline' && (intent === 'use' || (!discussion && prefs.enabled && !excludedLocalSkill(entry, prefs))))
       .map(({ entry, intent }) => ({ entry, intent, score: localSkillScore(entry, routeText) }))

@@ -8,9 +8,11 @@ const path = require('path');
 const os = require('os');
 
 const HOME = process.env.HOME || process.env.USERPROFILE || os.homedir();
-const ROOT = require('./client-root.js').clientRoot(HOME);
 const argv = process.argv.slice(2);
 const arg = (name) => { const i = argv.indexOf('--' + name); return i >= 0 ? argv[i + 1] : ''; };
+const boundClient = arg('client-root');
+if (argv.includes('--client-root') && (!boundClient || !path.isAbsolute(boundClient) || argv.filter(item => item === '--client-root').length !== 1)) { console.error('--client-root 需要唯一绝对路径'); process.exit(2); }
+const ROOT = boundClient || require('./client-root.js').clientRoot(HOME);
 const TYPE = arg('type');
 const NAME = arg('name');
 const DESC = arg('description');
@@ -51,16 +53,12 @@ for (const f of (() => { try { return fs.readdirSync(ruleDir); } catch { return 
   const fm = frontmatter(text);
   add('rule', fm.name || f.replace(/\.md$/, ''), fm.description || '', 'rules/' + f);
 }
-for (const tier of [{ dir: 'skills', label: 'core' }, { dir: 'skills-library', label: 'library' }]) {
-  const skillDir = path.join(ROOT, tier.dir);
-  for (const d of (() => { try { return fs.readdirSync(skillDir); } catch { return []; } })()) {
-    const file = path.join(skillDir, d, 'SKILL.md');
-    const text = read(file);
-    if (!text) continue;
-    const fm = frontmatter(text);
-    add('skill', fm.name || d, fm.description || '', tier.dir + '/' + d + '/SKILL.md', { bodyLines: lineCount(text), tier: tier.label });
-  }
+const skillEntries = require('./build-skills-index.cjs').collectSkills(ROOT, { quarantineAmbiguous: true });
+for (const entry of skillEntries) {
+  const text = require('./capability-roots.cjs').readFileWithin(ROOT, entry.path).toString('utf8');
+  add('skill', entry.name, entry.description, path.relative(ROOT, entry.path).split(path.sep).join('/'), { bodyLines: lineCount(text), tier: entry.tier });
 }
+for (const diagnostic of skillEntries.diagnostics || []) for (const tier of [{ dir: 'skills', label: 'core' }, { dir: 'skills-library', label: 'library' }]) add('skill', diagnostic.name, '同名来源待核对，未读取正文', tier.dir + '/' + diagnostic.name + '/SKILL.md', { tier: tier.label });
 const memoryDir = path.join(ROOT, 'memory');
 const memoryFiles = (() => { try { return fs.readdirSync(memoryDir).filter((f) => f.endsWith('.md') && f !== 'MEMORY.md'); } catch { return []; } })();
 for (const f of memoryFiles) {
@@ -70,7 +68,7 @@ for (const f of memoryFiles) {
 }
 const settings = readJson(path.join(ROOT, 'settings.json'));
 const mcpKeys = Object.keys(settings.mcpServers || {});
-for (const k of mcpKeys) add('mcp', k, JSON.stringify(settings.mcpServers[k] || {}).slice(0, 180), 'settings.json#mcpServers.' + k);
+for (const k of mcpKeys) add('mcp', k, '已配置；不展开私有连接参数', 'settings.json#mcpServers.' + k);
 let maxHookPerEvent = 0;
 for (const [event, groups] of Object.entries(settings.hooks || {})) {
   const list = Array.isArray(groups) ? groups : [];
@@ -78,7 +76,7 @@ for (const [event, groups] of Object.entries(settings.hooks || {})) {
   for (const group of list) for (const hook of (group && group.hooks) || []) {
     const command = String(hook.command || '');
     const token = command.split(/\s+/).find((x) => /\.(js|cjs|mjs)$/i.test(x)) || '';
-    add('hook', path.basename(token).replace(/\.(js|cjs|mjs)$/i, '') || event, command.slice(0, 180), 'settings.json#hooks.' + event);
+    add('hook', path.basename(token).replace(/\.(js|cjs|mjs)$/i, '') || event, '已配置；不展开私有命令参数', 'settings.json#hooks.' + event);
   }
 }
 const agentDir = path.join(ROOT, 'agents');

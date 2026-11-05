@@ -1,4 +1,4 @@
-# Qoder-Optimization-0.0.26 安装说明
+# Qoder-Optimization-0.0.27 安装说明
 
 ## 包内容与落点
 
@@ -53,6 +53,21 @@ node <客户端目录>/scripts/workflow-profile.cjs <客户端目录>
 只升级有可信旧来源且本地原样的能力。旧登记指向已变化仓库时，可用 `--previous-catalog <可信旧包/catalog.json>` 提供已核验旧源；文件仍须完整相同。没有可追溯来源或含本地定制的项保持 `REVIEW_UPDATE`，不会用本地副本伪造旧基线。完整基础受阻返回 `ACTIVATION_BLOCKED / 3`，旧 hook 与包指针保留；事务备份和并发冲突均有恢复目录。
 
 这里复现的是通用工作流，不分发制作端账号、凭据、聊天/项目数据、私人记忆、私人 BYOK 守卫和特定机器安装路径。文件安装、原生事件投递、模型采用和真实业务结果各自验收；`READY` 仅表示安装结构健康。已有核心技能层级与个人选择保持，不为凑数量迁移；本机独有能力按映射或可选前置处理。
+
+## 已迁移到其他磁盘的按需库
+
+默认仍拒绝未经绑定的 junction/symlink。已有迁移布局可明确绑定：先核对 `skills-library` 当前实际目标，再在主安装器传入真实目录；该参数只登记现有布局，不创建链接、不移动目录，不授权其他外部路径。
+
+```bash
+node scripts/install-package.cjs --dry-run --client-root <客户端目录> --bind-library <已有按需库真实目录>
+node scripts/install-package.cjs --yes --client-root <客户端目录> --bind-library <已有按需库真实目录> --install skill:parallel-orchestration
+```
+
+绑定保存在本机 `capability-roots.json`，关联客户端、链接和目标的物理身份；它不是分享内容。读取、比对、索引、资源入口和写入都使用同一解析器，绑定被撤销或身份改变即拒绝；技能及资源子目录的链接仍不读取。只读索引先隔离跨层同名的两份，再读取其他能力，诊断留在 `skills-index.json` 的 `diagnostics`，不猜来源、不删除或移动任何既存副本。
+
+主安装器与 catalog 安装的旧库备份放在库的同一文件系统，客户端恢复日志关联所有外部恢复目录；后期失败按归属恢复，遇到并发变更保留两方资料。跨卷升降级/整库迁移尚不由 `tier-skills` 执行，会在写入前拒绝；绑定不等于允许用 copy-delete 绕过迁移约束。直接 catalog 安装若发现索引器/解析器不是同一批准版本，先用主安装器更新完整基础。
+
+明确选装并行技能会补齐 plan/context/write 工具；完整核心会补齐备份和载体预检依赖。只安装必要代码，不运行并行任务、修改全局规则或自动启用自进化。可选维护工具和外部服务仍按实际需要选择。
 
 ## 接续记忆与追回（安装时可选启用）
 

@@ -127,9 +127,9 @@ function installedTiers(root) {
   for (const [tier, dir] of [['core', 'skills'], ['library', 'skills-library']]) {
     const base = path.join(root, dir);
     let names = [];
-    try { names = fs.readdirSync(base); } catch {}
+    try { if (!require('./capability-roots.cjs').resolveTier(root, dir)) continue; names = fs.readdirSync(base); } catch {}
     for (const name of names) {
-      if (!fs.existsSync(path.join(base, name, 'SKILL.md'))) continue;
+      if (!require('./capability-roots.cjs').ordinaryWithin(root, path.join(base, name, 'SKILL.md'))) continue;
       if (tiers.has(name)) { tiers.delete(name); ambiguous.add(name); }
       else if (!ambiguous.has(name)) tiers.set(name, tier);
     }

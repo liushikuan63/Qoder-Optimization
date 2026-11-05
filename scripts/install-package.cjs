@@ -12,6 +12,7 @@ const { readCatalog } = require('./pkg-catalog.cjs');
 const { isPublicFile } = require('./pack-share-extras.cjs');
 const { readResident } = require('./tier-skills.cjs');
 const { COMPLETE_IDS, RULES, managedRule, completeSettings } = require('./workflow-profile.cjs');
+const capabilityRoots = require('./capability-roots.cjs');
 
 const BASE_IDS = [
   'script:rules-reminder.js', 'script:capability-advisor.cjs',
@@ -40,7 +41,7 @@ function parseArgs(argv) {
   const result = { install: [], resident: [], yes: false, dryRun: false };
   const seen = new Set();
   const flags = new Map([['--yes', 'yes'], ['--dry-run', 'dryRun'], ['--json', 'json'], ['--continuity', 'continuity'], ['--no-auto-bind', 'noAutoBind'], ['--help', 'help'], ['-h', 'help'], ['--no', 'skip'], ['--skip', 'skip'], ['--non-interactive', 'nonInteractive']]);
-  const values = new Map([['--client-root', 'client'], ['--catalog', 'catalogFile'], ['--previous-catalog', 'previousCatalogFile'], ['--profile', 'profile'], ['--preferences', 'preferencesFile'], ['--install', 'install'], ['--resident', 'resident'], ['--workflow-mode', 'workflowMode']]);
+  const values = new Map([['--client-root', 'client'], ['--catalog', 'catalogFile'], ['--previous-catalog', 'previousCatalogFile'], ['--bind-library', 'bindLibrary'], ['--profile', 'profile'], ['--preferences', 'preferencesFile'], ['--install', 'install'], ['--resident', 'resident'], ['--workflow-mode', 'workflowMode']]);
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (!['--install', '--resident'].includes(arg) && seen.has(arg)) throw new Error('重复参数：' + arg);
@@ -135,9 +136,11 @@ function withPending(result) {
 }
 
 function assertPath(plan, file) {
+  if (plan.bindings) capabilityRoots.validateBindings(plan.client, plan.bindings);
   if (!inside(plan.client, file) || normalized(file) === normalized(plan.client)) throw new Error('安装目标越界');
   if (normalized(physical(plan.client)) !== normalized(plan.realClient)) throw new Error('客户端目录在安装期间改变');
-  if (!inside(plan.realClient, physical(path.dirname(file)))) throw new Error('安装目标子路径越界：' + file);
+  capabilityRoots.assertClientPath(plan.client, file, plan.bindings);
+  if (plan.bindingSnapshotReady && !same(snapshot(path.join(plan.client, capabilityRoots.FILE)), plan.bindingExpected)) throw new Error('能力目录绑定在安装期间改变');
   if (plan.clientIdentity) {
     const now = fs.statSync(plan.client);
     if (now.ino !== plan.clientIdentity.ino || now.dev !== plan.clientIdentity.dev) throw new Error('客户端目录归属在安装期间改变');
@@ -211,6 +214,13 @@ function prepare(options = {}) {
   const client = path.resolve(options.client || clientRoot());
   const pointer = path.join(client, 'share-package.json'), settings = path.join(client, 'settings.json'), residentFile = path.join(client, 'skills-resident.json');
   const plan = { catalogFile, catalogHash: digest(fs.readFileSync(catalogFile)), root, client, realClient: physical(client), items: [], changes: [], baseIds: BASE_IDS, diagnostics: [] };
+  const bindingFile = path.join(client, capabilityRoots.FILE);
+  plan.bindingBefore = snapshot(bindingFile); plan.bindingExpected = plan.bindingBefore; plan.bindingSnapshotReady = true;
+  plan.bindings = options.bindLibrary ? capabilityRoots.bindLibrary(client, options.bindLibrary) : capabilityRoots.readBindings(client);
+  if (options.bindLibrary) {
+    const bytes = Buffer.from(JSON.stringify(plan.bindings, null, 2) + '\n');
+    plan.bindingBytes = fs.existsSync(bindingFile) && fs.readFileSync(bindingFile).equals(bytes) ? null : bytes;
+  }
   try { const stat = fs.statSync(client); if (!stat.isDirectory()) throw new Error('客户端路径不是目录'); plan.clientIdentity = { ino: stat.ino, dev: stat.dev }; }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
   for (const file of [pointer, settings, path.join(client, 'skills-index.json'), path.join(client, 'package-activation.json'), residentFile]) { assertPath(plan, file); snapshot(file); }
@@ -274,15 +284,17 @@ function prepare(options = {}) {
   // differences still go through the advisor's pristine-baseline checks.
   const { planCapabilities } = require('./capability-advisor.cjs');
   const prompt = explicitClosure.map(id => '安装 ' + id).join('；');
-  const advice = planCapabilities({ catalogFile, clientRoot: client, prompt, phase: 'install', preferences, previousCatalogFile: options.previousCatalogFile || (typeof previous.catalog === 'string' ? path.resolve(client, previous.catalog) : undefined) });
+  const advice = planCapabilities({ catalogFile, clientRoot: client, prompt, phase: 'install', preferences, bindings: plan.bindings, previousCatalogFile: options.previousCatalogFile || (typeof previous.catalog === 'string' ? path.resolve(client, previous.catalog) : undefined) });
   plan.items = advice.items || [];
   plan.diagnostics = advice.diagnostics || advice.warnings || [];
+  try { if (!plan.bindings && fs.lstatSync(path.join(client, 'skills-library')).isSymbolicLink()) plan.diagnostics.push('BIND_LIBRARY_REQUIRED：按需库为未核验链接；先确认真实目标，再用 --bind-library <真实目录> 登记，不将未知当缺失。'); } catch (error) { if (error.code !== 'ENOENT') throw error; }
   const items = new Map(plan.items.map(item => [item.id || item.entry?.id, item]));
   for (const id of resident) if (items.get(id)?.action === 'KEEP' || items.get(id)?.installedPaths?.length) throw new Error('已安装技能不能通过 --resident 换层，请用 tier-skills --promote：' + id);
   plan.acceptedInstallIds = [...new Set([...explicitClosure, ...plan.items.filter(item => item.action === 'UPDATE').map(item => item.id)])];
-  const blocked = id => items.get(id)?.action === 'REVIEW_UPDATE' || (items.get(id)?.installedPaths?.length || 0) > 1;
+  const blocked = id => items.get(id)?.action === 'REVIEW_UPDATE' || items.get(id)?.present === null || (items.get(id)?.installedPaths?.length || 0) > 1;
   plan.baseBlocked = baseClosure.filter(blocked);
   plan.baseReady = plan.baseBlocked.length === 0;
+  if (plan.bindingBytes && !plan.baseReady) throw new Error('基础能力存在待审差异，暂不登记新目录绑定或写入迁移库：' + plan.baseBlocked.join(', '));
   const requested = new Set();
   for (const id of options.install || []) {
     if (!['ASK_INSTALL', 'KEEP', 'UPDATE'].includes(items.get(id)?.action)) throw new Error('所选能力不适配或需要先审阅本地差异：' + id);
@@ -393,10 +405,24 @@ function apply(plan, options = {}) {
   }
   assertPath(plan, path.join(plan.client, 'share-package.json'));
   const stage = fs.mkdtempSync(path.join(plan.client, '.package-activation-'));
+  const stageToken = capabilityRoots.directoryToken(stage, plan.client);
   const stagedClient = path.join(stage, 'client'); fs.mkdirSync(stagedClient);
   const frozenPackage = path.join(stage, 'frozen-package');
   const frozenCatalog = path.join(frozenPackage, 'catalog.json');
-  const logs = [], applied = [], createdParents = [];
+  const logs = [], applied = [], createdParents = [], externalStages = [], stageTokens = new Map([[stage, stageToken]]);
+  const verifyStages = () => { for (const [dir, token] of stageTokens) capabilityRoots.assertDirectory(dir, token); };
+  const operationStage = target => {
+    if (!plan.bindings || inside(plan.realClient, physical(path.dirname(target)))) return stage;
+    capabilityRoots.assertClientPath(plan.client, target, plan.bindings);
+    if (!externalStages.length) {
+      const dir = fs.mkdtempSync(path.join(plan.bindings.library.real, '.package-activation-'));
+      externalStages.push(dir);
+      stageTokens.set(dir, capabilityRoots.directoryToken(dir, plan.bindings.library.real));
+      capabilityRoots.validateBindings(plan.client, plan.bindings);
+    }
+    capabilityRoots.assertDirectory(externalStages[0], stageTokens.get(externalStages[0]));
+    return externalStages[0];
+  };
   const verifySources = () => {
     if (digest(fs.readFileSync(plan.catalogFile)) !== plan.catalogHash) throw new Error('包目录在暂存或发布期间改变');
     for (const item of plan.approvedSources) if (!same(sourceSnapshot(item.source, item.sourceRel), item.sourceBefore)) throw new Error('包内源在规划后改变：' + item.id);
@@ -409,6 +435,7 @@ function apply(plan, options = {}) {
     for (const item of plan.changes) if (!item.staged || publicSourceProof(item.staged, item.entry.source) !== item.sourceBefore.hash) throw new Error('暂存内容与规划时批准的公开来源不一致：' + item.id);
   };
   const verifyPublished = () => {
+    verifyStages();
     // Settings, rules, pointer and index are equally part of activation. A
     // concurrent writer may change metadata after its publication, so checking
     // only capability entries could otherwise produce a false ready receipt.
@@ -437,13 +464,28 @@ function apply(plan, options = {}) {
     assertPath(plan, item.target);
     if (!same(snapshot(item.target), item.before)) throw new Error('安装目标在规划后改变：' + (item.id || item.target));
     mkdirParents(path.dirname(item.target));
-    item.owned = []; item.backup = path.join(stage, 'prior-' + applied.length); applied.push(item);
+    item.owned = []; item.operationStage = operationStage(item.target); item.backup = path.join(item.operationStage, 'prior-' + applied.length); applied.push(item);
     if (item.before) {
+      capabilityRoots.assertDirectory(item.operationStage, stageTokens.get(item.operationStage));
       fs.renameSync(item.target, item.backup); item.moved = true;
+      // Our exclusive move temporarily removes the old binding. Keep its
+      // absence as the expected state, including restoration of a concurrent
+      // version actually moved into the backup rather than the preview bytes.
+      if (item.id === 'metadata:capability-roots') plan.bindingExpected = null;
+      capabilityRoots.assertDirectory(item.operationStage, stageTokens.get(item.operationStage));
       if (!same(snapshot(item.backup), item.before)) throw new Error('目标在发布时发生并发改变：' + (item.id || item.target));
     }
     assertPath(plan, item.target);
-    createExclusive(item.staged, item.target, item.owned);
+    try { createExclusive(item.staged, item.target, item.owned); }
+    finally {
+      if (item.id === 'metadata:capability-roots') {
+        const owned = item.owned.find(file => file.file === item.target && !file.directory);
+        try {
+          const current = fs.lstatSync(item.target);
+          if (owned && !current.isSymbolicLink() && current.isFile() && current.ino === owned.ino && current.dev === owned.dev && digest(fs.readFileSync(item.target)) === owned.hash) plan.bindingExpected = snapshot(item.target);
+        } catch (error) { if (error.code === 'ENOENT' && (!item.before || item.moved && same(snapshot(item.backup), item.before))) plan.bindingExpected = null; }
+      }
+    }
     if (item.entry && publicSourceProof(item.target, item.entry.source) !== item.sourceBefore.hash) throw new Error('实际发布内容与批准版本不一致：' + item.id);
   };
   try {
@@ -462,9 +504,12 @@ function apply(plan, options = {}) {
     // Only touched entries are staged: no account, transcript or unrelated
     // node_modules tree is copied from the user's client.
     for (const item of plan.changes) if (item.before) {
+      assertPath(plan, item.target);
+      if (!same(snapshot(item.target), item.before)) throw new Error('安装目标在暂存前改变：' + item.id);
       const target = path.join(stagedClient, path.relative(plan.client, item.target));
       fs.mkdirSync(path.dirname(target), { recursive: true });
       fs.cpSync(item.target, target, { recursive: true, force: false, errorOnExist: true });
+      assertPath(plan, item.target);
       if (!same(snapshot(item.target), item.before)) throw new Error('安装目标在暂存时改变：' + item.id);
     }
     for (const source of plan.stageDependencies) {
@@ -485,6 +530,10 @@ function apply(plan, options = {}) {
       item.staged = path.join(stagedClient, path.relative(plan.client, item.target));
     }
     verifySources(); verifyFrozen(); verifyStaged();
+    if (plan.bindingBytes && plan.baseReady) {
+      const file = path.join(stage, capabilityRoots.FILE); fs.writeFileSync(file, plan.bindingBytes, { flag: 'wx', mode: 0o600 });
+      publish({ id: 'metadata:capability-roots', target: path.join(plan.client, capabilityRoots.FILE), before: plan.bindingBefore, staged: file });
+    }
     for (const item of plan.changes) publish(item);
     if (plan.baseReady) {
       for (const item of plan.verifyTargets) {
@@ -494,7 +543,7 @@ function apply(plan, options = {}) {
       // Collect the actual two installed tiers after publication. Stage-only
       // indexes omit unrelated skills and contain transient absolute paths.
       const index = path.join(stage, 'skills-index.json');
-      const code = "const fs=require('node:fs'),b=require(process.argv[1]);const entries=b.collectSkills();fs.writeFileSync(process.argv[2],JSON.stringify({generated_at:new Date().toISOString(),count:entries.length,entries},null,1),{flag:'wx',mode:0o600});";
+      const code = "const fs=require('node:fs'),b=require(process.argv[1]);const entries=b.collectSkills();fs.writeFileSync(process.argv[2],JSON.stringify({generated_at:new Date().toISOString(),count:entries.length,entries,diagnostics:entries.diagnostics||[]},null,1),{flag:'wx',mode:0o600});";
       verifySources(); verifyFrozen();
       const result = spawnSync(process.execPath, ['-e', code, path.join(frozenPackage, 'scripts/build-skills-index.cjs'), index], { env: { ...process.env, QODER_HOME: plan.client }, encoding: 'utf8', timeout: 60000 });
       if (result.status !== 0) throw new Error('真实客户端技能索引生成失败：' + String(result.stderr || '').slice(0, 200));
@@ -518,17 +567,18 @@ function apply(plan, options = {}) {
       fs.writeFileSync(file, JSON.stringify({ schema: 1, skills: plan.residentNames }, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
       publish({ id: 'metadata:skills-resident', target: path.join(plan.client, 'skills-resident.json'), before: plan.residentBefore, staged: file });
     }
-    const receipt = { schema: 1, installedAt: new Date().toISOString(), catalog: plan.catalogFile, catalogSha256: plan.catalogHash, ready: plan.baseReady, hook: plan.baseReady ? plan.hook.state : 'BLOCKED', ...(plan.baseReady ? { profile: plan.profile, managedRules: Object.fromEntries(plan.rules.map(rule => [rule.rel, rule.hash])), requiredFiles: [...plan.changes, ...plan.verifyTargets].filter(item => plan.requiredIds.includes(item.id)).map(item => path.relative(plan.client, path.join(item.target, item.entry?.category === 'skill' || item.id.startsWith('skill:') ? 'SKILL.md' : '')).split(path.sep).join('/')) } : plan.previousActivation), baseBlocked: plan.baseBlocked, installedIds: plan.changes.map(item => item.id), recoveryDirectory: stage };
+    const receipt = { schema: 1, installedAt: new Date().toISOString(), catalog: plan.catalogFile, catalogSha256: plan.catalogHash, ready: plan.baseReady, hook: plan.baseReady ? plan.hook.state : 'BLOCKED', ...(plan.baseReady ? { profile: plan.profile, managedRules: Object.fromEntries(plan.rules.map(rule => [rule.rel, rule.hash])), requiredFiles: [...plan.changes, ...plan.verifyTargets].filter(item => plan.requiredIds.includes(item.id)).map(item => path.relative(plan.client, path.join(item.target, item.entry?.category === 'skill' || item.id.startsWith('skill:') ? 'SKILL.md' : '')).split(path.sep).join('/')) } : plan.previousActivation), baseBlocked: plan.baseBlocked, installedIds: plan.changes.map(item => item.id), recoveryDirectory: stage, externalRecoveryDirectories: externalStages };
     const receiptFile = path.join(stage, 'package-activation.json'); fs.writeFileSync(receiptFile, JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
     publish({ id: 'metadata:activation', target: path.join(plan.client, 'package-activation.json'), before: plan.receiptBefore, staged: receiptFile });
     verifyPublished();
-    fs.writeFileSync(path.join(stage, 'transaction.json'), JSON.stringify({ status: 'COMMITTED', receipt, logs }, null, 2));
+    fs.writeFileSync(path.join(stage, 'transaction.json'), JSON.stringify({ status: 'COMMITTED', receipt, externalRecoveryDirectories: externalStages, logs }, null, 2));
     return withPending({ status: plan.baseReady ? 'INSTALLED' : 'ACTIVATION_BLOCKED', ready: plan.baseReady, recoveryDirectory: stage, frozenPackage, receipt, logs, plan });
   } catch (error) {
     const conflicts = [];
     for (const item of applied.reverse()) {
       try {
         assertPath(plan, item.target);
+        capabilityRoots.assertDirectory(item.operationStage || stage, stageTokens.get(item.operationStage || stage));
         for (const owned of item.owned.reverse()) {
           let stat;
           try { stat = fs.lstatSync(owned.file); } catch (missing) { if (missing.code === 'ENOENT') continue; throw missing; }
@@ -537,7 +587,7 @@ function apply(plan, options = {}) {
           else if (digest(fs.readFileSync(owned.file)) === owned.hash) {
             // Detach before the final ownership check so a replacement in the
             // read-to-unlink window is retained rather than deleted.
-            const withdrawn = path.join(stage, 'withdrawn-' + crypto.randomUUID());
+            const withdrawn = path.join(item.operationStage || stage, 'withdrawn-' + crypto.randomUUID());
             fs.renameSync(owned.file, withdrawn);
             const actual = fs.lstatSync(withdrawn);
             if (actual.ino === owned.ino && actual.dev === owned.dev && actual.isFile() && !actual.isSymbolicLink() && digest(fs.readFileSync(withdrawn)) === owned.hash) fs.unlinkSync(withdrawn);
@@ -557,7 +607,7 @@ function apply(plan, options = {}) {
     for (const parent of createdParents.reverse()) {
       try { const stat = fs.lstatSync(parent.file); if (stat.ino === parent.ino && stat.dev === parent.dev && !stat.isSymbolicLink() && fs.readdirSync(parent.file).length === 0) fs.rmdirSync(parent.file); } catch {}
     }
-    try { fs.writeFileSync(path.join(stage, 'transaction.json'), JSON.stringify({ status: conflicts.length ? 'RECOVERY_REQUIRED' : 'ROLLED_BACK', error: error.message, conflicts, logs }, null, 2)); } catch {}
+    try { fs.writeFileSync(path.join(stage, 'transaction.json'), JSON.stringify({ status: conflicts.length ? 'RECOVERY_REQUIRED' : 'ROLLED_BACK', error: error.message, conflicts, externalRecoveryDirectories: externalStages, backups: applied.map(item => ({ id: item.id, target: item.target, backup: item.backup })), logs }, null, 2)); } catch {}
     error.message += '；' + (conflicts.length ? '并发内容与备份均保留，需核对' : '本事务变更已回滚') + '；恢复目录：' + stage;
     throw error;
   }
@@ -568,6 +618,8 @@ function printSummary(result) {
   const pendingItems = result.pendingItems || withPending(result).pendingItems;
   console.log('Qoder-Optimization 包能力核对：' + plan.catalogFile);
   console.log('客户端：' + plan.client + '；工作流：' + plan.profile + '；状态：' + result.status);
+  if (plan.bindings) console.log('按需库真实目录：' + plan.bindings.library.real + '；绑定：' + (plan.bindingBytes ? '本次明确登记' : '保留已有登记'));
+  for (const diagnostic of plan.diagnostics) console.log('NOTE: ' + diagnostic);
   if (plan.profileUpgradeAvailable) console.log('完整工作流尚未启用；--profile complete 可安装公开通用规则、12个核心技能与16条hook，不含账号/私有BYOK守护。');
   if (result.receipt?.installedIds?.length) console.log('APPLIED: ' + result.receipt.installedIds.join(', '));
   for (const action of ['UPDATE', 'ASK_INSTALL', 'REVIEW_UPDATE', 'KEEP', 'SKIP']) {
@@ -584,7 +636,7 @@ function printSummary(result) {
 async function main(argv) {
   const options = parseArgs(argv);
   if (options.help) {
-    console.log('用法：node scripts/install-package.cjs [--yes] [--dry-run] [--client-root <目录>] [--catalog <catalog.json>] [--install <exact-id>] [--resident <exact-id>] [--preferences <json>] [--workflow-mode route|model] [--continuity] [--no-auto-bind] [--json]\n默认只核对；新装默认 complete（12公开核心技能/规则/16条exec hook），已有登记保留 routing；--profile complete|routing 明确选择，--previous-catalog <可信旧catalog> 指定可追溯旧源。--yes 安装所选工作流基础能力并更新与旧包一致的已安装条目。缺失可选项另用 --install 明确选择，个人修改只报告。所选技能默认进按需库；交互运行会询问是否常驻，非交互用 --resident 选择常驻（需与 --install 同时给出）。已安装技能换层请用 tier-skills --promote。--workflow-mode 显式切换已有 rules-reminder 接线；省略时新装默认 model、已有选择保留。接续存储仅在 --continuity 单独同意时调用旧安装器。');
+    console.log('用法：node scripts/install-package.cjs [--yes] [--dry-run] [--client-root <目录>] [--catalog <catalog.json>] [--install <exact-id>] [--resident <exact-id>] [--preferences <json>] [--workflow-mode route|model] [--bind-library <已有真实目录>] [--continuity] [--no-auto-bind] [--json]\n默认只核对；新装默认 complete（12公开核心技能/规则/16条exec hook），已有登记保留 routing；--profile complete|routing 明确选择，--previous-catalog <可信旧catalog> 指定可追溯旧源。--yes 安装所选工作流基础能力并更新与旧包一致的已安装条目。缺失可选项另用 --install 明确选择，个人修改只报告。所选技能默认进按需库；交互运行会询问是否常驻，非交互用 --resident 选择常驻（需与 --install 同时给出）。已安装技能换层请用 tier-skills --promote。--workflow-mode 显式切换已有 rules-reminder 接线；省略时新装默认 model、已有选择保留。接续存储仅在 --continuity 单独同意时调用旧安装器。');
     return 0;
   }
   if (options.skip) { console.log('已跳过，未修改任何文件。'); return 0; }
@@ -614,7 +666,7 @@ async function main(argv) {
   if (options.json) {
     // Existing settings may contain credentials; never serialize the private
     // snapshots or merged settings bytes held by the transaction plan.
-    const publicPlan = { catalogFile: plan.catalogFile, client: plan.client, profile: plan.profile, profileUpgradeAvailable: plan.profileUpgradeAvailable, baseReady: plan.baseReady, baseBlocked: plan.baseBlocked, diagnostics: plan.diagnostics, changes: plan.changes.map(item => ({ id: item.id, target: item.target, update: Boolean(item.before) })), items: plan.items.map(({ id, action, reason, present, installedPaths }) => ({ id, action, reason, present, installedPaths })) };
+    const publicPlan = { catalogFile: plan.catalogFile, client: plan.client, profile: plan.profile, profileUpgradeAvailable: plan.profileUpgradeAvailable, libraryBinding: plan.bindings ? { realDirectory: plan.bindings.library.real, changes: Boolean(plan.bindingBytes) } : null, baseReady: plan.baseReady, baseBlocked: plan.baseBlocked, diagnostics: plan.diagnostics, changes: plan.changes.map(item => ({ id: item.id, target: item.target, update: Boolean(item.before) })), items: plan.items.map(({ id, action, reason, present, installedPaths }) => ({ id, action, reason, present, installedPaths })) };
     console.log(JSON.stringify({ ...result, nextAction: result.pendingItems.length ? 'ASK_INSTALL_OR_UPDATE' : null, plan: publicPlan }));
   } else printSummary(result);
   if (continuityExit !== 0) { if (!options.json) console.error('基础包结果已保留；可选 continuity 未完成。'); return continuityExit; }

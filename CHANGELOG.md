@@ -6,6 +6,20 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.0.27] - 2026-11-05
+
+### Fixed
+- Include required shared runtimes when installing first-party parallel, edit-attribution, self-evolution and routing skills. Keep optional maintenance and external services separate.
+- Support explicitly binding an existing migrated skills library without relocating user data. Check the client, tier link, physical target and binding file identity across discovery, comparison, loading, installation and recovery; keep unbound and nested links unreadable.
+- Read skill entries through verified file descriptors and reject root or content changes before returning results. Quarantine ambiguous bound-tier names before reading descriptions while keeping unrelated capabilities available.
+- Keep external library backups on their own filesystem, bind transaction directory identities, restore owned partial binding writes, and detect revoked grants before staging or publishing. Preserve concurrent changes and all recovery material.
+- Require an approved matching index-builder graph for direct catalog installation into bound libraries. Keep unsupported cross-volume tier moves explicitly blocked.
+- Keep MCP values and private hook arguments out of carrier preflight output; expose an explicit client-root argument. Include the new resolver in the generic memory archive and exclude machine-specific binding receipts from distribution.
+
+### 中文摘要
+- 修复“技能装了但必要脚本没装”，明确选装并行后可执行真实 worktree 写入工具；核心补齐备份/载体预检。
+- 原有 D 盘按需库可显式绑定，保留布局和定制；撤销、换目录、同名、跨卷失败与写盘故障均有明确拒绝或恢复路径，不将跳过整库当成缺失。
+
 ## [0.0.26] - 2026-11-05
 
 ### Added

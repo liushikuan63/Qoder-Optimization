@@ -123,7 +123,10 @@ function main(argv) {
       let stat;
       try { stat = fs.lstatSync(dir); }
       catch (error) { if (error.code !== 'ENOENT') throw error; }
-      if (stat && (stat.isSymbolicLink() || !stat.isDirectory())) throw new Error('技能层级必须是普通目录，不迁移链接路径：' + dir);
+      if (stat && (stat.isSymbolicLink() || !stat.isDirectory())) {
+        if (dir === library && require('./capability-roots.cjs').readBindings(root)) throw new Error('已绑定迁移库可检索和安装；跨目录/跨卷升降级暂不支持，原路径与数据保留，请勿用 rename/copy-delete 绕过');
+        throw new Error('技能层级必须是普通目录，不迁移链接路径：' + dir);
+      }
     }
   };
   assertTiers();

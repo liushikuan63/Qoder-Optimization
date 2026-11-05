@@ -2,13 +2,13 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.0.26"
+  "version": "0.0.27"
  },
  "generated": "2026-11-05",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 133,
-  "script": 142,
+  "script": 143,
   "command": 10,
   "agent": 2
  },
@@ -123,7 +123,9 @@
     "tier": "core"
    },
    "source": "skills/concurrent-edit-attribution-check",
-   "dependencies": []
+   "dependencies": [
+    "script:backup-file.js"
+   ]
   },
   {
    "id": "skill:continuation-state-audit",
@@ -921,7 +923,11 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "dependencies": []
+   "dependencies": [
+    "script:parallel-context.cjs",
+    "script:parallel-plan.cjs",
+    "script:parallel-write.cjs"
+   ]
   },
   {
    "id": "skill:pause-writer-before-shared-file-edit",
@@ -1285,7 +1291,9 @@
     "tier": "core"
    },
    "source": "skills/self-evolution",
-   "dependencies": []
+   "dependencies": [
+    "script:carrier-preflight.cjs"
+   ]
   },
   {
    "id": "skill:senior-devops",
@@ -1439,7 +1447,9 @@
     "tier": "core"
    },
    "source": "skills/skills-router",
-   "dependencies": []
+   "dependencies": [
+    "script:skill-load.cjs"
+   ]
   },
   {
    "id": "skill:spring-aop",
@@ -2025,6 +2035,7 @@
    },
    "source": "scripts/build-skills-index.cjs",
    "dependencies": [
+    "script:capability-roots.cjs",
     "script:client-root.js"
    ]
   },
@@ -2050,11 +2061,23 @@
    },
    "dependencies": [
     "script:build-skills-index.cjs",
+    "script:capability-roots.cjs",
     "script:client-root.js",
     "script:parallel-plan.cjs",
     "script:pkg-catalog.cjs",
     "script:verification-policy.cjs"
    ]
+  },
+  {
+   "id": "script:capability-roots.cjs",
+   "category": "script",
+   "name": "capability-roots.cjs",
+   "status": "shipped",
+   "source": "scripts/capability-roots.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": []
   },
   {
    "id": "script:capture-window.ps1",
@@ -2077,6 +2100,8 @@
    },
    "source": "scripts/carrier-preflight.cjs",
    "dependencies": [
+    "script:build-skills-index.cjs",
+    "script:capability-roots.cjs",
     "script:client-root.js"
    ]
   },
@@ -2124,7 +2149,9 @@
     "mode": "copy-file"
    },
    "source": "scripts/client-root.js",
-   "dependencies": []
+   "dependencies": [
+    "script:capability-roots.cjs"
+   ]
   },
   {
    "id": "script:commit-scope-guard.js",
@@ -2746,6 +2773,7 @@
    },
    "dependencies": [
     "script:capability-advisor.cjs",
+    "script:capability-roots.cjs",
     "script:client-root.js",
     "script:pack-share-extras.cjs",
     "script:package-dependencies.cjs",
@@ -3009,6 +3037,7 @@
    },
    "source": "scripts/pkg-catalog.cjs",
    "dependencies": [
+    "script:capability-roots.cjs",
     "script:client-root.js",
     "script:pack-share-extras.cjs",
     "script:package-dependencies.cjs",
@@ -3092,6 +3121,7 @@
    "source": "scripts/rules-reminder.js",
    "dependencies": [
     "script:capability-advisor.cjs",
+    "script:capability-roots.cjs",
     "script:client-root.js",
     "script:goal-candidate-core.js",
     "script:hook-crash-guard.js",
@@ -3306,6 +3336,7 @@
     "mode": "copy-file"
    },
    "dependencies": [
+    "script:capability-roots.cjs",
     "script:client-root.js",
     "script:tier-skills.cjs"
    ]
@@ -3462,6 +3493,7 @@
    "source": "scripts/tier-skills.cjs",
    "dependencies": [
     "script:build-skills-index.cjs",
+    "script:capability-roots.cjs",
     "script:client-root.js"
    ]
   },
@@ -3696,6 +3728,7 @@
     "mode": "copy-file"
    },
    "dependencies": [
+    "script:capability-roots.cjs",
     "script:client-root.js"
    ]
   },

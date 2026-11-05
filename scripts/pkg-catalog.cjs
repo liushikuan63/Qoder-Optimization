@@ -115,8 +115,9 @@ function readCatalog(file) {
   return catalog;
 }
 
-function digestOf(file) {
+function digestOf(file, client, bindings) {
   try {
+    if (client) return createHash('sha256').update(require('./capability-roots.cjs').readFileWithin(client, file, bindings)).digest('hex');
     const st = fs.lstatSync(file);
     if (!st.isFile() || st.isSymbolicLink()) return null;
     return createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -149,21 +150,26 @@ function packageFiles(root, rel) {
   return walk(path.join(root, rel), rel) ? files : null;
 }
 
-function compareWithPackage(e, root, localTarget) {
+function compareWithPackage(e, root, localTarget, client = path.dirname(path.dirname(localTarget)), bindings) {
   if (!root || !e.source) return null;
   try {
+    if (!require('./capability-roots.cjs').ordinaryWithin(client, localTarget, e.category === 'skill' || e.install?.mode === 'copy-directory', bindings)) return null;
     const src = path.resolve(root, e.source);
     if (!within(fs.realpathSync(root), fs.realpathSync(src))) return null;
     if (e.category === 'skill' || (e.category === 'script' && e.install?.mode === 'copy-directory')) {
       const files = packageFiles(root, e.source);
       if (!files || !files.length) return null;
       for (const f of files) {
-        if (digestOf(path.join(localTarget, f.rel)) !== f.hash) return { differs: true, file: f.rel };
+        const installed = path.join(localTarget, f.rel);
+        try { require('./capability-roots.cjs').assertClientPath(client, installed, bindings); if (!fs.existsSync(installed) || !fs.lstatSync(installed).isFile()) return { differs: true, file: f.rel }; } catch { return null; }
+        const installedHash = digestOf(installed, client, bindings);
+        if (!installedHash) return null;
+        if (installedHash !== f.hash) return { differs: true, file: f.rel };
       }
       return { differs: false };
     }
     const sourceHash = digestOf(src);
-    const localHash = digestOf(localTarget);
+    const localHash = digestOf(localTarget, client, bindings);
     if (!sourceHash || !localHash) return null;
     return { differs: sourceHash !== localHash, file: path.basename(localTarget) };
   } catch {
@@ -171,33 +177,37 @@ function compareWithPackage(e, root, localTarget) {
   }
 }
 
-function localPresence(e, root = '', client = QODER) {
+function localPresence(e, root = '', client = QODER, bindings) {
   if (e.category === 'plugin' || e.category === 'mcp') return { label: '安装/连接状态未核验，先用平台工具核对', present: null, differs: null, installedPaths: [] };
   const roots = e.category === 'skill' ? ['skills', 'skills-library'] :
     ({ script: ['scripts'], command: ['commands'], agent: ['agents'] }[e.category] || []);
   const name = e.category === 'skill' ? e.name : path.basename(e.source || '');
   if (!name || name === '.' || name === '..' || /[\\/:]/.test(name)) return { label: '本地状态未核验', present: null, differs: null, installedPaths: [] };
   const directory = e.category === 'skill' || (e.category === 'script' && e.install?.mode === 'copy-directory');
-  const found = [];
+  const found = []; let unverified = false;
   for (const r of roots) {
     const p = path.join(client, r, name);
     try {
+      if (!require('./capability-roots.cjs').resolveTier(client, r, bindings)) { unverified = true; continue; }
+      if (!require('./capability-roots.cjs').ordinaryWithin(client, p, directory, bindings)) { try { fs.lstatSync(p); unverified = true; } catch (error) { if (error.code !== 'ENOENT') unverified = true; } continue; }
       // A partially installed directory is still a local copy to compare;
       // missing entry points and companions must not disappear from drift.
       if (directory ? !fs.statSync(p).isDirectory() : !fs.statSync(p).isFile()) continue;
       found.push({ root: r, target: p });
-    } catch { /* 未安装或目录不完整 */ }
+    } catch { unverified = true; }
   }
+  if (unverified) return { present: null, differs: null, label: '按需目录尚未绑定，未读取其内容', installedPaths: found.map(item => item.target) };
   if (!found.length) return { present: false, differs: null, label: '本地未发现', installedPaths: [] };
   const installedPaths = found.map(item => item.target);
   const where = found.map(f => f.root).join(' + ');
   // Both tiers may exist even when a later index build would reject the duplicate.
   // A matching first copy must never hide edits in the other installed copy.
-  const comparisons = found.map(f => ({ ...f, cmp: compareWithPackage(e, root, f.target) }));
+  const comparisons = found.map(f => ({ ...f, cmp: compareWithPackage(e, root, f.target, client, bindings) }));
   const changed = comparisons.find(f => f.cmp?.differs);
   if (changed) {
     return { present: true, differs: true, installedPaths, label: `本地文件已存在（${where}；内容与包内不同：${changed.root}/${changed.cmp.file || name}，可更新或本地已改，需比对）` };
   }
+  if (found.length > 1) return { present: true, differs: null, installedPaths, label: '两层同名能力，来源待核对；不自动安装、更新或加载' };
   if (comparisons.every(f => f.cmp)) return { present: true, differs: false, installedPaths, label: `本地文件已存在（${where}；与包内一致，未验装载）` };
   return { present: true, differs: null, installedPaths, label: `本地文件已存在（${where}；包内来源不可比对，未验装载）` };
 }
@@ -350,6 +360,18 @@ function promptResidentTier(entry) {
 
 function cmdInstall() {
   const { root, entries } = loadCatalog();
+  const rootBindings = require('./capability-roots.cjs').readBindings(QODER);
+  const rootsFile = path.join(QODER, 'capability-roots.json');
+  const bindingSnapshot = () => {
+    let stat; try { stat = fs.lstatSync(rootsFile); } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+    const bytes = require('./capability-roots.cjs').readFileWithin(QODER, rootsFile, rootBindings);
+    return { ino: stat.ino, dev: stat.dev, hash: createHash('sha256').update(bytes).digest('hex') };
+  };
+  const bindingBefore = bindingSnapshot();
+  const assertBinding = () => {
+    const now = bindingSnapshot();
+    if (!now || !bindingBefore ? now !== bindingBefore : now.ino !== bindingBefore.ino || now.dev !== bindingBefore.dev || now.hash !== bindingBefore.hash) throw new Error('能力目录绑定在安装期间改变，保留并发选择');
+  };
   if (!value) fail(2, '用法：pkg-catalog.cjs install <id|名称> [--apply] [--tier core|library] [--force]');
   const e = findEntry(entries, value);
   if (!e) fail(2, `没有条目「${value}」，先 search`);
@@ -408,6 +430,8 @@ function cmdInstall() {
   // A valid leaf is insufficient: a linked tier/scripts parent would publish
   // outside the selected client. Check again at each write/rollback boundary.
   const assertDestination = target => {
+    assertBinding();
+    require('./capability-roots.cjs').assertClientPath(QODER, target, rootBindings);
     const relative = path.relative(QODER, target);
     if (!relative || relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) throw new Error('安装目标越界');
     let parent = path.dirname(target);
@@ -415,7 +439,7 @@ function cmdInstall() {
       let stat;
       try { stat = fs.lstatSync(parent); }
       catch (error) { if (error.code !== 'ENOENT') throw error; }
-      if (stat && (stat.isSymbolicLink() || !stat.isDirectory())) throw new Error('安装目标父路径必须是普通目录：' + parent);
+      if (stat && (!stat.isDirectory() && !stat.isSymbolicLink())) throw new Error('安装目标父路径必须是普通目录：' + parent);
       parent = path.dirname(parent);
     }
   };
@@ -469,8 +493,22 @@ function cmdInstall() {
   for (const item of plan) console.log(`[${APPLY ? '安装' : '预演'}] ${item.entry.id} → ${item.target}`);
   if (e.category === 'skill' && !TIER) console.log('  技能默认进按需库；交互执行 --apply 时会询问是否常驻，非交互请显式 --tier core|library。');
   if (!APPLY) { console.log('  未写盘；确认后加 --apply。'); return; }
+  if (rootBindings && plan.some(item => item.entry.category === 'skill')) {
+    const checked = new Set();
+    const verifyBuilder = id => {
+      if (checked.has(id)) return; checked.add(id);
+      const entry = entries.find(item => item.id === id);
+      if (!entry || entry.category !== 'script' || !/^[A-Za-z0-9._-]+$/.test(entry.name) || entry.source !== 'scripts/' + entry.name) throw new Error('迁移库索引依赖来源不完整，请先运行主安装器');
+      const source = path.join(root, entry.source), installed = path.join(QODER, entry.source);
+      assertNoLinks(source);
+      if (!require('./capability-roots.cjs').ordinaryWithin(QODER, installed, false, rootBindings) || !fs.readFileSync(installed).equals(fs.readFileSync(source))) throw new Error('迁移库索引/目录解析器不是同一批准版本，请先运行主安装器：' + id);
+      for (const dependency of dependenciesFor(root, entry)) verifyBuilder(dependency);
+    };
+    verifyBuilder('script:build-skills-index.cjs');
+  }
   fs.mkdirSync(QODER, { recursive: true });
   const stage = fs.mkdtempSync(path.join(QODER, '.pkg-install-'));
+  const stageToken = require('./capability-roots.cjs').directoryToken(stage, QODER);
   const indexPath = path.join(QODER, 'skills-index.json');
   const indexBackup = path.join(stage, 'old-index.json');
   const stagedIndex = path.join(stage, 'new-index.json');
@@ -485,7 +523,8 @@ function cmdInstall() {
   const residentBackup = path.join(stage, 'old-resident.json');
   const stagedResident = path.join(stage, 'new-resident.json');
   const coreSkills = plan.filter(item => item.entry.category === 'skill' && path.basename(path.dirname(item.target)) === 'skills').map(item => item.entry.name);
-  const applied = [];
+  const applied = [], externalStages = [], stageTokens = new Map([[stage, stageToken]]);
+  const assertStages = () => { for (const [dir, token] of stageTokens) require('./capability-roots.cjs').assertDirectory(dir, token); };
   const rebuildSkills = plan.some(item => item.entry.category === 'skill');
   let restored = false, indexBefore, indexMoved = false, residentBefore, residentMoved = false;
   const indexOwned = [], residentOwned = [];
@@ -500,11 +539,21 @@ function cmdInstall() {
     for (let i = 0; i < plan.length; i++) {
       const item = plan[i];
       item.staged = path.join(stage, 'new-' + i);
-      item.backup = path.join(stage, 'old-' + i);
+      if (rootBindings && path.basename(path.dirname(item.target)) === 'skills-library') {
+        assertDestination(item.target);
+        if (!externalStages.length) {
+          const dir = fs.mkdtempSync(path.join(rootBindings.library.real, '.pkg-install-')); externalStages.push(dir);
+          stageTokens.set(dir, require('./capability-roots.cjs').directoryToken(dir, rootBindings.library.real));
+        }
+        item.backup = path.join(externalStages[0], 'old-' + i);
+      } else item.backup = path.join(stage, 'old-' + i);
       fs.cpSync(item.src, item.staged, { recursive: true, force: false, errorOnExist: true,
         filter: file => isPublicFile(path.relative(root, file).split(path.sep).join('/')) });
     }
     for (const item of plan) {
+      assertStages();
+      // The journal connects same-volume library backups to the client stage.
+      fs.writeFileSync(path.join(stage, 'recovery.json'), JSON.stringify({ externalStages, targets: plan.map(item => ({ id: item.entry.id, target: item.target, backup: item.backup })) }), { mode: 0o600 });
       assertDestination(item.target);
       fs.mkdirSync(path.dirname(item.target), { recursive: true });
       assertDestination(item.target);
@@ -513,11 +562,14 @@ function cmdInstall() {
         if (fingerprint(item.target) !== item.before) throw new Error('目标在预检后已变化：' + item.entry.id);
         fs.renameSync(item.target, item.backup);
         item.originalMoved = true;
+        assertStages();
       }
       copyExclusive(item.staged, item.target, item.owned);
     }
     if (rebuildSkills) {
+      assertBinding(); assertStages();
       const message = rebuildIndex(stagedIndex);
+      assertBinding(); assertStages();
       if (fs.existsSync(stagedIndex)) {
         if (!sameIndex(indexSnapshot(indexPath), indexBefore)) throw new Error('技能索引在安装期间已变化，保留其他写入者的内容');
         if (indexBefore) {
@@ -544,6 +596,7 @@ function cmdInstall() {
         console.log('  已记入常驻清单：' + coreSkills.join(', '));
       }
     }
+    assertBinding(); assertStages();
     console.log('  已安装全部包内依赖并通过入口校验；第三方依赖与现役装载未验证。');
     for (const item of plan) if (fs.statSync(item.target).isDirectory() && fs.existsSync(path.join(item.target, 'package-lock.json'))) {
       console.log('  第三方依赖需另行安装：npm ci --ignore-scripts --prefix ' + JSON.stringify(item.target));
@@ -555,6 +608,7 @@ function cmdInstall() {
       let conflict = false;
       for (const item of applied.reverse()) {
         assertDestination(item.target);
+        assertStages();
         for (const owned of item.owned.reverse()) {
           if (!fs.existsSync(owned.path)) continue;
           const st = fs.lstatSync(owned.path);

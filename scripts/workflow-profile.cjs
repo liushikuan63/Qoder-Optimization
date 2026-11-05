@@ -121,6 +121,7 @@ function health(client) {
   const receipt = JSON.parse(fs.readFileSync(path.join(client, 'package-activation.json'), 'utf8'));
   if (receipt.profile !== 'complete') return null;
   const issues = [];
+  try { const roots = require('./capability-roots.cjs'); roots.readBindings(client); if (!roots.resolveTier(client, 'skills-library')) issues.push('CAPABILITY_LIBRARY_UNBOUND'); } catch { issues.push('CAPABILITY_ROOT_BINDING_INVALID'); }
   if (receipt.ready === false) issues.push('ACTIVATION_BLOCKED');
   for (const rel of Object.keys(RULES)) {
     const expected = receipt.managedRules?.[rel];

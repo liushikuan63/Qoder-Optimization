@@ -258,6 +258,7 @@ function capabilityEntry(item, catalogFile, installed) {
   for (const file of candidates) {
     if (typeof file !== 'string') continue;
     try {
+      if (installed) { if (require('./capability-roots.cjs').ordinaryWithin(base, file)) return path.resolve(file); continue; }
       const relative = path.relative(fs.realpathSync(base), fs.realpathSync(file));
       if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) continue;
       if (fs.lstatSync(file).isFile()) return path.resolve(file);
