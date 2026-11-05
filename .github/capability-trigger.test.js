@@ -13,7 +13,7 @@ function fixture(t) {
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const client = path.join(dir, 'client'), scripts = path.join(dir, 'hook'), pkg = path.join(dir, 'package');
   for (const folder of [path.join(client, 'scripts'), scripts, pkg]) fs.mkdirSync(folder, { recursive: true });
-  for (const name of ['rules-reminder.js', 'client-root.js', 'hook-crash-guard.js', 'goal-candidate-core.js', 'verification-trigger-core.js', 'recheck-protocol.cjs']) fs.copyFileSync(path.join(root, 'scripts', name), path.join(scripts, name));
+  for (const name of ['rules-reminder.js', 'client-root.js', 'capability-roots.cjs', 'hook-crash-guard.js', 'goal-candidate-core.js', 'verification-trigger-core.js', 'recheck-protocol.cjs']) fs.copyFileSync(path.join(root, 'scripts', name), path.join(scripts, name));
   const write = (file, value) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, typeof value === 'string' ? value : JSON.stringify(value)); };
   // A deterministic advisor boundary keeps these tests about the hook, not a
   // second copy of catalog matching. Actual advisor semantics have their own suite.

@@ -55,7 +55,7 @@ description: 主会话协调的多 agent 并行编排：多模块/跨端/多文�
 node ~/.qoder/scripts/parallel-plan.cjs <plan.json> --json --markdown .qoder/parallel-plans/<taskId>.md
 ```
 
-以上命令按安装后的客户端路径书写（Git Bash）；在源码仓库里把 `~/.qoder/scripts` 换成仓库的 `scripts` 目录。基础安装会随包安装 `parallel-plan.cjs` 与 `parallel-context.cjs`；若两者缺失，先运行 `install-package.cjs` 补基础集。计划文档在用户确认前生成，属于待审计划，不是运行上下文。真实任务不得用 `--preview` 跳过计划文档；`--preview` 只用于测试或工具预演。
+以上命令中的 `~/.qoder` 是默认客户端示例（Git Bash）。CN、自定义或迁移布局以本轮 hook 给出的已绑定客户端目录为准，将所有示例替换成该客户端 `scripts` 的绝对路径，不回退到另一侧 HOME；源码仓库才使用仓库的 `scripts` 目录。明确选装本技能会补齐 `parallel-plan.cjs`、`parallel-context.cjs` 和 `parallel-write.cjs`；缺失时先用主安装器修复依赖，不只复制技能目录。计划文档在用户确认前生成，属于待审计划，不是运行上下文。真实任务不得用 `--preview` 跳过计划文档；`--preview` 只用于测试或工具预演。
 
 退出码与动作：
 
