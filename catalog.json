@@ -2,9 +2,9 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.0.24"
+  "version": "0.0.25"
  },
- "generated": "2026-11-04",
+ "generated": "2026-11-05",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 133,
@@ -2051,7 +2051,9 @@
    "dependencies": [
     "script:build-skills-index.cjs",
     "script:client-root.js",
-    "script:pkg-catalog.cjs"
+    "script:parallel-plan.cjs",
+    "script:pkg-catalog.cjs",
+    "script:verification-policy.cjs"
    ]
   },
   {

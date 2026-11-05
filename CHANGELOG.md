@@ -6,11 +6,30 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.0.25] - 2026-11-05
+
 ### Changed
 - New installs now select `--workflow-mode model` for `rules-reminder.js`; existing route/model selections are preserved on upgrade. The installer accepts an explicit `--workflow-mode route|model` to switch an existing selection, so upgrades can ask before changing it. The route fallback recognizes common colloquial execution verbs (such as 修一下, 重写, 调成, 生成, 导出) while keeping read-only, trivial and continuation turns quiet.
 
+### Fixed
+- Honor polite, spaced and quantified read-only or workflow refusals. Preserve already supplied mandatory verification checks before question, continuation and low-evidence returns; structured advice never grants execution authority.
+- Emit the real Node executable and argument array for workflow decisions, plus correctly quoted PowerShell/POSIX commands; handle client paths with spaces, quotes and dollar signs.
+- Reinstall through an alias of the same physical client without treating it as a foreign hook scope; retain rejection of different scripts and clients.
+- Bind effective Git configuration origins and per-worktree config identity before and after dirty checks. Reject redirected working directories and configuration drift without discarding files.
+- Register new worktrees without checkout, validate their actual identity/configuration, then disable conditional executable drivers before materialization. Existing receipts missing configuration bindings fail explicitly and retain recovery material.
+
+### Release integrity
+- Resolve the event or requested tag to one immutable commit for Windows, Linux and build; refuse tag drift before building.
+- Serialize publication across versions with a bounded pending queue. Publish without automatically taking Latest, then reconcile the highest published stable numeric version with a finite readback budget; retain verified assets if external drift does not settle.
+- Refresh the catalog dependency closure for model workflow assessment.
+
 ### 中文摘要
 - 新装默认使用 model 模式，已有 route/model 选择保留；安装器新增 `--workflow-mode route|model` 显式切换，升级后可先询问再改；route 回退补齐口语执行动词，只读、琐碎与续接轮仍不触发。
+
+- 只读/拒绝边界及早返回验证清单已补齐；裁定命令提供真实 Node argv 和正确的本机 shell 引用。
+- 同物理客户端别名重装保持幂等，其他客户端与错误脚本继续拒绝。
+- Git 校验绑定每工作树及条件配置，阻止重定向隐藏脏文件和首次检出执行条件过滤器；旧无绑定回执明确拒绝并保留现场。
+- Windows、Linux 和构建统一固定提交，跨版本发布排队并按最高稳定版本核对 Latest，避免晚完成的旧版降级指针。
 
 ## [0.0.24] - 2026-11-04
 
