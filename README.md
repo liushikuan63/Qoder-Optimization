@@ -3,7 +3,7 @@
 **An opt-in toolkit for making Qoder workflows more repeatable and verifiable.** It adds rules, on-demand skills, hooks, commands, scripts, and MCP templates through Qoder's extension points; it does not modify Qoder itself.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.0.25-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.0.26-blue.svg)](VERSION)
 [![Node](https://img.shields.io/badge/node-24-brightgreen.svg)](https://nodejs.org)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20(primary)-lightgrey.svg)](#requirements-and-limits)
 
@@ -22,6 +22,7 @@ No clone required — pick a version and download it. Every release carries a re
 
 | Version | Released | Highlights | Download |
 |---|---|---|---|
+| 0.0.26 | 2026-11-05 | Integrity fixes; optional offline bundle | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.26/Qoder-Optimization-0.0.26.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.26) |
 | 0.0.25 | 2026-11-05 | Integrity fixes; optional offline bundle | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.25/Qoder-Optimization-0.0.25.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.25) |
 | 0.0.24 | 2026-11-04 | Integrity fixes; optional offline bundle | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.24/Qoder-Optimization-0.0.24.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.24) |
 | 0.0.23 | 2026-11-04 | Skill reference integrity, Windows CI, release gates and maintainability extraction | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.23/Qoder-Optimization-0.0.23.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.23) |
@@ -57,10 +58,10 @@ AI coding assistants can lose track of process: a check may be claimed without e
 | Included | Count | Examples |
 |---|---:|---|
 | Skills | 133 | Verification, code review, delivery, databases, documents, desktop automation |
-| Scripts | 140 | Guardrails, self-tests, packaging, validation, tool helpers |
+| Scripts | 142 | Guardrails, self-tests, packaging, validation, tool helpers |
 | Commands | 10 | Clarification, checkpoints, skill search, cleanup |
 | Sub-agents | 2 | Runtime-truth and post-deployment verification |
-| Catalog entries | 285 | Skills, scripts, commands, and agents |
+| Catalog entries | 287 | Skills, scripts, commands, and agents |
 
 ### How it fits together
 
@@ -82,7 +83,7 @@ For a guided setup, give the repository to Qoder and ask it to inspect your curr
 
 For a manual setup, follow the [installation guide](README-安装说明.md). Install only the skills you need; do not copy `skills/` wholesale.
 
-Start with `install.cmd` on Windows, or `node scripts/install-package.cjs` elsewhere. The package checks installed capabilities, updates only verified unchanged older copies, and asks about missing general or explicitly preferred capabilities. It wires task routing so relevant installed capabilities can prompt for use. Optional SQLite continuity remains a separate explicit choice (`--continuity` or `install-continuity.cjs`); accepted continuity installs auto-bind supported sessions while preserving explicit disables.
+Start with `install.cmd` on Windows, or `node scripts/install-package.cjs` elsewhere. A fresh installation defaults to the complete portable workflow: 12 public core skills, managed rules, required helpers and 16 exec hooks across five events. Existing routing installations retain their choice; select `--profile complete` to upgrade. Personal rules, accounts, private memory and optional integrations are preserved separately. The package checks installed capabilities, updates only verified unchanged older copies, and asks about missing general or explicitly preferred capabilities. It wires task routing so relevant installed capabilities can prompt for use. Optional SQLite continuity remains a separate explicit choice (`--continuity` or `install-continuity.cjs`); accepted continuity installs auto-bind supported sessions while preserving explicit disables.
 
 After setup, run the checks from the client directory you configured:
 
@@ -191,6 +192,7 @@ MIT; see [LICENSE](LICENSE). This is an unofficial community project and is not 
 
 | 版本 | 发布日期 | 主要内容 | 下载 |
 |---|---|---|---|
+| 0.0.26 | 2026-11-05 | 完整性修复；离线附件按需下载 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.26/Qoder-Optimization-0.0.26.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.26) |
 | 0.0.25 | 2026-11-05 | 完整性修复；离线附件按需下载 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.25/Qoder-Optimization-0.0.25.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.25) |
 | 0.0.24 | 2026-11-04 | 完整性修复；离线附件按需下载 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.24/Qoder-Optimization-0.0.24.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.24) |
 | 0.0.23 | 2026-11-04 | 技能引用完整性、Windows CI、发布门禁与大脚本拆分 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.23/Qoder-Optimization-0.0.23.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.23) |
@@ -228,10 +230,10 @@ AI 编码助手常见的问题包括：没有证据就声称验证通过、失�
 | 内容 | 数量 | 示例 |
 |---|---:|---|
 | 技能 | 133 | 验证、代码评审、交付、数据库、文档、桌面自动化 |
-| 脚本 | 140 | 守卫、自测、打包、校验与工具补强 |
+| 脚本 | 142 | 守卫、自测、打包、校验与工具补强 |
 | 命令 | 10 | 需求澄清、接续检查、技能检索、清理 |
 | 子智能体 | 2 | 运行期真值核验、部署后验收 |
-| 目录条目 | 285 | 技能、脚本、命令与子智能体 |
+| 目录条目 | 287 | 技能、脚本、命令与子智能体 |
 
 ### 工作方式
 
@@ -253,7 +255,7 @@ Hooks      在配置的流程节点运行检查
 
 手动安装请按[安装说明](README-安装说明.md)操作。只安装需要的技能，不要整目录复制 `skills/`。
 
-Windows 从包根 `install.cmd` 开始，其他平台运行 `node scripts/install-package.cjs`。安装包主动核对已有能力，只更新可证明未被本地修改的旧副本；缺失仅通用或符合明确偏好时询问安装，其他跳过，并把相关已装能力接入任务询问与路由。SQLite 接续记忆仍需单独显式选择（`--continuity` 或 `install-continuity.cjs`），启用后自动绑定并保留会话关闭选择。
+Windows 从包根 `install.cmd` 开始，其他平台运行 `node scripts/install-package.cjs`。新装默认完整工作流：12 个公开核心技能、托管规则、必要依赖和五类事件共 16 条 exec hook；已有 routing 保留，显式 `--profile complete` 升级。个人规则、账号、私人记忆和可选集成分别保留。安装包主动核对已有能力，只更新可证明未被本地修改的旧副本；缺失仅通用或符合明确偏好时询问安装，其他跳过，并把相关已装能力接入任务询问与路由。SQLite 接续记忆仍需单独显式选择（`--continuity` 或 `install-continuity.cjs`），启用后自动绑定并保留会话关闭选择。
 
 安装后，在所使用客户端的目录中运行：
 
@@ -352,7 +354,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 <!-- offline-bundle:start -->
 ### Optional offline bundle / 可选离线附件
 
-The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.25/Qoder-Optimization-0.0.25-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
+The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.0.26/Qoder-Optimization-0.0.26-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
 
 核心包不含 MCP 离线二进制；需要时单独下载离线附件，核对各自的 .sha256 后解压到同一目录。无需离线组件时只取核心包；链接仅在对应版本发布后可用。
 <!-- offline-bundle:end -->

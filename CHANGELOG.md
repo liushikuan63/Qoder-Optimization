@@ -6,6 +6,23 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.0.26] - 2026-11-05
+
+### Added
+- Ship a complete portable workflow profile: twelve public core skills, three managed rule sections, checkpoint/fact commands, dependency closure and sixteen exec hooks across five native events.
+- Default fresh clients to complete; preserve existing routing choices, explicit workflow modes, local skill tiers and unrelated settings. Offer explicit complete upgrades and read-only installation health checks.
+- Keep personal text outside managed rule sections; review locally changed managed sections and hook conflicts before publishing. Use existing transactional backups and rollback for all profile metadata.
+
+### Fixed
+- Bind every managed hook to its selected client with a bounded whitelist launcher and structured exec arguments. Preserve async stdin consumers, child exit-2 blocking and UTF-8 payloads.
+- Check every declared hook including task routing, managed rule receipts, disabled hooks and required installed files. Keep portable startup checks independent of private memory and another client.
+- Limit session transcript fallback to the selected client; never consume another CN client's same-session transcript.
+- Retain an observed higher stable Latest when release listing pages lag.
+
+### 中文摘要
+- 分享包从“有文件/单路由”补齐为可独立安装的通用工作流；旧安装可显式增量升级，私人 BYOK、凭据和记忆不分发。
+- 本地定制、旧来源不明和冲突仍先审阅；文件健康、原生引擎事件、fixture 模型和真实业务验收分别记录，不把安装成功等同模型自动采用。
+
 ## [0.0.25] - 2026-11-05
 
 ### Changed

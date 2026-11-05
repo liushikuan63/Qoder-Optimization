@@ -94,6 +94,15 @@ function danglingRefs() {
 
 function main() {
   readStdin();
+  // A portable installation owns its managed rules and hook graph only. It
+  // cannot assume a second client, private memory or Git Bash is configured.
+  let portable;
+  try { portable = require('./workflow-profile.cjs').health(A); }
+  catch (error) { if (error.code !== 'ENOENT' && error.code !== 'MODULE_NOT_FOUND') throw error; }
+  if (portable) {
+    if (portable.status !== 'READY') process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: '【分享包工作流体检】' + portable.issues.join('; ') + '。先只读核对；提醒不授予修复权限。' } }) + '\n');
+    return;
+  }
   const problems = [];
 
   const cfg = sh(path.join(__dirname, 'sync-global-config.sh'), ['--check']);

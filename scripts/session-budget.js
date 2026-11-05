@@ -32,7 +32,9 @@ const HOME = process.env.HOME || process.env.USERPROFILE || os.homedir();
 const STATE_DIR = process.env.SB_STATE_DIR || path.join(CLIENT_ROOT, 'tmp', 'session-budget');
 const LEDGER = path.join(STATE_DIR, 'checks.log');
 const CONFIG = path.join(CLIENT_ROOT, 'session-budget.json');
-const PROJECT_ROOTS = [path.join(HOME, '.qoder-cn', 'projects'), path.join(CLIENT_ROOT, 'projects')];
+// The selected client is the scope. A custom/CN binding must never sample a
+// different client's transcript merely because it shares a session id.
+const PROJECT_ROOTS = [path.join(CLIENT_ROOT, 'projects')];
 
 const YELLOW_MB = Number(process.env.SB_YELLOW_MB || 8);
 const ORANGE_MB = Number(process.env.SB_ORANGE_MB || 15);

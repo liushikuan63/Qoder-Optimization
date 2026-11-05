@@ -2,13 +2,13 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.0.25"
+  "version": "0.0.26"
  },
  "generated": "2026-11-05",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 133,
-  "script": 140,
+  "script": 142,
   "command": 10,
   "agent": 2
  },
@@ -2552,7 +2552,8 @@
     "script:hook-crash-guard.js",
     "script:hook-targets.cjs",
     "script:sync-global-config.sh",
-    "script:sync-memory.sh"
+    "script:sync-memory.sh",
+    "script:workflow-profile.cjs"
    ]
   },
   {
@@ -2749,7 +2750,8 @@
     "script:pack-share-extras.cjs",
     "script:package-dependencies.cjs",
     "script:pkg-catalog.cjs",
-    "script:tier-skills.cjs"
+    "script:tier-skills.cjs",
+    "script:workflow-profile.cjs"
    ]
   },
   {
@@ -3141,6 +3143,19 @@
    "dependencies": [
     "script:rules-weekly-audit.js",
     "script:sync-global-config.sh"
+   ]
+  },
+  {
+   "id": "script:run-package-hook.cjs",
+   "category": "script",
+   "name": "run-package-hook.cjs",
+   "status": "shipped",
+   "source": "scripts/run-package-hook.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:workflow-profile.cjs"
    ]
   },
   {
@@ -3669,6 +3684,19 @@
    "source": "scripts/work-queue-check.test.js",
    "dependencies": [
     "script:work-queue-check.js"
+   ]
+  },
+  {
+   "id": "script:workflow-profile.cjs",
+   "category": "script",
+   "name": "workflow-profile.cjs",
+   "status": "shipped",
+   "source": "scripts/workflow-profile.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:client-root.js"
    ]
   },
   {

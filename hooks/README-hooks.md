@@ -7,14 +7,16 @@
 脚本里的状态 / 台账 / 索引按 `scripts/client-root.js` 解析到 HOME 下**实际存在**的那一侧；同步类脚本发现只有一侧时只报"单端模式"并退 0，不会 mkdir 出另一个目录。
 双客户端都装才各挂一份：只挂一侧会让另一侧静默失效，周检的"两侧接线一致性"就是查这个。
 
-## 事件 × 脚本（与本机现役接线一致）
+完整安装优先使用 `node scripts/install-package.cjs --profile complete --yes --client-root <客户端目录>`，实际命令为可执行文件+args，不经 shell；模板保留给高级手工/兼容用途。完整 profile 的开台体检只检查本客户端托管规则、16 条接线与必要文件，不依赖私人记忆、另一客户端或 Bash。制作端第 17 条私人 BYOK 守卫不在公开包；账号和外部服务各用自己的配置。
+
+## 事件 × 脚本（公开通用完整工作流）
 
 | 事件 | 脚本 | 超时(s) | 作用 |
 |---|---|---|---|
 | `UserPromptSubmit` | `rules-reminder.js` | 10 | 每轮注入精简纪律（最易被忽略的兜底）+ 回注本轮请求原文 + 目标候选 / 自进化采集 / 工作方式模型判断（新装默认 `--workflow-mode model`；回退 route 时为 B05 关键词选档触发）；命中"再次检查 / 重复检查 / 循环检查"等复核词时追加复核协议摘要（`recheck-protocol.cjs`，普通轮不追加） |
 | `UserPromptSubmit` | `session-budget.js` | 10 | 上下文体积 / 压缩次数 / 接续队列分档提醒 |
 | `UserPromptSubmit` | `fact-ledger.cjs --hook` | 10 | 硬事实登记簿：把 ≤12 条长期硬约束按目录隔离注入每轮；无登记时**零输出**（不占 token）；`/fact` 增删查清 |
-| `Stop` | `stop-gate.js` | 10 | 收尾门禁：拦住"声明下一步却没做 / 该弹窗没弹 / 无视觉证据 / 明确记忆请求无成功证据 / 无主张踢皮球"；检索到可安装/可更新条目却未询问、发布后未询问部署也拦；只读 / 交接 / 旧队列不催办 |
+| `Stop` | `stop-gate.js` | 15 | 收尾门禁：拦住"声明下一步却没做 / 该弹窗没弹 / 无视觉证据 / 明确记忆请求无成功证据 / 无主张踢皮球"；检索到可安装/可更新条目却未询问、发布后未询问部署也拦；只读 / 交接 / 旧队列不催办 |
 | `SessionStart` | `global-config-guard.js` | 15 | 开台体检：两侧漂移 + 悬空引用（含 `skills/<技能>/scripts/x` 形态），健康时零输出 |
 | `SessionStart` | `session-budget.js` | 10 | 同上（开会话时也看一眼预算与磁盘水位） |
 | `PreToolUse` | `edit-guard.js` | 10 | 改不可回滚文件前的备份提醒（advisory，不拦截）；命中技能 / 规则 / 记忆 / hook / MCP / agent 等载体目录时追加 `carrier-preflight` 提醒 |
@@ -30,7 +32,7 @@
 
 ## 模板脚本与安装 ID
 
-基础安装只含 `rules-reminder.js` 及其路由依赖。下表其余脚本在接线前先按 ID 安装；未安装时 hook 会 fail-open 静默放行。安装命令在解压包根目录执行，`pkg-catalog` 会补齐依赖。
+`complete` 安装器已事务安装下表全部公开通用脚本及依赖，并生成绑定客户端的 exec 接线；不要再复制模板造成重复。`routing` 只含 `rules-reminder.js` 及路由依赖，需其他守卫时可显式升级 `--profile complete`，或按下表高级手工安装。安装命令在解压包根目录执行，`pkg-catalog` 会补齐依赖。
 
 | 脚本 | catalog ID | 安装 |
 |---|---|---|

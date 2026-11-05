@@ -11,6 +11,7 @@ const { dependenciesFor } = require('./package-dependencies.cjs');
 const { readCatalog } = require('./pkg-catalog.cjs');
 const { isPublicFile } = require('./pack-share-extras.cjs');
 const { readResident } = require('./tier-skills.cjs');
+const { COMPLETE_IDS, RULES, managedRule, completeSettings } = require('./workflow-profile.cjs');
 
 const BASE_IDS = [
   'script:rules-reminder.js', 'script:capability-advisor.cjs',
@@ -39,7 +40,7 @@ function parseArgs(argv) {
   const result = { install: [], resident: [], yes: false, dryRun: false };
   const seen = new Set();
   const flags = new Map([['--yes', 'yes'], ['--dry-run', 'dryRun'], ['--json', 'json'], ['--continuity', 'continuity'], ['--no-auto-bind', 'noAutoBind'], ['--help', 'help'], ['-h', 'help'], ['--no', 'skip'], ['--skip', 'skip'], ['--non-interactive', 'nonInteractive']]);
-  const values = new Map([['--client-root', 'client'], ['--catalog', 'catalogFile'], ['--preferences', 'preferencesFile'], ['--install', 'install'], ['--resident', 'resident'], ['--workflow-mode', 'workflowMode']]);
+  const values = new Map([['--client-root', 'client'], ['--catalog', 'catalogFile'], ['--previous-catalog', 'previousCatalogFile'], ['--profile', 'profile'], ['--preferences', 'preferencesFile'], ['--install', 'install'], ['--resident', 'resident'], ['--workflow-mode', 'workflowMode']]);
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (!['--install', '--resident'].includes(arg) && seen.has(arg)) throw new Error('重复参数：' + arg);
@@ -48,7 +49,10 @@ function parseArgs(argv) {
     else if (values.has(arg)) {
       const value = argv[++i];
       if (!value || !value.trim() || value.startsWith('-')) throw new Error(arg + ' 需要明确值');
-      if (arg === '--workflow-mode') {
+      if (arg === '--profile') {
+        if (!['routing', 'complete'].includes(value)) throw new Error('--profile 只接受 routing 或 complete');
+        result.profile = value;
+      } else if (arg === '--workflow-mode') {
         if (!['route', 'model'].includes(value)) throw new Error('--workflow-mode 只接受 route 或 model');
         result.workflowMode = value;
       } else if (arg === '--install' || arg === '--resident') {
@@ -164,14 +168,23 @@ function settingsFor(bytes, target, workflowMode) {
   const sameLocation = (left, right) => normalized(physical(left)) === normalized(physical(right));
   let command = '"' + process.execPath + '" "' + target + '" --client-root "' + client + '"';
   const groups = settings.hooks.UserPromptSubmit || [];
-  const found = groups.flatMap(group => group.hooks.filter(hook => String(hook.command || '').includes('rules-reminder.js')).map(hook => ({ group, hook })));
+  const found = groups.flatMap(group => group.hooks.filter(hook => String(hook.command || '').includes('rules-reminder.js') || (Array.isArray(hook.args) && String(hook.args[0]).includes('rules-reminder.js'))).map(hook => ({ group, hook })));
   let state = 'ADD';
   if (found.length) {
     const { group, hook } = found[0];
+    if (Array.isArray(hook.args)) {
+      const args = hook.args;
+      if (found.length !== 1 || group.matcher !== undefined || hook.type !== 'command' || hook.timeout !== 10 || hook.env || hook.shell || !sameLocation(hook.command, process.execPath)
+        || args.length !== 5 || !sameLocation(args[0], target) || args[1] !== '--client-root' || !path.isAbsolute(args[2]) || !sameLocation(args[2], client) || args[3] !== '--workflow-mode' || !['route', 'model'].includes(args[4])) throw new Error('已有 rules-reminder exec 接线冲突，保留配置供核对');
+      const nextArgs = [target, '--client-root', client, '--workflow-mode', workflowMode || args[4]];
+      state = hook.command === process.execPath && JSON.stringify(args) === JSON.stringify(nextArgs) ? 'KEEP' : 'UPDATE';
+      hook.command = process.execPath; hook.args = nextArgs;
+      return { bytes: Buffer.from(JSON.stringify(settings, null, 2) + '\n'), state };
+    }
     const match = String(hook.command || '').match(/^\s*(?:"([^"\r\n]+)"|([^\s"'`|&;<>$()]+))\s+(?:"([^"\r\n]+)"|([^\s"'`|&;<>$()]+))(?:\s+--client-root\s+(?:"([^"\r\n]+)"|([^\s"'`|&;<>$()]+)))?(?:\s+--workflow-mode\s+(route|model))?\s*$/);
     const node = match && (match[1] || match[2]).split(/[\\/]/).pop();
     const boundClient = match && (match[5] || match[6]);
-    if (found.length !== 1 || !match || !/^node(?:\.exe)?$/i.test(node) || !sameLocation(match[3] || match[4], target)
+    if (found.length !== 1 || hook.env || hook.shell || !match || !/^node(?:\.exe)?$/i.test(node) || !sameLocation(match[3] || match[4], target)
       || (boundClient !== undefined && (!path.isAbsolute(boundClient) || !sameLocation(boundClient, client)))
       || group.matcher !== undefined || hook.type !== 'command' || hook.timeout !== 10) throw new Error('已有 rules-reminder 接线与完整命令/client-root/matcher/type/timeout 冲突，保留配置供核对');
     if (match[7] || workflowMode) command += ' --workflow-mode ' + (workflowMode || match[7]);
@@ -207,13 +220,26 @@ function prepare(options = {}) {
     catch { throw new Error('share-package.json 无效，保留原登记供核对'); }
     if (!previous || typeof previous !== 'object' || Array.isArray(previous)) throw new Error('share-package.json 必须是对象');
   }
+  let previousActivation = {};
+  const activationFile = path.join(client, 'package-activation.json');
+  if (fs.existsSync(activationFile)) {
+    try { previousActivation = JSON.parse(fs.readFileSync(activationFile, 'utf8')); }
+    catch { throw new Error('package-activation.json 无效，保留供核对'); }
+    if (!previousActivation || typeof previousActivation !== 'object' || Array.isArray(previousActivation)) throw new Error('package-activation.json 必须是对象');
+  }
+  plan.profile = options.profile || previousActivation.profile || (previous.catalog ? 'routing' : 'complete');
+  plan.previousActivation = { profile: previousActivation.profile || 'routing', managedRules: previousActivation.managedRules || {}, requiredFiles: previousActivation.requiredFiles || [] };
+  if (!['routing', 'complete'].includes(plan.profile)) throw new Error('未知安装 profile');
+  if (previousActivation.profile === 'complete' && plan.profile === 'routing') throw new Error('已启用完整工作流；不能用 routing 隐式卸载已有保护');
+  plan.baseIds = [...new Set([...BASE_IDS, ...(plan.profile === 'complete' ? COMPLETE_IDS : [])])];
+  plan.profileUpgradeAvailable = plan.profile === 'routing';
   const defaultPreferences = path.join(client, 'capability-preferences.json');
   let preferences = readPreferences(options.preferencesFile || (fs.existsSync(defaultPreferences) ? defaultPreferences : undefined));
   if (options.install?.length) {
     preferences = { ...(preferences || { schema: 1 }), preferredIds: [...new Set([...(preferences?.preferredIds || []), ...options.install])], excludedIds: (preferences?.excludedIds || []).filter(id => !options.install.includes(id)) };
   }
   const entries = new Map(catalog.entries.map(entry => [entry.id, entry]));
-  for (const id of [...BASE_IDS, ...(options.install || []), ...(options.resident || [])]) if (!entries.has(id)) throw new Error('包内缺少精确条目：' + id);
+  for (const id of [...plan.baseIds, ...(options.install || []), ...(options.resident || [])]) if (!entries.has(id)) throw new Error('包内缺少精确条目：' + id);
   const resident = new Set(options.resident || []);
   for (const id of resident) {
     if (entries.get(id).category !== 'skill') throw new Error('--resident 只接受技能：' + id);
@@ -240,14 +266,15 @@ function prepare(options = {}) {
     };
     ids.forEach(visit); return order;
   };
-  const baseClosure = closure(BASE_IDS);
-  const explicitClosure = closure([...BASE_IDS, ...(options.install || [])]);
+  const baseClosure = closure(plan.baseIds);
+  plan.requiredIds = baseClosure;
+  const explicitClosure = closure([...plan.baseIds, ...(options.install || [])]);
   // An exact install choice includes its necessary technical dependencies.
   // Preferences control suggestions, never veto that current choice; local
   // differences still go through the advisor's pristine-baseline checks.
   const { planCapabilities } = require('./capability-advisor.cjs');
   const prompt = explicitClosure.map(id => '安装 ' + id).join('；');
-  const advice = planCapabilities({ catalogFile, clientRoot: client, prompt, phase: 'install', preferences, previousCatalogFile: typeof previous.catalog === 'string' ? path.resolve(client, previous.catalog) : undefined });
+  const advice = planCapabilities({ catalogFile, clientRoot: client, prompt, phase: 'install', preferences, previousCatalogFile: options.previousCatalogFile || (typeof previous.catalog === 'string' ? path.resolve(client, previous.catalog) : undefined) });
   plan.items = advice.items || [];
   plan.diagnostics = advice.diagnostics || advice.warnings || [];
   const items = new Map(plan.items.map(item => [item.id || item.entry?.id, item]));
@@ -262,7 +289,7 @@ function prepare(options = {}) {
     requested.add(id);
   }
   for (const item of plan.items) if (item.action === 'UPDATE' && (plan.baseReady || !baseClosure.includes(item.id || item.entry.id))) requested.add(item.id || item.entry.id);
-  if (plan.baseReady) BASE_IDS.forEach(id => requested.add(id));
+  if (plan.baseReady) plan.baseIds.forEach(id => requested.add(id));
   const selected = new Set();
   for (const id of requested) {
     const needed = closure([id]);
@@ -305,6 +332,17 @@ function prepare(options = {}) {
   plan.settingsBefore = snapshot(settings);
   plan.settingsBytes = fs.existsSync(settings) ? fs.readFileSync(settings) : null;
   plan.hook = settingsFor(plan.settingsBytes, path.join(client, 'scripts/rules-reminder.js'), options.workflowMode);
+  plan.rules = [];
+  if (plan.profile === 'complete') {
+    const fullHook = completeSettings(plan.hook.bytes, client);
+    plan.hook = { bytes: fullHook.bytes, state: plan.hook.state === 'KEEP' && fullHook.state === 'KEEP' ? 'KEEP' : plan.settingsBytes ? 'UPDATE' : 'ADD' };
+    for (const rel of Object.keys(RULES)) {
+      const target = path.join(client, rel); assertPath(plan, target);
+      const before = snapshot(target);
+      const rule = managedRule(before ? fs.readFileSync(target) : null, rel, previousActivation.managedRules?.[rel]);
+      plan.rules.push({ rel, target, before, ...rule });
+    }
+  }
   plan.pointerBefore = snapshot(pointer);
   plan.pointerValue = { ...previous, catalog: catalogFile, ...(typeof previous.catalog === 'string' && previous.catalog !== catalogFile ? { previous_catalog: previous.catalog } : {}), registered_at: new Date().toISOString().slice(0, 10) };
   plan.indexBefore = snapshot(path.join(client, 'skills-index.json'));
@@ -448,6 +486,11 @@ function apply(plan, options = {}) {
       const result = spawnSync(process.execPath, ['-e', code, path.join(frozenPackage, 'scripts/build-skills-index.cjs'), index], { env: { ...process.env, QODER_HOME: plan.client }, encoding: 'utf8', timeout: 60000 });
       if (result.status !== 0) throw new Error('真实客户端技能索引生成失败：' + String(result.stderr || '').slice(0, 200));
       publish({ id: 'metadata:skills-index', target: path.join(plan.client, 'skills-index.json'), before: plan.indexBefore, staged: index });
+      for (const rule of plan.rules) {
+        const file = path.join(stage, 'rule-' + path.basename(rule.rel));
+        fs.writeFileSync(file, rule.bytes, { flag: 'wx', mode: 0o600 });
+        publish({ id: 'metadata:' + rule.rel, target: rule.target, before: rule.before, staged: file });
+      }
       if (plan.hook.state !== 'KEEP') {
         const file = path.join(stage, 'settings.json'); fs.writeFileSync(file, plan.hook.bytes, { flag: 'wx', mode: 0o600 });
         publish({ id: 'metadata:settings', target: path.join(plan.client, 'settings.json'), before: plan.settingsBefore, staged: file });
@@ -462,7 +505,7 @@ function apply(plan, options = {}) {
       fs.writeFileSync(file, JSON.stringify({ schema: 1, skills: plan.residentNames }, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
       publish({ id: 'metadata:skills-resident', target: path.join(plan.client, 'skills-resident.json'), before: plan.residentBefore, staged: file });
     }
-    const receipt = { schema: 1, installedAt: new Date().toISOString(), catalog: plan.catalogFile, catalogSha256: plan.catalogHash, ready: plan.baseReady, hook: plan.baseReady ? plan.hook.state : 'BLOCKED', baseBlocked: plan.baseBlocked, installedIds: plan.changes.map(item => item.id), recoveryDirectory: stage };
+    const receipt = { schema: 1, installedAt: new Date().toISOString(), catalog: plan.catalogFile, catalogSha256: plan.catalogHash, ready: plan.baseReady, hook: plan.baseReady ? plan.hook.state : 'BLOCKED', ...(plan.baseReady ? { profile: plan.profile, managedRules: Object.fromEntries(plan.rules.map(rule => [rule.rel, rule.hash])), requiredFiles: [...plan.changes, ...plan.verifyTargets].filter(item => plan.requiredIds.includes(item.id)).map(item => path.relative(plan.client, path.join(item.target, item.entry?.category === 'skill' || item.id.startsWith('skill:') ? 'SKILL.md' : '')).split(path.sep).join('/')) } : plan.previousActivation), baseBlocked: plan.baseBlocked, installedIds: plan.changes.map(item => item.id), recoveryDirectory: stage };
     const receiptFile = path.join(stage, 'package-activation.json'); fs.writeFileSync(receiptFile, JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
     publish({ id: 'metadata:activation', target: path.join(plan.client, 'package-activation.json'), before: plan.receiptBefore, staged: receiptFile });
     fs.writeFileSync(path.join(stage, 'transaction.json'), JSON.stringify({ status: 'COMMITTED', receipt, logs }, null, 2));
@@ -510,14 +553,15 @@ function printSummary(result) {
   const plan = result.plan;
   const pendingItems = result.pendingItems || withPending(result).pendingItems;
   console.log('Qoder-Optimization 包能力核对：' + plan.catalogFile);
-  console.log('客户端：' + plan.client + '；状态：' + result.status);
+  console.log('客户端：' + plan.client + '；工作流：' + plan.profile + '；状态：' + result.status);
+  if (plan.profileUpgradeAvailable) console.log('完整工作流尚未启用；--profile complete 可安装公开通用规则、12个核心技能与16条hook，不含账号/私有BYOK守护。');
   if (result.receipt?.installedIds?.length) console.log('APPLIED: ' + result.receipt.installedIds.join(', '));
   for (const action of ['UPDATE', 'ASK_INSTALL', 'REVIEW_UPDATE', 'KEEP', 'SKIP']) {
     const items = (action === 'KEEP' || action === 'SKIP' ? plan.items : pendingItems).filter(item => item.action === action);
     console.log(action + ': ' + items.length);
     if (action !== 'KEEP' && action !== 'SKIP') for (const item of items) console.log('  ' + (item.id || item.entry.id) + ' — ' + (item.reason || item.reasonCode || action));
   }
-  if (result.status === 'DRY_RUN') console.log('未写盘；--yes 接受基础路由与有旧包基线的 UPDATE。新可选能力只在 --install <exact-id> 明确选择后安装。');
+  if (result.status === 'DRY_RUN') console.log('未写盘；--yes 接受上述工作流基础能力与有旧包基线的 UPDATE。新可选能力只在 --install <exact-id> 明确选择后安装。');
   if (!plan.baseReady) console.log('基础路由因本地差异未接线：' + plan.baseBlocked.join(', '));
   if (result.recoveryDirectory) console.log('备份/事务记录：' + result.recoveryDirectory);
   if (pendingItems.length) console.log('NEXT_ACTION: ASK_INSTALL_OR_UPDATE — 仅询问上述未完成的候选/差异；已完成的基础安装、更新与精确选择无需重复批准。');
@@ -526,7 +570,7 @@ function printSummary(result) {
 async function main(argv) {
   const options = parseArgs(argv);
   if (options.help) {
-    console.log('用法：node scripts/install-package.cjs [--yes] [--dry-run] [--client-root <目录>] [--catalog <catalog.json>] [--install <exact-id>] [--resident <exact-id>] [--preferences <json>] [--workflow-mode route|model] [--continuity] [--no-auto-bind] [--json]\n默认只核对；--yes 安装基础路由并更新与旧包一致的已安装条目。缺失可选项另用 --install 明确选择，个人修改只报告。所选技能默认进按需库；交互运行会询问是否常驻，非交互用 --resident 选择常驻（需与 --install 同时给出）。已安装技能换层请用 tier-skills --promote。--workflow-mode 显式切换已有 rules-reminder 接线；省略时新装默认 model、已有选择保留。接续存储仅在 --continuity 单独同意时调用旧安装器。');
+    console.log('用法：node scripts/install-package.cjs [--yes] [--dry-run] [--client-root <目录>] [--catalog <catalog.json>] [--install <exact-id>] [--resident <exact-id>] [--preferences <json>] [--workflow-mode route|model] [--continuity] [--no-auto-bind] [--json]\n默认只核对；新装默认 complete（12公开核心技能/规则/16条exec hook），已有登记保留 routing；--profile complete|routing 明确选择，--previous-catalog <可信旧catalog> 指定可追溯旧源。--yes 安装所选工作流基础能力并更新与旧包一致的已安装条目。缺失可选项另用 --install 明确选择，个人修改只报告。所选技能默认进按需库；交互运行会询问是否常驻，非交互用 --resident 选择常驻（需与 --install 同时给出）。已安装技能换层请用 tier-skills --promote。--workflow-mode 显式切换已有 rules-reminder 接线；省略时新装默认 model、已有选择保留。接续存储仅在 --continuity 单独同意时调用旧安装器。');
     return 0;
   }
   if (options.skip) { console.log('已跳过，未修改任何文件。'); return 0; }
@@ -536,7 +580,7 @@ async function main(argv) {
     printSummary({ status: 'DRY_RUN', plan });
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
     try {
-      options.yes = /^(?:y|yes|是|同意)$/i.test((await rl.question('安装基础路由并更新有安全旧包基线的已有能力？[y/N] ')).trim());
+      options.yes = /^(?:y|yes|是|同意)$/i.test((await rl.question('安装 ' + plan.profile + ' 工作流基础能力并更新有安全旧包基线的已有能力？[y/N] ')).trim());
       const installSkills = (options.install || []).filter(id => id.startsWith('skill:') && plan.items.find(item => (item.id || item.entry?.id) === id)?.action !== 'KEEP');
       if (options.yes && installSkills.length && !(options.resident || []).length) {
         options.resident = /^(?:y|yes|是|同意)$/i.test((await rl.question('本次选择的技能（' + installSkills.join(', ') + '）是否设为常驻？常驻描述每轮注入。[y/N] ')).trim()) ? installSkills : [];
@@ -556,7 +600,7 @@ async function main(argv) {
   if (options.json) {
     // Existing settings may contain credentials; never serialize the private
     // snapshots or merged settings bytes held by the transaction plan.
-    const publicPlan = { catalogFile: plan.catalogFile, client: plan.client, baseReady: plan.baseReady, baseBlocked: plan.baseBlocked, diagnostics: plan.diagnostics, changes: plan.changes.map(item => ({ id: item.id, target: item.target, update: Boolean(item.before) })), items: plan.items.map(({ id, action, reason, present, installedPaths }) => ({ id, action, reason, present, installedPaths })) };
+    const publicPlan = { catalogFile: plan.catalogFile, client: plan.client, profile: plan.profile, profileUpgradeAvailable: plan.profileUpgradeAvailable, baseReady: plan.baseReady, baseBlocked: plan.baseBlocked, diagnostics: plan.diagnostics, changes: plan.changes.map(item => ({ id: item.id, target: item.target, update: Boolean(item.before) })), items: plan.items.map(({ id, action, reason, present, installedPaths }) => ({ id, action, reason, present, installedPaths })) };
     console.log(JSON.stringify({ ...result, nextAction: result.pendingItems.length ? 'ASK_INSTALL_OR_UPDATE' : null, plan: publicPlan }));
   } else printSummary(result);
   if (continuityExit !== 0) { if (!options.json) console.error('基础包结果已保留；可选 continuity 未完成。'); return continuityExit; }

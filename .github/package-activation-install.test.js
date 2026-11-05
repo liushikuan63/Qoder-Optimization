@@ -39,7 +39,7 @@ function fixture(t) {
   };
   const old = packageAt('old-package', 'old-fixture'), next = packageAt('next-package', 'new-fixture');
   t.after(() => { assert.ok(path.resolve(home).startsWith(path.resolve(os.tmpdir()) + path.sep)); fs.rmSync(home, { recursive: true, force: true }); });
-  const run = (args = [], extra = {}) => spawnSync(process.execPath, [installer, '--client-root', client, '--catalog', next.catalog, ...args], { env, encoding: 'utf8', input: '', timeout: 120000, ...extra });
+  const run = (args = [], extra = {}) => spawnSync(process.execPath, [installer, '--profile', 'routing', '--client-root', client, '--catalog', next.catalog, ...args], { env, encoding: 'utf8', input: '', timeout: 120000, ...extra });
   const put = (rel, value) => { const file = path.join(client, rel); fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, value); return file; };
   return { home, client, env, old, next, run, put };
 }
@@ -106,7 +106,7 @@ test('explicit workflow mode switches an existing selection and rejects invalid 
 test('private activation metadata keeps owner-only permissions on POSIX', { skip: process.platform === 'win32' }, t => {
   const f = fixture(t), file = f.put('settings.json', '{"fixtureSecret":"private"}'); fs.chmodSync(file, 0o600);
   const runner = path.join(f.home, 'private-modes.cjs');
-  fs.writeFileSync(runner, `process.umask(0o022);const installer=require(${JSON.stringify(installer)});installer.apply(installer.prepare({client:${JSON.stringify(f.client)},catalogFile:${JSON.stringify(f.next.catalog)}}),{yes:true});`);
+  fs.writeFileSync(runner, `process.umask(0o022);const installer=require(${JSON.stringify(installer)});installer.apply(installer.prepare({profile:'routing',client:${JSON.stringify(f.client)},catalogFile:${JSON.stringify(f.next.catalog)}}),{yes:true});`);
   const r = spawnSync(process.execPath, [runner], { env: f.env, encoding: 'utf8', timeout: 120000 });
   assert.equal(r.status, 0, r.stdout + r.stderr);
   for (const name of ['settings.json', 'share-package.json', 'skills-index.json', 'package-activation.json']) assert.equal(fs.statSync(path.join(f.client, name)).mode & 0o777, 0o600, name);
@@ -252,7 +252,7 @@ test('--yes updates only pristine old-package copies and preserves local edits',
 
 test('an upgrade that changes the index builder and a skill stages unchanged sibling modules', t => {
   const f = fixture(t);
-  const runCatalog = catalog => spawnSync(process.execPath, [installer, '--client-root', f.client, '--catalog', catalog, '--yes', '--json'], { env: f.env, encoding: 'utf8', input: '', timeout: 120000 });
+  const runCatalog = catalog => spawnSync(process.execPath, [installer, '--profile', 'routing', '--client-root', f.client, '--catalog', catalog, '--yes', '--json'], { env: f.env, encoding: 'utf8', input: '', timeout: 120000 });
   const first = runCatalog(f.old.catalog);
   assert.equal(first.status, 0, first.stdout + first.stderr);
   fs.appendFileSync(path.join(f.next.root, 'scripts/build-skills-index.cjs'), '\n// next fixture revision\n');
@@ -387,7 +387,7 @@ for (const mode of ['original-persistent', 'original-transient', 'frozen-transie
     const transient = mode.endsWith('transient'), frozen = mode === 'frozen-transient', executor = mode === 'original-executor';
     fs.writeFileSync(runner, `const fs=require('node:fs'),path=require('node:path'),cp=require('node:child_process'),real=cp.spawnSync;
       const installer=${JSON.stringify(installer)},client=${JSON.stringify(f.client)},catalogFile=${JSON.stringify(f.next.catalog)};
-      const plan=require(installer).prepare({client,catalogFile}),source=path.join(${JSON.stringify(f.next.root)},${JSON.stringify(executor ? 'scripts/pkg-catalog.cjs' : 'scripts/rules-reminder.js')}),approved=fs.readFileSync(source),executionMarker=${JSON.stringify(path.join(f.home, 'unapproved-execution-marker'))};let fired=false;const entriesUsed=[];
+      const plan=require(installer).prepare({profile:'routing',client,catalogFile}),source=path.join(${JSON.stringify(f.next.root)},${JSON.stringify(executor ? 'scripts/pkg-catalog.cjs' : 'scripts/rules-reminder.js')}),approved=fs.readFileSync(source),executionMarker=${JSON.stringify(path.join(f.home, 'unapproved-execution-marker'))};let fired=false;const entriesUsed=[];
       cp.spawnSync=function(command,args,options){if(Array.isArray(args)&&String(args[0]).endsWith('pkg-catalog.cjs'))entriesUsed.push(args[0]);if(Array.isArray(args)&&args[0]==='-e')entriesUsed.push(args[2]);if(!fired&&Array.isArray(args)&&String(args[0]).endsWith('pkg-catalog.cjs')&&args.includes('install')&&(!${transient}||args.includes('script:rules-reminder.js'))){fired=true;const changed=${frozen} ? path.join(path.dirname(args[0]),'rules-reminder.js') : source;fs.writeFileSync(changed,Buffer.concat([approved,Buffer.from(${JSON.stringify(executor ? '\nrequire("node:fs").writeFileSync(' + JSON.stringify(path.join(f.home, 'unapproved-execution-marker')) + ',"unapproved");\n' : '\n// UNAPPROVED_SOURCE_RACE_FIXTURE\n')})]));try{return real(command,args,options);}finally{if(${transient})fs.writeFileSync(changed,approved);}}return real(command,args,options);};
       delete require.cache[require.resolve(installer)];let result,error;try{result=require(installer).apply(plan,{yes:true});}catch(e){error=e.message;}
       console.log(JSON.stringify({fired,error,status:result?.status,ready:result?.ready,entriesUsed,unapprovedExecuted:fs.existsSync(executionMarker),sourceRestored:fs.readFileSync(source).equals(approved),files:fs.readdirSync(client)}));`);
@@ -420,7 +420,7 @@ for (const mode of ['original-persistent', 'original-transient', 'frozen-transie
 test('ignored source backups are outside the approved public copy proof', t => {
   const f = fixture(t), runner = path.join(f.home, 'ignored-backup.cjs');
   fs.writeFileSync(runner, `const fs=require('node:fs'),installer=require(${JSON.stringify(installer)});
-    const plan=installer.prepare({client:${JSON.stringify(f.client)},catalogFile:${JSON.stringify(f.next.catalog)}});
+    const plan=installer.prepare({profile:'routing',client:${JSON.stringify(f.client)},catalogFile:${JSON.stringify(f.next.catalog)}});
     fs.writeFileSync(${JSON.stringify(path.join(f.next.root, 'skills/skills-router/SKILL.md.bak-fixture'))},'ignored fixture backup');
     console.log(JSON.stringify(installer.apply(plan,{yes:true}).receipt));`);
   const r = spawnSync(process.execPath, [runner], { env: f.env, encoding: 'utf8', timeout: 120000 });
@@ -474,7 +474,7 @@ test('reinstallation through a client directory alias keeps the same physical ho
   const alias = path.join(f.home, 'client alias with spaces');
   fs.symlinkSync(f.client, alias, process.platform === 'win32' ? 'junction' : 'dir');
   assert.equal(fs.realpathSync.native(alias), fs.realpathSync.native(f.client));
-  const args = [installer, '--client-root', alias, '--catalog', f.next.catalog, '--yes', '--json'];
+  const args = [installer, '--profile', 'routing', '--client-root', alias, '--catalog', f.next.catalog, '--yes', '--json'];
   const invoke = () => spawnSync(process.execPath, args, { env: f.env, encoding: 'utf8', timeout: 120000 });
   const updated = invoke();
   assert.equal(updated.status, 0, updated.stdout + updated.stderr);

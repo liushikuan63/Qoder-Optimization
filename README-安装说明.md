@@ -1,4 +1,4 @@
-# Qoder-Optimization-0.0.25 安装说明
+# Qoder-Optimization-0.0.26 安装说明
 
 ## 包内容与落点
 
@@ -28,9 +28,31 @@ node scripts/install-package.cjs --yes --install skill:parallel-orchestration --
 - 常驻选择：所选技能默认进按需库；交互运行会询问是否设为常驻，非交互用 `--resident <exact-id>`（需与 `--install` 同时给出）。已安装技能换层用 `tier-skills --promote/--demote`，不重复安装。常驻数量按你的实际使用频率决定，包内默认值不是强制值。
 - 已有能力：与新包比较，只有本地完整匹配旧登记包的条目才自动更新；本地自改、额外文件或旧基线不明时列为 `REVIEW_UPDATE`，先核对，不覆盖。
 - 缺失能力：通用或符合明确偏好的才询问是否安装，专业不匹配的跳过。`--yes` 不代表同意全部可选条目，`--install <exact-id>` 才选择对应能力。
-- 基础路由：安装规则提醒、能力规划与检索依赖，合并唯一 `UserPromptSubmit` 接线（新装默认 `--workflow-mode model`；已有接线保留原 route/model，不强制切换），登记当前包并维护完整技能索引；冲突保留现场，不能把半套安装报成功。
+- `routing`：安装规则提醒、能力规划与检索依赖，合并唯一 `UserPromptSubmit` 接线（新装默认 `--workflow-mode model`；已有接线保留原 route/model，不强制切换），登记当前包并维护完整技能索引；冲突保留现场，不能把半套安装报成功。
 - 任务使用：相关已装能力主动提示是否用于本任务；`parallel-orchestration` 命中多模块/并行编排任务时自动触发加载与判定（派发前仍须计划确认，自动触发不等于自动派发）。已有明确指名或适用授权就读取入口执行，不重复询问。hook 不安装、不联网、不执行业务，问答与实际使用仍须宿主完成。
 - 详细偏好、更新与验收边界见[能力闭环](skills/skills-router/references/capability-lifecycle.md)。本机现役客户端是否完成真实触发须单独核验。
+
+## 完整工作流：分享包复现通用本机效果
+
+新客户端默认 `complete`，确认安装后落地公开的 12 个核心技能、完整依赖、`/checkpoint` 与 `/fact`、AGENTS 托管规则及 `rules/long-task.md`、`rules/vibe-coding.md`，并接入五类事件共 16 条 hook。AGENTS 和规则中的原有内容保留，托管段有摘要登记；托管段被本地修改时先审查。其他专业技能和 MCP、插件、SQLite 接续仍单独选择。
+
+```bash
+# 先看计划；全新客户端默认完整工作流
+node scripts/install-package.cjs --dry-run --client-root <客户端目录>
+node scripts/install-package.cjs --yes --client-root <客户端目录>
+# 已登记的旧基础路由保留，明确选择后升级完整工作流
+node scripts/install-package.cjs --profile complete --workflow-mode model --yes --client-root <客户端目录>
+# 仅需能力路由的新安装可显式选择 routing
+node scripts/install-package.cjs --profile routing --yes --client-root <客户端目录>
+# 实际安装后只读检查规则、接线与必要文件
+node <客户端目录>/scripts/workflow-profile.cjs <客户端目录>
+```
+
+完整工作流使用 `command` 可执行文件与 `args` 数组，避免 shell 解释客户端路径；15 条守卫经白名单 launcher 显式绑定客户端，规则提醒也显式绑定。已验证的宿主为 Qoder 0.5.1 / worker 1.1.79-hotfix.7，其原生 runner 支持这一协议。其他版本需核对原生 exec hook 支持；旧宿主可保留 routing，不能把不执行的完整接线算通过。宿主禁用 hook 或工作目录不受信任时不会成为已触发；安装器保留禁用选择并报告冲突。
+
+只升级有可信旧来源且本地原样的能力。旧登记指向已变化仓库时，可用 `--previous-catalog <可信旧包/catalog.json>` 提供已核验旧源；文件仍须完整相同。没有可追溯来源或含本地定制的项保持 `REVIEW_UPDATE`，不会用本地副本伪造旧基线。完整基础受阻返回 `ACTIVATION_BLOCKED / 3`，旧 hook 与包指针保留；事务备份和并发冲突均有恢复目录。
+
+这里复现的是通用工作流，不分发制作端账号、凭据、聊天/项目数据、私人记忆、私人 BYOK 守卫和特定机器安装路径。文件安装、原生事件投递、模型采用和真实业务结果各自验收；`READY` 仅表示安装结构健康。已有核心技能层级与个人选择保持，不为凑数量迁移；本机独有能力按映射或可选前置处理。
 
 ## 接续记忆与追回（安装时可选启用）
 
@@ -61,8 +83,8 @@ node scripts/install-continuity.cjs --yes --no-auto-bind # 只接线，仍按会
 
 1. 高级手工安装基础检索（主安装器已处理路由时不用重复）：先用 `node scripts/pkg-catalog.cjs register .` 登记当前包，再用 `node scripts/pkg-catalog.cjs install script:skill-load.cjs` 预演。确认后加 `--apply`，安装器会列出并安装缺失的包内依赖；已存在的依赖不覆盖，不需要逐个重复安装。
 2. 技能与其他脚本：用包内 `search "<关键词>"` 查找，再按 ID 预演和安装。技能默认进按需库；交互执行 `install <id> --apply` 时会询问是否设为常驻，非交互用 `--tier core|library` 明确选择。不要整目录复制，已存在目标不自动覆盖。
-3. 规则：把 `Qoder-AI编码通用规则.md` 中与你的环境相符的部分并进 `~/.qoder/AGENTS.md`——按你的实际工具与环境删改，不必整篇照抄
-4. **其他 hooks 按需接线**（主安装器已处理能力提醒，勿重复添加该条；未接线的其他脚本不会自行运行）：先按 `hooks/README-hooks.md` 的「模板脚本与安装 ID」安装要用的脚本，再把 `hooks.example.json` 的占位符替换后**并入该客户端的** `settings.json` 的 `hooks`（双端都装才各挂一份；只装一个就只挂一个）。未安装的守卫接线后会 fail-open 静默放行。
+3. 高级手工规则（complete 已安装通用托管段，不要重复）：把 `Qoder-AI编码通用规则.md` 中与你的环境相符的部分并进 `~/.qoder/AGENTS.md`——按你的实际工具与环境删改，不必整篇照抄
+4. **高级手工 hooks**（complete 已接入全部公开通用 hook，无需重复；routing 可按需增补）：先按 `hooks/README-hooks.md` 的「模板脚本与安装 ID」安装要用的脚本，再把 `hooks.example.json` 的占位符替换后**并入该客户端的** `settings.json` 的 `hooks`（双端都装才各挂一份；只装一个就只挂一个）。未安装的守卫接线后会 fail-open 静默放行。
 5. MCP：照 `mcp/README-mcp.md` 合并配置，并做一次协议级冒烟（能列出工具名即接线成功）
 6. 记忆：先按 `Qoder-个人规则生成提示词.md` 第 3 步分类勾选；`node scripts/import-memory.cjs <归档>` 仅预演，确认后加 `--apply`。支持平铺和带版本外层目录；与现有文件冲突时整批拒绝，先三方合并，不覆盖索引或复制归档里的脚本到现役目录。
 7. 子智能体：`cp agents/*.md <客户端目录>/agents/`（目录不存在就建；非官方机制不支持时可直接读该目录下的 md 当提示词用）
