@@ -322,9 +322,9 @@ function workflowObject(value, keys, code) {
 }
 function workflowRestrictions(prompt) {
   const value = taskRouteText(prompt).normalize('NFKC');
-  const refusal = '(?:不要|不用|无需|不必|禁止|禁用|关闭|停用|取消|不|别)\\s*(?:启用|开启|创建|使用|用|采用|进行|生成|写|派发|分派|开|启动)?\\s*';
+  const refusal = '(?:不要|不用|无需|不必|不需要|禁止|禁用|关闭|停用|取消|不|别)\\s*(?:(?:再|给我|为我)\\s*)?(?:启用|开启|创建|使用|用|采用|进行|生成|写|派发|分派|开|启动)?\\s*(?:(?:任何|新的|额外的|其他|一个|一项)\\s*)?';
   return {
-    readOnly: /^(?:请\s*)?(?:只读|仅审阅|只审查|只分析|仅分析|只评估|仅评估)|(?:全程|始终|全都)\s*只读|(?:不要|不许|禁止|不得|不)(?:修改|写入|写)(?:任何|所有)?(?:文件|代码|磁盘)|不改文件|零文件写入|\bread[- ]only\b|\bdo not modify files\b/i.test(value),
+    readOnly: /(?:^|[，,。；;!?！？\n])\s*(?:(?:请|帮我|你|先|现在|本次|这次|暂时|务必)\s*)*(?:只读|仅审阅|只审查|只分析|仅分析|只评估|仅评估)|(?:全程|始终|全都)\s*只读|(?:不要|不许|禁止|不得|无需|不用|不必|不需要|别|不)\s*(?:再\s*)?(?:修改|改动|更改|写入|写)\s*(?:(?:任何|所有|这些|这个)\s*)?(?:文件|代码|磁盘)|不\s*改\s*文件|零文件写入|\bread[- ]only\b|\b(?:do\s+not|don't|never)\s+(?:modify|write|edit|change)\s+(?:(?:any|the)\s+)?(?:files?|code)\b/i.test(value),
     parallel: new RegExp(refusal + '(?:并行|parallel|多\\s*agent|子代理)|(?:串行|顺序)(?:执行|推进|实现|处理)|\\bno parallel\\b', 'i').test(value),
     goal: new RegExp(refusal + '(?:目标模式|目标化执行|目标|goal)|\\bno goals?\\b', 'i').test(value),
     verification: new RegExp(refusal + '(?:选档|验证选档|自适应验证|分档验证)|\\bno verification tier\\b', 'i').test(value),
@@ -359,11 +359,21 @@ function createWorkflowContext(event) {
 }
 function buildWorkflowNote(context, script) {
   const binding = workflowBinding(context);
+  if (!workflowText(script, 32768) || !path.isAbsolute(script)) fail('INVALID_WORKFLOW_COMMAND', 'an absolute advisor script is required');
+  const command = { executable: process.execPath, args: [script, '--workflow-decision', '-', '--binding', binding, '--json'] };
+  // The structured argv is authoritative. The local-shell rendering also keeps
+  // spaces, quotes and shell metacharacters inside literal path arguments.
+  const quote = process.platform === 'win32'
+    ? value => "'" + value.replace(/'/g, "''") + "'"
+    : value => "'" + value.replace(/'/g, "'\\''") + "'";
+  const shellCommand = (process.platform === 'win32' ? '& ' : '') + [command.executable, ...command.args].map(quote).join(' ');
   return '\n【工作方式 · 模型判断】由当前主会话模型依据完整用户消息、当前授权和最小只读现场证据，判断并行、目标、验证选档、成文是否值得采用；关键词仅召回候选，不决定启用。hook 不另调模型、不联网。'
     + '\nWORKFLOW_CONTEXT ' + JSON.stringify(context)
     + '\nWORKFLOW_BINDING ' + binding
+    + '\nWORKFLOW_COMMAND ' + JSON.stringify(command)
+    + '\nWORKFLOW_SHELL_COMMAND ' + JSON.stringify(shellCommand)
     + '\n结构化输入：{schema:1,context:<上方原样对象>,model:{schema:1,bindingDigest:<上方绑定值>,taskId:<当前任务ID>,intent:question|read-only|execute|continuation|unclear,confidence:low|medium|high,sourceRefs:[<真实来源>],reason:<简短判断>,parallel:assess|skip,goal:recommend|skip,verification:assess|skip,documentation:recommend|skip},parallelPlan?:<parallel-plan 的完整输入>,verificationRequest?:<verification-policy 的完整输入>}。不能编造事实或授权；confidence 是自评，不是正确性证明。'
-    + '\n在业务写入或启用额外流程前，运行 `' + script + ' --workflow-decision <request.json或-> --binding ' + binding + ' --json`；只读任务用 stdin，不写请求文件。没有当前身份、结果无效或 NEEDS_FACTS 时不回退成关键词自动启用；保留串行/任务清单及必需验证，补足最小证据后再判断。'
+    + '\n在业务写入或启用额外流程前，按 WORKFLOW_COMMAND 的 executable 和 args 原样调用，结构化输入经 stdin 传入；WORKFLOW_SHELL_COMMAND 是本机 ' + (process.platform === 'win32' ? 'PowerShell' : 'POSIX shell') + ' 的等价命令。只读任务不写请求文件。没有当前身份、结果无效或 NEEDS_FACTS 时不回退成关键词自动启用；保留串行/任务清单及必需验证，补足最小证据后再判断。'
     + '\n并行 assess 先给完整依赖/资源计划；只读任务只展示计划，不写文件、不派发。仅当前已获计划写入授权且校验可并行时，才生成计划文档并明确询问方案和启用范围。目标只检查活动目标/原始授权，缺明确请求才询问，不依据模型建议调用 CreateGoal。成文检查现有文档与当前需求，不自动补四层文档。'
     + '\n验证选档须给真实 facts/checks/baseline，taskId 绑定当前任务，sessionId/workspaceKey/requestMessageId 与本轮 context 一致；没有 resolveAuthority 仍为咨询模式，不调用 applyChoice/beginVerification。skip 只跳过可选选档，不能删除必需验证或降低发布检查。'
     + '\n继续同一任务先核对既有计划、目标和明确答复；已有适用选择不重复询问，拒绝/取消不催问，范围或事实改变重新判断。所有裁决只是建议，不发放创建目标、派发、写入、安装、发布或生产操作权限。';
@@ -386,6 +396,21 @@ function evaluateWorkflowDecision(input, expectedBinding) {
     parallel: { action: 'SEQUENTIAL' }, goal: { action: 'TASK_LIST' }, documentation: { action: 'NONE' },
     verification: { action: 'REQUIRED_BASELINE', mandatoryChecksPreserved: true }, reasonCodes: [],
   };
+  const eligible = !['question', 'continuation', 'unclear'].includes(model.intent) && model.confidence !== 'low' && model.sourceRefs.length > 0;
+  // A quiet or uncertain workflow suggestion cannot discard an already supplied
+  // mandatory checklist. Validate its scope and preserve it before early returns.
+  if (input.verificationRequest) {
+    const request = input.verificationRequest, context = input.context;
+    if (request.taskId !== model.taskId || request.sessionId !== context.sessionId || request.workspaceKey !== context.workspaceKey || request.requestMessageId !== context.requestMessageId) fail('WORKFLOW_SCOPE_MISMATCH', 'verification request belongs to another scope');
+    const policy = require('./verification-policy.cjs').evaluatePolicy(request);
+    const external = ['push', 'pull-request', 'deploy', 'publish'].includes(request.facts.action);
+    result.verification = {
+      action: eligible && model.verification === 'assess' && !restrictions.verification ? 'REUSE_CHOICE_OR_ASK' : 'REQUIRED_BASELINE',
+      mandatoryChecksPreserved: true, policy,
+      requiredCheckIds: [...new Set([...policy.mandatoryCheckIds, ...(external ? policy.options.find(option => option.tier === 'deep').checkIds : policy.baselineCheckIds)])].sort(),
+    };
+    if (policy.blockers.length) { result.verdict = 'NEEDS_FACTS'; result.verification.action = 'RESOLVE_FACTS'; result.reasonCodes.push(...policy.blockers); }
+  }
   if (model.intent === 'question') { result.reasonCodes.push('QUESTION_ONLY'); return result; }
   if (model.intent === 'continuation') { result.reasonCodes.push('CHECK_EXISTING_TASK_AND_CHOICES'); return result; }
   if (model.intent === 'unclear' || model.confidence === 'low' || !model.sourceRefs.length) {
@@ -414,18 +439,7 @@ function evaluateWorkflowDecision(input, expectedBinding) {
       else result.reasonCodes.push(...plan.reasonCodes);
     }
   }
-  if (input.verificationRequest) {
-    const request = input.verificationRequest, context = input.context;
-    if (request.taskId !== model.taskId || request.sessionId !== context.sessionId || request.workspaceKey !== context.workspaceKey || request.requestMessageId !== context.requestMessageId) fail('WORKFLOW_SCOPE_MISMATCH', 'verification request belongs to another scope');
-    const policy = require('./verification-policy.cjs').evaluatePolicy(request);
-    const external = ['push', 'pull-request', 'deploy', 'publish'].includes(request.facts.action);
-    result.verification = {
-      action: model.verification === 'assess' && !restrictions.verification ? 'REUSE_CHOICE_OR_ASK' : 'REQUIRED_BASELINE',
-      mandatoryChecksPreserved: true, policy,
-      requiredCheckIds: [...new Set([...policy.mandatoryCheckIds, ...(external ? policy.options.find(option => option.tier === 'deep').checkIds : policy.baselineCheckIds)])].sort(),
-    };
-    if (policy.blockers.length) { result.verdict = 'NEEDS_FACTS'; result.verification.action = 'RESOLVE_FACTS'; result.reasonCodes.push(...policy.blockers); }
-  } else if (model.verification === 'assess' && !restrictions.verification) {
+  if (!input.verificationRequest && model.verification === 'assess' && !restrictions.verification) {
     result.verdict = 'NEEDS_FACTS'; result.verification.action = 'NEEDS_CHECKS'; result.reasonCodes.push('VERIFICATION_CHECKS_REQUIRED');
   }
   for (const key of Object.keys(WORKFLOW_CHOICES)) if (restrictions[key]) result.reasonCodes.push('USER_VETO_' + key.toUpperCase());

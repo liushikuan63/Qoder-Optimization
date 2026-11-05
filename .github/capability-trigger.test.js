@@ -71,6 +71,44 @@ test('model mode injects a bound semantic decision contract without old workflow
   assert.equal(fs.existsSync(path.join(f.client, 'tmp/capability-advisor/sessions')), false);
 });
 
+test('the actual model hook emits executable argv and a local shell command for a quoted client path', t => {
+  const f = fixture(t);
+  const client = path.join(f.dir, "client with spaces and quote's $value");
+  const advisor = path.join(client, 'scripts', 'capability-advisor.cjs');
+  const implementation = path.join(root, 'scripts', 'capability-advisor.cjs');
+  f.env.QODER_HOME = client;
+  // The installed entry forwards CLI execution while its require path exposes
+  // the real implementation; no model, service or live client is involved.
+  f.write(advisor, `if (require.main === module) { const child = require('node:child_process').spawnSync(process.execPath, [${JSON.stringify(implementation)}, ...process.argv.slice(2)], {stdio:'inherit'}); process.exitCode = child.status === null ? 1 : child.status; } else module.exports = require(${JSON.stringify(implementation)});`);
+  const hook = workflowHook(f, '请帮我只读审查这两个模块');
+  assert.equal(hook.status, 0, hook.stderr);
+  const note = JSON.parse(hook.stdout).hookSpecificOutput.additionalContext;
+  const context = JSON.parse(note.match(/^WORKFLOW_CONTEXT (.+)$/m)[1]);
+  const binding = note.match(/^WORKFLOW_BINDING (.+)$/m)[1];
+  const command = JSON.parse(note.match(/^WORKFLOW_COMMAND (.+)$/m)[1]);
+  assert.equal(context.restrictions.readOnly, true);
+  assert.equal(command.args[0], advisor);
+  const input = JSON.stringify({ schema: 1, context, model: {
+    schema: 1, bindingDigest: binding, taskId: 'installed-hook', intent: 'execute', confidence: 'high',
+    sourceRefs: ['request:current'], reason: 'explicit read-only request', parallel: 'skip', goal: 'recommend', verification: 'skip', documentation: 'recommend',
+  } });
+  const options = { env: f.env, cwd: f.dir, input, encoding: 'utf8', timeout: 60000, windowsHide: true };
+  const direct = spawnSync(command.executable, command.args, options);
+  assert.equal(direct.status, 0, direct.stderr);
+  const shell = JSON.parse(note.match(/^WORKFLOW_SHELL_COMMAND (.+)$/m)[1]);
+  const viaShell = process.platform === 'win32'
+    ? spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', shell], options)
+    : spawnSync('/bin/sh', ['-c', shell], options);
+  assert.equal(viaShell.status, 0, viaShell.stderr);
+  for (const child of [direct, viaShell]) {
+    const result = JSON.parse(child.stdout);
+    assert.equal(result.authorizesExecution, false);
+    assert.equal(result.goal.action, 'TASK_LIST');
+    assert.equal(result.documentation.action, 'NONE');
+    assert.ok(result.reasonCodes.includes('READ_ONLY_SCOPE'));
+  }
+});
+
 test('model mode treats keyword matches as data while explicit current choices keep their original authority', t => {
   const f = fixture(t);
   const installed = f.skill('parallel-orchestration');

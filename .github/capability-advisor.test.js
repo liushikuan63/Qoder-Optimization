@@ -140,6 +140,39 @@ test('read-only scope cannot be promoted by the model into writes or workflow cr
   assert.ok(result.reasonCodes.includes('READ_ONLY_WRITE_VETO'));
 });
 
+test('polite and spaced read-only instructions remain a hard bound on model recommendations', t => {
+  for (const prompt of ['请帮我只读审查这两个模块', '请先只读审查这两个模块', '无需修改文件，审查这两个模块', '请不要 修改任何代码，只给审查意见']) {
+    const { input, binding } = workflowFixture(t, prompt);
+    Object.assign(input.model, { parallel: 'assess', goal: 'recommend', documentation: 'recommend' });
+    input.parallelPlan = workflowPlan('write');
+    const result = workflow.evaluateWorkflowDecision(input, binding);
+    assert.equal(input.context.restrictions.readOnly, true, prompt);
+    assert.equal(result.parallel.action, 'SEQUENTIAL', prompt);
+    assert.equal(result.goal.action, 'TASK_LIST', prompt);
+    assert.equal(result.documentation.action, 'NONE', prompt);
+    assert.ok(result.reasonCodes.includes('READ_ONLY_WRITE_VETO'), prompt);
+  }
+});
+
+test('quantified opt-outs do not become repeated goal or parallel questions', t => {
+  for (const [prompt, key] of [['不要创建任何目标，审查项目', 'goal'], ['不需要创建新的目标，继续实现', 'goal'], ['不要使用任何子代理，完成两个模块', 'parallel']]) {
+    const { input, binding } = workflowFixture(t, prompt);
+    Object.assign(input.model, { parallel: 'assess', goal: 'recommend' });
+    input.parallelPlan = workflowPlan();
+    const result = workflow.evaluateWorkflowDecision(input, binding);
+    assert.equal(input.context.restrictions[key], true, prompt);
+    assert.equal(key === 'goal' ? result.goal.action : result.parallel.action, key === 'goal' ? 'TASK_LIST' : 'SEQUENTIAL', prompt);
+  }
+});
+
+test('quoted scope discussions and an explicit non-read-only request do not become hard vetoes', t => {
+  for (const prompt of ['文档中写着“不要创建任何目标”，请实现功能', '解释“请帮我只读审查”这句话', '这次不是只读任务，请修改代码']) {
+    const { input } = workflowFixture(t, prompt);
+    assert.equal(input.context.restrictions.readOnly, false, prompt);
+    assert.equal(input.context.restrictions.goal, false, prompt);
+  }
+});
+
 test('read-only parallel assessment only displays a plan and never asks for file generation', t => {
   for (const prompt of ['全程只读，核对两个独立入口，不写文件', '核对两个入口，始终只读', '核对两个入口，不修改文件']) {
     const { input, binding } = workflowFixture(t, prompt);
@@ -222,6 +255,32 @@ test('verification preserves user checks, baseline and the full external-action 
   assert.equal(result.authorizesExecution, false);
 });
 
+test('early model fallbacks retain an already supplied mandatory verification checklist', t => {
+  for (const override of [{ intent: 'question' }, { intent: 'continuation' }, { confidence: 'low' }, { sourceRefs: [] }, { intent: 'unclear' }]) {
+    const { input, binding } = workflowFixture(t);
+    Object.assign(input.model, { verification: 'assess', goal: 'recommend', documentation: 'recommend', ...override });
+    input.verificationRequest = workflowVerification(input.context);
+    input.verificationRequest.facts.action = 'publish';
+    const result = workflow.evaluateWorkflowDecision(input, binding);
+    assert.deepEqual(result.verification.requiredCheckIds, ['deep', 'syntax', 'unit'], JSON.stringify(override));
+    assert.equal(result.verification.action, 'REQUIRED_BASELINE');
+    assert.equal(result.verification.mandatoryChecksPreserved, true);
+    assert.equal(result.goal.action, 'TASK_LIST');
+    assert.equal(result.documentation.action, 'NONE');
+    assert.equal(result.authorizesExecution, false);
+  }
+});
+
+test('early model fallbacks still reject a supplied verification request from another scope', t => {
+  for (const override of [{ intent: 'question' }, { intent: 'continuation' }, { confidence: 'low' }]) {
+    const { input, binding } = workflowFixture(t);
+    Object.assign(input.model, override);
+    input.verificationRequest = workflowVerification(input.context);
+    input.verificationRequest.taskId = 'wrong-task';
+    assert.throws(() => workflow.evaluateWorkflowDecision(input, binding), { code: 'WORKFLOW_SCOPE_MISMATCH' });
+  }
+});
+
 test('verification cannot reuse a selection from another task, message, session or workspace', t => {
   const { input, binding } = workflowFixture(t);
   input.verificationRequest = workflowVerification(input.context);
@@ -284,6 +343,27 @@ test('workflow note is bound to the full prompt rather than its clipped summary'
   assert.ok(note.includes('--workflow-decision'));
   assert.ok(note.includes('不另调模型'));
   assert.ok(!note.includes(prompt));
+});
+
+test('workflow note exposes an executable argv contract for a script path containing spaces', t => {
+  const { input, binding, f } = workflowFixture(t);
+  const advisor = path.join(f.dir, 'client with spaces', 'capability-advisor.cjs');
+  fs.mkdirSync(path.dirname(advisor), { recursive: true });
+  // This is the actual implementation, reached through an owned wrapper; its
+  // dependencies keep resolving next to the immutable implementation under test.
+  fs.writeFileSync(advisor, `const child = require('node:child_process').spawnSync(process.execPath, [${JSON.stringify(script)}, ...process.argv.slice(2)], {stdio:'inherit'}); process.exitCode = child.status === null ? 1 : child.status;`);
+  const note = workflow.buildWorkflowNote(input.context, advisor);
+  const commandLine = note.match(/^WORKFLOW_COMMAND (.+)$/m);
+  assert.ok(commandLine, note);
+  const command = JSON.parse(commandLine[1]);
+  assert.equal(command.executable, process.execPath);
+  assert.deepEqual(command.args, [advisor, '--workflow-decision', '-', '--binding', binding, '--json']);
+  const child = spawnSync(command.executable, command.args, { input: JSON.stringify(input), encoding: 'utf8', timeout: 20000 });
+  assert.equal(child.status, 0, child.stderr);
+  assert.equal(JSON.parse(child.stdout).authorizesExecution, false);
+  const shell = JSON.parse(note.match(/^WORKFLOW_SHELL_COMMAND (.+)$/m)[1]);
+  assert.ok(shell.includes('--workflow-decision'));
+  assert.ok(shell.includes(binding));
 });
 
 test('corner-quoted capability names distinguish discussion, refusal and explicit use', t => {
