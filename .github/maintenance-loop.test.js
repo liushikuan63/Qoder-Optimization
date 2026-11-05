@@ -117,6 +117,14 @@ test('fail-streak self-test rejects a failed negative-control subprocess', () =>
 for (const apply of [false, true]) {
   test('migration reports a failed copy with a nonzero exit; apply=' + apply, { skip: process.platform !== 'win32' }, () => fixture(f => {
     const m = migrationFixture(f);
+    if (!apply) {
+      const trapRoot = path.join(f.base, 'foreign-modules'), trap = path.join(trapRoot, 'Microsoft.PowerShell.Utility');
+      fs.mkdirSync(trap, { recursive: true });
+      fs.writeFileSync(path.join(trap, 'Microsoft.PowerShell.Utility.psd1'), "@{ RootModule='trap.psm1'; ModuleVersion='99.0.0'; FunctionsToExport=@('Get-Date','Out-File') }\n");
+      fs.writeFileSync(path.join(trap, 'trap.psm1'), "[IO.File]::WriteAllText('" + path.join(f.base, 'foreign-module-loaded').replace(/'/g, "''") + "','unexpected module'); throw 'foreign fixture module must not load'\n");
+      for (const key of Object.keys(f.env)) if (/^(?:PSModulePath|WinPSModulePath)$/i.test(key)) delete f.env[key];
+      f.env.PSModulePath = trapRoot;
+    }
     fs.mkdirSync(m.link, { recursive: true });
     const file = path.join(m.link, 'owned.log'); fs.writeFileSync(file, 'owned fixture');
     const result = m.invoke('-To D' + (apply ? ' -Apply' : ''), { copyExit: 8 });
@@ -126,6 +134,7 @@ for (const apply of [false, true]) {
     assert.equal(fs.readFileSync(file, 'utf8'), 'owned fixture');
     assert.equal(fs.existsSync(m.link + '.bak-migrating'), false);
     assert.equal(fs.existsSync(path.join(m.target, 'owned.log')), false);
+    assert.equal(fs.existsSync(path.join(f.base, 'foreign-module-loaded')), false, 'a fixture must not resolve host modules');
   }));
 }
 
@@ -144,24 +153,46 @@ function migrationFixture(f) {
   let calls = 0;
   const invoke = (args, { running = false, copy = false, copyExit = 0, forbidRename = false, failedProbe = false, recordCopy = false } = {}) => {
     const wrapper = path.join(f.base, 'migration-call-' + calls++ + '.ps1');
+    const trace = wrapper + '.trace';
+    const moduleFence = path.join(f.base, 'empty-module-search'); fs.mkdirSync(moduleFence, { recursive: true });
     fs.writeFileSync(wrapper, [
       "$ErrorActionPreference = 'Stop'",
+      '$fixtureClock = [Diagnostics.Stopwatch]::StartNew()',
+      "function Trace-Fixture($Stage) { [IO.File]::AppendAllText('" + quote(trace) + "', ('{0}:{1}' -f $fixtureClock.ElapsedMilliseconds,$Stage) + [Environment]::NewLine) }",
+      "Trace-Fixture 'bootstrap'",
+      "$env:PSModulePath = [IO.Path]::Combine($PSHOME,'Modules')",
+      "Import-Module ([IO.Path]::Combine($PSHOME,'Modules\\Microsoft.PowerShell.Management\\Microsoft.PowerShell.Management.psd1')) -ErrorAction Stop",
+      "Import-Module ([IO.Path]::Combine($PSHOME,'Modules\\Microsoft.PowerShell.Utility\\Microsoft.PowerShell.Utility.psd1')) -ErrorAction Stop",
+      "$PSModuleAutoLoadingPreference = 'None'",
+      "Trace-Fixture 'builtin-modules-ready'",
       running ? "function Get-Process { [pscustomobject]@{ Name='QoderFixture' } }" : 'function Get-Process { @() }',
       'function Get-PSDrive { param($Name) [pscustomobject]@{Name=$Name;Free=100GB} }',
       'function robocopy { param([Parameter(ValueFromRemainingArguments=$true)][string[]]$Arguments) ' + (recordCopy ? "[IO.File]::WriteAllText('" + quote(marker) + "','copy called'); " : '') + (copy ? "[IO.File]::Copy((Join-Path $Arguments[0] 'owned.log'), (Join-Path $Arguments[1] 'owned.log'), $true); " : '') + '$global:LASTEXITCODE=' + copyExit + ' }',
       "function cmd { param([Parameter(ValueFromRemainingArguments=$true)]$Arguments) [IO.File]::WriteAllText('" + quote(marker) + "','unsafe unlink requested'); throw 'probe blocks shell deletion' }",
       ...(failedProbe ? ["function Get-ChildItem { param([string]$LiteralPath,[switch]$Recurse,[switch]$File,[switch]$Force,[string]$ErrorAction) if ($Recurse -and $File -and ((Get-Item -LiteralPath $LiteralPath -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) { [pscustomobject]@{FullName=(Join-Path $LiteralPath 'absent-read-probe')} } else { Microsoft.PowerShell.Management\\Get-ChildItem @PSBoundParameters } }"] : []),
       ...(forbidRename ? ["function Rename-Item { param($LiteralPath,$NewName) [IO.File]::WriteAllText('" + quote(marker) + "','unsafe switch requested'); throw 'probe blocks rename' }"] : []),
+      "Trace-Fixture 'production-start'",
       "& '" + quote(script) + "' " + args,
-      'exit $LASTEXITCODE',
+      '$fixtureExitCode = $LASTEXITCODE',
+      "Trace-Fixture 'production-returned'",
+      'exit $fixtureExitCode',
     ].join('\n'));
-    // A Windows PowerShell cold start on the hosted runner can consume most of
-    // 30s before these tiny fixtures finish. Match the other isolated children;
-    // each test remains bounded by 180s and uses at most two 60s invocations.
+    // Only built-in modules are part of this fixture. Module discovery must not
+    // scan inherited user/PS7/hosted-runner module trees before running it.
+    // Keep the original 60s child/180s test bounds and every production assertion.
+    const env = { ...f.env };
+    for (const key of Object.keys(env)) if (/^(?:PSModulePath|WinPSModulePath)$/i.test(key)) delete env[key];
+    env.PSModulePath = moduleFence;
+    const powershell = path.join(process.env.SystemRoot || process.env.SYSTEMROOT, 'System32/WindowsPowerShell/v1.0/powershell.exe');
     const started = Date.now();
-    const result = spawnSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', wrapper], { env: f.env, encoding: 'utf8', timeout: 60000, windowsHide: true });
+    const result = spawnSync(powershell, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', wrapper], { env, encoding: 'utf8', timeout: 60000, windowsHide: true });
+    result.fixtureTrace = fs.existsSync(trace) ? fs.readFileSync(trace, 'utf8') : '';
     if (result.error || result.status === null) {
-      result.stderr = (result.stderr || '') + '\nMIGRATION_CHILD_ERROR ' + JSON.stringify({ elapsedMs: Date.now() - started, timeoutMs: 60000, code: result.error?.code, error: result.error?.message, signal: result.signal, status: result.status });
+      result.stderr = (result.stderr || '') + '\nMIGRATION_CHILD_ERROR ' + JSON.stringify({ elapsedMs: Date.now() - started, timeoutMs: 60000, code: result.error?.code, error: result.error?.message, signal: result.signal, status: result.status, trace: result.fixtureTrace });
+    } else {
+      assert.match(result.fixtureTrace, /builtin-modules-ready/);
+      assert.match(result.fixtureTrace, /production-start/);
+      assert.match(result.fixtureTrace, /production-returned/);
     }
     return result;
   };
