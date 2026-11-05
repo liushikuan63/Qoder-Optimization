@@ -66,7 +66,7 @@ function physical(file) {
   const parts = [];
   let cursor = path.resolve(file);
   for (;;) {
-    try { return path.join(fs.realpathSync(cursor), ...parts.reverse()); }
+    try { return path.join(fs.realpathSync.native(cursor), ...parts.reverse()); }
     catch (error) {
       if (error.code !== 'ENOENT') throw error;
       // A dangling link is not a missing directory that we may create through.
@@ -159,6 +159,9 @@ function settingsFor(bytes, target, workflowMode) {
     if (!Array.isArray(groups) || groups.some(group => !object(group) || !Array.isArray(group.hooks) || group.hooks.some(hook => !object(hook)))) throw new Error('settings.hooks.' + event + ' 结构无效');
   }
   const client = path.dirname(path.dirname(target));
+  // A checkout/client alias can spell the same actual scope differently. Keep
+  // identity checks physical, including native Windows short-name expansion.
+  const sameLocation = (left, right) => normalized(physical(left)) === normalized(physical(right));
   let command = '"' + process.execPath + '" "' + target + '" --client-root "' + client + '"';
   const groups = settings.hooks.UserPromptSubmit || [];
   const found = groups.flatMap(group => group.hooks.filter(hook => String(hook.command || '').includes('rules-reminder.js')).map(hook => ({ group, hook })));
@@ -168,8 +171,8 @@ function settingsFor(bytes, target, workflowMode) {
     const match = String(hook.command || '').match(/^\s*(?:"([^"\r\n]+)"|([^\s"'`|&;<>$()]+))\s+(?:"([^"\r\n]+)"|([^\s"'`|&;<>$()]+))(?:\s+--client-root\s+(?:"([^"\r\n]+)"|([^\s"'`|&;<>$()]+)))?(?:\s+--workflow-mode\s+(route|model))?\s*$/);
     const node = match && (match[1] || match[2]).split(/[\\/]/).pop();
     const boundClient = match && (match[5] || match[6]);
-    if (found.length !== 1 || !match || !/^node(?:\.exe)?$/i.test(node) || normalized(match[3] || match[4]) !== normalized(target)
-      || (boundClient !== undefined && (!path.isAbsolute(boundClient) || normalized(boundClient) !== normalized(client)))
+    if (found.length !== 1 || !match || !/^node(?:\.exe)?$/i.test(node) || !sameLocation(match[3] || match[4], target)
+      || (boundClient !== undefined && (!path.isAbsolute(boundClient) || !sameLocation(boundClient, client)))
       || group.matcher !== undefined || hook.type !== 'command' || hook.timeout !== 10) throw new Error('已有 rules-reminder 接线与完整命令/client-root/matcher/type/timeout 冲突，保留配置供核对');
     if (match[7] || workflowMode) command += ' --workflow-mode ' + (workflowMode || match[7]);
     state = hook.command === command ? 'KEEP' : 'UPDATE';

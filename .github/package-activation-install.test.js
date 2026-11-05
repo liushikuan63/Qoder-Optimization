@@ -463,3 +463,54 @@ test('authorized but blocked base installation is reported as blocked, never req
   assert.equal(result.blockedItems.some(item => item.id === 'script:skill-load.cjs' && item.requiresConfirmation === false), true);
   assert.equal(result.pendingItems.some(item => item.id === 'skill:office-docs' && item.action === 'ASK_INSTALL'), true);
 });
+
+test('reinstallation through a client directory alias keeps the same physical hook scope', t => {
+  const f = fixture(t), first = f.run(['--yes', '--json']);
+  assert.equal(first.status, 0, first.stdout + first.stderr);
+  const file = path.join(f.client, 'settings.json');
+  const original = JSON.parse(fs.readFileSync(file, 'utf8'));
+  original.fixtureSetting = 'preserve user settings';
+  fs.writeFileSync(file, JSON.stringify(original));
+  const alias = path.join(f.home, 'client alias with spaces');
+  fs.symlinkSync(f.client, alias, process.platform === 'win32' ? 'junction' : 'dir');
+  assert.equal(fs.realpathSync.native(alias), fs.realpathSync.native(f.client));
+  const args = [installer, '--client-root', alias, '--catalog', f.next.catalog, '--yes', '--json'];
+  const invoke = () => spawnSync(process.execPath, args, { env: f.env, encoding: 'utf8', timeout: 120000 });
+  const updated = invoke();
+  assert.equal(updated.status, 0, updated.stdout + updated.stderr);
+  const selected = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.equal(selected.fixtureSetting, original.fixtureSetting);
+  assert.equal(selected.hooks.UserPromptSubmit.length, 1);
+  const command = selected.hooks.UserPromptSubmit[0].hooks[0].command;
+  assert.ok(command.includes('"' + path.join(alias, 'scripts/rules-reminder.js') + '"'));
+  assert.ok(command.includes('--client-root "' + alias + '"'));
+  assert.match(command, /--workflow-mode model$/);
+  const second = invoke();
+  assert.equal(second.status, 0, second.stdout + second.stderr);
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).hooks.UserPromptSubmit[0].hooks[0].command, command);
+  const env = { ...f.env }; delete env.QODER_HOME;
+  const hook = spawnSync(process.execPath, [path.join(alias, 'scripts/rules-reminder.js'), '--client-root', alias, '--workflow-mode', 'model'], {
+    cwd: f.home, env, encoding: 'utf8', timeout: 20000,
+    input: JSON.stringify({ prompt: '分别分析两个模块并修复问题', session_id: 'alias-scope', cwd: f.home }),
+  });
+  assert.equal(hook.status, 0, hook.stderr);
+  assert.match(JSON.parse(hook.stdout).hookSpecificOutput.additionalContext, /WORKFLOW_CONTEXT/);
+  assert.doesNotMatch(hook.stderr, /WORKFLOW_NOTE_UNAVAILABLE/);
+});
+
+for (const variant of ['different-script', 'different-client-root']) {
+  test('physical alias support still rejects another real client: ' + variant, t => {
+    const f = fixture(t), target = f.put('scripts/rules-reminder.js', 'same script bytes');
+    const other = path.join(f.home, 'different-real-client');
+    const otherScript = path.join(other, 'scripts/rules-reminder.js');
+    fs.mkdirSync(path.dirname(otherScript), { recursive: true });
+    fs.writeFileSync(otherScript, fs.readFileSync(target));
+    const { settingsFor } = require(installer);
+    const settings = JSON.parse(settingsFor(null, target).bytes);
+    const hook = settings.hooks.UserPromptSubmit[0].hooks[0];
+    hook.command = variant === 'different-script'
+      ? hook.command.replace('"' + target + '"', '"' + otherScript + '"')
+      : hook.command.replace('--client-root "' + f.client + '"', '--client-root "' + other + '"');
+    assert.throws(() => settingsFor(Buffer.from(JSON.stringify(settings)), target), /冲突/);
+  });
+}
