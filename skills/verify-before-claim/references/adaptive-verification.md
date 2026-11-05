@@ -1,11 +1,11 @@
 # 按需：自适应验证选档（四选项）
 
-收到 B05 自动选档触发，或用户要求“按难度选验证强度”“给我选验证方式”“人工验证”、已明确启用本任务选档流程时读本文件。未收到触发且未启用时不要调用这些模块，也不新增弹窗或状态。
+收到 B05 自动选档触发（model 模式的结构化判定或 route 模式的关键词触发），或用户要求“按难度选验证强度”“给我选验证方式”“人工验证”、已明确启用本任务选档流程时读本文件。未收到触发且未启用时不要调用这些模块，也不新增弹窗或状态。
 公开调用约定见本文件，字段校验与反例见随包的 `scripts/verification-*.cjs` 及对应测试，不依赖本地设计文档。下列命令从源码仓库或解压包根运行；只有另行获准安装并核对文件/装载后，才可将 `scripts/` 换成实际客户端的脚本目录，不能从本文件推定已经安装。
 
 ## 0. 自动触发（咨询模式）
 
-- `UserPromptSubmit` 的 `rules-reminder.js` 内置 `verification-trigger-core.js`：判定本轮属于可执行任务时注入【B05 自动选档 · 已触发】。分享包模板默认包含该触发；关闭可在 `~/.qoder/verification-trigger.json` 写 `{"enabled":false}`，行为即恢复原状。
+- `UserPromptSubmit` 的 `rules-reminder.js` 负责触发：新装默认 `--workflow-mode model`，每轮注入工作方式结构化输入，由模型判定 `verification: assess|skip`；回退到 `--workflow-mode route` 时由 `verification-trigger-core.js` 判定本轮属于可执行任务并注入【B05 自动选档 · 已触发】。route 是关键词启发式，口语化动作、续接轮和只读请求可能不触发。关闭可在 `~/.qoder/verification-trigger.json` 写 `{"enabled":false}`，行为即恢复原状。
 - 触发只发起选档，不选档、不改平台设置、不写全局状态；每任务至多一次，用户明确拒绝后不要重复询问。
 - 宿主未提供 `resolveAuthority` 时按咨询模式执行：用 `verification-policy.cjs` 计算推荐与四档清单，用 AskUserQuestion（无该工具时用文本四项）取得真实选择，只执行所选 `checkIds` 与 `mandatoryCheckIds`；不要调用 `applyChoice`/`beginVerification`，不要伪造授权，也不宣称 T-07 原生链路通过。
 

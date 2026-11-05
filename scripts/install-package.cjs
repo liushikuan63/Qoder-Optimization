@@ -39,7 +39,7 @@ function parseArgs(argv) {
   const result = { install: [], resident: [], yes: false, dryRun: false };
   const seen = new Set();
   const flags = new Map([['--yes', 'yes'], ['--dry-run', 'dryRun'], ['--json', 'json'], ['--continuity', 'continuity'], ['--no-auto-bind', 'noAutoBind'], ['--help', 'help'], ['-h', 'help'], ['--no', 'skip'], ['--skip', 'skip'], ['--non-interactive', 'nonInteractive']]);
-  const values = new Map([['--client-root', 'client'], ['--catalog', 'catalogFile'], ['--preferences', 'preferencesFile'], ['--install', 'install'], ['--resident', 'resident']]);
+  const values = new Map([['--client-root', 'client'], ['--catalog', 'catalogFile'], ['--preferences', 'preferencesFile'], ['--install', 'install'], ['--resident', 'resident'], ['--workflow-mode', 'workflowMode']]);
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (!['--install', '--resident'].includes(arg) && seen.has(arg)) throw new Error('重复参数：' + arg);
@@ -48,7 +48,10 @@ function parseArgs(argv) {
     else if (values.has(arg)) {
       const value = argv[++i];
       if (!value || !value.trim() || value.startsWith('-')) throw new Error(arg + ' 需要明确值');
-      if (arg === '--install' || arg === '--resident') {
+      if (arg === '--workflow-mode') {
+        if (!['route', 'model'].includes(value)) throw new Error('--workflow-mode 只接受 route 或 model');
+        result.workflowMode = value;
+      } else if (arg === '--install' || arg === '--resident') {
         if (!/^(?:skill|script|command|agent):[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value)) throw new Error(arg + ' 需要完整的精确条目 id');
         const list = result[values.get(arg)];
         if (list.includes(value)) throw new Error('重复选择：' + value);
@@ -143,7 +146,8 @@ function targetFor(entry, client, item, resident = new Set()) {
   return path.join(client, { script: 'scripts', command: 'commands', agent: 'agents' }[entry.category], path.basename(entry.source));
 }
 
-function settingsFor(bytes, target) {
+function settingsFor(bytes, target, workflowMode) {
+  if (workflowMode !== undefined && !['route', 'model'].includes(workflowMode)) throw new Error('--workflow-mode 只接受 route 或 model');
   let settings;
   try { settings = bytes ? JSON.parse(bytes.toString('utf8')) : {}; }
   catch { throw new Error('settings.json 无效，未修改配置'); }
@@ -155,21 +159,25 @@ function settingsFor(bytes, target) {
     if (!Array.isArray(groups) || groups.some(group => !object(group) || !Array.isArray(group.hooks) || group.hooks.some(hook => !object(hook)))) throw new Error('settings.hooks.' + event + ' 结构无效');
   }
   const client = path.dirname(path.dirname(target));
-  const command = '"' + process.execPath + '" "' + target + '" --client-root "' + client + '"';
+  let command = '"' + process.execPath + '" "' + target + '" --client-root "' + client + '"';
   const groups = settings.hooks.UserPromptSubmit || [];
   const found = groups.flatMap(group => group.hooks.filter(hook => String(hook.command || '').includes('rules-reminder.js')).map(hook => ({ group, hook })));
   let state = 'ADD';
   if (found.length) {
     const { group, hook } = found[0];
-    const match = String(hook.command || '').match(/^\s*(?:"([^"\r\n]+)"|([^\s"'`|&;<>$()]+))\s+(?:"([^"\r\n]+)"|([^\s"'`|&;<>$()]+))(?:\s+--client-root\s+(?:"([^"\r\n]+)"|([^\s"'`|&;<>$()]+)))?\s*$/);
+    const match = String(hook.command || '').match(/^\s*(?:"([^"\r\n]+)"|([^\s"'`|&;<>$()]+))\s+(?:"([^"\r\n]+)"|([^\s"'`|&;<>$()]+))(?:\s+--client-root\s+(?:"([^"\r\n]+)"|([^\s"'`|&;<>$()]+)))?(?:\s+--workflow-mode\s+(route|model))?\s*$/);
     const node = match && (match[1] || match[2]).split(/[\\/]/).pop();
     const boundClient = match && (match[5] || match[6]);
     if (found.length !== 1 || !match || !/^node(?:\.exe)?$/i.test(node) || normalized(match[3] || match[4]) !== normalized(target)
       || (boundClient !== undefined && (!path.isAbsolute(boundClient) || normalized(boundClient) !== normalized(client)))
       || group.matcher !== undefined || hook.type !== 'command' || hook.timeout !== 10) throw new Error('已有 rules-reminder 接线与完整命令/client-root/matcher/type/timeout 冲突，保留配置供核对');
+    if (match[7] || workflowMode) command += ' --workflow-mode ' + (workflowMode || match[7]);
     state = hook.command === command ? 'KEEP' : 'UPDATE';
     hook.command = command;
-  } else settings.hooks.UserPromptSubmit = [...groups, { hooks: [{ type: 'command', command, timeout: 10 }] }];
+  } else {
+    command += ' --workflow-mode ' + (workflowMode || 'model');
+    settings.hooks.UserPromptSubmit = [...groups, { hooks: [{ type: 'command', command, timeout: 10 }] }];
+  }
   return { bytes: Buffer.from(JSON.stringify(settings, null, 2) + '\n'), state };
 }
 
@@ -293,7 +301,7 @@ function prepare(options = {}) {
   plan.approvedSources = [...approvedSources.values()];
   plan.settingsBefore = snapshot(settings);
   plan.settingsBytes = fs.existsSync(settings) ? fs.readFileSync(settings) : null;
-  plan.hook = settingsFor(plan.settingsBytes, path.join(client, 'scripts/rules-reminder.js'));
+  plan.hook = settingsFor(plan.settingsBytes, path.join(client, 'scripts/rules-reminder.js'), options.workflowMode);
   plan.pointerBefore = snapshot(pointer);
   plan.pointerValue = { ...previous, catalog: catalogFile, ...(typeof previous.catalog === 'string' && previous.catalog !== catalogFile ? { previous_catalog: previous.catalog } : {}), registered_at: new Date().toISOString().slice(0, 10) };
   plan.indexBefore = snapshot(path.join(client, 'skills-index.json'));
@@ -515,7 +523,7 @@ function printSummary(result) {
 async function main(argv) {
   const options = parseArgs(argv);
   if (options.help) {
-    console.log('用法：node scripts/install-package.cjs [--yes] [--dry-run] [--client-root <目录>] [--catalog <catalog.json>] [--install <exact-id>] [--resident <exact-id>] [--preferences <json>] [--continuity] [--no-auto-bind] [--json]\n默认只核对；--yes 安装基础路由并更新与旧包一致的已安装条目。缺失可选项另用 --install 明确选择，个人修改只报告。所选技能默认进按需库；交互运行会询问是否常驻，非交互用 --resident 选择常驻（需与 --install 同时给出）。已安装技能换层请用 tier-skills --promote。接续存储仅在 --continuity 单独同意时调用旧安装器。');
+    console.log('用法：node scripts/install-package.cjs [--yes] [--dry-run] [--client-root <目录>] [--catalog <catalog.json>] [--install <exact-id>] [--resident <exact-id>] [--preferences <json>] [--workflow-mode route|model] [--continuity] [--no-auto-bind] [--json]\n默认只核对；--yes 安装基础路由并更新与旧包一致的已安装条目。缺失可选项另用 --install 明确选择，个人修改只报告。所选技能默认进按需库；交互运行会询问是否常驻，非交互用 --resident 选择常驻（需与 --install 同时给出）。已安装技能换层请用 tier-skills --promote。--workflow-mode 显式切换已有 rules-reminder 接线；省略时新装默认 model、已有选择保留。接续存储仅在 --continuity 单独同意时调用旧安装器。');
     return 0;
   }
   if (options.skip) { console.log('已跳过，未修改任何文件。'); return 0; }

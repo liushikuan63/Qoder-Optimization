@@ -4,6 +4,8 @@
 // 不读文件、不写状态、不发放任何授权；真正的档位由 verification-policy + 用户选择决定。
 
 const ACTION = /(?:实现|开发|改造|重构|接入|迁移|新增|添加|删除|移除|优化|定位|排查|升级|部署|上线|发布|推送|提交|测试|验证|验收|编写|设计|补齐|调整|替换|安装|配置|加上|增加|修复|修改|更新|处理|搞|加|改|\b(?:implement|fix|refactor|migrate|deploy|release|wire|add|update|upgrade|remove|delete|optimi[sz]e|test|verify|configure|install|build|change|modify)\b)/i;
+// 口语执行动词单独兜底，避免把单个"修/调/补"等放进 ACTION 后误伤"调查/补充说明"这类只读请求。
+const EXTRA_ACTION = /(?:修(?:一下|好|下|正)|重写|重做|重命名|改名|生成|创建|新建|导出|导入|合并|拆分|清理|清除|去掉|删掉|同步|对接|联调|复现|跑(?:一下|一遍|个|测试|单测|构建|冒烟|回归)|调(?:成|到|一下|低|高|大|小)|补(?:齐|上|个|一下|测试|单测)|弄(?:一下|好|成|个)|搞定|画(?:一个|个)|写(?:一个|个|成|入)|\b(?:rewrite|generate|export|import|merge|split|clean|sync|compile)\b)/i;
 const READ_ONLY = /(?:只读|仅审阅|只审查|只分析|仅分析|只评估|仅评估|不要修改|不改文件|不用改|无需修改|仅给建议|仅解释|解释一下|是什么|什么意思|\b(?:read[- ]only|just review|explain)\b)/i;
 const ACK = /^(?:继续|确认|好的?|可以|同意|行|嗯|收到|是的|开始|执行|go|ok(?:ay)?)[。！!，,\s]*$/i;
 const ADVICE = /^(?:怎么|如何|为什么|为何|多少|什么时候|哪里|哪个|请问|是否应该|要不要|值不值得|有没有必要)/;
@@ -38,7 +40,7 @@ function classifyVerificationTrigger(prompt) {
   if (READ_ONLY.test(text)) return no('READ_ONLY');
   if (ADVICE.test(text) || STATUS.test(text)) return no('QUESTION');
   if (EXPLICIT.test(text)) return { trigger: true, reason: 'EXPLICIT', signals: ['explicit'] };
-  if (!ACTION.test(text)) return no('NO_ACTION');
+  if (!ACTION.test(text) && !EXTRA_ACTION.test(text)) return no('NO_ACTION');
   const risk = RISK.test(text);
   if (CONTINUATION.test(text) && !risk) return no('CONTINUATION');
   if (SMALL_SCOPE.test(text) && text.length < 60 && !risk) return no('SMALL');

@@ -11,6 +11,13 @@ test('可执行任务触发选档', () => {
     '帮我加个导出功能',
     '重构订单模块并补充回归测试，然后部署上线',
     '另外把接口鉴权也加上',
+    '帮我修一下这个报错',
+    '重写这个组件',
+    '把超时时间调成 30 秒',
+    '生成一份月度报表',
+    '把数据导出成 Excel',
+    '跑一下端到端测试',
+    '把这个模块拆分一下',
   ];
   for (const prompt of prompts) {
     const result = classifyVerificationTrigger(prompt);
@@ -32,6 +39,10 @@ test('问答、确认、只读、琐碎改动与同任务续做不触发', () =>
     '继续修复这个问题',
     '把日志改成 UTC',
     '帮我把这段话润色一下',
+    '检查一下这段代码有没有问题',
+    '看一下这个文件',
+    '继续重写这个组件',
+    '修一下按钮文案',
   ];
   for (const prompt of prompts) {
     const result = classifyVerificationTrigger(prompt);

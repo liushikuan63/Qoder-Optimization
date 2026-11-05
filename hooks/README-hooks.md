@@ -11,7 +11,7 @@
 
 | 事件 | 脚本 | 超时(s) | 作用 |
 |---|---|---|---|
-| `UserPromptSubmit` | `rules-reminder.js` | 10 | 每轮注入精简纪律（最易被忽略的兜底）+ 回注本轮请求原文 + 目标候选 / 自进化采集 / B05 自动选档触发；命中"再次检查 / 重复检查 / 循环检查"等复核词时追加复核协议摘要（`recheck-protocol.cjs`，普通轮不追加） |
+| `UserPromptSubmit` | `rules-reminder.js` | 10 | 每轮注入精简纪律（最易被忽略的兜底）+ 回注本轮请求原文 + 目标候选 / 自进化采集 / 工作方式模型判断（新装默认 `--workflow-mode model`；回退 route 时为 B05 关键词选档触发）；命中"再次检查 / 重复检查 / 循环检查"等复核词时追加复核协议摘要（`recheck-protocol.cjs`，普通轮不追加） |
 | `UserPromptSubmit` | `session-budget.js` | 10 | 上下文体积 / 压缩次数 / 接续队列分档提醒 |
 | `UserPromptSubmit` | `fact-ledger.cjs --hook` | 10 | 硬事实登记簿：把 ≤12 条长期硬约束按目录隔离注入每轮；无登记时**零输出**（不占 token）；`/fact` 增删查清 |
 | `Stop` | `stop-gate.js` | 10 | 收尾门禁：拦住"声明下一步却没做 / 该弹窗没弹 / 无视觉证据 / 明确记忆请求无成功证据 / 无主张踢皮球"；检索到可安装/可更新条目却未询问、发布后未询问部署也拦；只读 / 交接 / 旧队列不催办 |
@@ -55,7 +55,13 @@
 
 - `hook-crash-guard.js` **不需要单独接线**：它是被其它 hook 脚本 `require` 的库（`require("./hook-crash-guard.js").install("<名字>")`），把崩溃写进 `hooks-crash.log` 交给周检，保持 fail-open 语义。
 - `byok-modelconfigs-guard.js` 也不接线：手动或周检调用的工具。
-- **B05 自动选档（已并入 rules-reminder）**：`rules-reminder.js` 每轮调用 `verification-trigger-core.js`，命中可执行任务时注入选档提示；不想要自动选档时写 `~/.qoder/verification-trigger.json` 的 `{"enabled":false}`。
+- **工作方式模型判断（新装默认，可回退 route）**：安装器新建接线默认追加 `--workflow-mode model`，`hooks.example.json` 同样默认 model；已有接线保留原模式（route/model），升级不强制切换。省略参数或使用 `--workflow-mode route` 时回到关键词路由。当前主会话模型从完整需求和最小现场证据判断并行、目标、验证选档、成文；关键词只提供候选数据，不另调云模型。
+  - hook 输出本轮 `WORKFLOW_CONTEXT` 和 `WORKFLOW_BINDING`。模型提供结构化建议，调用 `node scripts/capability-advisor.cjs --workflow-decision <request.json或-> --binding <本轮值> --json` 校验；`-` 从 stdin 读取，只读任务不需落盘。结果仅为建议，不是操作授权；自评 confidence 和来源引用也不证明模型正确。
+  - 绑定完整请求摘要哈希、请求 ID、会话、工作区和本轮随机 ID；过期/错绑/额外授权字段拒绝，证据不足返回 `NEEDS_FACTS`（退出 1），坏输入退出 2。保留明确否定与只读约束，模块/身份缺失不悄悄切回关键词自动启用。
+  - 并行复用 `parallel-plan` 的依赖与资源校验；只读任务只展示计划，不能写计划文件或派发。当前已允许写计划时，可并行仍须计划文档和明确 opt-in；目标先核对活动目标和原始授权，成文先核对需求与现有文档。已有适用选择复用，继续任务不重新弹出同一组问题；模型不创建目标、不派发、不安装、不发布。
+  - 验证复用 `verification-policy`，不能删必需/用户检查，外部动作保留完整检查清单；无 `resolveAuthority` 仍是咨询模式，不宣称原生授权链通过。判断为 skip 只省略可选选档，原验证纪律仍生效。框架正负回归不能证明所有模型都比原路由稳定，需用冻结案例和真实模型输出单独比较。
+  - 回退只移除 `--workflow-mode model` 或改为 `route`；也可在安装完成后运行 `node scripts/install-package.cjs --workflow-mode route --yes` 显式切换（`model` 同理）；不删除旧入口、接线、用户数据或权限。相关回归：`.github/capability-advisor.test.js`、`.github/capability-trigger.test.js`、`.github/package-activation-install.test.js`。
+- **B05 自动选档（model 默认，route 为回退路径，均并入 rules-reminder）**：model 模式每轮注入工作方式结构化输入，由模型判定 `verification: assess|skip`，不依赖请求措辞；route 模式每轮调用 `verification-trigger-core.js`，命中可执行任务时注入选档提示。route 是关键词启发式，口语化动作、续接轮和只读请求可能不触发；需要每轮稳定判断时用 model（安装器新装默认）。不想要自动选档时写 `~/.qoder/verification-trigger.json` 的 `{"enabled":false}`。
 - **能力主动路由**：主安装器安装 `rules-reminder.js`、`capability-advisor.cjs` 与检索依赖后，合并唯一 `UserPromptSubmit` 接线。相关已装能力询问是否使用，缺失仅通用或明确偏好才询问安装；无关/排除能力保持安静。用户明确指名直接读取入口，不重复问。同会话去重台账只证明提示投递；详情见[能力闭环](../skills/skills-router/references/capability-lifecycle.md)。
 - **接续记忆与追回（continuity）**：`PreCompact` / `PostCompact` / `UserPromptSubmit` / `SessionStart` / `PostToolUse` 这 5 个 hook 不在本模板里，由 `scripts/install-continuity.cjs` 在用户明确同意后单独接线，不要从模板直接复制。同意的机器上安装器会同时写入 `<存储目录>/auto-bind.json`，新会话首个提示自动绑定；显式 `disable` 的会话不会被重开，`--no-auto-bind` 可只接线、保留按会话手动 `enable`。
 - **拦截语义**：只有 `exit 2` 或 `deny` JSON 真拦截；其余非零退出码 / 超时 / 崩溃默认**放行（fail-open）**——别把 hook 当安全边界，硬权限仍交权限系统。

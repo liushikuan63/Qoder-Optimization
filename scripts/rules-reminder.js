@@ -23,6 +23,12 @@ if (clientFlag >= 0) {
   }
   process.env.QODER_HOME = path.resolve(selected);
 }
+const workflowFlag = clientArgs.indexOf('--workflow-mode');
+const WORKFLOW_MODE = workflowFlag < 0 ? 'route' : clientArgs[workflowFlag + 1];
+if ((workflowFlag >= 0 && clientArgs.lastIndexOf('--workflow-mode') !== workflowFlag) || !['route', 'model'].includes(WORKFLOW_MODE)) {
+  process.stderr.write('RULES_REMINDER_WORKFLOW_MODE_INVALID\n');
+  process.exit(0);
+}
 const crypto = require('crypto');
 const { clientRoot } = require('./client-root.js');
 const { goalCandidateNote } = require('./goal-candidate-core.js');
@@ -56,7 +62,7 @@ const REMINDER = [
   '4. 验证要能失败；未验证须说明原因。前台完成主张要有本轮真实运行、成功截图及比对证据；推送 / 部署前完整检验，本地小提交按影响面配比。',
   '5. 改已有文件前先备份；凭据 / 内网地址不入源码、日志、记忆摘要与汇报。按匹配定位的风险操作先只读预览命中范围并做负对照；生产、核心服务、破坏性与对外动作保留明确批准。',
   '6. 给出明确结论 / 判断 / 推荐；完成任务不强制造出下一步。权限阻塞只暂停受限动作，继续范围内独立工作。',
-  '7. Vibecoding 两问仅用于规模大且需求或验收口径不明、又未获相应授权的任务；明确需求不弹窗。阶段检查不等于逐阶段批准，显式审批仍等待。目标模式仅在用户或系统/开发者明确要求时创建；目录里有任务包不构成实施授权。',
+  '7. Vibecoding 两问仅用于规模大且需求或验收口径不明、又未获相应授权的任务；明确需求不弹窗。阶段检查不等于逐阶段批准，显式审批仍等待。目标模式仅在用户或系统/开发者明确要求时创建；目录里有任务包不构成实施授权。**开工先判定**：全项目/多模块/多端/多文件/多版本任务先按 parallel-orchestration 判定并行并出计划，未确认按顺序执行；中大型、多阶段或审查+成文任务先用 AskUserQuestion 问是否创建目标（不自动创建）。',
   '8. 过程落盘仅适用于获准写入的执行任务：队列写任务ID、责任会话及当前状态 / 下一步 / 阻塞点 / 关键入口，未建路径标待建。只读、评审待批准时零文件写入（含记忆、队列和备份）。收尾文档 / 提交 / 记忆按适用性执行，不适用记 N/A。',
   '9. 记忆**读写两头都要主动**：动手前先在记忆索引按目标查条目（地址 / 端口 / 路径 / 凭据位置 / 启动脚本 / 口径 / 已知坑），命中就照记忆做、不重新猜不重复探测，无命中或不可用再自行推理并标注「记忆无此项」，与现场冲突以现场为准并就地更新；保存时只存经核验的长期偏好和非代码可推导事实，重试、临时纠正及审阅发现不单独强制写入。领域与流程纪律按需加载，维护、安装及打包不得成为无关主任务的完成前置。',
   '10. **自进化采集**：收尾前核对本轮有无用户明确的长期偏好 / 纠正、反复出现的模式、验证过的复用经验；有证据按 self-evolution 证据门槛处理（记忆 / 规则 / 技能 / hook），无则不写日志、不为凑记录而记录；同类问题已被门禁反复拦截时优先补机制，不重复堆提示。',
@@ -212,8 +218,26 @@ function logVerificationDecision(result, promptText) {
   }
 }
 
+function workflowNote(promptText) {
+  if (WORKFLOW_MODE !== 'model' || !promptText.trim()) return '';
+  try {
+    if (!capabilityAdvisor?.createWorkflowContext || !capabilityAdvisor?.buildWorkflowNote) throw new Error('WORKFLOW_ADVISOR_UNAVAILABLE');
+    const event = JSON.parse(raw);
+    const context = capabilityAdvisor.createWorkflowContext({ ...event, prompt: promptText, cwd: event.cwd ?? process.cwd() });
+    if (!verificationEnabled()) context.restrictions.verification = true;
+    return capabilityAdvisor.buildWorkflowNote(context, path.join(CLIENT_ROOT, 'scripts', 'capability-advisor.cjs'));
+  } catch (error) {
+    process.stderr.write('WORKFLOW_NOTE_UNAVAILABLE: ' + (error.code || error.message) + '\n');
+    return '\n【工作方式 · 模型判断不可绑定】当前身份或决策模块不可用；只做建议，保留串行/任务清单与必需验证，不回退为关键词自动启用，不创建目标或派发并行。';
+  }
+}
+
+function goalNoteFor(promptText) {
+  return WORKFLOW_MODE === 'model' ? '' : goalCandidateNote(promptText);
+}
+
 function verificationNote(promptText) {
-  if (!verificationEnabled()) return '';
+  if (WORKFLOW_MODE === 'model' || !verificationEnabled()) return '';
   const text = typeof promptText === 'string' ? promptText : '';
   const result = classifyVerificationTrigger(text);
   logVerificationDecision(result, text);
@@ -327,6 +351,10 @@ function capabilityNote(promptText) {
         lines.push(`- 用户本轮已明确指定 ${name}：现在读取对应入口 ${reference} 并按其适用步骤执行；无需重复询问是否使用。${local}`);
         continue;
       }
+      if (WORKFLOW_MODE === 'model') {
+        lines.push('- ' + JSON.stringify({ name, entry: entry.replace(/\\/g, '/'), installed, candidateAction: item.action }) + '（仅召回数据；由模型判断相关性，不据此自动使用、询问、安装或更新。）');
+        continue;
+      }
       if (item.action === 'AUTO_LOAD') {
         // 只读加载不进入永久去重台账：投递只证明提示已送达，未读取时下一轮仍须提示。
         lines.push(`- ${name}（AUTO_LOAD）：已按需发现本地技能，只读加载；现在读取入口 ${reference}，按其适用步骤执行；不得据此安装、更新、发布或扩大操作授权；投递不等于已读取。`);
@@ -342,12 +370,19 @@ function capabilityNote(promptText) {
       const qualifier = item.action === 'REVIEW_UPDATE' ? '本地已有差异，先展示并审查差异，不覆盖本地内容。' : '';
       lines.push(`- ${name}（${item.action}）：可核对入口 ${reference}。${qualifier}用 AskUserQuestion 提问：${JSON.stringify(question)}，给出“${verb} / 本次不用”选项；用户未明确选择前保留原状态。`);
     }
+    if (WORKFLOW_MODE === 'model') return lines.length ? '\n【当前任务能力候选 · 仅召回】\n' + lines.join('\n') + '\n明确指名仍按原始授权处理；其余候选不得冒充启用或安装批准。' : '';
     return lines.length ? '\n【当前任务能力建议】\n' + lines.join('\n')
       + '\n以上是能力建议或本轮明确指名路由；自动触发只自动加载与判定，不等于派发授权；投递记录不等于用户批准。已有适用授权不重复询问，能力使用也不扩大安装、发布或生产操作权限。' : '';
   } catch (error) {
     process.stderr.write('CAPABILITY_NOTE_ERROR: ' + (error && error.message ? error.message : 'unknown') + '\n');
     return '';
   }
+}
+
+function workflowReminder() {
+  if (WORKFLOW_MODE !== 'model') return REMINDER;
+  const original = REMINDER.split('\n').find(line => line.startsWith('7.'));
+  return REMINDER.replace(original, '7. 开工先判定：由当前模型依据完整需求和最小现场证据判断工作方式，关键词不强制出计划或追问。Vibecoding 两问按实际需求与已有授权判断，明确需求不弹窗。阶段检查不等于逐阶段批准。目标模式仅在用户或系统/开发者明确要求时创建；目录有任务包不构成授权。只读、只审查或禁止写入时只展示计划，不写计划文件、不派发；其余并行仍须完整计划和明确 opt-in，中大型、多阶段或审查+成文不据关键词自动追问。');
 }
 
 function emit() {
@@ -358,7 +393,7 @@ function emit() {
   const payload = JSON.stringify({
     hookSpecificOutput: {
       hookEventName: 'UserPromptSubmit',
-      additionalContext: REMINDER + suppressedNote() + goalCandidateNote(prompt) + evolutionNote(prompt) + toolResearchNote(prompt) + verificationNote(prompt) + recheckNoteFor(prompt) + capabilityNote(prompt) + requestEcho(prompt),
+      additionalContext: workflowReminder() + suppressedNote() + workflowNote(prompt) + goalNoteFor(prompt) + evolutionNote(prompt) + toolResearchNote(prompt) + verificationNote(prompt) + recheckNoteFor(prompt) + capabilityNote(prompt) + requestEcho(prompt),
     },
   });
   process.stdout.write(payload + '\n', (error) => {

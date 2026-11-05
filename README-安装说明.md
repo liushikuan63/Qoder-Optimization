@@ -28,7 +28,7 @@ node scripts/install-package.cjs --yes --install skill:parallel-orchestration --
 - 常驻选择：所选技能默认进按需库；交互运行会询问是否设为常驻，非交互用 `--resident <exact-id>`（需与 `--install` 同时给出）。已安装技能换层用 `tier-skills --promote/--demote`，不重复安装。常驻数量按你的实际使用频率决定，包内默认值不是强制值。
 - 已有能力：与新包比较，只有本地完整匹配旧登记包的条目才自动更新；本地自改、额外文件或旧基线不明时列为 `REVIEW_UPDATE`，先核对，不覆盖。
 - 缺失能力：通用或符合明确偏好的才询问是否安装，专业不匹配的跳过。`--yes` 不代表同意全部可选条目，`--install <exact-id>` 才选择对应能力。
-- 基础路由：安装规则提醒、能力规划与检索依赖，合并唯一 `UserPromptSubmit` 接线，登记当前包并维护完整技能索引；冲突保留现场，不能把半套安装报成功。
+- 基础路由：安装规则提醒、能力规划与检索依赖，合并唯一 `UserPromptSubmit` 接线（新装默认 `--workflow-mode model`；已有接线保留原 route/model，不强制切换），登记当前包并维护完整技能索引；冲突保留现场，不能把半套安装报成功。
 - 任务使用：相关已装能力主动提示是否用于本任务；`parallel-orchestration` 命中多模块/并行编排任务时自动触发加载与判定（派发前仍须计划确认，自动触发不等于自动派发）。已有明确指名或适用授权就读取入口执行，不重复询问。hook 不安装、不联网、不执行业务，问答与实际使用仍须宿主完成。
 - 详细偏好、更新与验收边界见[能力闭环](skills/skills-router/references/capability-lifecycle.md)。本机现役客户端是否完成真实触发须单独核验。
 
@@ -122,7 +122,7 @@ node scripts/install-continuity.cjs --yes --no-auto-bind # 只接线，仍按会
 这两套模块按需采用，分发源码不等于在现役客户端启用。根 `docs/` 是本地设计资料，不跟踪、不随包；公开调用说明保留在对应技能与源码测试中。
 
 - **项目约定**：检查国际化、编码风格、工具、依赖和版本约束，保留来源、范围与未知项。使用包内 `node scripts/pkg-catalog.cjs install script:convention-session.cjs` 预演，确认后加 `--apply`，安装器连同 `convention-runtime` 的入口和锁文件一起安装；第三方依赖仍需另行安装。
-- **验证选档（默认自动触发）**：默认 `hooks` 中的 `rules-reminder.js` 已内置 `verification-trigger-core.js`；接线后，可执行任务会先注入选档提示，再按 `skills/verify-before-claim/references/adaptive-verification.md` 准备事实、询问四档并执行所选清单。选档模块可用 `node scripts/pkg-catalog.cjs install script:verification-session.cjs` 预演，再按明确批准安装；写 `~/.qoder/verification-trigger.json` 的 `{"enabled":false}` 时不触发。
+- **验证选档（默认自动触发，model 优先）**：新装接线默认 `--workflow-mode model`，`rules-reminder.js` 每轮注入工作方式结构化输入，由模型判定 `verification: assess|skip`；再按 `skills/verify-before-claim/references/adaptive-verification.md` 准备事实、询问四档并执行所选清单。已有 route 接线的老用户升级后不会自动切换：安装/升级完成后，Agent 必须先询问用户是否启用 model；同意后运行 `node scripts/install-package.cjs --workflow-mode model --yes`（显式切换已有接线），需要回退时改用 `--workflow-mode route --yes`。0.0.24 及更早版本不认识该参数，不要提前添加。route 路径由 `verification-trigger-core.js` 判定，口语化动作、续接轮和只读请求可能不触发。自检：model 模式看本轮 `WORKFLOW_CONTEXT`，route 模式看 `~/.qoder/tmp/verification-trigger/decisions.log`。选档模块可用 `node scripts/pkg-catalog.cjs install script:verification-session.cjs` 预演，再按明确批准安装；写 `~/.qoder/verification-trigger.json` 的 `{"enabled":false}` 时不触发。
 - **第三方依赖**：对安装器实际打印的目录运行 `npm ci --ignore-scripts --prefix <客户端目录>/scripts/convention-runtime`。不随包复制 `node_modules`，安装器不自动联网、执行包脚本或改动现役接线。
 - **验证边界**：本地静态检查、模拟问答和依赖安装验收不代表真实 UI/Agent 试点。人工选项不自动执行；未答复不默认同意；发布前完整检验与平台审批要求不受选档影响。
 

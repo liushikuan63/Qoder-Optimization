@@ -6,6 +6,12 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Changed
+- New installs now select `--workflow-mode model` for `rules-reminder.js`; existing route/model selections are preserved on upgrade. The installer accepts an explicit `--workflow-mode route|model` to switch an existing selection, so upgrades can ask before changing it. The route fallback recognizes common colloquial execution verbs (such as 修一下, 重写, 调成, 生成, 导出) while keeping read-only, trivial and continuation turns quiet.
+
+### 中文摘要
+- 新装默认使用 model 模式，已有 route/model 选择保留；安装器新增 `--workflow-mode route|model` 显式切换，升级后可先询问再改；route 回退补齐口语执行动词，只读、琐碎与续接轮仍不触发。
+
 ## [0.0.24] - 2026-11-04
 
 ### Fixed

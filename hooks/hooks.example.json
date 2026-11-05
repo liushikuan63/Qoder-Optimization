@@ -1,7 +1,7 @@
 {
   "hooks": {
     "UserPromptSubmit": [
-    { "hooks": [ { "type": "command", "command": "<node> \"<客户端目录>/scripts/rules-reminder.js\"", "timeout": 10 } ] },
+    { "hooks": [ { "type": "command", "command": "<node> \"<客户端目录>/scripts/rules-reminder.js\" --client-root \"<客户端目录>\" --workflow-mode model", "timeout": 10 } ] },
     { "hooks": [ { "type": "command", "command": "<node> \"<客户端目录>/scripts/session-budget.js\"", "timeout": 10 } ] },
     { "hooks": [ { "type": "command", "command": "<node> \"<客户端目录>/scripts/fact-ledger.cjs\" --hook", "timeout": 10 } ] }
     ],

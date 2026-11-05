@@ -27,10 +27,10 @@ const ROUTES = {
   'ship-clean-pr': [['提交'], ['推送'], ['pull request'], ['pr'], ['commit']],
   'continuation-state-audit': [['接续'], ['继续任务'], ['恢复进度'], ['压缩'], ['continuation']],
   'concurrent-edit-attribution-check': [['同一文件'], ['多人编辑'], ['并发编辑'], ['并行会话'], ['共享工作区'], ['concurrent']],
-  'parallel-orchestration': [['并行'], ['多 agent'], ['多agent'], ['parallel'], ['worktree'], ['多模块'], ['多个模块'], ['跨模块'], ['多文件'], ['任务拆分'], ['模块拆分'], ['独立模块'], ['依赖图'], ['拆分', '模块'], ['同时', '处理'], ['同时', '做'], ['一起', '做'], ['分工'], ['并发'], ['子代理'], ['subagent'], ['前后端']],
+  'parallel-orchestration': [['并行'], ['多 agent'], ['多agent'], ['parallel'], ['worktree'], ['多模块'], ['多个模块'], ['跨模块'], ['多文件'], ['多个文件'], ['任务拆分'], ['模块拆分'], ['独立模块'], ['依赖图'], ['拆分', '模块'], ['同时', '处理'], ['同时', '做'], ['一起', '做'], ['分工'], ['并发'], ['子代理'], ['subagent'], ['前后端'], ['全项目'], ['整个项目'], ['全仓'], ['全仓库'], ['多个项目'], ['多项目'], ['多个版本'], ['多版本'], ['多个代码库'], ['多代码库'], ['多个服务'], ['多服务'], ['跨服务'], ['多个端'], ['多端'], ['三端'], ['多套'], ['三套'], ['审查', '项目'], ['审阅', '项目'], ['分析', '项目'], ['介绍', '项目'], ['评估', '项目'], ['梳理', '项目'], ['整体', '分析'], ['整体', '审查'], ['项目', '架构'], ['审查', '完整版'], ['审查', 'lite'], ['完整版', 'lite'], ['完整版', 'svn'], ['全部代码']],
   'vibe-coding-workflow': [['实现功能'], ['开发功能'], ['vibecoding'], ['vibe coding']],
   'vibecoding-doc': [['需求文档'], ['任务文档'], ['开发方案'], ['spec']],
-  'goal-driven-execution': [['目标模式'], ['goal mode']],
+  'goal-driven-execution': [['目标模式'], ['goal mode'], ['长任务'], ['多步骤'], ['完成判据'], ['持续推进'], ['盯到完成'], ['直到完成']],
   'self-evolution': [['记住'], ['长期偏好'], ['经验沉淀'], ['自进化']],
   'skills-router': [['技能'], ['skill'], ['能力目录']],
   'office-docs': [['word'], ['excel'], ['ppt'], ['docx'], ['xlsx'], ['表格'], ['文档排版']],
@@ -314,8 +314,142 @@ function planCapabilities(options = {}) {
   return { schema: 1, items, summary: { phase, reason: hasCatalog ? 'OK' : 'LOCAL_DISCOVERY_ONLY', total: items.length, considered: catalog.entries.length, omitted: planned.length - items.length, counts: Object.fromEntries(ACTIONS.map(action => [action, items.filter(item => item.action === action).length])), requiresConfirmation: items.filter(item => item.requiresConfirmation).length } };
 }
 
+const WORKFLOW_CHOICES = { parallel: ['assess', 'skip'], goal: ['recommend', 'skip'], verification: ['assess', 'skip'], documentation: ['recommend', 'skip'] };
+const WORKFLOW_LIMIT = 2 * 1024 * 1024;
+const workflowText = (value, max = 1000) => typeof value === 'string' && value.trim().length > 0 && value.length <= max && !/[\x00-\x1f]/.test(value);
+function workflowObject(value, keys, code) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(key => !keys.includes(key))) fail(code, 'unexpected or missing workflow object');
+}
+function workflowRestrictions(prompt) {
+  const value = taskRouteText(prompt).normalize('NFKC');
+  const refusal = '(?:不要|不用|无需|不必|禁止|禁用|关闭|停用|取消|不|别)\\s*(?:启用|开启|创建|使用|用|采用|进行|生成|写|派发|分派|开|启动)?\\s*';
+  return {
+    readOnly: /^(?:请\s*)?(?:只读|仅审阅|只审查|只分析|仅分析|只评估|仅评估)|(?:全程|始终|全都)\s*只读|(?:不要|不许|禁止|不得|不)(?:修改|写入|写)(?:任何|所有)?(?:文件|代码|磁盘)|不改文件|零文件写入|\bread[- ]only\b|\bdo not modify files\b/i.test(value),
+    parallel: new RegExp(refusal + '(?:并行|parallel|多\\s*agent|子代理)|(?:串行|顺序)(?:执行|推进|实现|处理)|\\bno parallel\\b', 'i').test(value),
+    goal: new RegExp(refusal + '(?:目标模式|目标化执行|目标|goal)|\\bno goals?\\b', 'i').test(value),
+    verification: new RegExp(refusal + '(?:选档|验证选档|自适应验证|分档验证)|\\bno verification tier\\b', 'i').test(value),
+    documentation: new RegExp(refusal + '(?:成文|文档|四层文档)|\\bno docs?\\b', 'i').test(value),
+  };
+}
+function workflowBinding(context) {
+  workflowObject(context, ['schema', 'decisionId', 'sessionId', 'workspaceKey', 'requestMessageId', 'requestDigest', 'restrictions'], 'INVALID_WORKFLOW_CONTEXT');
+  if (context.schema !== 1 || typeof context.sessionId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(context.sessionId)
+      || !workflowText(context.decisionId, 100) || !workflowText(context.requestMessageId, 200)
+      || !workflowText(context.workspaceKey) || !path.isAbsolute(context.workspaceKey)
+      || !/^[a-f0-9]{64}$/.test(context.requestDigest || '')) fail('INVALID_WORKFLOW_CONTEXT', 'current request identity and absolute workspace are required');
+  const keys = ['readOnly', ...Object.keys(WORKFLOW_CHOICES)];
+  workflowObject(context.restrictions, keys, 'INVALID_WORKFLOW_CONTEXT');
+  if (keys.some(key => typeof context.restrictions[key] !== 'boolean')) fail('INVALID_WORKFLOW_CONTEXT', 'restrictions must be explicit booleans');
+  return crypto.createHash('sha256').update(JSON.stringify([
+    context.schema, context.decisionId, context.sessionId, context.workspaceKey, context.requestMessageId,
+    context.requestDigest, keys.map(key => context.restrictions[key]),
+  ])).digest('hex');
+}
+function createWorkflowContext(event) {
+  if (!event || typeof event.prompt !== 'string' || !event.prompt.trim() || typeof event.cwd !== 'string' || !path.isAbsolute(event.cwd)) fail('INVALID_WORKFLOW_CONTEXT', 'full prompt and absolute cwd are required');
+  const decisionId = crypto.randomUUID();
+  const context = {
+    schema: 1, decisionId, sessionId: event.session_id, workspaceKey: path.resolve(event.cwd),
+    requestMessageId: event.request_message_id ?? decisionId,
+    requestDigest: crypto.createHash('sha256').update(event.prompt).digest('hex'),
+    restrictions: workflowRestrictions(event.prompt),
+  };
+  workflowBinding(context);
+  return context;
+}
+function buildWorkflowNote(context, script) {
+  const binding = workflowBinding(context);
+  return '\n【工作方式 · 模型判断】由当前主会话模型依据完整用户消息、当前授权和最小只读现场证据，判断并行、目标、验证选档、成文是否值得采用；关键词仅召回候选，不决定启用。hook 不另调模型、不联网。'
+    + '\nWORKFLOW_CONTEXT ' + JSON.stringify(context)
+    + '\nWORKFLOW_BINDING ' + binding
+    + '\n结构化输入：{schema:1,context:<上方原样对象>,model:{schema:1,bindingDigest:<上方绑定值>,taskId:<当前任务ID>,intent:question|read-only|execute|continuation|unclear,confidence:low|medium|high,sourceRefs:[<真实来源>],reason:<简短判断>,parallel:assess|skip,goal:recommend|skip,verification:assess|skip,documentation:recommend|skip},parallelPlan?:<parallel-plan 的完整输入>,verificationRequest?:<verification-policy 的完整输入>}。不能编造事实或授权；confidence 是自评，不是正确性证明。'
+    + '\n在业务写入或启用额外流程前，运行 `' + script + ' --workflow-decision <request.json或-> --binding ' + binding + ' --json`；只读任务用 stdin，不写请求文件。没有当前身份、结果无效或 NEEDS_FACTS 时不回退成关键词自动启用；保留串行/任务清单及必需验证，补足最小证据后再判断。'
+    + '\n并行 assess 先给完整依赖/资源计划；只读任务只展示计划，不写文件、不派发。仅当前已获计划写入授权且校验可并行时，才生成计划文档并明确询问方案和启用范围。目标只检查活动目标/原始授权，缺明确请求才询问，不依据模型建议调用 CreateGoal。成文检查现有文档与当前需求，不自动补四层文档。'
+    + '\n验证选档须给真实 facts/checks/baseline，taskId 绑定当前任务，sessionId/workspaceKey/requestMessageId 与本轮 context 一致；没有 resolveAuthority 仍为咨询模式，不调用 applyChoice/beginVerification。skip 只跳过可选选档，不能删除必需验证或降低发布检查。'
+    + '\n继续同一任务先核对既有计划、目标和明确答复；已有适用选择不重复询问，拒绝/取消不催问，范围或事实改变重新判断。所有裁决只是建议，不发放创建目标、派发、写入、安装、发布或生产操作权限。';
+}
+function evaluateWorkflowDecision(input, expectedBinding) {
+  workflowObject(input, ['schema', 'context', 'model', 'parallelPlan', 'verificationRequest'], 'INVALID_WORKFLOW_DECISION');
+  if (input.schema !== 1 || !/^[a-f0-9]{64}$/.test(expectedBinding || '')) fail('INVALID_WORKFLOW_DECISION', 'schema 1 and the independent current binding are required');
+  const binding = workflowBinding(input.context), model = input.model;
+  if (binding !== expectedBinding) fail('WORKFLOW_SCOPE_MISMATCH', 'context does not match the current hook binding');
+  workflowObject(model, ['schema', 'bindingDigest', 'taskId', 'intent', 'confidence', 'sourceRefs', 'reason', ...Object.keys(WORKFLOW_CHOICES)], 'INVALID_WORKFLOW_MODEL');
+  if (model.schema !== 1 || model.bindingDigest !== binding) fail('STALE_WORKFLOW_DECISION', 'model decision is not for this request');
+  if (typeof model.taskId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(model.taskId)
+      || !['question', 'read-only', 'execute', 'continuation', 'unclear'].includes(model.intent)
+      || !['low', 'medium', 'high'].includes(model.confidence) || !workflowText(model.reason, 300)
+      || !Array.isArray(model.sourceRefs) || model.sourceRefs.length > 20 || model.sourceRefs.some(ref => !workflowText(ref, 500))
+      || Object.entries(WORKFLOW_CHOICES).some(([key, choices]) => !choices.includes(model[key]))) fail('INVALID_WORKFLOW_MODEL', 'bounded structured model suggestions and source references are required');
+  const restrictions = input.context.restrictions;
+  const result = {
+    schema: 1, taskId: model.taskId, bindingDigest: binding, verdict: 'ADVISORY', authorizesExecution: false,
+    parallel: { action: 'SEQUENTIAL' }, goal: { action: 'TASK_LIST' }, documentation: { action: 'NONE' },
+    verification: { action: 'REQUIRED_BASELINE', mandatoryChecksPreserved: true }, reasonCodes: [],
+  };
+  if (model.intent === 'question') { result.reasonCodes.push('QUESTION_ONLY'); return result; }
+  if (model.intent === 'continuation') { result.reasonCodes.push('CHECK_EXISTING_TASK_AND_CHOICES'); return result; }
+  if (model.intent === 'unclear' || model.confidence === 'low' || !model.sourceRefs.length) {
+    result.verdict = 'NEEDS_FACTS'; result.reasonCodes.push('INSUFFICIENT_MODEL_EVIDENCE'); return result;
+  }
+  const readOnly = restrictions.readOnly || model.intent === 'read-only';
+  if (model.goal === 'recommend' && !readOnly && !restrictions.goal) result.goal.action = 'CHECK_ACTIVE_GOAL_THEN_ASK_IF_NEEDED';
+  if (model.documentation === 'recommend' && !readOnly && !restrictions.documentation) result.documentation.action = 'CHECK_EXISTING_DOCS_THEN_ASK_IF_NEEDED';
+  if (model.parallel === 'assess' && !restrictions.parallel) {
+    if (!input.parallelPlan) {
+      result.parallel.action = 'NEEDS_PLAN'; result.verdict = 'NEEDS_FACTS'; result.reasonCodes.push('PARALLEL_PLAN_REQUIRED');
+    } else {
+      if (input.parallelPlan.taskId !== model.taskId) fail('WORKFLOW_SCOPE_MISMATCH', 'parallel plan belongs to another task');
+      const plan = require('./parallel-plan.cjs').evaluatePlan(input.parallelPlan);
+      result.parallel = { action: 'SEQUENTIAL', plan };
+      if (plan.verdict === 'INVALID_PLAN') { result.verdict = 'NEEDS_FACTS'; result.reasonCodes.push('INVALID_PARALLEL_PLAN'); }
+      else if (readOnly && plan.units.some(unit => unit.kind === 'write')) {
+        result.parallel = { action: 'SEQUENTIAL' }; result.reasonCodes.push('READ_ONLY_WRITE_VETO');
+      }
+      else if (plan.verdict === 'BLOCKED_HUMAN') { result.parallel.action = 'BLOCKED_HUMAN'; result.reasonCodes.push(...plan.reasonCodes); }
+      else if (plan.requiresPlanApproval) {
+        result.parallel = readOnly
+          ? { action: 'DISPLAY_READ_ONLY_PLAN', planDigest: plan.planDigest, waves: plan.waves, units: plan.units, requiresWriteApproval: true }
+          : { action: 'GENERATE_PLAN_THEN_ASK', plan };
+      }
+      else result.reasonCodes.push(...plan.reasonCodes);
+    }
+  }
+  if (input.verificationRequest) {
+    const request = input.verificationRequest, context = input.context;
+    if (request.taskId !== model.taskId || request.sessionId !== context.sessionId || request.workspaceKey !== context.workspaceKey || request.requestMessageId !== context.requestMessageId) fail('WORKFLOW_SCOPE_MISMATCH', 'verification request belongs to another scope');
+    const policy = require('./verification-policy.cjs').evaluatePolicy(request);
+    const external = ['push', 'pull-request', 'deploy', 'publish'].includes(request.facts.action);
+    result.verification = {
+      action: model.verification === 'assess' && !restrictions.verification ? 'REUSE_CHOICE_OR_ASK' : 'REQUIRED_BASELINE',
+      mandatoryChecksPreserved: true, policy,
+      requiredCheckIds: [...new Set([...policy.mandatoryCheckIds, ...(external ? policy.options.find(option => option.tier === 'deep').checkIds : policy.baselineCheckIds)])].sort(),
+    };
+    if (policy.blockers.length) { result.verdict = 'NEEDS_FACTS'; result.verification.action = 'RESOLVE_FACTS'; result.reasonCodes.push(...policy.blockers); }
+  } else if (model.verification === 'assess' && !restrictions.verification) {
+    result.verdict = 'NEEDS_FACTS'; result.verification.action = 'NEEDS_CHECKS'; result.reasonCodes.push('VERIFICATION_CHECKS_REQUIRED');
+  }
+  for (const key of Object.keys(WORKFLOW_CHOICES)) if (restrictions[key]) result.reasonCodes.push('USER_VETO_' + key.toUpperCase());
+  if (readOnly) result.reasonCodes.push('READ_ONLY_SCOPE');
+  return result;
+}
+function readWorkflowInput(file) {
+  const fd = file === '-' ? 0 : fs.openSync(file, 'r');
+  const chunks = []; let size = 0;
+  try {
+    while (true) {
+      const bytes = Buffer.alloc(8192), count = fs.readSync(fd, bytes, 0, bytes.length, null);
+      if (!count) break;
+      size += count;
+      if (size > WORKFLOW_LIMIT) fail('WORKFLOW_INPUT_TOO_LARGE', 'workflow input exceeds 2MiB');
+      chunks.push(bytes.subarray(0, count));
+    }
+  } finally { if (fd !== 0) fs.closeSync(fd); }
+  try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); }
+  catch { fail('INVALID_WORKFLOW_JSON', 'workflow input must be valid JSON'); }
+}
+
 function parseArgs(argv) {
-  const values = {}, seen = new Set(), allowed = new Set(['catalog', 'client-root', 'phase', 'prompt', 'preferences', 'previous-catalog', 'json']);
+  const values = {}, seen = new Set(), allowed = new Set(['catalog', 'client-root', 'phase', 'prompt', 'preferences', 'previous-catalog', 'workflow-decision', 'binding', 'json']);
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i], key = arg.startsWith('--') ? arg.slice(2) : '';
     if (!allowed.has(key) || seen.has(key)) fail('USAGE', 'unknown or repeated argument: ' + arg);
@@ -329,6 +463,13 @@ function main(argv) {
   const json = argv.includes('--json');
   try {
     const args = parseArgs(argv), client = args['client-root'] || resolveClientRoot();
+    if (args['workflow-decision'] !== undefined || args.binding !== undefined) {
+      if (!args['workflow-decision'] || !args.binding || Object.keys(args).some(key => !['workflow-decision', 'binding', 'json'].includes(key))) fail('USAGE', 'use --workflow-decision <json|-> --binding <current digest> [--json]');
+      const result = evaluateWorkflowDecision(readWorkflowInput(args['workflow-decision']), args.binding);
+      console.log(JSON.stringify(result, null, 2));
+      process.exitCode = result.verdict === 'NEEDS_FACTS' ? 1 : 0;
+      return;
+    }
     let catalogFile = args.catalog;
     if (!catalogFile) { try { catalogFile = readJson(path.join(client, 'share-package.json')).catalog; if (typeof catalogFile === 'string') catalogFile = path.resolve(client, catalogFile); } catch {} }
     const result = planCapabilities({ catalogFile, clientRoot: client, phase: args.phase || 'task', prompt: args.prompt || '', preferences: args.preferences ? readJson(args.preferences) : undefined, previousCatalogFile: args['previous-catalog'] });
@@ -345,9 +486,9 @@ function main(argv) {
     const code = error.code || 'CAPABILITY_ERROR';
     if (json) console.log(JSON.stringify({ schema: 1, ok: false, code, message: error.message }));
     else console.error(code + ': ' + error.message);
-    process.exitCode = ['USAGE', 'INVALID_PREFERENCES', 'INVALID_CATALOG'].includes(code) ? 2 : 1;
+    process.exitCode = ['USAGE', 'INVALID_PREFERENCES', 'INVALID_CATALOG'].includes(code) || /^(?:INVALID_WORKFLOW|WORKFLOW_|STALE_WORKFLOW)/.test(code) ? 2 : 1;
   }
 }
 
-module.exports = { planCapabilities };
+module.exports = { planCapabilities, createWorkflowContext, workflowBinding, buildWorkflowNote, evaluateWorkflowDecision };
 if (require.main === module) main(process.argv.slice(2));

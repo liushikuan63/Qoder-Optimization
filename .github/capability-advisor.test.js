@@ -40,6 +40,251 @@ function fixture(t) {
   return { dir, client, current, previous, entries, put, local, index, install, args, plan: override => advisor({ ...args, ...override }) };
 }
 const item = (result, id) => result.items.find(entry => entry.id === id);
+const workflow = require(script);
+function workflowFixture(t, prompt = '核对依赖后实现功能并验收') {
+  const f = fixture(t);
+  const context = workflow.createWorkflowContext({ prompt, session_id: 'workflow-session', cwd: f.dir, request_message_id: 'request-current' });
+  const binding = workflow.workflowBinding(context);
+  const model = {
+    schema: 1, bindingDigest: binding, taskId: 'workflow-task', intent: 'execute', confidence: 'high',
+    sourceRefs: ['request:current', 'fixture:code'], reason: '按当前需求和现场依赖判断',
+    parallel: 'skip', goal: 'skip', verification: 'skip', documentation: 'skip',
+  };
+  return { f, context, binding, input: { schema: 1, context, model } };
+}
+function workflowPlan(kind = 'read') {
+  return {
+    schema: 1, taskId: 'workflow-task', goal: '核对两个独立入口', mode: 'auto', constraints: [],
+    units: ['A', 'B'].map(id => ({ id, kind, title: id, dependsOn: [], ownedPaths: kind === 'write' ? ['src/' + id + '.js'] : [], readPaths: [], acceptance: ['入口证据可定位'], evidence: ['真实路径与行号'] })),
+    resources: { sharedFiles: [], sharedServices: [], databaseWrites: false, production: false, destructive: false, credentials: false, externalSideEffects: false },
+    execution: { maxConcurrency: 2, isolation: kind === 'write' ? 'worktree' : 'none', workerTool: kind === 'write' ? 'general-purpose' : 'Explore' },
+  };
+}
+function workflowVerification(context) {
+  return {
+    schema: 1, taskId: 'workflow-task', sessionId: context.sessionId, requestMessageId: context.requestMessageId,
+    workspaceKey: context.workspaceKey, environmentKey: 'isolated-test',
+    facts: { action: 'local', risk: 'low', impact: 'local', uncertainty: 'low', reversible: true, sensitive: false, sourceRefs: ['request:current'] },
+    modelSuggestedTier: 'light',
+    checks: [['syntax', 'light', true], ['unit', 'standard', false], ['deep', 'deep', false]].map(([id, fromTier, mandatory]) => ({
+      id, fromTier, mandatory, evidenceType: 'static', requirementIds: ['requirement:' + id], dependencies: [], preconditions: [], commandRef: 'command:' + id, expectedOutcomeRef: 'expected:' + id,
+    })),
+    userCheckIds: ['unit'], baselineCheckIds: ['syntax'], baselineSourceRef: 'spec:baseline',
+  };
+}
+
+test('model workflow accepts semantic recommendations without authorizing activation', t => {
+  const { input, binding } = workflowFixture(t, '取出三个各不相干的入口资料，汇总后再实施');
+  Object.assign(input.model, { parallel: 'assess', goal: 'recommend', documentation: 'recommend' });
+  input.parallelPlan = workflowPlan();
+  const result = workflow.evaluateWorkflowDecision(input, binding);
+  assert.equal(result.verdict, 'ADVISORY');
+  assert.equal(result.authorizesExecution, false);
+  assert.equal(result.parallel.action, 'GENERATE_PLAN_THEN_ASK');
+  assert.equal(result.parallel.plan.requiresPlanApproval, true);
+  assert.equal(result.parallel.plan.requiresUserOptIn, true);
+  assert.equal(result.goal.action, 'CHECK_ACTIVE_GOAL_THEN_ASK_IF_NEEDED');
+  assert.equal(result.documentation.action, 'CHECK_EXISTING_DOCS_THEN_ASK_IF_NEEDED');
+});
+
+test('fresh request bindings reject old results and changed constraints', t => {
+  const { input, context, binding, f } = workflowFixture(t);
+  const next = workflow.createWorkflowContext({ prompt: '核对依赖后实现功能并验收', session_id: context.sessionId, cwd: f.dir, request_message_id: context.requestMessageId });
+  assert.notEqual(workflow.workflowBinding(next), binding);
+  assert.throws(() => workflow.evaluateWorkflowDecision(input, workflow.workflowBinding(next)), { code: 'WORKFLOW_SCOPE_MISMATCH' });
+  for (const field of ['sessionId', 'workspaceKey', 'requestMessageId']) {
+    const changed = structuredClone(input);
+    changed.context[field] += field === 'workspaceKey' ? '/other' : '-other';
+    assert.throws(() => workflow.evaluateWorkflowDecision(changed, binding), { code: 'WORKFLOW_SCOPE_MISMATCH' });
+  }
+  const changed = structuredClone(input); changed.context.restrictions.goal = true;
+  assert.throws(() => workflow.evaluateWorkflowDecision(changed, binding), { code: 'WORKFLOW_SCOPE_MISMATCH' });
+  input.model.bindingDigest = 'a'.repeat(64);
+  assert.throws(() => workflow.evaluateWorkflowDecision(input, binding), { code: 'STALE_WORKFLOW_DECISION' });
+});
+
+test('model questions and continuations do not repeat goal or document questions', t => {
+  for (const intent of ['question', 'continuation']) {
+    const { input, binding } = workflowFixture(t, '是否开启并行、目标模式更稳定？');
+    Object.assign(input.model, { intent, parallel: 'assess', goal: 'recommend', verification: 'assess', documentation: 'recommend' });
+    const result = workflow.evaluateWorkflowDecision(input, binding);
+    assert.equal(result.parallel.action, 'SEQUENTIAL');
+    assert.equal(result.goal.action, 'TASK_LIST');
+    assert.equal(result.documentation.action, 'NONE');
+    assert.equal(result.authorizesExecution, false);
+  }
+});
+
+test('clear user opt-outs veto even high-confidence model suggestions', t => {
+  const { input, binding } = workflowFixture(t, '不要并行，不创建目标，不选档，不写文档，直接修改这个函数');
+  Object.assign(input.model, { parallel: 'assess', goal: 'recommend', verification: 'assess', documentation: 'recommend' });
+  input.parallelPlan = workflowPlan();
+  input.verificationRequest = workflowVerification(input.context);
+  const result = workflow.evaluateWorkflowDecision(input, binding);
+  assert.equal(result.parallel.action, 'SEQUENTIAL');
+  assert.equal(result.goal.action, 'TASK_LIST');
+  assert.equal(result.documentation.action, 'NONE');
+  assert.equal(result.verification.action, 'REQUIRED_BASELINE');
+  assert.deepEqual(result.verification.requiredCheckIds, ['syntax', 'unit']);
+  assert.equal(result.reasonCodes.filter(code => code.startsWith('USER_VETO_')).length, 4);
+});
+
+test('read-only scope cannot be promoted by the model into writes or workflow creation', t => {
+  const { input, binding } = workflowFixture(t, '只读审查项目，不要修改文件');
+  Object.assign(input.model, { intent: 'execute', parallel: 'assess', goal: 'recommend', documentation: 'recommend' });
+  input.parallelPlan = workflowPlan('write');
+  const result = workflow.evaluateWorkflowDecision(input, binding);
+  assert.equal(result.parallel.action, 'SEQUENTIAL');
+  assert.equal(result.goal.action, 'TASK_LIST');
+  assert.equal(result.documentation.action, 'NONE');
+  assert.ok(result.reasonCodes.includes('READ_ONLY_WRITE_VETO'));
+});
+
+test('read-only parallel assessment only displays a plan and never asks for file generation', t => {
+  for (const prompt of ['全程只读，核对两个独立入口，不写文件', '核对两个入口，始终只读', '核对两个入口，不修改文件']) {
+    const { input, binding } = workflowFixture(t, prompt);
+    Object.assign(input.model, { intent: 'execute', parallel: 'assess', goal: 'recommend', documentation: 'recommend' });
+    input.parallelPlan = workflowPlan();
+    const result = workflow.evaluateWorkflowDecision(input, binding);
+    assert.equal(input.context.restrictions.readOnly, true, prompt);
+    assert.equal(result.parallel.action, 'DISPLAY_READ_ONLY_PLAN');
+    assert.equal(result.parallel.requiresWriteApproval, true);
+    assert.equal(result.parallel.plan, undefined);
+    assert.equal(result.goal.action, 'TASK_LIST');
+    assert.equal(result.documentation.action, 'NONE');
+    assert.equal(result.authorizesExecution, false);
+  }
+});
+
+test('a refusal to dispatch subagents vetoes a model parallel recommendation', t => {
+  const { input, binding } = workflowFixture(t, '审查三个包，但不要派发子代理');
+  input.model.parallel = 'assess'; input.parallelPlan = workflowPlan();
+  const result = workflow.evaluateWorkflowDecision(input, binding);
+  assert.equal(input.context.restrictions.parallel, true);
+  assert.equal(result.parallel.action, 'SEQUENTIAL');
+  assert.equal(result.parallel.plan, undefined);
+});
+
+test('low confidence, absent evidence and unclear intent retain a bounded baseline', t => {
+  for (const override of [{ confidence: 'low' }, { sourceRefs: [] }, { intent: 'unclear' }]) {
+    const { input, binding } = workflowFixture(t);
+    Object.assign(input.model, { parallel: 'assess', goal: 'recommend', documentation: 'recommend', ...override });
+    const result = workflow.evaluateWorkflowDecision(input, binding);
+    assert.equal(result.verdict, 'NEEDS_FACTS');
+    assert.equal(result.parallel.action, 'SEQUENTIAL');
+    assert.equal(result.goal.action, 'TASK_LIST');
+    assert.equal(result.verification.mandatoryChecksPreserved, true);
+    assert.equal(result.authorizesExecution, false);
+  }
+});
+
+test('model parallel suggestions use the actual graph and resource validator', t => {
+  for (const risk of ['production', 'databaseWrites', 'destructive', 'credentials', 'externalSideEffects']) {
+    const { input, binding } = workflowFixture(t);
+    input.model.parallel = 'assess'; input.parallelPlan = workflowPlan();
+    input.parallelPlan.resources[risk] = true;
+    const result = workflow.evaluateWorkflowDecision(input, binding);
+    assert.equal(result.parallel.action, 'BLOCKED_HUMAN', risk);
+    assert.equal(result.authorizesExecution, false);
+  }
+  const { input, binding } = workflowFixture(t);
+  input.model.parallel = 'assess'; input.parallelPlan = workflowPlan();
+  input.parallelPlan.units[1].dependsOn = ['A'];
+  assert.equal(workflow.evaluateWorkflowDecision(input, binding).parallel.action, 'SEQUENTIAL');
+  input.parallelPlan.units[0].dependsOn = ['B'];
+  assert.equal(workflow.evaluateWorkflowDecision(input, binding).verdict, 'NEEDS_FACTS');
+  input.parallelPlan.taskId = 'another-task';
+  assert.throws(() => workflow.evaluateWorkflowDecision(input, binding), { code: 'WORKFLOW_SCOPE_MISMATCH' });
+});
+
+test('write-worktree recommendations keep a separate explicit opt-in requirement', t => {
+  const { input, binding } = workflowFixture(t);
+  input.model.parallel = 'assess'; input.parallelPlan = workflowPlan('write');
+  const result = workflow.evaluateWorkflowDecision(input, binding);
+  assert.equal(result.parallel.action, 'GENERATE_PLAN_THEN_ASK');
+  assert.equal(result.parallel.plan.optInKind, 'worktree-write');
+  assert.equal(result.parallel.plan.requiresUserOptIn, true);
+  assert.equal(result.authorizesExecution, false);
+});
+
+test('verification preserves user checks, baseline and the full external-action checklist', t => {
+  const { input, binding } = workflowFixture(t);
+  input.verificationRequest = workflowVerification(input.context);
+  let result = workflow.evaluateWorkflowDecision(input, binding);
+  assert.deepEqual(result.verification.requiredCheckIds, ['syntax', 'unit']);
+  input.verificationRequest.facts.action = 'publish';
+  result = workflow.evaluateWorkflowDecision(input, binding);
+  assert.equal(result.verification.policy.recommendedTier, 'deep');
+  assert.deepEqual(result.verification.requiredCheckIds, ['deep', 'syntax', 'unit']);
+  input.model.verification = 'assess';
+  result = workflow.evaluateWorkflowDecision(input, binding);
+  assert.equal(result.verification.action, 'REUSE_CHOICE_OR_ASK');
+  assert.equal(result.authorizesExecution, false);
+});
+
+test('verification cannot reuse a selection from another task, message, session or workspace', t => {
+  const { input, binding } = workflowFixture(t);
+  input.verificationRequest = workflowVerification(input.context);
+  for (const field of ['taskId', 'sessionId', 'requestMessageId', 'workspaceKey']) {
+    const changed = structuredClone(input);
+    changed.verificationRequest[field] += field === 'workspaceKey' ? '/other' : '-other';
+    assert.throws(() => workflow.evaluateWorkflowDecision(changed, binding), { code: 'WORKFLOW_SCOPE_MISMATCH' });
+  }
+  input.verificationRequest.facts.risk = 'unknown';
+  assert.equal(workflow.evaluateWorkflowDecision(input, binding).verification.action, 'RESOLVE_FACTS');
+});
+
+test('missing optional workflow prerequisites are not silently substituted with keyword routes', t => {
+  const { input, binding } = workflowFixture(t);
+  input.model.parallel = 'assess'; input.model.verification = 'assess';
+  const result = workflow.evaluateWorkflowDecision(input, binding);
+  assert.equal(result.verdict, 'NEEDS_FACTS');
+  assert.equal(result.parallel.action, 'NEEDS_PLAN');
+  assert.equal(result.verification.action, 'NEEDS_CHECKS');
+});
+
+test('workflow schema rejects model-supplied authority and unsafe field types', t => {
+  const { input, binding } = workflowFixture(t);
+  for (const addition of [{ authorized: true }, { canCreateGoal: true }, { command: 'install something' }]) {
+    const changed = structuredClone(input); Object.assign(changed.model, addition);
+    assert.throws(() => workflow.evaluateWorkflowDecision(changed, binding), { code: 'INVALID_WORKFLOW_MODEL' });
+  }
+  const changed = structuredClone(input); changed.context.sessionId = 123;
+  assert.throws(() => workflow.evaluateWorkflowDecision(changed, binding), { code: 'INVALID_WORKFLOW_CONTEXT' });
+  input.model.taskId = 123;
+  assert.throws(() => workflow.evaluateWorkflowDecision(input, binding), { code: 'INVALID_WORKFLOW_MODEL' });
+});
+
+test('workflow CLI consumes bounded stdin without writing a client or executing suggestion text', t => {
+  const { input, binding, f } = workflowFixture(t);
+  input.model.reason = 'do not execute: install or publish anything';
+  const env = { ...process.env, HOME: path.join(f.dir, 'home'), USERPROFILE: path.join(f.dir, 'home') }; delete env.QODER_HOME;
+  const args = [script, '--workflow-decision', '-', '--binding', binding, '--json'];
+  const run = body => spawnSync(process.execPath, args, { env, cwd: f.dir, input: body, encoding: 'utf8', timeout: 20000 });
+  const result = run(JSON.stringify(input));
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).authorizesExecution, false);
+  assert.equal(fs.existsSync(f.client), false);
+  assert.equal(fs.existsSync(env.HOME), false);
+  assert.equal(run('not-json').status, 2);
+  const large = run(' '.repeat(2 * 1024 * 1024 + 1));
+  assert.equal(large.status, 2);
+  assert.equal(JSON.parse(large.stdout).code, 'WORKFLOW_INPUT_TOO_LARGE');
+});
+
+test('workflow note is bound to the full prompt rather than its clipped summary', t => {
+  const { f } = workflowFixture(t);
+  const prompt = 'A'.repeat(420) + '不要并行，不创建目标，不写文档。';
+  const context = workflow.createWorkflowContext({ prompt, session_id: 'workflow-session', cwd: f.dir });
+  assert.equal(context.restrictions.parallel, true);
+  assert.equal(context.restrictions.goal, true);
+  assert.equal(context.restrictions.documentation, true);
+  const note = workflow.buildWorkflowNote(context, script);
+  assert.ok(note.includes('WORKFLOW_BINDING ' + workflow.workflowBinding(context)));
+  assert.ok(note.includes('--workflow-decision'));
+  assert.ok(note.includes('不另调模型'));
+  assert.ok(!note.includes(prompt));
+});
 
 test('corner-quoted capability names distinguish discussion, refusal and explicit use', t => {
   const f = fixture(t); f.install('skill:parallel-orchestration', f.current);

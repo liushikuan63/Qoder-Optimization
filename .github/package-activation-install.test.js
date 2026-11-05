@@ -44,6 +44,65 @@ function fixture(t) {
   return { home, client, env, old, next, run, put };
 }
 
+test('new install selects model workflow while an existing route selection survives reconciliation', t => {
+  const f = fixture(t), target = path.join(f.client, 'scripts/rules-reminder.js');
+  const { settingsFor } = require(installer);
+  const fresh = JSON.parse(settingsFor(null, target).bytes);
+  assert.match(fresh.hooks.UserPromptSubmit[0].hooks[0].command, /--workflow-mode model$/);
+  const settings = JSON.parse(JSON.stringify(fresh));
+  settings.hooks.UserPromptSubmit[0].hooks[0].command = settings.hooks.UserPromptSubmit[0].hooks[0].command.replace(' --workflow-mode model', ' --workflow-mode route');
+  settings.permissions = { fixture: 'unchanged' };
+  const bytes = Buffer.from(JSON.stringify(settings));
+  const result = settingsFor(bytes, target);
+  assert.equal(result.state, 'KEEP');
+  assert.deepEqual(JSON.parse(result.bytes), settings);
+  assert.equal(bytes.toString(), JSON.stringify(settings));
+});
+
+test('installer refuses invalid workflow flags rather than reverting the selected mode', t => {
+  const f = fixture(t), target = path.join(f.client, 'scripts/rules-reminder.js');
+  const { settingsFor } = require(installer);
+  for (const flags of [' --workflow-mode automatic', ' --workflow-mode model --workflow-mode route', ' --workflow-mode model --unexpected']) {
+    const settings = JSON.parse(settingsFor(null, target).bytes);
+    settings.hooks.UserPromptSubmit[0].hooks[0].command += flags;
+    assert.throws(() => settingsFor(Buffer.from(JSON.stringify(settings)), target), /冲突/);
+  }
+});
+
+test('clean installed model workflow has its validators and remains selected on reinstallation', t => {
+  const f = fixture(t);
+  const first = f.run(['--yes', '--json']);
+  assert.equal(first.status, 0, first.stdout + first.stderr);
+  const file = path.join(f.client, 'settings.json'), settings = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.match(settings.hooks.UserPromptSubmit[0].hooks[0].command, /--workflow-mode model$/);
+  const next = f.run(['--yes', '--json']);
+  assert.equal(next.status, 0, next.stdout + next.stderr);
+  const selected = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.match(selected.hooks.UserPromptSubmit[0].hooks[0].command, /--workflow-mode model$/);
+  assert.equal(selected.hooks.UserPromptSubmit.length, 1);
+  for (const name of ['parallel-plan.cjs', 'verification-policy.cjs']) assert.equal(fs.existsSync(path.join(f.client, 'scripts', name)), true, name);
+  const result = spawnSync(process.execPath, [path.join(f.client, 'scripts/rules-reminder.js'), '--client-root', f.client, '--workflow-mode', 'model'], {
+    env: f.env, input: JSON.stringify({ prompt: '分别核对两个入口后再实施', session_id: 'installed-workflow', cwd: f.home }), encoding: 'utf8', timeout: 20000,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(JSON.parse(result.stdout).hookSpecificOutput.additionalContext, /WORKFLOW_CONTEXT/);
+  assert.doesNotMatch(result.stderr, /WORKFLOW_NOTE_UNAVAILABLE/);
+});
+
+test('explicit workflow mode switches an existing selection and rejects invalid values', t => {
+  const f = fixture(t), target = path.join(f.client, 'scripts/rules-reminder.js');
+  const { settingsFor, parseArgs } = require(installer);
+  const route = JSON.parse(settingsFor(null, target, 'route').bytes);
+  assert.match(route.hooks.UserPromptSubmit[0].hooks[0].command, /--workflow-mode route$/);
+  const switched = settingsFor(Buffer.from(JSON.stringify(route)), target, 'model');
+  assert.equal(switched.state, 'UPDATE');
+  assert.match(JSON.parse(switched.bytes).hooks.UserPromptSubmit[0].hooks[0].command, /--workflow-mode model$/);
+  assert.equal(parseArgs(['--workflow-mode', 'model']).workflowMode, 'model');
+  for (const argv of [['--workflow-mode', 'automatic'], ['--workflow-mode', 'model', '--workflow-mode', 'route'], ['--workflow-mode']]) {
+    assert.throws(() => parseArgs(argv), /workflow-mode/);
+  }
+});
+
 test('private activation metadata keeps owner-only permissions on POSIX', { skip: process.platform === 'win32' }, t => {
   const f = fixture(t), file = f.put('settings.json', '{"fixtureSecret":"private"}'); fs.chmodSync(file, 0o600);
   const runner = path.join(f.home, 'private-modes.cjs');

@@ -44,6 +44,90 @@ function fixture(t) {
   return { dir, client, scripts, pkg, catalog, write, register, setItems, skill, env, run, runActual };
 }
 
+function workflowHook(f, prompt, extra = [], target = path.join(root, 'scripts/rules-reminder.js')) {
+  return spawnSync(process.execPath, [target, '--workflow-mode', 'model', ...extra], {
+    env: f.env, cwd: f.dir, input: JSON.stringify({ prompt, session_id: 'workflow-native-shape', cwd: f.dir }), encoding: 'utf8', timeout: 20000,
+  });
+}
+
+test('model mode injects a bound semantic decision contract without old workflow auto-prompts', t => {
+  const f = fixture(t);
+  const result = workflowHook(f, '实现多个模块，部署验收后提交；再判断是否成文');
+  assert.equal(result.status, 0, result.stderr);
+  const text = JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
+  assert.match(text, /【工作方式 · 模型判断】/);
+  assert.doesNotMatch(text, /【目标候选|【B05 自动选档 · 已触发】/);
+  const reminder = text.split('【工作方式 · 模型判断】')[0];
+  assert.match(reminder, /关键词不强制出计划或追问/);
+  assert.doesNotMatch(reminder, /全项目\/多模块\/多端\/多文件\/多版本任务先按 parallel-orchestration|中大型、多阶段或审查\+成文任务先用 AskUserQuestion/);
+  const context = JSON.parse(text.match(/^WORKFLOW_CONTEXT (.+)$/m)[1]);
+  const binding = text.match(/^WORKFLOW_BINDING ([a-f0-9]{64})$/m)[1];
+  const advisor = require('../scripts/capability-advisor.cjs');
+  assert.equal(binding, advisor.workflowBinding(context));
+  const input = { schema: 1, context, model: { schema: 1, bindingDigest: binding, taskId: 'native-shape', intent: 'execute', confidence: 'high', sourceRefs: ['request:current'], reason: '任务需要持续推进，但必须保留用户批准', parallel: 'skip', goal: 'recommend', verification: 'skip', documentation: 'skip' } };
+  const evaluated = advisor.evaluateWorkflowDecision(input, binding);
+  assert.equal(evaluated.goal.action, 'CHECK_ACTIVE_GOAL_THEN_ASK_IF_NEEDED');
+  assert.equal(evaluated.authorizesExecution, false);
+  assert.equal(fs.existsSync(path.join(f.client, 'tmp/capability-advisor/sessions')), false);
+});
+
+test('model mode treats keyword matches as data while explicit current choices keep their original authority', t => {
+  const f = fixture(t);
+  const installed = f.skill('parallel-orchestration');
+  const entry = { id: installed.id, name: installed.name, category: 'skill', status: 'shipped', tier: 'library', source: 'skills/parallel-orchestration', description: 'parallel orchestration', install: { mode: 'copy-skill', tier: 'library' }, dependencies: [] };
+  f.write(path.join(f.pkg, entry.source, 'SKILL.md'), fs.readFileSync(installed.entryPath, 'utf8'));
+  f.write(f.catalog, { schema: 1, entries: [entry] }); f.register();
+  let result = workflowHook(f, '把多个模块并行审查');
+  assert.equal(result.status, 0, result.stderr);
+  let text = JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
+  assert.match(text, /【当前任务能力候选 · 仅召回】/);
+  assert.match(text, /仅召回数据/);
+  assert.doesNotMatch(text, /parallel-orchestration（AUTO_USE）|已自动触发/);
+  assert.equal(fs.existsSync(path.join(f.client, 'tmp/capability-advisor/sessions')), false);
+  result = workflowHook(f, '请使用 parallel-orchestration 审查模块');
+  text = JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
+  assert.match(text, /本轮已明确指定 parallel-orchestration/);
+  assert.doesNotMatch(text, /是否使用 parallel-orchestration/);
+});
+
+test('model mode cannot silently fall back when optional decision support or identity is absent', t => {
+  const f = fixture(t);
+  const result = workflowHook(f, '实现多个模块，部署验收后提交', [], path.join(f.scripts, 'rules-reminder.js'));
+  assert.equal(result.status, 0, result.stderr);
+  const text = JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
+  assert.match(text, /模型判断不可绑定/);
+  assert.match(result.stderr, /WORKFLOW_NOTE_UNAVAILABLE/);
+  assert.doesNotMatch(text, /【目标候选|【B05 自动选档 · 已触发】/);
+  const missingIdentity = spawnSync(process.execPath, [path.join(root, 'scripts/rules-reminder.js'), '--workflow-mode', 'model'], { env: f.env, cwd: f.dir, input: JSON.stringify({ prompt: '实现完整功能并提交' }), encoding: 'utf8', timeout: 20000 });
+  assert.equal(missingIdentity.status, 0);
+  assert.match(JSON.parse(missingIdentity.stdout).hookSpecificOutput.additionalContext, /模型判断不可绑定/);
+});
+
+test('workflow route mode preserves default output and malformed model flags do not select another mode', t => {
+  const f = fixture(t), target = path.join(root, 'scripts/rules-reminder.js');
+  const input = JSON.stringify({ prompt: '实现完整功能并部署验收后提交', session_id: 'route-isolation', cwd: f.dir });
+  const options = { env: f.env, cwd: f.dir, input, encoding: 'utf8', timeout: 20000 };
+  const original = spawnSync(process.execPath, [target], options);
+  const route = spawnSync(process.execPath, [target, '--workflow-mode', 'route'], options);
+  assert.equal(original.status, 0); assert.equal(route.status, 0);
+  assert.equal(route.stdout, original.stdout);
+  for (const args of [['--workflow-mode'], ['--workflow-mode', 'automatic'], ['--workflow-mode', 'model', '--workflow-mode', 'route']]) {
+    const result = spawnSync(process.execPath, [target, ...args], options);
+    assert.equal(result.status, 0); assert.equal(result.stdout, '');
+    assert.match(result.stderr, /RULES_REMINDER_WORKFLOW_MODE_INVALID/);
+  }
+});
+
+test('an existing verification opt-out remains a veto in model mode', t => {
+  const f = fixture(t);
+  f.write(path.join(f.client, 'verification-trigger.json'), { enabled: false });
+  const result = workflowHook(f, '实现完整功能并测试');
+  const text = JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
+  const context = JSON.parse(text.match(/^WORKFLOW_CONTEXT (.+)$/m)[1]);
+  assert.equal(context.restrictions.verification, true);
+  assert.doesNotMatch(text, /【B05 自动选档 · 已触发】/);
+});
+
 test('registered installed capability becomes a concrete use question once per session', t => {
   const f = fixture(t), item = f.skill(); f.setItems([item]); f.register();
   const prompt = '修复浏览器页面，保留 PRIVATE_PROMPT_SENTINEL 不写台账';
@@ -101,17 +185,19 @@ test('the actual hook honors explicit local choices and current refusals without
   assert.equal(f.runActual('本次不要使用 mysql-review 检查 MySQL', 'declined-local').includes(marker), false);
 });
 
-test('the installed hook command binds a custom client without an inherited QODER_HOME', t => {
+test('the installed hook command selects model mode and binds a custom client without an inherited QODER_HOME', t => {
   const f = fixture(t), item = f.skill(); f.setItems([item]); f.register();
   fs.cpSync(f.scripts, path.join(f.client, 'scripts'), { recursive: true });
   const { settingsFor } = require('../scripts/install-package.cjs');
   const settings = JSON.parse(settingsFor(null, path.join(f.client, 'scripts/rules-reminder.js')).bytes);
   const command = settings.hooks.UserPromptSubmit[0].hooks[0].command;
+  assert.match(command, /--workflow-mode model$/);
   const args = [...command.matchAll(/"([^"\r\n]*)"|([^\s]+)/g)].map(match => match[1] ?? match[2]);
   const env = { ...f.env }; delete env.QODER_HOME;
   const r = spawnSync(args[0], args.slice(1), { env, cwd: f.dir, input: JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: '修复浏览器页面', session_id: 'custom-profile' }), encoding: 'utf8', timeout: 20000 });
   assert.equal(r.status, 0, r.stdout + r.stderr);
-  assert.match(JSON.parse(r.stdout).hookSpecificOutput.additionalContext, /是否使用 browser-helper/);
+  const text = JSON.parse(r.stdout).hookSpecificOutput.additionalContext;
+  assert.match(text, /browser-helper/);
   assert.equal(fs.existsSync(path.join(env.HOME, '.qoder')), false, 'hook wrote to a different default client');
 });
 
