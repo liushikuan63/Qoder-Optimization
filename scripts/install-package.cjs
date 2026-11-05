@@ -408,6 +408,19 @@ function apply(plan, options = {}) {
   const verifyStaged = () => {
     for (const item of plan.changes) if (!item.staged || publicSourceProof(item.staged, item.entry.source) !== item.sourceBefore.hash) throw new Error('暂存内容与规划时批准的公开来源不一致：' + item.id);
   };
+  const verifyPublished = () => {
+    // Settings, rules, pointer and index are equally part of activation. A
+    // concurrent writer may change metadata after its publication, so checking
+    // only capability entries could otherwise produce a false ready receipt.
+    for (const item of applied) {
+      assertPath(plan, item.target);
+      for (const owned of item.owned) {
+        const stat = fs.lstatSync(owned.file);
+        if (stat.isSymbolicLink() || stat.ino !== owned.ino || stat.dev !== owned.dev || (owned.directory ? !stat.isDirectory() : !stat.isFile() || digest(fs.readFileSync(owned.file)) !== owned.hash)) throw new Error('已发布内容在事务期间改变：' + item.id);
+      }
+      if (item.entry && publicSourceProof(item.target, item.entry.source) !== item.sourceBefore.hash) throw new Error('已发布内容在事务期间改变：' + item.id);
+    }
+  };
   const mkdirParents = dir => {
     if (normalized(dir) === normalized(plan.client)) return;
     try { if (!fs.statSync(dir).isDirectory()) throw new Error('目标父路径不是目录'); return; }
@@ -420,7 +433,7 @@ function apply(plan, options = {}) {
     // A source changed just for the child copy and then restored is caught by
     // the content proof of the staged bytes, not merely a final source read.
     verifySources(); verifyFrozen(); verifyStaged();
-    for (const prior of applied) if (prior.entry && publicSourceProof(prior.target, prior.entry.source) !== prior.sourceBefore.hash) throw new Error('已发布内容在事务期间改变：' + prior.id);
+    verifyPublished();
     assertPath(plan, item.target);
     if (!same(snapshot(item.target), item.before)) throw new Error('安装目标在规划后改变：' + (item.id || item.target));
     mkdirParents(path.dirname(item.target));
@@ -508,6 +521,7 @@ function apply(plan, options = {}) {
     const receipt = { schema: 1, installedAt: new Date().toISOString(), catalog: plan.catalogFile, catalogSha256: plan.catalogHash, ready: plan.baseReady, hook: plan.baseReady ? plan.hook.state : 'BLOCKED', ...(plan.baseReady ? { profile: plan.profile, managedRules: Object.fromEntries(plan.rules.map(rule => [rule.rel, rule.hash])), requiredFiles: [...plan.changes, ...plan.verifyTargets].filter(item => plan.requiredIds.includes(item.id)).map(item => path.relative(plan.client, path.join(item.target, item.entry?.category === 'skill' || item.id.startsWith('skill:') ? 'SKILL.md' : '')).split(path.sep).join('/')) } : plan.previousActivation), baseBlocked: plan.baseBlocked, installedIds: plan.changes.map(item => item.id), recoveryDirectory: stage };
     const receiptFile = path.join(stage, 'package-activation.json'); fs.writeFileSync(receiptFile, JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
     publish({ id: 'metadata:activation', target: path.join(plan.client, 'package-activation.json'), before: plan.receiptBefore, staged: receiptFile });
+    verifyPublished();
     fs.writeFileSync(path.join(stage, 'transaction.json'), JSON.stringify({ status: 'COMMITTED', receipt, logs }, null, 2));
     return withPending({ status: plan.baseReady ? 'INSTALLED' : 'ACTIVATION_BLOCKED', ready: plan.baseReady, recoveryDirectory: stage, frozenPackage, receipt, logs, plan });
   } catch (error) {

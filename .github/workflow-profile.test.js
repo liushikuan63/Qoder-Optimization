@@ -131,3 +131,13 @@ test('settings publication failure rolls back complete rules and newly installed
   assert.equal(fs.readFileSync(agents, 'utf8'), '# Personal\nPRESERVE_RULE\n');
   for (const rel of ['rules/long-task.md', 'rules/vibe-coding.md', 'scripts/run-package-hook.cjs', 'skills/skills-router/SKILL.md', 'skills-index.json', 'share-package.json']) assert.equal(fs.existsSync(path.join(f.client, rel)), false, rel);
 });
+test('concurrent managed rule edits after publication refuse ready and retain the writer bytes', t => {
+  const f = fixture(t), settings = path.join(f.client, 'settings.json'), agents = path.join(f.client, 'AGENTS.md');
+  const preload = path.join(f.home, 'concurrent-rule.cjs');
+  fs.writeFileSync(preload, `const fs=require('node:fs'),open=fs.openSync;let fired=false;fs.openSync=function(file,flags,...args){if(!fired&&file===${JSON.stringify(settings)}&&flags==='wx'){fired=true;fs.writeFileSync(${JSON.stringify(agents)},'CONCURRENT_WRITER_RULE');}return open.call(this,file,flags,...args);};`);
+  const result = spawnSync(process.execPath, [path.join(root, 'scripts/install-package.cjs'), '--yes', '--client-root', f.client], { env: { ...f.env, NODE_OPTIONS: '--require ' + JSON.stringify(preload) }, input: '', encoding: 'utf8', timeout: 90000, windowsHide: true });
+  assert.notEqual(result.status, 0); assert.match(result.stderr, /已发布内容在事务期间改变/);
+  assert.equal(fs.readFileSync(agents, 'utf8'), 'CONCURRENT_WRITER_RULE');
+  assert.equal(fs.existsSync(path.join(f.client, 'package-activation.json')), false);
+  assert.equal(fs.existsSync(path.join(f.client, 'share-package.json')), false);
+});
