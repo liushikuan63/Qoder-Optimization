@@ -124,3 +124,11 @@
 - 一个路径同一时刻只能有一个写者。
 - 计划保留路径原始大小写并纳入 `planDigest`。提交验收按宿主文件系统语义核对：Linux 的 `src/A.js` 不能冒用 `src/a.js` 的授权，Git 路径中的字面反斜杠也不能当作目录分隔符。Windows 使用 native realpath 统一短文件名与长文件名后核对仓库/工作树身份。
 - 同一波次内，写者 `ownedPaths` 与其他单元 `readPaths` 重叠返回 `READ_WRITE_CONFLICT`；用明确 `dependsOn` 表达读写顺序，后续波次从集成后的新基线创建工作树。
+
+## Git 配置与工作目录绑定
+
+`prepare` 支持已经启用 `extensions.worktreeConfig` 的正常仓库；记录源与每个工作树的实际 Git 目录，以及有效配置来源文件（含条件 include 和 `config.worktree` 存在性）的身份与内容摘要。回执只保存摘要，不保存配置值。每次干净检查前后都核对实际工作目录和配置，重定向或配置漂移返回非零，并保留全部工作树与提交。
+
+新工作树先以 `--no-checkout` 注册，再在目标 Git 目录中发现并禁用可执行过滤器，核验目录身份后物化文件；不使用强制覆盖的检出操作。这样源目录中尚未生效的条件过滤器，也不能在首次检出时先执行。
+
+旧版 `run.json` 缺少 `sourceConfigDigest` 或单元 `configDigest` 时，`verify` 返回 `CONFIG_BINDING_REQUIRED`，不会补造旧基线或删除已有成果；保留工作树和提交，先人工复核，或在整合成果后从干净的新基线重新 `prepare`。配置与身份的前后校验仍不构成安全沙箱，也不授权其他写入者修改共享 Git 配置。

@@ -147,6 +147,123 @@ test('literal uppercase ownership remains usable on all platforms', t => {
   assert.equal(result.status, 0, result.stdout + result.stderr);
 });
 
+test('an unchanged per-worktree configuration remains supported', t => {
+  const f = fixture(t);
+  f.git(f.repo, ['config', 'extensions.worktreeConfig', 'true']);
+  f.git(f.repo, ['config', '--worktree', 'parallel.fixture', 'baseline']);
+  const manifest = f.prepare();
+  for (const u of manifest.units) f.commit(u, 'src/' + u.id.toLowerCase() + '.txt', u.id + ' result');
+  const result = f.run(['verify', '--run', path.join(f.out, 'run.json')]);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+});
+
+for (const scope of ['source', 'worker']) {
+  test('verification rejects a core.worktree redirect hiding dirty files: ' + scope, t => {
+    const f = fixture(t);
+    f.git(f.repo, ['config', 'extensions.worktreeConfig', 'true']);
+    const manifest = f.prepare();
+    for (const u of manifest.units) f.commit(u, 'src/' + u.id.toLowerCase() + '.txt', u.id + ' result');
+    const target = scope === 'source' ? f.repo : manifest.units[0].path;
+    const alternate = path.join(f.base, 'alternate');
+    fs.cpSync(path.join(target, 'src'), path.join(alternate, 'src'), { recursive: true });
+    f.git(target, ['config', '--worktree', 'core.worktree', alternate]);
+    f.put(path.join(target, 'src/a.txt'), 'uncommitted original bytes');
+    f.put(path.join(target, 'untracked.txt'), 'retain this recovery input');
+    assert.equal(f.git(target, ['status', '--porcelain']), '', 'the redirect genuinely conceals the original dirty files');
+    const result = f.run(['verify', '--run', path.join(f.out, 'run.json')]);
+    assert.notEqual(result.status, 0, result.stdout + result.stderr);
+    assert.match(JSON.parse(result.stderr).code, /WORKTREE_MISMATCH|SHARED_GIT_CHANGED/);
+    assert.equal(fs.readFileSync(path.join(target, 'src/a.txt'), 'utf8'), 'uncommitted original bytes');
+    assert.equal(fs.existsSync(path.join(target, 'untracked.txt')), true);
+  });
+}
+
+for (const mode of ['worktree-file', 'conditional-include']) {
+  test('verification binds per-worktree and included configuration: ' + mode, t => {
+    const f = fixture(t);
+    f.git(f.repo, ['config', 'extensions.worktreeConfig', 'true']);
+    const included = path.join(f.base, 'included.config');
+    if (mode === 'conditional-include') {
+      f.put(included, '[parallel]\n fixture = before\n');
+      const common = f.git(f.repo, ['rev-parse', '--path-format=absolute', '--git-common-dir']).replace(/\\/g, '/');
+      f.git(f.repo, ['config', 'includeIf.gitdir:' + common + '/worktrees/.path', included]);
+    }
+    const manifest = f.prepare();
+    for (const u of manifest.units) f.commit(u, 'src/' + u.id.toLowerCase() + '.txt', u.id + ' result');
+    if (mode === 'worktree-file') f.git(manifest.units[0].path, ['config', '--worktree', 'parallel.fixture', 'after']);
+    else f.put(included, '[parallel]\n fixture = after\n');
+    const result = f.run(['verify', '--run', path.join(f.out, 'run.json')]);
+    assert.notEqual(result.status, 0, result.stdout + result.stderr);
+    assert.equal(JSON.parse(result.stderr).code, 'SHARED_GIT_CHANGED');
+  });
+}
+
+test('a configuration write during status cannot produce a clean receipt', t => {
+  const f = fixture(t);
+  f.git(f.repo, ['config', 'extensions.worktreeConfig', 'true']);
+  const manifest = f.prepare(), unit = manifest.units[0];
+  for (const u of manifest.units) f.commit(u, 'src/' + u.id.toLowerCase() + '.txt', u.id + ' result');
+  const preload = path.join(f.base, 'config-race.cjs');
+  f.put(preload, 'const fs=require("node:fs"),cp=require("node:child_process"),path=require("node:path"),original=cp.spawnSync;let changed=false;cp.spawnSync=function(exe,args,options){const result=original.apply(this,arguments);if(!changed&&exe==="git"&&args.includes("status")&&path.resolve(options.cwd)===' + JSON.stringify(path.resolve(unit.path)) + '){changed=true;fs.writeFileSync(' + JSON.stringify(path.join(unit.gitDir, 'config.worktree')) + ',"[parallel]\\n fixture = late\\n");}return result;};');
+  const result = f.run(['verify', '--run', path.join(f.out, 'run.json')], { NODE_OPTIONS: '--require=' + JSON.stringify(preload) });
+  assert.notEqual(result.status, 0, result.stdout + result.stderr);
+  assert.equal(JSON.parse(result.stderr).code, 'SHARED_GIT_CHANGED');
+  assert.match(fs.readFileSync(path.join(unit.gitDir, 'config.worktree'), 'utf8'), /late/);
+});
+
+test('preparation discovers conditional filters before materializing a new worker', t => {
+  const f = fixture(t), marker = path.join(f.base, 'executed.txt'), filter = path.join(f.base, 'conditional-filter.cjs');
+  f.put(filter, 'const fs=require("node:fs");fs.appendFileSync(' + JSON.stringify(marker) + ',"executed\\n");process.stdout.write(fs.readFileSync(0));');
+  f.put(path.join(f.repo, '.gitattributes'), '*.txt filter=conditional\n');
+  f.git(f.repo, ['add', '--', '.gitattributes']); f.git(f.repo, ['commit', '-qm', 'conditional attributes']);
+  const included = path.join(f.base, 'included.config');
+  const command = JSON.stringify(process.execPath.replace(/\\/g, '/')) + ' ' + JSON.stringify(filter.replace(/\\/g, '/'));
+  f.put(included, '[filter "conditional"]\n clean = ' + JSON.stringify(command) + '\n smudge = ' + JSON.stringify(command) + '\n required = true\n');
+  const common = f.git(f.repo, ['rev-parse', '--path-format=absolute', '--git-common-dir']).replace(/\\/g, '/');
+  f.git(f.repo, ['config', 'includeIf.gitdir:' + common + '/worktrees/.path', included]);
+  // Positive control: this Git configuration really executes only after a new
+  // worktree selects the conditional include, unlike source-side discovery.
+  f.git(f.repo, ['worktree', 'add', '--detach', '--', path.join(f.base, 'control'), 'HEAD']);
+  assert.equal(fs.existsSync(marker), true);
+  fs.unlinkSync(marker);
+  const manifest = f.prepare();
+  assert.equal(fs.existsSync(marker), false, 'prepare must suppress the target-only filter before checkout');
+  for (const u of manifest.units) {
+    f.put(path.join(u.path, 'src/' + u.id.toLowerCase() + '.txt'), u.id + ' result');
+    f.git(u.path, ['-c', 'filter.conditional.clean=', '-c', 'filter.conditional.required=false', 'add', '--', 'src/' + u.id.toLowerCase() + '.txt']);
+    f.git(u.path, ['-c', 'filter.conditional.clean=', '-c', 'filter.conditional.required=false', 'commit', '-qm', 'worker']);
+  }
+  assert.equal(f.run(['verify', '--run', path.join(f.out, 'run.json')]).status, 0);
+  assert.equal(fs.existsSync(marker), false);
+});
+
+test('a newly registered worker redirect is rejected before materialization', t => {
+  const f = fixture(t), alternate = path.join(f.base, 'alternate'), preload = path.join(f.base, 'registration-race.cjs');
+  f.git(f.repo, ['config', 'extensions.worktreeConfig', 'true']);
+  f.put(path.join(alternate, 'src/a.txt'), 'retain alternate bytes');
+  f.put(preload, 'const fs=require("node:fs"),path=require("node:path"),cp=require("node:child_process"),original=cp.spawnSync;let changed=false;cp.spawnSync=function(exe,args,options){const result=original.apply(this,arguments);if(!changed&&exe==="git"&&args.includes("worktree")&&args.includes("add")&&result.status===0){changed=true;const target=args[args.indexOf("--")+1],dir=fs.readFileSync(path.join(target,".git"),"utf8").trim().slice(8);fs.writeFileSync(path.join(dir,"config.worktree"),' + JSON.stringify('[core]\n worktree = ' + JSON.stringify(alternate.replace(/\\/g, '/')) + '\n') + ');}return result;};');
+  const result = f.run(['prepare', '--plan', f.planFile, '--repo', f.repo, '--out', f.out, '--approved-plan', digestPlan(validatePlan(f.plan)), '--write-opt-in'], { NODE_OPTIONS: '--require=' + JSON.stringify(preload) });
+  assert.notEqual(result.status, 0, result.stdout + result.stderr);
+  assert.equal(fs.readFileSync(path.join(alternate, 'src/a.txt'), 'utf8'), 'retain alternate bytes');
+  assert.equal(fs.existsSync(path.join(alternate, 'src/b.txt')), false);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(f.out, 'run.json'), 'utf8')).status, 'PREPARE_FAILED');
+});
+
+test('an older receipt cannot silently skip the configuration binding', t => {
+  const f = fixture(t), manifest = f.prepare();
+  for (const u of manifest.units) f.commit(u, 'src/' + u.id.toLowerCase() + '.txt', u.id + ' result');
+  delete manifest.sourceConfigDigest;
+  for (const u of manifest.units) delete u.configDigest;
+  f.put(path.join(f.out, 'run.json'), JSON.stringify(manifest));
+  const result = f.run(['verify', '--run', path.join(f.out, 'run.json')]);
+  assert.notEqual(result.status, 0, result.stdout + result.stderr);
+  assert.equal(JSON.parse(result.stderr).code, 'CONFIG_BINDING_REQUIRED');
+  for (const u of manifest.units) {
+    assert.equal(fs.existsSync(u.path), true);
+    assert.equal(f.git(u.path, ['rev-list', '--count', manifest.base + '..HEAD']), '1');
+  }
+});
+
 for (const foreignPath of ['src/A.txt', 'src\\a.txt']) {
   test('POSIX ownership rejects a distinct Git path: ' + foreignPath, { skip: process.platform === 'win32' ? 'requires case-sensitive and backslash-literal paths' : false }, t => {
     const f = fixture(t), manifest = f.prepare();
