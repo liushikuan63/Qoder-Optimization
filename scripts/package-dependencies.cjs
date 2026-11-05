@@ -10,6 +10,8 @@ function dependenciesFor(root, entry) {
     'skill:concurrent-edit-attribution-check': ['script:backup-file.js'],
     'skill:self-evolution': ['script:carrier-preflight.cjs'],
     'skill:skills-router': ['script:skill-load.cjs'],
+    'skill:windows-powershell-from-gitbash': ['script:shell-boundary-probe.cjs'],
+    'skill:windows-gitbash-command-safety': ['script:shell-boundary-probe.cjs'],
   };
   if (entry.category === 'skill') return skillRuntime[entry.id] || [];
   if (entry.category !== 'script' || entry.install?.mode === 'copy-directory' || !/\.[cm]?js$/.test(entry.source || '')) return [];

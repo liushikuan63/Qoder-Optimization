@@ -2,13 +2,13 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.0.27"
+  "version": "0.0.28"
  },
- "generated": "2026-11-05",
+ "generated": "2026-11-06",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 133,
-  "script": 143,
+  "script": 144,
   "command": 10,
   "agent": 2
  },
@@ -61,7 +61,7 @@
    "name": "audit-ci-cost-levers",
    "status": "shipped",
    "tier": "library",
-   "description": "给 CI（GitHub Actions 托管分钟）做先量化再动手的止血审计——逐个候选手段测真实收益、否证无效项，防止把通用最佳实践直接写进 workflow。用于配额烧穿或即将烧穿、判断某个节流手段值不值得加、CI run 红但 job 存活几秒且 steps=0 且日志取不到、考虑加 paths-ignore 或 concurrency.cancel-in-progress 或自托管 runner 或依赖缓存。判据——paths-ignore 命中率用 git log --name-only 数只动目标路径的提交占比；加忽略前 grep 门脚本是否真读该类文件并走通传递闭包。",
+   "description": "按真实workflow、run/job/step样本评估GitHub Actions缓存、路径过滤、并发取消、runner与推送频率的收益和代价。区分挂钟时长、计算使用量与费用，沿门禁输入闭包验证；不以零步骤或日志缺失直接判配额。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -189,7 +189,7 @@
    "name": "diagnose-github-actions-quota",
    "status": "shipped",
    "tier": "library",
-   "description": "私有仓库 GitHub Actions CI 全红时先定性再修——用一组能失败的只读 gh 判据阶梯区分账户计费与配额闸门和真实代码红，并强制在成功 run 上重跑同一阶梯证明判据可失败。当出现推送后 2~3 秒即红、看不到步骤或日志、gh run view 空输出、run 里 total_count=0 没有 job、日志端点返回 BlobNotFound、annotation 含 payments have failed，或任务涉及 Actions 配额与 GitHub Free 2000 分钟/月时使用。止血测算与车道落地用 audit-ci-cost-levers。",
+   "description": "GitHub Actions 无job、零步骤、日志缺失、runner排队或账户限制疑点的只读取证。按实际run、attempt、job、step、annotations与可比成功运行区分原因；短时失败或404不直接判配额。成本优化另用audit-ci-cost-levers。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1399,7 +1399,7 @@
    "name": "skill-reference-integrity-audit",
    "status": "shipped",
    "tier": "library",
-   "description": "技能/文档悬空引用审计与修复决策流程：提取引用清单→存在性核查→会话归档考古判定『从未落盘 vs 丢失』→同域技能功能映射让渡或按真值重建；含并行会话竞态处置（对象消失先查 skills-disabled）。触发词：悬空引用、缺失文件、引用审计、归档考古、技能完整性检查、skills-disabled 竞态。不适用于：代码层面的 import/require 缺失（走静态分析）、文档内部链接失效（走 link-checker）。",
+   "description": "技能引用完整性审计：递归Markdown、中文/嵌套scripts、references与assets、多扩展名引用和循环终止；区分缺失、读取失败及未核验范围。修复先核对真实来源与并发归属，保留独有能力。不代替代码import或完整Markdown语法检查。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1821,13 +1821,15 @@
    "name": "windows-gitbash-command-safety",
    "status": "shipped",
    "tier": "library",
-   "description": "从 Git Bash 或 MSYS 直调 Windows 原生 exe（reg.exe、whoami.exe、tasklist.exe、sc.exe、wmic、cmd）的替换表。用于命令死于 无效语法 或 extra operand；/v /s /f /im /y /groups 被静默改写成盘符路径；交给 Windows 程序的 /tmp 变成 C:\\tmp\\...；原生工具的中文在管道或重定向文件里是 GBK 乱码；grep 对注册表输出报 Binary file matches。随包一个包装器一次修好开关改写与 cp936 解码。",
+   "description": "定位 Git Bash/MSYS 调 Windows 原生程序时的命令遮蔽、斜杠开关改写、路径、引号与输出编码问题。用自有 argv 正反例核对真实参数，只对当前调用调整转换；不默认码页、不修改全局环境，也不提供通用命令运行器。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
    },
    "source": "skills/windows-gitbash-command-safety",
-   "dependencies": []
+   "dependencies": [
+    "script:shell-boundary-probe.cjs"
+   ]
   },
   {
    "id": "skill:windows-powershell-from-gitbash",
@@ -1835,13 +1837,15 @@
    "name": "windows-powershell-from-gitbash",
    "status": "shipped",
    "tier": "library",
-   "description": "从 Git Bash 或 MSYS 驱动 PowerShell 5.1 写一次性 .ps1 诊断脚本的替换规则。用于内联 powershell.exe -Command 炸出 extglob、CommandNotFoundException 或无法识别的 cmdlet；含中文字面量或正则的 .ps1 报 TerminatorExpectedAtEndOfString；输出文件回读每个字符间带空格（UTF-16）；以及任何用 Get-CimInstance、Add-Type P-Invoke、reg export、截屏的脚本之前。随包脚本骨架与纯 UTF-8 捕获的 runner。",
+   "description": "定位 PowerShell 5.1/7 与 Git Bash/MSYS 之间的参数展开、脚本和输出编码及退出码问题。先核对实际解释器，用自有 argv、明确非零退出和解析失败样例验证边界。不用于提权、服务变更或修改全局环境。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
    },
    "source": "skills/windows-powershell-from-gitbash",
-   "dependencies": []
+   "dependencies": [
+    "script:shell-boundary-probe.cjs"
+   ]
   },
   {
    "id": "skill:windows-relocated-install-path-repair",
@@ -3252,6 +3256,17 @@
    "dependencies": [
     "script:archive-entries.cjs"
    ]
+  },
+  {
+   "id": "script:shell-boundary-probe.cjs",
+   "category": "script",
+   "name": "shell-boundary-probe.cjs",
+   "status": "shipped",
+   "source": "scripts/shell-boundary-probe.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": []
   },
   {
    "id": "script:skill-collisions.cjs",

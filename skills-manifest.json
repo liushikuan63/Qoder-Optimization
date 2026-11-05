@@ -1,7 +1,7 @@
 {
  "package_name": "Qoder-Optimization",
- "version": "0.0.27",
- "generated": "2026-11-05",
+ "version": "0.0.28",
+ "generated": "2026-11-06",
  "skills": [
   {
    "name": "agent-client-network-triage",
@@ -186,7 +186,7 @@
   {
    "name": "local-browser-e2e",
    "tier": "library",
-   "files": 5
+   "files": 6
   },
   {
    "name": "local-db-migrations",
@@ -511,7 +511,7 @@
   {
    "name": "skills-router",
    "tier": "core",
-   "files": 2
+   "files": 3
   },
   {
    "name": "spring-aop",
@@ -601,7 +601,7 @@
   {
    "name": "verify-before-claim",
    "tier": "core",
-   "files": 4
+   "files": 5
   },
   {
    "name": "verify-ui-in-browser",
@@ -651,7 +651,7 @@
   {
    "name": "windows-powershell-from-gitbash",
    "tier": "library",
-   "files": 1
+   "files": 2
   },
   {
    "name": "windows-relocated-install-path-repair",

@@ -20,7 +20,15 @@
   "files": {
     "LICENSE-CE.txt": "957b98d327e7b3c55cead4d726022d3617d6aeff5ea824f715c6f9cca15493b4",
     "LICENSE-ECC.txt": "326146379f01bb137c0a5d3c54770c1aa31076705c8b88a7f6b26a460f6221b2",
-    "SKILL.md": "647513e2f00edfe44f1606676436a9ba307b9af25afff3e427a4986503753aeb",
-    "agents\\openai.yaml": "37e4af7810f4bb79455bc04567c3bf9cb1f35865905e90a659b15be115c294aa"
-  }
+    "SKILL.md": "2b57d4427f1c515f10609a345c7ac1a6fc0b672964129baa4142063a84294a8b",
+    "agents\\openai.yaml": "37e4af7810f4bb79455bc04567c3bf9cb1f35865905e90a659b15be115c294aa",
+    "references/motion-and-theme.md": "bd5006ae5b1bc3b10e7568b273e170adff156b47c9c33db359a905ac80197386"
+  },
+  "adaptations": [
+    {
+      "date": "2026-11-06",
+      "source": "local-browser-e2e personal method, independently adapted from DSH frontend-motion-delivery",
+      "scope": "observable motion/theme methods; no host config, fixed artistic standard or runtime state copied"
+    }
+  ]
 }

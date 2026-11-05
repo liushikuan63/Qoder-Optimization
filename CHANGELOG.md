@@ -6,6 +6,22 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.0.28] - 2026-11-06
+
+### Changed
+- Map the current Codex personal engineering methods to existing Qoder capabilities, installed entry points and explicit host prerequisites; keep runtime, account and private-state portability separate.
+- Carry task-scoped tool discovery, error classification, one retry budget and read-back before retrying unknown writes into the installed workflow and prompt reminder. Preserve the existing authentication/attempt guards.
+- Extend the existing verification workflow with behavior-to-delivery evidence, clean installation, incremental upgrades and independent installation checks. Add observable motion/theme methods to the existing browser skill.
+- Correct CI diagnosis and cost guidance: zero steps, short jobs and missing logs are clues, not billing conclusions; use returned check-run identities, current evidence and current billing documentation.
+
+### Fixed
+- Replace nonexistent Windows runner promises with an installed, read-only argv comparison probe. Include it when selecting either Shell boundary skill; avoid universal quoting, path-conversion and encoding claims.
+- Audit Unicode and nested local references, arbitrary resource extensions and recursive Markdown with cycle termination. Separate missing references from unreadable, changing or out-of-scope input, and keep executable examples and external links outside automatic scanning.
+
+### 中文摘要
+- 将 Codex 已验证的方法合入现有技能和安装工作流，并提供清晰能力承接图；不搬运宿主或私人状态。
+- 两个 Windows 技能带入真实 argv 探针，引用审计覆盖中文、嵌套与递归；交付、CI判断及有界恢复同步纠偏。
+
 ## [0.0.27] - 2026-11-05
 
 ### Fixed

@@ -21,3 +21,7 @@ metadata:
 逐项报告通过、失败、未执行及原因。真实 OAuth、支付、邮件/短信发送等需要相应授权；mock 或跳过不等于真实流程通过。Web 验证不替代 Tauri、Android、Cocos 等原生端验收。本次实现请求已授权的相关缺陷继续修复，不每次失败重新询问是否继续。
 
 参考：[Playwright 官方测试建议](https://playwright.dev/docs/best-practices)，具体 API 按项目锁定版本确认。
+
+## 动效与主题
+
+本次涉及动画、SVG 或主题切换时，按需读取[动效与主题的可观察验收](references/motion-and-theme.md)：检查真实计算样式、可区分的时间/几何状态、循环边界及 reduced-motion 下的非动画功能。检查随本次影响选择，不扩成所有前端任务的固定审计。
