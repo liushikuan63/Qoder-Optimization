@@ -416,7 +416,7 @@ test('a tracked private file blocks the build rather than being silently exporte
   assert.equal(fs.existsSync(path.join(f.base, 'dist/Qoder-Optimization-0.0.2.zip')), false);
 }));
 
-function publicationFixture(f, { existing = true, mismatch = false, error = false, wrongCommit = false, draft = false } = {}) {
+function publicationFixture(f, { existing = true, mismatch = false, error = false, wrongCommit = false, draft = false, history = [], latestTag, stuckLatest = false, afterPromotion } = {}) {
   const dest = path.join(f.base, 'publish');
   fs.mkdirSync(dest);
   const name = 'Qoder-Optimization-0.0.2';
@@ -427,6 +427,8 @@ function publicationFixture(f, { existing = true, mismatch = false, error = fals
   fs.writeFileSync(path.join(dest, 'build.json'), JSON.stringify({ tag: 'v0.0.2', package: name, commit, sha256: digest, artifacts: [{ name: name + '.zip', sha256: digest }] }));
   let release = existing ? { id: 900, tag_name: 'v0.0.2', draft, html_url: 'https://github.com/example/project/releases/tag/v0.0.2', assets: [{ name: name + '.zip' }, { name: name + '.zip.sha256' }] } : null;
   let visibleInList = existing;
+  const others = structuredClone(history);
+  let latest = latestTag ? others.find(item => item.tag_name === latestTag) : (release && !draft ? release : null);
   const calls = [];
   const gh = args => {
     calls.push(args);
@@ -441,10 +443,17 @@ function publicationFixture(f, { existing = true, mismatch = false, error = fals
         return { status: 0, stdout: JSON.stringify(release) };
       }
       if (/\/releases\/\d+$/.test(endpoint)) {
-        if (method === 'PATCH') release.draft = false;
-        return { status: 0, stdout: JSON.stringify(release) };
+        const target = [release, ...others].find(item => item && endpoint.endsWith('/' + item.id));
+        if (!target) return { status: 1, stderr: 'gh: Not Found (HTTP 404)' };
+        if (method === 'PATCH') {
+          const mode = args.find(arg => arg.startsWith('make_latest='))?.slice(12);
+          if (args.includes('draft=false')) { target.draft = false; if (!mode || mode === 'true') latest = target; }
+          if (mode === 'true' && !stuckLatest) { latest = target; if (afterPromotion) afterPromotion(others, target); }
+        }
+        return { status: 0, stdout: JSON.stringify(target) };
       }
-      if (endpoint.includes('/releases?')) return { status: 0, stdout: JSON.stringify(visibleInList && release ? [[release]] : [[]]) };
+      if (endpoint.includes('/releases?')) return { status: 0, stdout: JSON.stringify([[...others, ...(visibleInList && release ? [release] : [])]]) };
+      if (endpoint.endsWith('/releases/latest')) return latest ? { status: 0, stdout: JSON.stringify(latest) } : { status: 1, stderr: 'gh: Not Found (HTTP 404)' };
       return release && !release.draft ? { status: 0, stdout: JSON.stringify(release) } : { status: 1, stderr: 'gh: Not Found (HTTP 404)' };
     }
     if (args[1] === 'upload') release.assets.push({ name: path.basename(args[3]) });
@@ -456,7 +465,7 @@ function publicationFixture(f, { existing = true, mismatch = false, error = fals
     }
     return { status: 0, stdout: '' };
   };
-  return { dest, gh, calls };
+  return { dest, gh, calls, latest: () => latest };
 }
 
 test('same-name assets are downloaded and compared, never blindly skipped', () => withFixture(f => {
@@ -472,7 +481,8 @@ test('existing draft hidden from the tag endpoint is verified without duplicatio
   publishRelease({ repo: 'example/project', tag: 'v0.0.2', ...p });
   assert.equal(p.calls.some(a => a.includes('POST') || a[1] === 'upload'), false);
   assert.equal(p.calls.filter(args => args[1] === 'download').length, 2);
-  assert.equal(p.calls.filter(a => a.includes('PATCH')).length, 1);
+  assert.equal(p.calls.filter(a => a.includes('draft=false')).length, 1);
+  assert.equal(p.calls.filter(a => a.includes('make_latest=true')).length, 1);
 }));
 
 test('different same-name content stops without replacing any asset', () => withFixture(f => {
@@ -543,4 +553,51 @@ test('release notes fall back to generated notes without a CHANGELOG section', (
   const create = p.calls.find(a => a.includes('POST'));
   assert.ok(create.includes('generate_release_notes=true'));
   assert.equal(create.some(a => /^body=@/.test(a)), false);
+}));
+
+test('a delayed older release cannot replace a newer stable Latest', () => withFixture(f => {
+  const newer = { id: 910, tag_name: 'v0.0.10', draft: false, prerelease: false };
+  const p = publicationFixture(f, { existing: false, history: [newer], latestTag: newer.tag_name });
+  const result = publishRelease({ repo: 'example/project', tag: 'v0.0.2', ...p });
+  assert.equal(p.latest().tag_name, 'v0.0.10');
+  assert.equal(result.latestTag, 'v0.0.10');
+  const publish = p.calls.find(a => a.includes('draft=false'));
+  assert.ok(publish.includes('make_latest=false'));
+}));
+
+test('new releases explicitly avoid automatic Latest before verification', () => withFixture(f => {
+  const p = publicationFixture(f, { existing: false });
+  const result = publishRelease({ repo: 'example/project', tag: 'v0.0.2', ...p });
+  assert.equal(result.latestTag, 'v0.0.2');
+  assert.ok(p.calls.find(a => a.includes('POST')).includes('make_latest=false'));
+  const promote = p.calls.findIndex(a => a.includes('make_latest=true'));
+  assert.ok(promote >= 0);
+  assert.equal(p.calls.slice(0, promote).filter(a => a[1] === 'download').length, 2);
+}));
+
+test('Latest selection ignores drafts and prereleases and compares numeric versions', () => withFixture(f => {
+  const history = [
+    { id: 910, tag_name: 'v0.0.10', draft: false, prerelease: false },
+    { id: 911, tag_name: 'v99.0.0', draft: true, prerelease: false },
+    { id: 912, tag_name: 'v98.0.0', draft: false, prerelease: true },
+  ];
+  const p = publicationFixture(f, { history, latestTag: 'v0.0.10' });
+  assert.equal(publishRelease({ repo: 'example/project', tag: 'v0.0.2', ...p }).latestTag, 'v0.0.10');
+  assert.equal(p.latest().tag_name, 'v0.0.10');
+}));
+
+test('Latest reconciliation observes a newer release appearing during promotion', () => withFixture(f => {
+  let added = false;
+  const p = publicationFixture(f, { afterPromotion: others => {
+    if (!added) { added = true; others.push({ id: 920, tag_name: 'v0.0.20', draft: false, prerelease: false }); }
+  }, latestTag: 'v0.0.1', history: [{ id: 919, tag_name: 'v0.0.1', draft: false, prerelease: false }] });
+  assert.equal(publishRelease({ repo: 'example/project', tag: 'v0.0.2', ...p }).latestTag, 'v0.0.20');
+  assert.equal(p.latest().tag_name, 'v0.0.20');
+}));
+
+test('persistent Latest drift fails within a finite reconciliation budget', () => withFixture(f => {
+  const p = publicationFixture(f, { stuckLatest: true, latestTag: 'v0.0.1', history: [{ id: 919, tag_name: 'v0.0.1', draft: false, prerelease: false }] });
+  assert.throws(() => publishRelease({ repo: 'example/project', tag: 'v0.0.2', ...p }), /latest.*stabili/i);
+  assert.ok(p.calls.filter(a => a.includes('make_latest=true')).length <= 3);
+  assert.equal(p.calls.some(a => a.includes('--clobber')), false);
 }));

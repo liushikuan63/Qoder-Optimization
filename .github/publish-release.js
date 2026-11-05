@@ -55,13 +55,43 @@ function publishRelease({ repo, tag, dest, gh = officialGh, root = process.cwd()
   const remoteCommit = invoke(['api', `repos/${repo}/commits/${tag}`, '--jq', '.sha']).trim();
   if (remoteCommit !== evidence.commit) throw new Error('remote tag does not match the tested source commit');
   const byId = id => JSON.parse(invoke(['api', `repos/${repo}/releases/${id}`]));
+  const reconcileLatest = published => {
+    const version = item => !item.draft && !item.prerelease && /^v\d+\.\d+\.\d+$/.test(item.tag_name || '')
+      ? item.tag_name.slice(1).split('.').map(BigInt) : null;
+    const highest = () => {
+      const pages = JSON.parse(invoke(['api', `repos/${repo}/releases?per_page=100`, '--paginate', '--slurp']));
+      if (!Array.isArray(pages) || pages.some(page => !Array.isArray(page))) throw new Error('invalid release listing for Latest reconciliation');
+      // Include the just-verified release while the listing is catching up.
+      return [...pages.flat(), published].filter(item => item && version(item)).reduce((best, item) => {
+        if (!Number.isSafeInteger(item.id) || item.id <= 0) throw new Error('invalid stable release identity');
+        if (!best) return item;
+        const a = version(item), b = version(best);
+        for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] > b[i] ? item : best;
+        return best;
+      }, null);
+    };
+    const latest = () => {
+      const value = invoke(['api', `repos/${repo}/releases/latest`], true);
+      return value === null ? null : JSON.parse(value);
+    };
+    // Publication jobs share a repository-wide lock. Re-read as well because
+    // older workflows and manual publishers do not participate in that lock.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const target = highest();
+      if (!target) throw new Error('no stable release is available for Latest');
+      if (latest()?.id !== target.id) invoke(['api', '--method', 'PATCH', `repos/${repo}/releases/${target.id}`, '-f', 'make_latest=true']);
+      const confirmed = latest(), refreshed = highest();
+      if (confirmed?.id === target.id && refreshed.id === target.id) return target.tag_name;
+    }
+    throw new Error('Latest did not stabilize within the reconciliation budget; published assets retained');
+  };
   let release = getRelease();
   let releaseId = release && release.id;
   if (!release) {
     // gh release create returns no id, and a fresh draft is not reliably visible by tag
     // (no tag lookup for drafts, GITHUB_TOKEN viewerPermission is null). Create through the
     // REST API so the response carries the id every later step can read back.
-    const args = ['api', '--method', 'POST', `repos/${repo}/releases`, '-f', `tag_name=${tag}`, '-f', `target_commitish=${evidence.commit}`, '-f', `name=Qoder-Optimization ${tag.slice(1)}`, '-F', 'draft=true'];
+    const args = ['api', '--method', 'POST', `repos/${repo}/releases`, '-f', `tag_name=${tag}`, '-f', `target_commitish=${evidence.commit}`, '-f', `name=Qoder-Optimization ${tag.slice(1)}`, '-F', 'draft=true', '-f', 'make_latest=false'];
     const notes = changelogNotes(root, tag.slice(1));
     let dir = null;
     try {
@@ -97,10 +127,11 @@ function publishRelease({ repo, tag, dest, gh = officialGh, root = process.cwd()
     }
     release = byId(releaseId);
     if (!release || release.assets.length !== assets.length || assets.some(name => !release.assets.some(asset => asset.name === name))) throw new Error('remote asset set is incomplete');
-    if (release.draft) invoke(['api', '--method', 'PATCH', `repos/${repo}/releases/${releaseId}`, '-F', 'draft=false']);
+    if (release.draft) invoke(['api', '--method', 'PATCH', `repos/${repo}/releases/${releaseId}`, '-F', 'draft=false', '-f', 'make_latest=false']);
     const published = byId(releaseId);
     if (!published || published.draft || !published.html_url) throw new Error('release publication was not confirmed');
-    return { url: published.html_url, sha256: evidence.sha256, assets };
+    const latestTag = reconcileLatest(published);
+    return { url: published.html_url, sha256: evidence.sha256, assets, latestTag };
   } finally {
     fs.rmSync(temp, { recursive: true, force: true });
   }
@@ -112,6 +143,6 @@ if (require.main === module) {
     const [tag, dest, repo = process.env.GITHUB_REPOSITORY] = process.argv.slice(2);
     if (!dest || process.argv.length > 5) throw new Error('usage: node .github/publish-release.js <vX.Y.Z> <dist-dir> [owner/repo]');
     const result = publishRelease({ repo, tag, dest: path.resolve(dest) });
-    console.log(`VERIFIED ${result.url} sha256=${result.sha256}`);
+    console.log(`VERIFIED ${result.url} sha256=${result.sha256} latest=${result.latestTag}`);
   } catch (error) { console.error('PUBLISH_FAILED: ' + error.message); process.exitCode = 1; }
 }

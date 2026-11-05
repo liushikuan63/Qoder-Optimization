@@ -21,16 +21,50 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      commit: ${{ steps.resolve.outputs.commit }}
+    steps:
+      - name: Checkout event source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Resolve source commit
+        id: resolve
+        env:
+          REQUESTED_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          REF="${GITHUB_SHA}"
+          if [[ "${GITHUB_EVENT_NAME}" == workflow_dispatch ]]; then
+            [[ "${REQUESTED_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "invalid release tag"; exit 1; }
+            git show-ref --verify --quiet "refs/tags/${REQUESTED_TAG}"
+            REF="refs/tags/${REQUESTED_TAG}"
+          fi
+          COMMIT="$(git rev-parse --verify "${REF}^{commit}")"
+          [[ "${COMMIT}" =~ ^[a-f0-9]{40}$ ]] || { echo "invalid source commit"; exit 1; }
+          echo "commit=${COMMIT}" >> "${GITHUB_OUTPUT}"
+
   publish:
-    needs: windows
+    needs: [source, windows]
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    concurrency:
+      group: release-publish-${{ (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') && github.repository || github.run_id }}
+      cancel-in-progress: false
+      queue: max
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ needs.source.outputs.commit }}
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -40,6 +74,11 @@ jobs:
           cache-dependency-path: |
             skills/office-docs/package-lock.json
             scripts/convention-runtime/package-lock.json
+
+      - name: Verify frozen checkout
+        env:
+          EXPECTED_COMMIT: ${{ needs.source.outputs.commit }}
+        run: node -e "const cp=require('node:child_process');const actual=cp.execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();if(actual!==process.env.EXPECTED_COMMIT)throw new Error('checkout differs from frozen source commit');"
 
       - name: Install locked test dependencies
         run: |
@@ -52,15 +91,17 @@ jobs:
       - name: Gate, build and independently verify the committed package
         env:
           REQUESTED_TAG: ${{ inputs.tag }}
+          SOURCE_COMMIT: ${{ needs.source.outputs.commit }}
         run: |
           TAG="$(node -p "require('fs').readFileSync('VERSION', 'utf8').split(/\r?\n/)[0]")"
-          REF="${GITHUB_SHA}"
+          REF="${SOURCE_COMMIT}"
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then TAG="${GITHUB_REF_NAME}"; fi
           if [[ "${GITHUB_EVENT_NAME}" == workflow_dispatch ]]; then
             TAG="${REQUESTED_TAG}"
             git show-ref --verify --quiet "refs/tags/${TAG}"
-            [[ "$(git rev-parse HEAD)" == "$(git rev-parse "refs/tags/${TAG}^{commit}")" ]] || { echo "workflow_dispatch checkout ${GITHUB_SHA} differs from ${TAG}; refusing to publish"; exit 1; }
-            REF="${TAG}"
+          fi
+          if [[ "${GITHUB_REF}" == refs/tags/* || "${GITHUB_EVENT_NAME}" == workflow_dispatch ]]; then
+            [[ "${SOURCE_COMMIT}" == "$(git rev-parse "refs/tags/${TAG}^{commit}")" ]] || { echo "tag differs from frozen source; refusing to publish"; exit 1; }
           fi
           node .github/build-release.js "${TAG}" "${RUNNER_TEMP}/dist" "${REF}"
 
@@ -88,6 +129,7 @@ jobs:
           node .github/publish-release.js "${TAG}" "${RUNNER_TEMP}/dist"
 
   windows:
+    needs: source
     runs-on: windows-latest
     timeout-minutes: 45
     permissions:
@@ -97,7 +139,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ needs.source.outputs.commit }}
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -107,6 +149,11 @@ jobs:
           cache-dependency-path: |
             skills/office-docs/package-lock.json
             scripts/convention-runtime/package-lock.json
+
+      - name: Verify frozen checkout
+        env:
+          EXPECTED_COMMIT: ${{ needs.source.outputs.commit }}
+        run: node -e "const cp=require('node:child_process');const actual=cp.execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();if(actual!==process.env.EXPECTED_COMMIT)throw new Error('checkout differs from frozen source commit');"
 
       - name: Install locked test dependencies
         run: |
