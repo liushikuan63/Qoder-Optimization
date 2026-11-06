@@ -1,5 +1,5 @@
 ---
-description: 浏览器（Edge/Chrome）打不开网页时 10 秒定性——代理残留 / hosts 劫持无服务 / 加速器回源抖动
+description: 浏览器（Edge/Chrome）打不开网页时 10 秒定性——代理残留 / hosts 劫持无服务 / 加速器回源抖动。触发词：浏览器打不开、网页打不开、网络打不开、代理残留、hosts 劫持
 ---
 
 # /edge-net-check

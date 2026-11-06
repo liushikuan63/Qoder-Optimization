@@ -1,6 +1,6 @@
 ---
 name: skill-load
-description: 按关键词检索技能索引并给出 SKILL.md 路径（分层路由的按需加载入口）
+description: 按关键词检索技能索引并给出 SKILL.md 路径（分层路由的按需加载入口）。触发词：加载技能、技能索引、按需加载、技能路径、查技能、查一下技能
 ---
 
 # /skill-load —— 按需检索技能

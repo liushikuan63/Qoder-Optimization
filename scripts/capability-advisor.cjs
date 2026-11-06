@@ -9,6 +9,7 @@ const { collectSkills } = require('./build-skills-index.cjs');
 const { clientRoot: resolveClientRoot } = require('./client-root.js');
 
 const ACTIONS = ['UPDATE', 'REVIEW_UPDATE', 'ASK_INSTALL', 'ASK_USE', 'AUTO_USE', 'AUTO_LOAD', 'KEEP', 'SKIP'];
+const skillDescriptionCache = new Map();
 const GENERIC = new Set([
   'skill:parallel-orchestration', 'skill:office-docs', 'skill:write-repowiki',
   'skill:counterexample-driven-plan-review', 'skill:rules-conflict-audit',
@@ -25,7 +26,7 @@ const ROUTES = {
   'verify-before-claim': [['验证'], ['验收'], ['回归'], ['测试'], ['verify'], ['test']],
   'verify-ui-in-browser': [['浏览器'], ['页面'], ['界面'], ['playwright'], ['browser'], ['ui']],
   'ship-clean-pr': [['提交'], ['推送'], ['pull request'], ['pr'], ['commit']],
-  'continuation-state-audit': [['接续'], ['继续任务'], ['恢复进度'], ['压缩'], ['continuation']],
+  'continuation-state-audit': [['接续'], ['继续任务'], ['恢复进度'], ['压缩'], ['continuation'], ['上次', '做完'], ['上次', '完成'], ['交付', '复核']],
   'concurrent-edit-attribution-check': [['同一文件'], ['多人编辑'], ['并发编辑'], ['并行会话'], ['共享工作区'], ['concurrent']],
   'parallel-orchestration': [['并行'], ['多 agent'], ['多agent'], ['parallel'], ['worktree'], ['多模块'], ['多个模块'], ['跨模块'], ['多文件'], ['多个文件'], ['任务拆分'], ['模块拆分'], ['独立模块'], ['依赖图'], ['拆分', '模块'], ['同时', '处理'], ['同时', '做'], ['一起', '做'], ['分工'], ['并发'], ['子代理'], ['subagent'], ['前后端'], ['全项目'], ['整个项目'], ['全仓'], ['全仓库'], ['多个项目'], ['多项目'], ['多个版本'], ['多版本'], ['多个代码库'], ['多代码库'], ['多个服务'], ['多服务'], ['跨服务'], ['多个端'], ['多端'], ['三端'], ['多套'], ['三套'], ['审查', '项目'], ['审阅', '项目'], ['分析', '项目'], ['介绍', '项目'], ['评估', '项目'], ['梳理', '项目'], ['整体', '分析'], ['整体', '审查'], ['项目', '架构'], ['审查', '完整版'], ['审查', 'lite'], ['完整版', 'lite'], ['完整版', 'svn'], ['全部代码']],
   'vibe-coding-workflow': [['实现功能'], ['开发功能'], ['vibecoding'], ['vibe coding']],
@@ -113,9 +114,50 @@ function discussionOnly(prompt) {
     || /(?:是什么|什么意思|是否合适|是否应该|是否已经|是否已安装|安装了?吗|启用了?吗|怎么样)[？?\s]*$/.test(value);
 }
 
-function routeScore(entry, prompt) {
-  if (termMatches(prompt, entry.id) || termMatches(prompt, entry.name)) return 100;
+function commandDescription(entry, clientDir, bindings) {
+  if (entry.category !== 'command') return '';
+  try {
+    const file = path.join(clientDir, 'commands', entry.name + '.md');
+    if (!ordinaryWithin(clientDir, file, false, bindings)) return '';
+    const match = fs.readFileSync(file, 'utf8').match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    const line = match && match[1].match(/^description:\s*(.+)$/m);
+    return line ? line[1] : '';
+  } catch {
+    return '';
+  }
+}
+
+function localSkillDescription(entry, clientDir, bindings) {
+  for (const tier of ['skills', 'skills-library']) {
+    const file = path.join(clientDir, tier, entry.name, 'SKILL.md');
+    if (!ordinaryWithin(clientDir, file, false, bindings)) continue;
+    try {
+      const stat = fs.statSync(file), key = file + ':' + stat.mtimeMs;
+      if (skillDescriptionCache.has(key)) return skillDescriptionCache.get(key);
+      const match = fs.readFileSync(file, 'utf8').match(/^---\r?\n([\s\S]*?)\r?\n---/);
+      const line = match && match[1].match(/^description:\s*(.+)$/m);
+      const value = line ? line[1] : '';
+      skillDescriptionCache.set(key, value);
+      return value;
+    } catch {}
+  }
+  return '';
+}
+
+function descriptionTriggerScore(entry, prompt, clientDir, bindings) {
+  const local = entry.category === 'command' ? commandDescription(entry, clientDir, bindings)
+    : entry.category === 'skill' ? localSkillDescription(entry, clientDir, bindings) : '';
+  const words = new Set([...triggerWords(entry.description), ...triggerWords(local)]);
   let score = 0;
+  for (const word of words) {
+    if (termMatches(prompt, word)) score = Math.max(score, entry.category === 'command' ? 25 : 20);
+  }
+  return score;
+}
+
+function routeScore(entry, prompt, clientDir, bindings) {
+  if (termMatches(prompt, entry.id) || termMatches(prompt, entry.name)) return 100;
+  let score = descriptionTriggerScore(entry, prompt, clientDir, bindings);
   for (const words of ROUTES[entry.name] || []) if (words.every(word => termMatches(prompt, word))) score = Math.max(score, 10 + words.length * 5 + words.reduce((sum, word) => sum + word.length, 0));
   return score;
 }
@@ -136,8 +178,29 @@ function localSkillEntries(clientDir, catalog, bindings) {
   });
 }
 
+function localCommandEntries(clientDir, catalog, bindings) {
+  const catalogNames = new Set(catalog.entries.map(entry => String(entry.name).toLowerCase()));
+  const dir = path.join(clientDir, 'commands');
+  let files;
+  try { files = fs.readdirSync(dir); } catch { return []; }
+  const entries = [];
+  for (const file of files.sort()) {
+    if (!file.endsWith('.md')) continue;
+    const name = file.slice(0, -3);
+    if (catalogNames.has(name.toLowerCase())) continue;
+    const target = path.join(dir, file);
+    if (!ordinaryWithin(clientDir, target, false, bindings)) continue;
+    try {
+      const match = fs.readFileSync(target, 'utf8').match(/^---\r?\n([\s\S]*?)\r?\n---/);
+      const line = match && match[1].match(/^description:\s*(.+)$/m);
+      entries.push({ name, category: 'command', path: target, description: line ? line[1] : '' });
+    } catch {}
+  }
+  return entries;
+}
+
 function triggerWords(description) {
-  const match = /触发词[:：]\s*([^。\n]+)/.exec(String(description || ''));
+  const match = /触发词?[:：]\s*([^。\n]+)/.exec(String(description || ''));
   if (!match) return [];
   return match[1].split(/[、,，/|]+/).map(word => word.trim()).filter(word => word.length >= 2 && word.length <= 20);
 }
@@ -231,7 +294,7 @@ function planCapabilities(options = {}) {
   const planned = [];
   if (hasCatalog) catalog.entries.forEach((entry, index) => {
     const intent = intentFor(prompt, entry), requested = intent === 'use' || intent === 'install';
-    const score = phase === 'task' ? routeScore(entry, routeText) : 0;
+    const score = phase === 'task' ? routeScore(entry, routeText, clientDir, options.bindings) : 0;
     if (phase === 'task' && !score && !requested) return;
     const metadata = [entry.id, entry.name, entry.description || ''].join(' ');
     const preferred = prefs.preferredIds.includes(text(entry.id)) || prefs.preferredKeywords.some(keyword => termMatches(metadata, keyword));
@@ -254,7 +317,8 @@ function planCapabilities(options = {}) {
     else if (!sourcePath(entry, root)) decide('SKIP', ['plugin', 'mcp'].includes(entry.category) ? 'PLATFORM_STATE_UNVERIFIED' : 'PACKAGE_SOURCE_UNAVAILABLE');
     else if (installedPaths.length > 1) decide('REVIEW_UPDATE', 'AMBIGUOUS_INSTALLED_TIERS');
     else if (presence.present === true) {
-      if (phase === 'task' && intent === 'use' && ordinaryWithin(clientDir, output.entryPath, false, options.bindings)) { decide('KEEP', 'EXPLICIT_USE_REQUEST'); output.authorized = true; }
+      if (entry.category === 'command' && ordinaryWithin(clientDir, output.entryPath, false, options.bindings)) decide('ASK_USE', 'RELEVANT_INSTALLED_COMMAND');
+      else if (phase === 'task' && intent === 'use' && ordinaryWithin(clientDir, output.entryPath, false, options.bindings)) { decide('KEEP', 'EXPLICIT_USE_REQUEST'); output.authorized = true; }
       else if (presence.differs !== false) {
         output.baseline = baselineFor(entry, installedPaths, previous, clientDir, options.bindings);
         if (presence.differs === true && output.baseline.verified) { decide('UPDATE', 'PRISTINE_PREVIOUS_SOURCE'); output.autoUpdate = true; }
@@ -268,6 +332,32 @@ function planCapabilities(options = {}) {
     planned.push({ output, score: score + (requested ? 1000 : 0) + (preferred ? 3 : 0), index });
   });
   if (phase === 'task') {
+    // 未进入包登记的本地命令也必须能按描述召回；命令更具体，优先于泛化技能。
+    const localCommands = localCommandEntries(clientDir, catalog, options.bindings)
+      .map(entry => ({ entry, intent: intentFor(prompt, { id: 'command:' + entry.name, name: entry.name }), score: descriptionTriggerScore(entry, routeText, clientDir, options.bindings) }))
+      .filter(item => item.intent !== 'decline' && (item.intent === 'use' || (!discussion && prefs.enabled && !excludedLocalSkill(item.entry, prefs))))
+      .filter(item => item.intent === 'use' || item.score > 0)
+      .sort((a, b) => (b.intent === 'use') - (a.intent === 'use') || b.score - a.score || a.entry.name.localeCompare(b.entry.name));
+    let automaticCommands = 0;
+    for (const { entry, intent, score } of localCommands) {
+      if (intent !== 'use' && automaticCommands++ >= 1) continue;
+      const authorized = intent === 'use';
+      planned.push({
+        output: {
+          id: 'command:' + entry.name, name: entry.name, category: 'command',
+          action: authorized ? 'KEEP' : 'ASK_USE',
+          reason: authorized ? 'EXPLICIT_USE_REQUEST' : 'RELEVANT_LOCAL_COMMAND',
+          entry: null, present: true, differs: false,
+          installedPaths: [path.dirname(entry.path)], installedPath: path.dirname(entry.path), entryPath: path.resolve(entry.path),
+          generic: false, preferred: false, matched: true, requested: authorized, authorized,
+          autoUpdate: false, maintenanceNeeded: false,
+          baseline: { verified: false, catalogFile: previous.file, reason: 'NOT_NEEDED' },
+          requiresConfirmation: !authorized, local: true,
+        },
+        score: score + (authorized ? 1000 : 2),
+        index: catalog.entries.length,
+      });
+    }
     // 本地候选与包候选共同筛选：领域技能不再被通用候选挤掉；当前拒绝与点名使用同路处理。
     const local = localSkillEntries(clientDir, catalog, options.bindings)
       .map(entry => ({ entry, intent: intentFor(prompt, { id: 'skill:' + entry.name, name: entry.name }) }))

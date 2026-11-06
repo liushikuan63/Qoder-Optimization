@@ -1,6 +1,6 @@
 ---
 name: checkpoint
-description: 快速落盘接续点：把「当前状态 / 下一步 / 阻塞点 / 关键入口」写进项目根 .qoder-work-queue.md 并自检可接续
+description: 快速落盘接续点：把「当前状态 / 下一步 / 阻塞点 / 关键入口」写进项目根 .qoder-work-queue.md 并自检可接续。触发词：落盘、接续点、记录当前进度、保存进度、工作队列
 ---
 
 # /checkpoint（过程落盘 → 自检可接续）
