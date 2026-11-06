@@ -1,4 +1,4 @@
-# Qoder-Optimization-0.0.29 安装说明
+# Qoder-Optimization-0.0.30 安装说明
 
 ## 包内容与落点
 
@@ -15,6 +15,10 @@
 | `qoder-memory-export-*.tar.gz` | 通用脱敏记忆包（方法论与工具类，已剔除个人与内网信息）；解包后 `rules-summary.md` 就是**筛选菜单**（逐条勾选） | 按提示词文档第 3 步筛选后并入 `~/.qoder/memory/` |
 
 ## 先核对能力，再安装和使用
+
+安装器及技能升降级会同时维护机器索引 `skills-index.json` 和人读导航 `SKILLS.md`，两份派生文件随事务一起提交或回滚。手动编辑技能后，运行 `node ~/.qoder/scripts/build-skills-index.cjs` 重建；加 `--check` 只检查导航是否过期，检索本身不写盘。
+
+实验性上下文工具按需选择：`node scripts/install-package.cjs --yes --install script:context-governor.cjs`，再读已安装脚本的 `--help`。`report --transcript <文件>` 报告用量，`fold --summary <文件> --dry-run` 预览逻辑折叠，`show --range <句柄>` 分页追回原文；可用 `--data-dir <目录>` 指定本地账本位置。逻辑回执不代表模型请求已压缩：没有独立物理执行证据时 `physicalSavings=0`。`--record false` 不保存加载清单。可选 `context-governor-hook.cjs` 默认不接入 settings，接线和实际宿主事件须另行验证。
 
 Windows 从包根 `install.cmd` 开始；跨平台可运行 `node scripts/install-package.cjs`。主入口主动检查本地已有和缺失能力，默认展示计划，不整包搬入常驻目录。
 

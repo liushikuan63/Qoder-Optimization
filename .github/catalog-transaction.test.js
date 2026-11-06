@@ -94,6 +94,41 @@ test('exclusive index publication preserves a path created after the precommit c
   assert.equal(fs.existsSync(f.target), false);
 }));
 
+test('failed catalog publication rolls back the skill and both metadata views', () => fixture(f => {
+  const catalogFile = path.join(f.client, 'SKILLS.md');
+  fs.writeFileSync(f.index, 'original index');
+  fs.writeFileSync(catalogFile, 'original catalog');
+  const preload = f.hook('const fs=require("fs"),open=fs.openSync;fs.openSync=function(p,flags,...args){if(p===' + JSON.stringify(catalogFile) + '&&flags==="wx")throw new Error("catalog publication fault");return open(p,flags,...args);};');
+  const r = f.run([], preload);
+  assert.notEqual(r.status, 0, r.stdout + r.stderr);
+  assert.equal(fs.readFileSync(f.index, 'utf8'), 'original index');
+  assert.equal(fs.readFileSync(catalogFile, 'utf8'), 'original catalog');
+  assert.equal(fs.existsSync(f.target), false);
+}));
+
+test('catalog CAS preserves a concurrent edit and restores the index', () => fixture(f => {
+  const catalogFile = path.join(f.client, 'SKILLS.md');
+  fs.writeFileSync(f.index, 'original index');
+  fs.writeFileSync(catalogFile, 'original catalog');
+  const preload = f.hook('const fs=require("fs"),rename=fs.renameSync;let fired=false;fs.renameSync=function(a,b){if(!fired&&a===' + JSON.stringify(catalogFile) + '){fired=true;fs.writeFileSync(a,"parallel catalog");}return rename(a,b);};');
+  const r = f.run([], preload);
+  assert.notEqual(r.status, 0, r.stdout + r.stderr);
+  assert.equal(fs.readFileSync(f.index, 'utf8'), 'original index');
+  assert.equal(fs.readFileSync(catalogFile, 'utf8'), 'parallel catalog');
+  assert.equal(fs.existsSync(f.target), false);
+}));
+
+test('catalog rollback preserves a replacement arriving after its ownership read', () => fixture(f => {
+  const file = path.join(f.client, 'SKILLS.md');
+  fs.writeFileSync(f.index, 'original index');
+  fs.writeFileSync(file, 'original catalog');
+  const preload = f.hook('const fs=require("fs"),stat=fs.statSync,read=fs.readFileSync;let failed=false,raced=false;fs.statSync=function(p,...args){if(!failed&&p===' + JSON.stringify(f.target) + '&&read(' + JSON.stringify(file) + ',"utf8").startsWith("# 技能目录")){failed=true;throw new Error("post-metadata fault");}return stat(p,...args);};fs.readFileSync=function(p,...args){const b=read(p,...args);if(failed&&!raced&&p===' + JSON.stringify(file) + '){raced=true;fs.renameSync(p,' + JSON.stringify(path.join(f.base, 'owned-catalog')) + ');fs.writeFileSync(p,"parallel catalog late");}return b;};');
+  const r = f.run([], preload);
+  assert.notEqual(r.status, 0, r.stdout + r.stderr);
+  assert.equal(fs.readFileSync(file, 'utf8'), 'parallel catalog late');
+  assert.equal(fs.existsSync(f.target), false);
+}));
+
 test('script-only installation does not inspect or modify the skill index', () => fixture(f => {
   fs.mkdirSync(path.join(f.pkg, 'scripts'));
   fs.writeFileSync(path.join(f.pkg, 'scripts/demo.js'), 'console.log("script fixture");');

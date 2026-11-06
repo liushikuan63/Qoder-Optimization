@@ -2,13 +2,13 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.0.29"
+  "version": "0.0.30"
  },
  "generated": "2026-11-06",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 133,
-  "script": 146,
+  "script": 150,
   "command": 11,
   "agent": 2
  },
@@ -2221,6 +2221,56 @@
    "source": "scripts/config-doctor.cjs",
    "dependencies": [
     "script:client-root.js"
+   ]
+  },
+  {
+   "id": "script:context-governor-hook.cjs",
+   "category": "script",
+   "name": "context-governor-hook.cjs",
+   "status": "shipped",
+   "source": "scripts/context-governor-hook.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:context-governor.cjs"
+   ]
+  },
+  {
+   "id": "script:context-governor-hook.test.js",
+   "category": "script",
+   "name": "context-governor-hook.test.js",
+   "status": "shipped",
+   "source": "scripts/context-governor-hook.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:context-governor-hook.cjs"
+   ]
+  },
+  {
+   "id": "script:context-governor.cjs",
+   "category": "script",
+   "name": "context-governor.cjs",
+   "status": "shipped",
+   "source": "scripts/context-governor.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": []
+  },
+  {
+   "id": "script:context-governor.test.js",
+   "category": "script",
+   "name": "context-governor.test.js",
+   "status": "shipped",
+   "source": "scripts/context-governor.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:context-governor.cjs"
    ]
   },
   {

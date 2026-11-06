@@ -153,8 +153,10 @@ function main(argv) {
   const builder = path.join(__dirname, 'build-skills-index.cjs');
   if (!fs.existsSync(builder)) throw new Error('缺少 build-skills-index.cjs，未执行迁移');
   const indexFile = path.join(root, 'skills-index.json'), indexBefore = fileSnapshot(indexFile);
+  const catalogFile = path.join(root, 'SKILLS.md'), catalogBefore = fileSnapshot(catalogFile);
   const stage = fs.mkdtempSync(path.join(root, '.tier-transaction-'));
   const stagedIndex = path.join(stage, 'new-index.json');
+  const stagedCatalog = path.join(stage, 'new-catalog.md');
   const moved = [], applied = [];
   let preserve = false;
   try {
@@ -162,11 +164,12 @@ function main(argv) {
     for (const item of plan) { assertTiers(); fs.renameSync(item.from, item.to); moved.push(item); }
     // Collect into our private stage. A failed resident CAS must not leave an
     // index pointing at tier moves that are about to be rolled back.
-    const code = "const fs=require('node:fs'),b=require(process.argv[1]);const entries=b.collectSkills();if(!Array.isArray(entries))throw new Error('invalid index entries');fs.writeFileSync(process.argv[2],JSON.stringify({generated_at:new Date().toISOString(),count:entries.length,entries},null,1),{flag:'wx',mode:0o600});";
-    const result = spawnSync(process.execPath, ['-e', code, builder, stagedIndex], { encoding: 'utf8', timeout: 60000 });
+    const code = "const fs=require('node:fs'),b=require(process.argv[1]);const entries=b.collectSkills();if(!Array.isArray(entries))throw new Error('invalid index entries');fs.writeFileSync(process.argv[2],JSON.stringify({generated_at:new Date().toISOString(),count:entries.length,entries},null,1),{flag:'wx',mode:0o600});fs.writeFileSync(process.argv[3],b.renderCatalog(entries),{flag:'wx',mode:0o600});";
+    const result = spawnSync(process.execPath, ['-e', code, builder, stagedIndex, stagedCatalog], { encoding: 'utf8', timeout: 60000, env: { ...process.env, QODER_HOME: root } });
     if (result.error || result.status !== 0) throw new Error('索引重建失败，exit=' + result.status);
     if (!sameFile(fileSnapshot(residentFile), residentBefore)) throw new Error('常驻清单在迁移期间已变化，保留其他写入者的选择');
     publishFile(indexFile, stagedIndex, indexBefore, stage, applied);
+    publishFile(catalogFile, stagedCatalog, catalogBefore, stage, applied);
     // Persist only explicit promote/demote choices; --keep and --restore-all
     // remain one-off operations. Package upgrades never own this file.
     if (restoring && !restoreAll) writeResident(residentFile, [...extras, ...restore], residentBefore);

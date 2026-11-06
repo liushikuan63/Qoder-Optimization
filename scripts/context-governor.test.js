@@ -255,6 +255,7 @@ test('context-governor core', async (t) => {
     assert.equal(result.receipt.phase, 'logical_committed');
     assert.equal(result.receipt.physicalSavings, 0);
     assert.equal(fs.existsSync(path.join(c.dataDir, 'ledgers', 'fixture-session.db')), false);
+    assert.equal(fs.existsSync(c.dataDir), false, 'preview must not create its data directory');
   });
 
   await t.test('fold commits logical receipt, search and show recover exact range', () => {
@@ -554,7 +555,12 @@ test('context-governor core', async (t) => {
   });
 
   await t.test('edge fixture, CRLF, empty and oversized sources stay bounded', () => {
-    const fixture = path.join(__dirname, 'fixtures', 'context-governor', 'edge-cases.jsonl');
+    // Keep fixtures self-contained: these tests also run from installed scripts.
+    const fixture = path.join(ROOT, 'edge-cases.jsonl');
+    fs.writeFileSync(fixture, [
+      { type: 'user', uuid: 'edge-1', sessionId: 'edge-session', cwd: 'D:/tmp/fixture', message: { role: 'user', content: '中文夹具：保留授权边界与验收判据。' }, usage: { input_tokens: 1200, cache_read_input_tokens: 100, output_tokens: 12, context_usage_ratio: 0.006 }, model: 'edge-model' },
+      { type: 'assistant', uuid: 'edge-2', sessionId: 'edge-session', cwd: 'D:/tmp/fixture', message: { role: 'assistant', content: 'missing usage line' } },
+    ].map(row => JSON.stringify(row)).join('\n') + '\n');
     const parsed = gov.readTranscript(fixture);
     assert.equal(parsed.sessionId, 'edge-session');
     assert.equal(parsed.usages.length, 1);
@@ -656,6 +662,112 @@ test('context-governor core', async (t) => {
     const result = gov.cmdPrune({ dataDir: c.dataDir, apply: true, json: true });
     assert.equal(result.code, 1);
     assert.ok(result.error.includes('--ids'));
+  });
+
+  await t.test('show pagination preserves UTF-8 source bytes across Chinese and emoji', () => {
+    const c = makeCase();
+    const rows = fs.readFileSync(c.transcriptPath, 'utf8').trimEnd().split('\n').map(JSON.parse);
+    rows.find((row) => row.uuid === 'f-2').message.content = '中文😀🚀'.repeat(3500);
+    fs.writeFileSync(c.transcriptPath, rows.map((row) => JSON.stringify(row)).join('\n') + '\n', 'utf8');
+    c.parsed = gov.readTranscript(c.transcriptPath);
+    const summary = makeSummary(c, 'f-2', 'f-15');
+    const summaryPath = writeJson(c, 'summary-unicode.json', summary);
+    const folded = gov.cmdFold({ summary: summaryPath, transcript: c.transcriptPath, dataDir: c.dataDir });
+    assert.equal(folded.code, 0, JSON.stringify(folded));
+    const expected = fs.readFileSync(c.transcriptPath).subarray(summary.sourceRange.startOffset, summary.sourceRange.endOffset);
+    const pages = [];
+    let cursor = 0;
+    let pageCount = 0;
+    do {
+      const shown = gov.cmdShow({ range: folded.receipt.segmentIds[0], session: c.parsed.sessionId, dataDir: c.dataDir, cursor });
+      assert.equal(shown.code, 0, JSON.stringify(shown));
+      const result = shown.result;
+      const page = Buffer.from(result.text, 'utf8');
+      assert.ok(page.equals(expected.subarray(cursor, result.excerptRange.endOffset)), `page ${pageCount} changed UTF-8 bytes`);
+      assert.equal(sha256(page), result.excerptHash);
+      assert.ok(gov.estimateTokens(result.text) <= 2000);
+      assert.ok(result.excerptRange.endOffset > cursor);
+      pages.push(page);
+      cursor = result.nextCursor;
+      pageCount += 1;
+      assert.ok(pageCount < 100);
+    } while (cursor !== null);
+    assert.ok(pageCount > 1);
+    assert.deepEqual(Buffer.concat(pages), expected);
+  });
+
+  await t.test('show rejects cursors outside integer UTF-8 boundaries', () => {
+    const c = makeCase();
+    const rows = fs.readFileSync(c.transcriptPath, 'utf8').trimEnd().split('\n').map(JSON.parse);
+    rows.find((row) => row.uuid === 'f-2').message.content = '中文😀🚀'.repeat(3500);
+    fs.writeFileSync(c.transcriptPath, rows.map((row) => JSON.stringify(row)).join('\n') + '\n', 'utf8');
+    c.parsed = gov.readTranscript(c.transcriptPath);
+    const summary = makeSummary(c, 'f-2', 'f-15');
+    const summaryPath = writeJson(c, 'summary-cursor.json', summary);
+    const folded = gov.cmdFold({ summary: summaryPath, transcript: c.transcriptPath, dataDir: c.dataDir });
+    assert.equal(folded.code, 0, JSON.stringify(folded));
+    const rangeBuf = fs.readFileSync(c.transcriptPath).subarray(summary.sourceRange.startOffset, summary.sourceRange.endOffset);
+    const continuationByte = rangeBuf.indexOf(Buffer.from('中')) + 1;
+    assert.ok(continuationByte > 0);
+    for (const cursor of [-1, 1.5, 'invalid', continuationByte, rangeBuf.length + 1]) {
+      const shown = gov.cmdShow({ range: folded.receipt.segmentIds[0], session: c.parsed.sessionId, dataDir: c.dataDir, cursor });
+      assert.equal(shown.code, 1, `cursor ${cursor} must be rejected`);
+    }
+  });
+
+  await t.test('fold dry-run preserves existing segment references without changing the ledger', () => {
+    const c = makeCase();
+    const firstPath = writeJson(c, 'summary-existing-first.json', makeSummary(c, 'f-2', 'f-8'));
+    const first = gov.cmdFold({ summary: firstPath, transcript: c.transcriptPath, dataDir: c.dataDir, force: true, reason: 'independent range fixture' });
+    assert.equal(first.code, 0, JSON.stringify(first));
+    const summary = makeSummary(c, 'f-12', 'f-15', { evidence: [{ ref: first.receipt.segmentIds[0] }] });
+    const secondPath = writeJson(c, 'summary-existing-second.json', summary);
+    const args = { summary: secondPath, transcript: c.transcriptPath, dataDir: c.dataDir, force: true, reason: 'independent range fixture' };
+    const ledger = path.join(c.dataDir, 'ledgers', c.parsed.sessionId + '.db');
+    const before = fs.readFileSync(ledger);
+    const preview = gov.cmdFold({ ...args, dryRun: true });
+    assert.equal(preview.code, 0, JSON.stringify(preview));
+    assert.deepEqual(fs.readFileSync(ledger), before);
+    const beforeApply = gov.cmdVerify({ session: c.parsed.sessionId, dataDir: c.dataDir });
+    assert.equal(beforeApply.folds, 1);
+    assert.equal(beforeApply.segments, 1);
+    const applied = gov.cmdFold(args);
+    assert.equal(applied.code, 0, JSON.stringify(applied));
+  });
+
+  await t.test('fold dry-run and apply both reject a previously committed range', () => {
+    const c = makeCase();
+    const summaryPath = writeJson(c, 'summary-duplicate.json', makeSummary(c, 'f-2', 'f-15'));
+    const args = { summary: summaryPath, transcript: c.transcriptPath, dataDir: c.dataDir };
+    const folded = gov.cmdFold(args);
+    assert.equal(folded.code, 0, JSON.stringify(folded));
+    const ledger = path.join(c.dataDir, 'ledgers', c.parsed.sessionId + '.db');
+    const before = fs.readFileSync(ledger);
+    const preview = gov.cmdFold({ ...args, dryRun: true });
+    assert.equal(preview.code, 1, JSON.stringify(preview));
+    assert.ok(preview.errors.some((error) => error.includes('already exists')));
+    assert.deepEqual(fs.readFileSync(ledger), before);
+    const applied = gov.cmdFold(args);
+    assert.equal(applied.code, preview.code);
+    assert.deepEqual(applied.errors, preview.errors);
+  });
+
+  await t.test('load-manifest CLI records only when the boolean flag enables it', () => {
+    const c = makeCase();
+    const input = writeJson(c, 'record-boolean.json', { taskId: 'record-boolean', activeACs: [], sources: [] });
+    const cli = path.join(__dirname, 'context-governor.cjs');
+    for (const value of ['false', '0']) {
+      const result = spawnSync(process.execPath, [cli, 'load-manifest', '--input', input, '--data-dir', c.dataDir, '--record', value, '--json'], { encoding: 'utf8', timeout: 30000 });
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(JSON.parse(result.stdout).manifest.recorded, undefined);
+      assert.equal(fs.existsSync(path.join(c.dataDir, 'load-manifests')), false);
+    }
+    const enabled = spawnSync(process.execPath, [cli, 'load-manifest', '--input', input, '--data-dir', c.dataDir, '--record', '--json'], { encoding: 'utf8', timeout: 30000 });
+    assert.equal(enabled.status, 0, enabled.stderr);
+    const recorded = JSON.parse(enabled.stdout).manifest.recorded;
+    assert.equal(typeof recorded, 'string');
+    assert.ok(fs.existsSync(recorded));
+    assert.equal(fs.readdirSync(path.join(c.dataDir, 'load-manifests')).length, 1);
   });
 
   await t.test('verify and show detect middle tampering after fold', () => {

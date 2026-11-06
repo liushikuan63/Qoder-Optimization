@@ -223,7 +223,7 @@ function prepare(options = {}) {
   }
   try { const stat = fs.statSync(client); if (!stat.isDirectory()) throw new Error('客户端路径不是目录'); plan.clientIdentity = { ino: stat.ino, dev: stat.dev }; }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
-  for (const file of [pointer, settings, path.join(client, 'skills-index.json'), path.join(client, 'package-activation.json'), residentFile]) { assertPath(plan, file); snapshot(file); }
+  for (const file of [pointer, settings, path.join(client, 'skills-index.json'), path.join(client, 'SKILLS.md'), path.join(client, 'package-activation.json'), residentFile]) { assertPath(plan, file); snapshot(file); }
   let previous = {};
   if (fs.existsSync(pointer)) {
     try { previous = JSON.parse(fs.readFileSync(pointer, 'utf8')); }
@@ -358,6 +358,7 @@ function prepare(options = {}) {
   plan.pointerBefore = snapshot(pointer);
   plan.pointerValue = { ...previous, catalog: catalogFile, ...(typeof previous.catalog === 'string' && previous.catalog !== catalogFile ? { previous_catalog: previous.catalog } : {}), registered_at: new Date().toISOString().slice(0, 10) };
   plan.indexBefore = snapshot(path.join(client, 'skills-index.json'));
+  plan.catalogBefore = snapshot(path.join(client, 'SKILLS.md'));
   plan.receiptBefore = snapshot(path.join(client, 'package-activation.json'));
   return plan;
 }
@@ -543,11 +544,14 @@ function apply(plan, options = {}) {
       // Collect the actual two installed tiers after publication. Stage-only
       // indexes omit unrelated skills and contain transient absolute paths.
       const index = path.join(stage, 'skills-index.json');
-      const code = "const fs=require('node:fs'),b=require(process.argv[1]);const entries=b.collectSkills();fs.writeFileSync(process.argv[2],JSON.stringify({generated_at:new Date().toISOString(),count:entries.length,entries,diagnostics:entries.diagnostics||[]},null,1),{flag:'wx',mode:0o600});";
+      const catalog = path.join(stage, 'SKILLS.md');
+      // Both views must describe the same collected tiers and share rollback.
+      const code = "const fs=require('node:fs'),b=require(process.argv[1]);const entries=b.collectSkills();fs.writeFileSync(process.argv[2],JSON.stringify({generated_at:new Date().toISOString(),count:entries.length,entries,diagnostics:entries.diagnostics||[]},null,1),{flag:'wx',mode:0o600});fs.writeFileSync(process.argv[3],b.renderCatalog(entries),{flag:'wx',mode:0o600});";
       verifySources(); verifyFrozen();
-      const result = spawnSync(process.execPath, ['-e', code, path.join(frozenPackage, 'scripts/build-skills-index.cjs'), index], { env: { ...process.env, QODER_HOME: plan.client }, encoding: 'utf8', timeout: 60000 });
+      const result = spawnSync(process.execPath, ['-e', code, path.join(frozenPackage, 'scripts/build-skills-index.cjs'), index, catalog], { env: { ...process.env, QODER_HOME: plan.client }, encoding: 'utf8', timeout: 60000 });
       if (result.status !== 0) throw new Error('真实客户端技能索引生成失败：' + String(result.stderr || '').slice(0, 200));
       publish({ id: 'metadata:skills-index', target: path.join(plan.client, 'skills-index.json'), before: plan.indexBefore, staged: index });
+      publish({ id: 'metadata:skills-catalog', target: path.join(plan.client, 'SKILLS.md'), before: plan.catalogBefore, staged: catalog });
       for (const rule of plan.rules) {
         const file = path.join(stage, 'rule-' + path.basename(rule.rel));
         fs.writeFileSync(file, rule.bytes, { flag: 'wx', mode: 0o600 });

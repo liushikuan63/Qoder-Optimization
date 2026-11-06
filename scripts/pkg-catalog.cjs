@@ -325,18 +325,20 @@ function installTarget(e, root) {
   return null;
 }
 
-function rebuildIndex(output) {
+function rebuildIndex(output, catalogOutput) {
   const script = path.join(QODER, 'scripts', 'build-skills-index.cjs');
   if (!fs.existsSync(script)) return '索引未重建（build-skills-index.cjs 不在 ~/.qoder/scripts）';
   // The builder exports a read-only collector. Invoke that API in a child so a
   // failed/older builder cannot commit an index that the installer cannot own.
   const runner = "const fs=require('fs'),builder=require(process.argv[1]);" +
-    "if(typeof builder.collectSkills!=='function')throw new Error('builder lacks collectSkills');" +
+    "if(typeof builder.collectSkills!=='function'||typeof builder.renderCatalog!=='function')throw new Error('索引生成器版本过旧，请先运行主安装器升级');" +
     "const entries=builder.collectSkills();if(!Array.isArray(entries))throw new Error('invalid skill index entries');" +
-    "fs.writeFileSync(process.argv[2],JSON.stringify({generated_at:new Date().toISOString(),count:entries.length,entries},null,1),{flag:'wx'});";
-  const r = spawnSync(process.execPath, ['-e', runner, script, output], { encoding: 'utf8', timeout: 60000, env: { ...process.env, QODER_HOME: QODER } });
+    "fs.writeFileSync(process.argv[2],JSON.stringify({generated_at:new Date().toISOString(),count:entries.length,entries},null,1),{flag:'wx'});" +
+    "fs.writeFileSync(process.argv[3],builder.renderCatalog(entries),{flag:'wx'});";
+  const r = spawnSync(process.execPath, ['-e', runner, script, output, catalogOutput], { encoding: 'utf8', timeout: 60000, env: { ...process.env, QODER_HOME: QODER } });
   if (r.status !== 0) throw new Error(`索引重建失败（exit=${r.status}）：${(r.stderr || '').slice(0, 200)}`);
   if (!fs.existsSync(output) || !fs.lstatSync(output).isFile() || fs.lstatSync(output).isSymbolicLink()) throw new Error('索引重建未生成可提交的普通文件');
+  if (!fs.existsSync(catalogOutput) || !fs.lstatSync(catalogOutput).isFile() || fs.lstatSync(catalogOutput).isSymbolicLink()) throw new Error('技能目录重建未生成可提交的普通文件');
   const index = readJson(output);
   if (!Array.isArray(index.entries) || index.count !== index.entries.length) throw new Error('重建的技能索引格式无效');
   return '索引已重建';
@@ -512,6 +514,9 @@ function cmdInstall() {
   const indexPath = path.join(QODER, 'skills-index.json');
   const indexBackup = path.join(stage, 'old-index.json');
   const stagedIndex = path.join(stage, 'new-index.json');
+  const catalogPath = path.join(QODER, 'SKILLS.md');
+  const catalogBackup = path.join(stage, 'old-catalog.md');
+  const stagedCatalog = path.join(stage, 'new-catalog.md');
   const indexSnapshot = file => {
     let st;
     try { st = fs.lstatSync(file); } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
@@ -526,10 +531,11 @@ function cmdInstall() {
   const applied = [], externalStages = [], stageTokens = new Map([[stage, stageToken]]);
   const assertStages = () => { for (const [dir, token] of stageTokens) require('./capability-roots.cjs').assertDirectory(dir, token); };
   const rebuildSkills = plan.some(item => item.entry.category === 'skill');
-  let restored = false, indexBefore, indexMoved = false, residentBefore, residentMoved = false;
-  const indexOwned = [], residentOwned = [];
+  let restored = false, indexBefore, indexMoved = false, catalogBefore, catalogMoved = false, residentBefore, residentMoved = false;
+  const indexOwned = [], catalogOwned = [], residentOwned = [];
   try {
     if (rebuildSkills) indexBefore = indexSnapshot(indexPath);
+    if (rebuildSkills) catalogBefore = indexSnapshot(catalogPath);
     if (coreSkills.length) {
       residentBefore = indexSnapshot(residentPath);
       const bytes = residentBytes(residentPath, coreSkills);
@@ -568,7 +574,7 @@ function cmdInstall() {
     }
     if (rebuildSkills) {
       assertBinding(); assertStages();
-      const message = rebuildIndex(stagedIndex);
+      const message = rebuildIndex(stagedIndex, stagedCatalog);
       assertBinding(); assertStages();
       if (fs.existsSync(stagedIndex)) {
         if (!sameIndex(indexSnapshot(indexPath), indexBefore)) throw new Error('技能索引在安装期间已变化，保留其他写入者的内容');
@@ -581,6 +587,15 @@ function cmdInstall() {
         }
         // Exclusive creation protects a concurrently recreated index path.
         copyExclusive(stagedIndex, indexPath, indexOwned);
+      }
+      if (fs.existsSync(stagedCatalog)) {
+        if (!sameIndex(indexSnapshot(catalogPath), catalogBefore)) throw new Error('技能目录在安装期间已变化，保留其他写入者的内容');
+        if (catalogBefore) {
+          fs.renameSync(catalogPath, catalogBackup);
+          catalogMoved = true;
+          if (!sameIndex(indexSnapshot(catalogBackup), catalogBefore)) throw new Error('技能目录在提交时已变化，保留实际移入备份的内容');
+        }
+        copyExclusive(stagedCatalog, catalogPath, catalogOwned);
       }
       console.log('  ' + message);
     }
@@ -639,6 +654,29 @@ function cmdInstall() {
         // Linking is exclusive: restoring a backup must never replace a path
         // created by another writer while skill-file rollback was running.
         try { fs.linkSync(indexBackup, indexPath); }
+        catch (restoreError) { if (restoreError.code === 'EEXIST') conflict = true; else throw restoreError; }
+      }
+      if (catalogOwned.length) {
+        const owned = catalogOwned[0];
+        let current;
+        try { current = indexSnapshot(catalogPath); } catch { conflict = true; }
+        if (current) {
+          if (!sameIndex(current, owned)) conflict = true;
+          else {
+            // Inspect the actual withdrawn object; an ownership read alone
+            // cannot authorize unlinking a path another writer has replaced.
+            const withdrawn = path.join(stage, 'withdrawn-catalog.md');
+            fs.renameSync(catalogPath, withdrawn);
+            if (sameIndex(indexSnapshot(withdrawn), owned)) fs.unlinkSync(withdrawn);
+            else {
+              try { fs.linkSync(withdrawn, catalogPath); } catch {}
+              conflict = true;
+            }
+          }
+        }
+      }
+      if (catalogMoved) {
+        try { fs.linkSync(catalogBackup, catalogPath); }
         catch (restoreError) { if (restoreError.code === 'EEXIST') conflict = true; else throw restoreError; }
       }
       if (residentOwned.length) {

@@ -44,6 +44,25 @@ function fixture(t) {
   return { home, client, env, old, next, run, put };
 }
 
+test('installed skill catalog follows fresh install, direct install and tier changes', t => {
+  const f = fixture(t);
+  const check = () => {
+    const r = spawnSync(process.execPath, [path.join(f.client, 'scripts/build-skills-index.cjs'), '--check'], { env: f.env, encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+  };
+  const installed = f.run(['--yes', '--json']);
+  assert.equal(installed.status, 0, installed.stdout + installed.stderr);
+  check();
+  const selected = spawnSync(process.execPath, [path.join(root, 'scripts/pkg-catalog.cjs'), 'install', 'skill:fixture-specialized', '--catalog', f.next.catalog, '--apply'], { env: f.env, encoding: 'utf8', timeout: 60000 });
+  assert.equal(selected.status, 0, selected.stdout + selected.stderr);
+  check();
+  for (const flag of ['--promote', '--demote']) {
+    const moved = spawnSync(process.execPath, [path.join(root, 'scripts/tier-skills.cjs'), flag, 'fixture-specialized', '--apply'], { env: f.env, encoding: 'utf8', timeout: 60000 });
+    assert.equal(moved.status, 0, moved.stdout + moved.stderr);
+    check();
+  }
+});
+
 test('new install selects model workflow while an existing route selection survives reconciliation', t => {
   const f = fixture(t), target = path.join(f.client, 'scripts/rules-reminder.js');
   const { settingsFor } = require(installer);

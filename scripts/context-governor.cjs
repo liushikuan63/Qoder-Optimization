@@ -203,7 +203,6 @@ function safeSessionId(sessionId) {
 
 function ledgerPath(dataDir, sessionId) {
   const dir = path.join(dataDir, 'ledgers');
-  ensureDir(dir);
   return path.join(dir, safeSessionId(sessionId) + '.db');
 }
 
@@ -216,6 +215,7 @@ function listLedgers(dataDir) {
 function openLedger(dataDir, sessionId, create = true) {
   const file = ledgerPath(dataDir, sessionId);
   if (!create && !fs.existsSync(file)) return null;
+  if (create) ensureDir(path.dirname(file));
   const db = new DatabaseSync(file);
   db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA busy_timeout = 5000');
@@ -678,6 +678,13 @@ function validateFold(summary, parsed, db, options = {}) {
   }
   if (options.force && !options.reason) return { code: 1, errors: ['--force requires --reason'] };
   const expectedSegmentId = 'seg-' + rangeHash.slice(0, 16);
+  const expectedFoldId = 'fold-' + integrityOf(summary).slice(0, 16);
+  if (db.prepare('SELECT id FROM folds WHERE id = ?').get(expectedFoldId)) {
+    return { code: 1, errors: [`fold already exists: ${expectedFoldId}`] };
+  }
+  if (db.prepare('SELECT id FROM segments WHERE id = ?').get(expectedSegmentId)) {
+    return { code: 1, errors: [`segment already exists: ${expectedSegmentId}`] };
+  }
   for (const ref of summaryRefs(summary)) {
     if (!resolveRef(db, summary, ref, expectedSegmentId)) return { code: 1, errors: [`unresolved ref: ${ref}`] };
   }
@@ -948,11 +955,17 @@ function cmdFold(args) {
     db.exec(SCHEMA_SQL);
     const existing = ledgerPath(dataDir, parsed.sessionId);
     if (fs.existsSync(existing)) {
-      const sourceDb = new DatabaseSync(existing);
+      const sourceDb = new DatabaseSync(existing, { readOnly: true });
       try {
-        for (const pin of listPins(sourceDb, parsed.sessionId)) {
-          db.prepare('INSERT INTO pins (id, session_id, text, source, created_at) VALUES (?, ?, ?, ?, ?)')
-            .run(pin.id, parsed.sessionId, pin.text, pin.source, pin.asOf);
+        // Validate against one existing snapshot, including recoverable refs and
+        // duplicate receipts. All copies remain in the in-memory preview ledger.
+        sourceDb.exec('BEGIN');
+        for (const table of ['pins', 'segments', 'folds']) {
+          const rows = sourceDb.prepare(`SELECT * FROM ${table}`).all();
+          if (!rows.length) continue;
+          const columns = Object.keys(rows[0]);
+          const insert = db.prepare(`INSERT INTO ${table} (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`);
+          for (const row of rows) insert.run(...columns.map((column) => row[column]));
         }
       } finally {
         sourceDb.close();
@@ -1091,11 +1104,17 @@ function cmdShow(args) {
       const rangeBuf = source.subarray(segment.start_offset, segment.end_offset);
       if (sha256(rangeBuf) !== segment.range_hash) return { code: 4, status: 'STALE', error: 'rangeHash mismatch; source changed' };
       if (args.full && !args.ackCost) return { code: 1, error: '--full requires --ack-cost' };
-      const cursor = Math.max(0, Number(args.cursor) || 0);
+      const cursor = args.cursor === undefined ? 0 : Number(args.cursor);
+      if (!Number.isSafeInteger(cursor) || cursor < 0) return { code: 1, error: 'cursor must be a non-negative integer byte offset' };
       if (cursor > rangeBuf.length) return { code: 1, error: 'cursor is beyond range' };
+      if (cursor < rangeBuf.length && (rangeBuf[cursor] & 0xc0) === 0x80) return { code: 1, error: 'cursor must be at a UTF-8 character boundary' };
       let end = args.full ? rangeBuf.length : Math.min(rangeBuf.length, cursor + 8000);
+      // nextCursor is a byte offset, but each response must contain whole UTF-8
+      // characters so concatenating text pages also recovers the exact bytes.
+      while (end > cursor && end < rangeBuf.length && (rangeBuf[end] & 0xc0) === 0x80) end -= 1;
       while (!args.full && end > cursor + 1 && estimateTokens(rangeBuf.subarray(cursor, end).toString('utf8')) > 2000) {
         end = cursor + Math.floor((end - cursor) * 0.8);
+        while (end > cursor && (rangeBuf[end] & 0xc0) === 0x80) end -= 1;
       }
       const excerpt = rangeBuf.subarray(cursor, end);
       return {
@@ -1465,7 +1484,7 @@ function toBool(value) {
 
 function normalizeArgs(raw) {
   const args = { ...raw };
-  for (const key of ['json', 'dryRun', 'force', 'full', 'ackCost', 'apply', 'all']) args[key] = toBool(raw[key]);
+  for (const key of ['json', 'dryRun', 'force', 'full', 'ackCost', 'apply', 'all', 'record']) args[key] = toBool(raw[key]);
   if (raw['dry-run'] !== undefined) args.dryRun = toBool(raw['dry-run']);
   if (raw['ack-cost'] !== undefined) args.ackCost = toBool(raw['ack-cost']);
   if (raw['data-dir']) args.dataDir = raw['data-dir'];

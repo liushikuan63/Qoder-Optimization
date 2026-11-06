@@ -6,9 +6,21 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.0.30] - 2026-11-06
+
 ### Added
 - Add the experimental `context-governor` CLI for measured usage reports, logical fold receipts with UTF-8 range hashes and protected ranges, scoped retrieval, handoff packs, pins, verification, pruning and on-demand load manifests. It never rewrites model requests and reports `physicalSavings=0` until an independent executor receipt exists.
 - Add a fail-open hook adapter that defaults to zero injection, emits a bounded restore pointer after compaction, and remains unwired until explicitly approved.
+- Generate an on-demand human-readable `SKILLS.md` navigation catalog alongside the machine index. Include the reviewed skill descriptions and Python visualization references.
+
+### Fixed
+- Generate self-contained context test fixtures in isolated temporary directories so installed tests, metadata generation and release builds succeed.
+- Preserve complete UTF-8 characters during paged source retrieval, validate byte cursors, retain existing ledger references in fold previews, and honor `--record false` without writing a manifest.
+- Publish skill navigation and the machine index together during fresh installation, upgrades, direct skill installation and tier changes; restore both views on failure and preserve concurrent edits.
+
+### 中文摘要
+- 上下文工具提供逻辑折叠、引用追回与交接证据；不改写模型请求，未取得独立物理执行回执时仍报告 `physicalSavings=0`。hook 默认未接线。
+- 修复发布数据目录归属、中文与 emoji 分页恢复、只读预览及布尔开关；技能人读目录随安装事务保持一致。
 
 ## [0.0.29] - 2026-11-06
 
