@@ -6,6 +6,10 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Added
+- Add the experimental `context-governor` CLI for measured usage reports, logical fold receipts with UTF-8 range hashes and protected ranges, scoped retrieval, handoff packs, pins, verification, pruning and on-demand load manifests. It never rewrites model requests and reports `physicalSavings=0` until an independent executor receipt exists.
+- Add a fail-open hook adapter that defaults to zero injection, emits a bounded restore pointer after compaction, and remains unwired until explicitly approved.
+
 ## [0.0.29] - 2026-11-06
 
 ### Changed

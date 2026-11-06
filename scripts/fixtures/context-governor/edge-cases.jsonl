@@ -1,0 +1,2 @@
+{"type":"user","uuid":"edge-1","sessionId":"edge-session","cwd":"D:/tmp/fixture","message":{"role":"user","content":"中文夹具：保留授权边界与验收判据。"},"usage":{"input_tokens":1200,"cache_read_input_tokens":100,"output_tokens":12,"context_usage_ratio":0.006},"model":"edge-model"}
+{"type":"assistant","uuid":"edge-2","sessionId":"edge-session","cwd":"D:/tmp/fixture","message":{"role":"assistant","content":"missing usage line"}}
