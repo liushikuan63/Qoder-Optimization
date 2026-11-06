@@ -328,6 +328,17 @@ const toolNegative = JSON.stringify({ prompt: '修复一个按钮文案' });
 const toolOriginalNegative = run(toolNegative), toolMutatedNegative = runToolMut(toolNegative);
 check('联网查证非触发轮与变异体逐字节一致', toolOriginalNegative.status === 0 && toolMutatedNegative.status === 0 && toolOriginalNegative.stdout === toolMutatedNegative.stdout);
 
+// 含混请求的确定性注入：命中必须点名并要求给备选，明确请求必须不命中（同批负对照）。
+const ambiguous = run(JSON.stringify({ prompt: '帮我优化一下' }));
+let ambiguousCtx = '';
+try { ambiguousCtx = JSON.parse(ambiguous.stdout).hookSpecificOutput.additionalContext || ''; } catch {}
+check('含混请求 → 注入规则初筛并要求模型判别与备选',
+  ambiguous.status === 0 && ambiguousCtx.includes('【需求含混 · 规则初筛命中（高）】') && ambiguousCtx.includes('模型判别') && ambiguousCtx.includes('AskUserQuestion') && ambiguousCtx.includes('2–4 个真实备选'));
+const clearReq = run(JSON.stringify({ prompt: '把 src/auth.ts 的 login 改成返回 401' }));
+let clearCtx = '';
+try { clearCtx = JSON.parse(clearReq.stdout).hookSpecificOutput.additionalContext || ''; } catch {}
+check('明确请求 → 不注入含混提示', clearReq.status === 0 && !clearCtx.includes('【需求含混'));
+
 function runChunked(input, split) {
   return new Promise(resolve => {
     const source = `process.stdin.once('data', () => process.stderr.write('CHUNK_READY')); require(${JSON.stringify(SCRIPT)});`;

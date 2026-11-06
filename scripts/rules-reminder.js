@@ -40,6 +40,8 @@ let recheck = null;
 try { recheck = require('./recheck-protocol.cjs'); } catch {}
 let capabilityAdvisor = null;
 try { capabilityAdvisor = require('./capability-advisor.cjs'); } catch {}
+let ambiguityCore = null;
+try { ambiguityCore = require('./ambiguity-core.cjs'); } catch {}
 
 // 路径从 HOME 派生，不写死用户名：否则换机器 / 换家目录直接失效，
 // 而且这种"个人绝对路径"会把导出包的门禁卡住（2026-09-19 出包时被扫描拦下才发现）。
@@ -52,6 +54,7 @@ const VERIFICATION_LOG = path.join(CLIENT_ROOT, 'tmp', 'verification-trigger', '
 const VERIFICATION_LOG_MAX_BYTES = 64 * 1024;
 const VERIFICATION_LOG_KEEP_LINES = 200;
 const CAPABILITY_CONFIG = path.join(CLIENT_ROOT, 'capability-advisor.json');
+const AMBIGUITY_CONFIG = path.join(CLIENT_ROOT, 'ambiguity-trigger.json');
 const capabilityDeliveries = [];
 
 const REMINDER = [
@@ -247,6 +250,38 @@ function verificationNote(promptText) {
     : '';
 }
 
+function ambiguityNote(promptText) {
+  if (!ambiguityCore || typeof promptText !== 'string' || !promptText.trim()) return '';
+  let sessionId = 'unknown';
+  try { sessionId = String(JSON.parse(raw).session_id || 'unknown'); } catch {}
+  try {
+    if (JSON.parse(fs.readFileSync(AMBIGUITY_CONFIG, 'utf8')).enabled === false) {
+      ambiguityCore.clearPending(sessionId);
+      return '';
+    }
+  } catch {
+    // 缺少配置时默认开启；损坏的开关不能静默关掉提示。
+  }
+  try {
+    const result = ambiguityCore.classifyAmbiguity(promptText);
+    if (result.level === 'high') {
+      const context = ambiguityCore.createAmbiguityContext({
+        sessionId,
+        decisionId: crypto.randomUUID(),
+        level: result.level,
+        signals: result.signals,
+      });
+      ambiguityCore.writePending(context);
+      return ambiguityCore.buildAmbiguityNote(result, context);
+    }
+    ambiguityCore.clearPending(sessionId);
+    return ambiguityCore.buildAmbiguityNote(result);
+  } catch (error) {
+    process.stderr.write('AMBIGUITY_NOTE_ERROR: ' + (error && error.message ? error.message : 'unknown') + '\n');
+    return '';
+  }
+}
+
 function capabilityEntry(item, catalogFile, installed) {
   const base = installed ? CLIENT_ROOT : (typeof catalogFile === 'string' ? path.dirname(catalogFile) : '');
   if (!base) return '';
@@ -372,7 +407,14 @@ function capabilityNote(promptText) {
       const qualifier = item.action === 'REVIEW_UPDATE' ? '本地已有差异，先展示并审查差异，不覆盖本地内容。' : '';
       lines.push(`- ${name}（${item.action}）：可核对入口 ${reference}。${qualifier}用 AskUserQuestion 提问：${JSON.stringify(question)}，给出“${verb} / 本次不用”选项；用户未明确选择前保留原状态。`);
     }
-    if (WORKFLOW_MODE === 'model') return lines.length ? '\n【当前任务能力候选 · 仅召回】\n' + lines.join('\n') + '\n明确指名仍按原始授权处理；其余候选不得冒充启用或安装批准。' : '';
+    if (WORKFLOW_MODE === 'model') {
+      if (!lines.length) return '';
+      const review = result.items.some(item => item && item.action === 'REVIEW_UPDATE');
+      return '\n【当前任务能力候选 · 仅召回】\n' + lines.join('\n')
+        + (review ? '\nREVIEW_UPDATE 只表示本地版本与包内有差异：当前任务先用本地版本，更新另行确认，不要把差异审查当成使用前置。' : '')
+        + '\n逐条做相关性判别：与当前任务实质相关才 USE / ASK；只是词面相近但任务不同就 SKIP 并忽略，不为使用而使用；判不准时说明依据。'
+        + '\n明确指名仍按原始授权处理；其余候选不得冒充启用或安装批准。';
+    }
     return lines.length ? '\n【当前任务能力建议】\n' + lines.join('\n')
       + '\n以上是能力建议或本轮明确指名路由；自动触发只自动加载与判定，不等于派发授权；投递记录不等于用户批准。已有适用授权不重复询问，能力使用也不扩大安装、发布或生产操作权限。' : '';
   } catch (error) {
@@ -395,7 +437,7 @@ function emit() {
   const payload = JSON.stringify({
     hookSpecificOutput: {
       hookEventName: 'UserPromptSubmit',
-      additionalContext: workflowReminder() + suppressedNote() + workflowNote(prompt) + goalNoteFor(prompt) + evolutionNote(prompt) + toolResearchNote(prompt) + verificationNote(prompt) + recheckNoteFor(prompt) + capabilityNote(prompt) + requestEcho(prompt),
+      additionalContext: workflowReminder() + suppressedNote() + workflowNote(prompt) + goalNoteFor(prompt) + evolutionNote(prompt) + toolResearchNote(prompt) + verificationNote(prompt) + ambiguityNote(prompt) + recheckNoteFor(prompt) + capabilityNote(prompt) + requestEcho(prompt),
     },
   });
   process.stdout.write(payload + '\n', (error) => {

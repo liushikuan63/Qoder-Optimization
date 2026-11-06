@@ -670,6 +670,24 @@ function inTurnOpenTasks(ctx) {
 }
 
 let taskFallback = 0;
+const AMBIGUITY_DIR = process.env.AMBIGUITY_STATE_DIR || path.join(CLIENT_ROOT, 'tmp', 'ambiguity');
+function ambiguitySlug(session) { return String(session || 'unknown').replace(/[^A-Za-z0-9._-]/g, '_'); }
+function ambiguityPending(session) {
+  try {
+    const pending = JSON.parse(fs.readFileSync(path.join(AMBIGUITY_DIR, 'pending-' + ambiguitySlug(session) + '.json'), 'utf8'));
+    if (!pending || pending.schema !== 1 || pending.level !== 'high' || typeof pending.decisionId !== 'string' || !pending.decisionId) return null;
+    const at = Date.parse(pending.at);
+    if (!Number.isFinite(at) || Date.now() - at > 2 * 60 * 60 * 1000) return null;
+    return pending;
+  } catch { return null; }
+}
+function ambiguityResolved(session) {
+  try {
+    const resolved = JSON.parse(fs.readFileSync(path.join(AMBIGUITY_DIR, 'resolved-' + ambiguitySlug(session) + '.json'), 'utf8'));
+    return resolved && resolved.schema === 1 ? resolved : null;
+  } catch { return null; }
+}
+
 const RULES = [
   {
     id: 'R6-open-work-queue',
@@ -866,6 +884,29 @@ const RULES = [
     reason:
       '按全局规则「回复必须携带主张词」（首要纪律第 7 条）：回复要给出明确结论 / 判断 / 推荐，不把决策悬空或踢回用户——把"看你要哪个 / 您决定"改写为"推荐 X（理由…），备选 Y"。',
   },
+  {
+    id: 'R12-ambiguity-decision-missing',
+    needsText: false,
+    // 只对高置信初筛 + 本轮确有写入生效；纯讨论、只读、已弹窗、已有判别记录都放行。
+    test: (t, ctx) => {
+      if (ctx.scope.readOnly) return false;
+      const pending = ambiguityPending(ctx.sessionId);
+      if (!pending) return false;
+      if (!ctx.turnTools.some((tool) => tool.success && ['Write', 'Edit', 'NotebookEdit'].includes(toolName(tool)))) return false;
+      if (ctx.turnTools.some((tool) => tool.success && toolName(tool) === 'AskUserQuestion')) return false;
+      const resolved = ambiguityResolved(ctx.sessionId);
+      // clear / assumption 已销账就放行；clarify 的 pending 会保留到门禁，必须有弹窗才算闭环。
+      return !(resolved && resolved.decisionId === pending.decisionId && resolved.verdict !== 'clarify');
+    },
+    reason: (ctx) => {
+      const pending = ambiguityPending(ctx.sessionId);
+      const binding = pending && pending.binding ? pending.binding : '<binding 见注入块>';
+      return '本轮规则初筛判为高置信含混，但尚未留下模型判别记录就直接写入了。开工前运行：'
+        + 'node ~/.qoder/scripts/ambiguity-core.cjs --decision - --binding ' + binding + ' --json，'
+        + 'stdin 传 {"schema":1,"sessionId":"…","decisionId":"…","verdict":"clear|assumption|clarify","reason":"…","sourceRefs":["对象/验收证据"]}；'
+        + '判 clear/assumption 至少给 1 条证据，判 clarify 同时用 AskUserQuestion 给 2–4 个备选。纯讨论没有写入时不需要判别。';
+    },
+  },
 ];
 
 function main() {
@@ -937,7 +978,7 @@ function main() {
       fs.writeFileSync(stateFile, JSON.stringify(state));
     } catch (e) {}
     process.stdout.write(
-      JSON.stringify({ decision: 'block', reason: `[stop-gate ${rule.id}] ` + (typeof rule.reason === 'function' ? rule.reason() : rule.reason) }) + '\n',
+      JSON.stringify({ decision: 'block', reason: `[stop-gate ${rule.id}] ` + (typeof rule.reason === 'function' ? rule.reason(ctx) : rule.reason) }) + '\n',
     );
     return;
   }

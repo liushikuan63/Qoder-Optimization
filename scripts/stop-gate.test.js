@@ -682,6 +682,29 @@ replay('R11 publish-release 未询问必须拦', '发布新版本', '结论：�
 replay('R11 grep 源码发布字样不误拦', '检查发布脚本', '结论：已检查。', 'allow', [tool('Bash', { command: 'grep -n "gh release create" .github/publish-release.js' }, 'gh release create found')]);
 replay('R11 node -e 打印发布字样不误拦', '检查发布脚本', '结论：已检查。', 'allow', [tool('Bash', { command: 'node -e "console.log(\'release.yml\')"' }, 'release.yml')]);
 
+// R12 含混判别门禁：高置信初筛 + 写入 + 无判别记录才拦
+const ambDir = path.join(ROOT, 'ambiguity');
+fs.mkdirSync(ambDir, { recursive: true });
+function r12Case(label, { prompt = '帮我优化一下', tools = [], level = 'high', resolved = null, expected }) {
+  const session = 'amb-' + (++n);
+  const decisionId = 'd-' + session;
+  fs.writeFileSync(path.join(ambDir, 'pending-' + session + '.json'), JSON.stringify({
+    schema: 1, decisionId, sessionId: session, level, signals: ['光杆动作'], binding: 'b-' + session, at: new Date().toISOString(),
+  }));
+  if (resolved) fs.writeFileSync(path.join(ambDir, 'resolved-' + session + '.json'), JSON.stringify({ schema: 1, decisionId, verdict: resolved, at: new Date().toISOString() }));
+  const result = run({ transcript_path: transcript([user(prompt), ...tools, asst('处理完毕。')]), session_id: session }, session, { AMBIGUITY_STATE_DIR: ambDir });
+  check(label, result.decision, expected);
+  if (expected === 'block') check(label + '（原因确为 R12）', result.out.includes('R12-ambiguity-decision-missing'), true);
+}
+r12Case('R12 高置信含混未判别就写入必须拦', { tools: [tool('Edit', { file_path: 'D:/x/a.ts' })], expected: 'block' });
+r12Case('R12 已有判别记录放行', { tools: [tool('Edit', { file_path: 'D:/x/a.ts' })], resolved: 'clear', expected: 'allow' });
+r12Case('R12 纯讨论无写入放行', { expected: 'allow' });
+r12Case('R12 已弹窗放行', { tools: [tool('AskUserQuestion', { questions: [] }), tool('Edit', { file_path: 'D:/x/a.ts' })], expected: 'allow' });
+r12Case('R12 中置信不拦', { level: 'medium', tools: [tool('Edit', { file_path: 'D:/x/a.ts' })], expected: 'allow' });
+r12Case('R12 只读任务不拦', { prompt: '只读审阅，不修改任何文件', tools: [tool('Edit', { file_path: 'D:/x/a.ts' })], expected: 'allow' });
+r12Case('R12 clarify 未弹窗仍要拦', { tools: [tool('Edit', { file_path: 'D:/x/a.ts' })], resolved: 'clarify', expected: 'block' });
+r12Case('R12 clarify 已弹窗放行', { tools: [tool('AskUserQuestion', { questions: [] }), tool('Edit', { file_path: 'D:/x/a.ts' })], resolved: 'clarify', expected: 'allow' });
+
 console.log(results.join('\n'));
 
 const failed = results.filter((x) => x.startsWith('FAIL')).length;
