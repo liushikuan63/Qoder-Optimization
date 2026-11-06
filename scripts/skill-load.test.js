@@ -212,3 +212,32 @@ test('显式重建仍生成完整可读索引', t => {
   assert.equal(idx.count, 2); assert.equal(idx.entries.length, 2);
   assert.deepEqual(idx.entries.map(e => e.tier).sort(), ['core', 'library']);
 });
+
+test('显式重建同时生成人类可读 SKILLS.md，含触发词与相对路径', t => {
+  const f = fixture(t);
+  f.skill('core', 'core-one', '常驻技能。触发词：内核、core');
+  f.skill('library', 'lib-two', '按需技能。触发词：报表、导出');
+  const r = f.run('build-skills-index.cjs');
+  assert.equal(r.status, 0, r.stderr);
+  const catalog = fs.readFileSync(path.join(f.q, 'SKILLS.md'), 'utf8');
+  assert.match(catalog, /core 1 \/ library 1，合计 2/);
+  assert.match(catalog, /`core-one`/);
+  assert.match(catalog, /`lib-two`/);
+  assert.match(catalog, /触发：内核、core/);
+  assert.match(catalog, /触发：报表、导出/);
+  assert.match(catalog, /skills\/core-one\/SKILL.md/);
+  assert.match(catalog, /skills-library\/lib-two\/SKILL.md/);
+});
+
+test('SKILLS.md 过期时 --check 退出 1，重建后退出 0', t => {
+  const f = fixture(t);
+  f.skill('library', 'demo-skill', '旧描述。触发词：旧词');
+  assert.equal(f.run('build-skills-index.cjs').status, 0);
+  assert.equal(f.run('build-skills-index.cjs', ['--check']).status, 0);
+  f.skill('library', 'demo-skill', '新描述。触发词：新词');
+  const stale = f.run('build-skills-index.cjs', ['--check']);
+  assert.equal(stale.status, 1);
+  assert.match(stale.stderr, /CATALOG_STALE/);
+  assert.equal(f.run('build-skills-index.cjs').status, 0);
+  assert.equal(f.run('build-skills-index.cjs', ['--check']).status, 0);
+});

@@ -33,6 +33,8 @@ node ~/.qoder/scripts/skill-load.cjs "技能分层"
    既有 API 三语国际化落地：…
 ```
 
+需要先看全貌时读 `~/.qoder/SKILLS.md`（CN 为 `~/.qoder-cn/SKILLS.md`）；具体任务仍用 `skill-load.cjs` 检索，目录只作导航。
+
 已获授权或用户明确指名时 Read 对应 SKILL.md 后执行；尚无使用选择时主动询问是否用于本任务。多关键词仍全部匹配，无本地命中再查登记包。中文查询没有空格时（如“技能路由”“规则冲突”），检索按整词匹配；未命中先换同义词，再检查目标技能 description 是否缺少中文触发词，不直接判“无此技能”。缺失候选先按通用性、明确偏好或本轮明确选择筛选，符合才询问安装，其他跳过；本地内容不同先核对旧基线和本地变更，不能把差异直接当旧版覆盖。拒绝后同任务不重复询问；换同义词仍无候选再说明缺口。
 
 ## 主动联网与工具获取
@@ -64,10 +66,11 @@ node ~/.qoder/scripts/skill-load.cjs "技能分层"
 ## 索引与维护
 
 - 真源：两层实际 SKILL.md；`build-skills-index.cjs` 的扫描函数供检索与显式建索引共同使用。
-- 派生快照：`~/.qoder/skills-index.json`（name / tier / path / description）；增删移后显式重建，检索本身不写盘。
+- 派生快照：`~/.qoder/skills-index.json`（机器：name / tier / path / description）与 `~/.qoder/SKILLS.md`（人读：一行一条，含层级、触发词/描述与相对路径）；增删移后显式重建，检索本身不写盘。CN 对应 `~/.qoder-cn/SKILLS.md`。
+- 目录校验：`node ~/.qoder/scripts/build-skills-index.cjs --check`；过期退出 1 并输出 `CATALOG_STALE`，重建后退出 0。
 - 包候选：`pkg-catalog.cjs` 统一匹配与状态展示（未发现=可安装，内容不同=可更新，一致=已安装）；本地文件存在不证明已装载，插件/MCP 需通过平台工具核对。原始候选先按能力闭环筛选，符合时走 `/pkg-find` 的询问流程；`pkg-catalog.cjs drift` 可批量列出已安装但与包内不同的条目。
 - 分层原则：按 AGENTS 当前「技能分层」条款判定，不复制另一套门槛。
-- 验证：`node ~/.qoder/scripts/skill-load.test.js`；涵盖过期/缺失索引、同名冲突、候选状态、只读与正负查询。
+- 验证：`node ~/.qoder/scripts/skill-load.test.js`；涵盖过期/缺失索引、SKILLS.md 生成与过期、同名冲突、候选状态、只读与正负查询。
 
 ## 分层路由隔离回归
 

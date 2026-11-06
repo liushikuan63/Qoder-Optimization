@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 重建技能索引：扫描 ~/.qoder/skills（常驻）与 ~/.qoder/skills-library（按需），写 skills-index.json
+// 重建技能索引：扫描 ~/.qoder/skills（常驻）与 ~/.qoder/skills-library（按需），写 skills-index.json 与 SKILLS.md
 const fs = require('fs');
 const path = require('path');
 const { clientRoot } = require('./client-root.js');
@@ -9,6 +9,7 @@ let roots; try { roots = require('./capability-roots.cjs'); } catch (error) { if
 const Q = CLIENT_ROOT;
 const SRC = [['core', path.join(Q, 'skills')], ['library', path.join(Q, 'skills-library')]];
 const OUT = path.join(Q, 'skills-index.json');
+const CATALOG = path.join(Q, 'SKILLS.md');
 
 function desc(p, root, bindings) {
   const t = roots ? roots.readFileWithin(root, p, bindings).toString('utf8') : fs.readFileSync(p, 'utf8');
@@ -52,13 +53,58 @@ function collectSkills(root = Q, options = {}) {
   return entries.sort((a, b) => a.tier.localeCompare(b.tier) || a.name.localeCompare(b.name));
 }
 
-module.exports = { collectSkills };
+function catalogClue(description) {
+  const text = (description || '').replace(/\s+/g, ' ').trim();
+  const match = text.match(/(?:触发词|触发|triggers?)\s*[:：]\s*([^。；;\n]+)/i);
+  if (match) return '触发：' + match[1].trim();
+  return text.length > 120 ? text.slice(0, 117) + '…' : text;
+}
+
+function renderCatalog(entries, root = Q) {
+  const groups = [
+    ['常驻（core）', entries.filter((entry) => entry.tier === 'core')],
+    ['按需（library）', entries.filter((entry) => entry.tier === 'library')],
+  ];
+  const lines = [
+    '# 技能目录',
+    '',
+    '> 由 `scripts/build-skills-index.cjs` 从 `skills/` 与 `skills-library/` 的 SKILL.md 生成；只读导航，不常驻注入。查询用 `skill-load.cjs`，增删技能后重建，`--check` 校验是否过期。',
+    '',
+    `core ${groups[0][1].length} / library ${groups[1][1].length}，合计 ${entries.length}。`,
+    '',
+  ];
+  for (const [title, group] of groups) {
+    lines.push(`## ${title}`, '');
+    for (const entry of group) {
+      const relative = path.relative(root, entry.path).split(path.sep).join('/');
+      lines.push(`- \`${entry.name}\` — ${catalogClue(entry.description) || '（无 description）'}（\`${relative}\`）`);
+    }
+    lines.push('');
+  }
+  while (lines[lines.length - 1] === '') lines.pop();
+  return lines.join('\n') + '\n';
+}
+
+module.exports = { collectSkills, renderCatalog, catalogPath: CATALOG };
 if (require.main === module) {
   try {
     const entries = collectSkills();
-    fs.writeFileSync(OUT, JSON.stringify({ generated_at: new Date().toISOString(), count: entries.length, entries, diagnostics: entries.diagnostics }, null, 1));
-    console.log('index=' + entries.length + ' core=' + entries.filter((e) => e.tier === 'core').length + ' library=' + entries.filter((e) => e.tier === 'library').length);
-    console.log(OUT);
+    if (process.argv.includes('--check')) {
+      let current = '';
+      try { current = fs.readFileSync(CATALOG, 'utf8'); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+      if (current !== renderCatalog(entries)) {
+        console.error('CATALOG_STALE: ' + CATALOG);
+        process.exitCode = 1;
+      } else {
+        console.log('CATALOG_OK ' + CATALOG);
+      }
+    } else {
+      fs.writeFileSync(OUT, JSON.stringify({ generated_at: new Date().toISOString(), count: entries.length, entries, diagnostics: entries.diagnostics }, null, 1));
+      fs.writeFileSync(CATALOG, renderCatalog(entries));
+      console.log('index=' + entries.length + ' core=' + entries.filter((e) => e.tier === 'core').length + ' library=' + entries.filter((e) => e.tier === 'library').length);
+      console.log(OUT);
+      console.log(CATALOG);
+    }
   } catch (error) {
     console.error('INDEX_ERROR: ' + error.message);
     process.exitCode = 2;
