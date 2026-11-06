@@ -875,7 +875,7 @@
    "name": "office-docs",
    "status": "shipped",
    "tier": "library",
-   "description": "不依赖 Python 用 Node 读写 Excel（.xlsx/.csv）与 Word（.docx）——读表格转 markdown/JSON（支持按范围/行数截断、列工作表、读公式原文）、按 JSON 规格生成工作簿（列宽/冻结/数字格式/CSV 直转）、改既有工作簿的单元格、抽取 Word 正文与表格、生成 Word 文档（含样式/图片/分页，支持 Markdown 直转含插图）、往既有 docx 模板插入新表格（解包改 XML 回包、保模板样式）。触发词：Word、docx、Excel、xlsx、CSV、读取 Word、生成 Excel、docx-surgery、模板插表。不用于：DLP 加密文档 → encrypted-office-visual-inspection；PPT → pptx-offline-extraction。",
+   "description": "不依赖 Python 用 Node 读写 Excel（xlsx/csv）与 Word（docx）：读表格转 markdown/JSON、按规格生成工作簿、改既有单元格、抽取正文表格、生成 Word、往 docx 模板插表（解包改 XML 保样式）。触发词：Word、docx、Excel、xlsx、CSV、读取 Word、生成 Excel、docx-surgery、模板插表。不用于：DLP 加密文档 → encrypted-office-visual-inspection；PPT → pptx-offline-extraction。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
