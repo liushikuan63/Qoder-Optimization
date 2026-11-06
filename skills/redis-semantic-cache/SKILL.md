@@ -1,6 +1,6 @@
 ---
 name: redis-semantic-cache
-description: "Redis LangCache guidance for semantic caching of LLM responses on Redis Cloud — calling search/set via the SDK or REST API, tuning the similarity threshold, separating caches per task type, and filtering with custom attributes。中文触发：Redis 缓存 键值 TTL 集群 向量检索 全文检索 接口 检索"
+description: "Redis LangCache 语义缓存：LLM 响应缓存、相似度阈值、按任务分缓存与自定义属性过滤。触发词：LangCache、语义缓存、LLM 缓存、相似度阈值、Redis Cloud。不用于：RediSearch 全文/向量检索 → redis-search。"
 license: MIT
 metadata:
   author: Redis, Inc.

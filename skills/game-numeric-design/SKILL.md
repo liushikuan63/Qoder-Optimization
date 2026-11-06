@@ -1,6 +1,6 @@
 ---
 name: game-numeric-design
-description: 游戏数值策划技能 - 基于《游戏数值设定入门》方法论，提供数值设计公式、经济系统、成长曲线等工具
+description: "游戏数值策划：数值公式、经济系统、成长曲线与平衡。触发词：游戏数值、数值策划、成长曲线、经济系统、付费数值、平衡性。不用于：整体 GDD 与玩法 → game-designer-toolkit。"
 metadata:
   openclaw:
     emoji: "📊"

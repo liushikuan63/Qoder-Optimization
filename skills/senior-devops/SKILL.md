@@ -1,6 +1,6 @@
 ---
 name: "senior-devops"
-description: "Comprehensive DevOps skill for CI/CD, infrastructure automation, containerization, and cloud platforms (AWS, GCP, Azure)。中文触发：CI 流水线 容器"
+description: "DevOps：CI/CD、基础设施自动化、容器化与云平台（AWS/GCP/Azure）。触发词：CI 流水线、容器化、Kubernetes、Terraform、云平台、基础设施自动化。不用于：本机 Windows 脚本与 cmd 工具 → verify-windows-cmd-tool；GitHub Actions 成本 → audit-ci-cost-levers。"
 ---
 
 # Senior Devops

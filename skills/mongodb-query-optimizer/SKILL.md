@@ -1,6 +1,6 @@
 ---
 name: mongodb-query-optimizer
-description: "Help with MongoDB query optimization and indexing。中文触发：MongoDB 文档库 集合 聚合管道 Atlas 性能优化 profiling 优化 查询"
+description: "MongoDB 查询优化与索引：explain 分析、索引选择、慢查询定位。触发词：MongoDB 慢查询、explain、索引建议、查询优化、profiling。不用于：文档建模 → mongodb-schema-design；全文/向量检索 → mongodb-search-and-ai。"
 compatibility: >-
   Best with MongoDB MCP server. Uses collection-indexes and explain when the connection string works; uses Atlas Performance Advisor when Atlas API is configured. Without either, suggest indexes from query shape only. User creates indexes in Atlas or migrations unless tooling allows otherwise.
 license: Apache-2.0

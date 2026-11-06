@@ -1,6 +1,6 @@
 ---
 name: redis-security
-description: "Redis security guidance covering authentication (requirepass and ACL users), TLS, ACL-based least-privilege access control, restricting network exposure via bind and protected-mode, firewall rules, and disabling dangerous commands。中文触发：Redis 缓存 键值 TTL 集群 鉴权 安全"
+description: "Redis 安全：requirepass、ACL 用户与最小权限、TLS、bind/protected-mode、防火墙与危险命令禁用。触发词：Redis ACL、requirepass、TLS、权限加固、protected-mode、危险命令。不用于：监控与告警 → redis-observability。"
 license: MIT
 metadata:
   author: Redis, Inc.

@@ -1,6 +1,6 @@
 ---
 name: game-designer-toolkit
-description: "Complete game design toolkit for creating professional GDD, game systems, level design, and prototypes。中文触发：小游戏 游戏设计 数值 设计"
+description: "游戏设计工具箱：GDD、玩法系统、关卡设计与原型。触发词：GDD、游戏设计、玩法系统、关卡设计、原型、小游戏。不用于：数值公式与经济系统 → game-numeric-design。"
 ---
 
 # Game Designer Toolkit

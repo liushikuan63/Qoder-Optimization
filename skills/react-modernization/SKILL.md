@@ -1,6 +1,6 @@
 ---
 name: react-modernization
-description: Upgrade React applications to latest versions, migrate from class components to hooks, and adopt concurrent features. Use when modernizing React codebases, migrating to React Hooks, or upgrading to latest React versions.
+description: "React 升级与现代化：class 组件转 hooks、并发特性、codemod 与遗留代码迁移。触发词：React 升级、class 转 hooks、codemod、遗留前端迁移、并发特性。不用于：Next.js App Router → nextjs-app-router-patterns。"
 ---
 
 # React Modernization

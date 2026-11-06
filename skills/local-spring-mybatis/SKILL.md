@@ -1,6 +1,6 @@
 ---
 name: local-spring-mybatis
-description: 补充 Spring 与 MyBatis 的事务、参数绑定、映射和查询性能检查；用于这些后端实现问题，不替代本机环境预检。
+description: "补充 Spring 与 MyBatis 的事务、参数绑定、映射和查询性能检查；用于这些后端实现问题。触发词：MyBatis、Mapper、XML 映射、事务、参数绑定、N+1、慢查询。不替代本机环境预检。"
 license: MIT
 metadata:
   origin: local-adaptation

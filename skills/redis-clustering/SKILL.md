@@ -1,6 +1,6 @@
 ---
 name: redis-clustering
-description: "Redis Cluster and replication guidance covering hash tags for multi-key operations, avoiding CROSSSLOT errors, and reading from replicas to scale read-heavy workloads。中文触发：Redis 缓存 键值 TTL 集群"
+description: "Redis Cluster 与复制：hash tag、CROSSSLOT 规避、从副本读扩展。触发词：Redis Cluster、分片、hash tag、CROSSSLOT、主从复制、读写分离。不用于：监控指标 → redis-observability；安全加固 → redis-security。"
 license: MIT
 metadata:
   author: Redis, Inc.

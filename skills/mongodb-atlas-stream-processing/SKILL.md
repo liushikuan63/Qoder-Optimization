@@ -1,6 +1,6 @@
 ---
 name: mongodb-atlas-stream-processing
-description: "Manages MongoDB Atlas Stream Processing (ASP) workflows。中文触发：MongoDB 文档库 集合 聚合管道 Atlas 流式。不用于：general MongoDB queries or Atlas cluster management. Requires MongoDB MCP Server with Atl"
+description: "MongoDB Atlas Stream Processing（ASP）：流处理器、窗口、$source/$emit 管道与 Atlas 集群管理。触发词：Atlas Stream Processing、ASP、流式处理、$source、$emit、实时管道。不用于：普通查询 → mongodb-natural-language-querying；集群管理 → Atlas 控制台。"
 license: Apache-2.0
 metadata:
   version: "1.0.0"

@@ -1,6 +1,6 @@
 ---
 name: local-frontend-a11y
-description: 补充表单、弹窗、菜单和标签页的键盘、焦点及语义检查；用于交互组件或无障碍问题，不给所有前端任务追加全面审计。
+description: "补充表单、弹窗、菜单和标签页的键盘、焦点及语义检查；用于交互组件或无障碍问题。触发词：无障碍、a11y、键盘导航、焦点管理、aria、语义化。不给所有前端任务追加全面审计。"
 license: MIT
 metadata:
   origin: local-adaptation

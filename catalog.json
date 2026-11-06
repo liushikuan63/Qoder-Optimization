@@ -2,14 +2,14 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.0.28"
+  "version": "0.0.29"
  },
  "generated": "2026-11-06",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 133,
-  "script": 144,
-  "command": 10,
+  "script": 146,
+  "command": 11,
   "agent": 2
  },
  "entries": [
@@ -161,7 +161,7 @@
    "name": "deliver-prd",
    "status": "shipped",
    "tier": "library",
-   "description": "Creates a comprehensive Product Requirements Document that aligns stakeholders on what to build, why, and how success will be measured. Use when specifying features, epics, or product initiatives for engineering handoff.",
+   "description": "产品需求文档（PRD）：目标、范围、用户故事、验收标准与干系人对齐。触发词：PRD、产品需求文档、需求规格、验收标准、干系人对齐、功能立项。不用于：AI 实施四件套 → vibecoding-doc。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -343,7 +343,7 @@
    "name": "game-designer-toolkit",
    "status": "shipped",
    "tier": "library",
-   "description": "Complete game design toolkit for creating professional GDD, game systems, level design, and prototypes。中文触发：小游戏 游戏设计 数值 设计",
+   "description": "游戏设计工具箱：GDD、玩法系统、关卡设计与原型。触发词：GDD、游戏设计、玩法系统、关卡设计、原型、小游戏。不用于：数值公式与经济系统 → game-numeric-design。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -357,7 +357,7 @@
    "name": "game-numeric-design",
    "status": "shipped",
    "tier": "library",
-   "description": "游戏数值策划技能 - 基于《游戏数值设定入门》方法论，提供数值设计公式、经济系统、成长曲线等工具",
+   "description": "游戏数值策划：数值公式、经济系统、成长曲线与平衡。触发词：游戏数值、数值策划、成长曲线、经济系统、付费数值、平衡性。不用于：整体 GDD 与玩法 → game-designer-toolkit。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -511,7 +511,7 @@
    "name": "local-api-contracts",
    "status": "shipped",
    "tier": "library",
-   "description": "补充 REST API 的兼容、分页、错误和幂等设计；用于新增或修改接口契约，不用于普通内部函数修改。",
+   "description": "补充 REST API 的兼容、分页、错误和幂等设计；用于新增或修改接口契约。触发词：接口契约、API 兼容、分页、幂等、错误码、版本兼容。不用于：普通内部函数修改。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -539,7 +539,7 @@
    "name": "local-db-migrations",
    "status": "shipped",
    "tier": "library",
-   "description": "补充数据库 schema 与数据迁移的兼容、锁、回填和恢复验证；用于写迁移或迁移评审，不用于普通查询修改。",
+   "description": "补充数据库 schema 与数据迁移的兼容、锁、回填和恢复验证；用于写迁移或迁移评审。触发词：数据库迁移、schema 变更、回填、锁表、迁移回滚、双写。不用于：普通查询修改。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -553,7 +553,7 @@
    "name": "local-frontend-a11y",
    "status": "shipped",
    "tier": "library",
-   "description": "补充表单、弹窗、菜单和标签页的键盘、焦点及语义检查；用于交互组件或无障碍问题，不给所有前端任务追加全面审计。",
+   "description": "补充表单、弹窗、菜单和标签页的键盘、焦点及语义检查；用于交互组件或无障碍问题。触发词：无障碍、a11y、键盘导航、焦点管理、aria、语义化。不给所有前端任务追加全面审计。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -609,7 +609,7 @@
    "name": "local-spring-mybatis",
    "status": "shipped",
    "tier": "library",
-   "description": "补充 Spring 与 MyBatis 的事务、参数绑定、映射和查询性能检查；用于这些后端实现问题，不替代本机环境预检。",
+   "description": "补充 Spring 与 MyBatis 的事务、参数绑定、映射和查询性能检查；用于这些后端实现问题。触发词：MyBatis、Mapper、XML 映射、事务、参数绑定、N+1、慢查询。不替代本机环境预检。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -707,7 +707,7 @@
    "name": "mongodb-atlas-stream-processing",
    "status": "shipped",
    "tier": "library",
-   "description": "Manages MongoDB Atlas Stream Processing (ASP) workflows。中文触发：MongoDB 文档库 集合 聚合管道 Atlas 流式。不用于：general MongoDB queries or Atlas cluster management. Requires MongoDB MCP Server with Atl",
+   "description": "MongoDB Atlas Stream Processing（ASP）：流处理器、窗口、$source/$emit 管道与 Atlas 集群管理。触发词：Atlas Stream Processing、ASP、流式处理、$source、$emit、实时管道。不用于：普通查询 → mongodb-natural-language-querying；集群管理 → Atlas 控制台。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -721,7 +721,7 @@
    "name": "mongodb-connection",
    "status": "shipped",
    "tier": "library",
-   "description": "Optimize MongoDB client connection configuration (pools, timeouts, patterns) for any supported driver language。中文触发：MongoDB 文档库 集合 聚合管道 Atlas 性能优化 profiling 模式规范 配置",
+   "description": "MongoDB 客户端连接配置：连接池大小、超时、重试、读写关注与驱动参数（Node/Java/Python 等）。触发词：MongoDB 连接池、连接超时、maxPoolSize、连接数打满、读写关注、驱动配置。不用于：MCP Server 配置 → mongodb-mcp-setup；慢查询与索引 → mongodb-query-optimizer。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -735,7 +735,7 @@
    "name": "mongodb-mcp-setup",
    "status": "shipped",
    "tier": "library",
-   "description": "Guide users through configuring key MongoDB MCP server options. Use this skill when a user has the MongoDB MCP server installed but hasn't configured the required environment variables, or when they ask about connecting to MongoDB/Atlas and don't have the credentials set up.",
+   "description": "配置 MongoDB MCP Server：环境变量、Atlas/本地连接串、只读模式与工具白名单。触发词：MongoDB MCP、MCP 配置、Atlas 连接串、MDB_MCP_CONNECTION_STRING、MCP 环境变量、MCP 只读。不用于：应用侧驱动连接池 → mongodb-connection。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -749,7 +749,7 @@
    "name": "mongodb-natural-language-querying",
    "status": "shipped",
    "tier": "library",
-   "description": "Generate read-only MongoDB queries (find) or aggregation pipelines using natural language, with collection schema context and sample documents。中文触发：MongoDB 文档库 集合 聚合管道 Atlas 数据建模。只管把自然语言转成查询/聚合；慢查询与索引用 mongodb-query-optimizer，全文与向量检索用 mongodb-search-and-ai。",
+   "description": "把自然语言转成只读 MongoDB find 或聚合管道，带集合 schema 与样本文档上下文。触发词：自然语言查 MongoDB、生成 find、聚合管道、aggregate、只读查询。不用于：慢查询与索引 → mongodb-query-optimizer；全文/向量检索 → mongodb-search-and-ai。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -763,7 +763,7 @@
    "name": "mongodb-query-optimizer",
    "status": "shipped",
    "tier": "library",
-   "description": "Help with MongoDB query optimization and indexing。中文触发：MongoDB 文档库 集合 聚合管道 Atlas 性能优化 profiling 优化 查询",
+   "description": "MongoDB 查询优化与索引：explain 分析、索引选择、慢查询定位。触发词：MongoDB 慢查询、explain、索引建议、查询优化、profiling。不用于：文档建模 → mongodb-schema-design；全文/向量检索 → mongodb-search-and-ai。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -777,7 +777,7 @@
    "name": "mongodb-schema-design",
    "status": "shipped",
    "tier": "library",
-   "description": "MongoDB schema design patterns and anti-patterns。中文触发：MongoDB 文档库 集合 聚合管道 Atlas 数据建模 schema 设计 模式规范 表结构",
+   "description": "MongoDB 文档建模：内嵌 vs 引用、数组与桶模式、schema 反模式。触发词：MongoDB 建模、集合结构、内嵌文档、引用关联、schema 反模式、文档设计。不用于：索引与慢查询 → mongodb-query-optimizer。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -791,7 +791,7 @@
    "name": "mongodb-search-and-ai",
    "status": "shipped",
    "tier": "library",
-   "description": "Guides MongoDB users through implementing and optimizing Atlas Search (full-text), Vector Search (semantic), and Hybrid Search solutions。中文触发：MongoDB 文档库 集合 聚合管道 Atlas 性能优化 profiling 向量检索 全文检索。只管 Search、向量与混合检索的实现；写普通查询用 mongodb-natural-language-querying，调优索引用 mongodb-query-optimizer。",
+   "description": "MongoDB Atlas Search / Vector Search / Hybrid Search：全文、语义向量与混合检索的实现与调优。触发词：Atlas Search、全文检索、向量检索、Vector Search、RAG、混合检索、HNSW。不用于：普通查询与索引 → mongodb-query-optimizer。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -819,7 +819,7 @@
    "name": "nextjs-app-router-patterns",
    "status": "shipped",
    "tier": "library",
-   "description": "Master Next.js 14+ App Router with Server Components, streaming, parallel routes, and advanced data fetching. Use when building Next.js applications, implementing SSR/SSG, or optimizing React Server Components.",
+   "description": "Next.js 14+ App Router：Server Components、streaming、parallel routes 与数据获取。触发词：Next.js、App Router、Server Components、SSR/SSG、streaming、路由缓存。不用于：老 React 项目升级 → react-modernization。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -847,7 +847,7 @@
    "name": "nodejs-backend-patterns",
    "status": "shipped",
    "tier": "library",
-   "description": "Build production-ready Node.js backend services with Express/Fastify, implementing middleware patterns, error handling, authentication, database integration, and API design best practices. Use when creating Node.js servers, REST APIs, GraphQL backends, or microservices architectures.",
+   "description": "Node.js 后端服务：Express/Fastify、中间件、鉴权、数据库集成、错误处理与部署。触发词：Node.js 后端、Express、Fastify、中间件、鉴权、连接池、优雅退出。不用于：接口契约设计 → local-api-contracts。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -875,7 +875,7 @@
    "name": "office-docs",
    "status": "shipped",
    "tier": "library",
-   "description": "不依赖 Python 用 Node 读写 Excel（.xlsx/.csv）与 Word（.docx）——读表格转 markdown/JSON（支持按范围/行数截断、列工作表、读公式原文）、按 JSON 规格生成工作簿（列宽/冻结/数字格式/CSV 直转）、改既有工作簿的单元格、抽取 Word 正文与表格、生成 Word 文档（含样式/图片/分页，支持 Markdown 直转含插图）、往既有 docx 模板插入新表格（解包改 XML 回包、保模板样式）。",
+   "description": "不依赖 Python 用 Node 读写 Excel（.xlsx/.csv）与 Word（.docx）——读表格转 markdown/JSON（支持按范围/行数截断、列工作表、读公式原文）、按 JSON 规格生成工作簿（列宽/冻结/数字格式/CSV 直转）、改既有工作簿的单元格、抽取 Word 正文与表格、生成 Word 文档（含样式/图片/分页，支持 Markdown 直转含插图）、往既有 docx 模板插入新表格（解包改 XML 回包、保模板样式）。触发词：Word、docx、Excel、xlsx、CSV、读取 Word、生成 Excel、docx-surgery、模板插表。不用于：DLP 加密文档 → encrypted-office-visual-inspection；PPT → pptx-offline-extraction。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -889,7 +889,7 @@
    "name": "open-code-review-delegate",
    "status": "shipped",
    "tier": "library",
-   "description": "Delegation mode for open-code-review (OCR). Use when the host agent should drive the review with its own LLM capabilities。中文触发：代码评审 审查 评审",
+   "description": "由宿主自身 LLM 驱动 open-code-review（OCR）评审，而不是调用外部评审服务。触发词：OCR、open-code-review、宿主评审、代码评审代理、review delegate。不用于：外部评审服务（ocr CLI）；普通只读代码审查直接做。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1075,7 +1075,7 @@
    "name": "python-programmer",
    "status": "shipped",
    "tier": "library",
-   "description": "Python programmer specialising in functional programming, clean code, documentation, and code quality using ruff and uv.",
+   "description": "Python 工程规范：函数式写法、整洁代码、文档、类型注解、ruff、uv、可测试性、错误处理与性能意识。触发词：Python 规范、Python 代码评审、类型注解、type hints、mypy、ruff、uv、异常处理、性能优化、反模式。不用于：后端框架 → python-backend-guidelines；项目结构 → python-project-structure。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1145,7 +1145,7 @@
    "name": "react-modernization",
    "status": "shipped",
    "tier": "library",
-   "description": "Upgrade React applications to latest versions, migrate from class components to hooks, and adopt concurrent features. Use when modernizing React codebases, migrating to React Hooks, or upgrading to latest React versions.",
+   "description": "React 升级与现代化：class 组件转 hooks、并发特性、codemod 与遗留代码迁移。触发词：React 升级、class 转 hooks、codemod、遗留前端迁移、并发特性。不用于：Next.js App Router → nextjs-app-router-patterns。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1159,7 +1159,7 @@
    "name": "redis-clustering",
    "status": "shipped",
    "tier": "library",
-   "description": "Redis Cluster and replication guidance covering hash tags for multi-key operations, avoiding CROSSSLOT errors, and reading from replicas to scale read-heavy workloads。中文触发：Redis 缓存 键值 TTL 集群",
+   "description": "Redis Cluster 与复制：hash tag、CROSSSLOT 规避、从副本读扩展。触发词：Redis Cluster、分片、hash tag、CROSSSLOT、主从复制、读写分离。不用于：监控指标 → redis-observability；安全加固 → redis-security。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1187,7 +1187,7 @@
    "name": "redis-core",
    "status": "shipped",
    "tier": "library",
-   "description": "Core Redis modeling guidance — choose the right data structure (String, Hash, List, Set, Sorted Set, JSON, Stream, Vector Set) and use consistent colon-separated key names。中文触发：Redis 缓存 键值 TTL 集群 向量检索 全文检索 流式 建模",
+   "description": "Redis 核心建模：选对结构（String/Hash/List/Set/ZSet/JSON/Stream/Vector Set）、冒号键名、缓存对象与 Hash vs JSON。触发词：Redis 建模、数据结构选型、String、Hash、ZSet、Stream、Vector Set、键名设计、TTL、计数器、排行榜。不用于：连接池 → redis-connections；集群 → redis-clustering。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1201,7 +1201,7 @@
    "name": "redis-observability",
    "status": "shipped",
    "tier": "library",
-   "description": "Redis observability guidance — which metrics to monitor (memory, connections, hit ratio, ops/sec, rejected connections), which built-in commands to reach for during incident triage (SLOWLOG, INFO, MEMORY DOCTOR, CLIENT LIST, FT.PROFILE), and when to use the Redis Insight GUI。",
+   "description": "Redis 可观测性：监控指标（内存、连接数、命中率、ops/sec、拒绝连接）、slowlog、INFO、MEMORY DOCTOR、CLIENT LIST 与告警。触发词：Redis 监控、内存、连接数、命中率、慢日志、slowlog、延迟、告警。不用于：集群拓扑与分片 → redis-clustering。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1215,7 +1215,7 @@
    "name": "redis-search",
    "status": "shipped",
    "tier": "library",
-   "description": "Redis Search guidance covering FT.CREATE schema design, field type selection (TEXT, TAG, NUMERIC, GEO, GEOSHAPE, VECTOR, JSON path), DIALECT 2 query syntax, FT.SEARCH / FT.AGGREGATE / FT.HYBRID command selection, vector similarity with HNSW or FLAT, hybrid retrieval combining lexical and vector",
+   "description": "Redis Search：FT.CREATE schema、字段类型（TEXT/TAG/NUMERIC/GEO/VECTOR/JSON）、DIALECT 2、FT.SEARCH/AGGREGATE/HYBRID、HNSW/FLAT 向量与混合检索。触发词：RediSearch、FT.CREATE、FT.SEARCH、向量检索、HNSW、混合检索。不用于：LLM 语义缓存 → redis-semantic-cache。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1229,7 +1229,7 @@
    "name": "redis-security",
    "status": "shipped",
    "tier": "library",
-   "description": "Redis security guidance covering authentication (requirepass and ACL users), TLS, ACL-based least-privilege access control, restricting network exposure via bind and protected-mode, firewall rules, and disabling dangerous commands。中文触发：Redis 缓存 键值 TTL 集群 鉴权 安全",
+   "description": "Redis 安全：requirepass、ACL 用户与最小权限、TLS、bind/protected-mode、防火墙与危险命令禁用。触发词：Redis ACL、requirepass、TLS、权限加固、protected-mode、危险命令。不用于：监控与告警 → redis-observability。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1243,7 +1243,7 @@
    "name": "redis-semantic-cache",
    "status": "shipped",
    "tier": "library",
-   "description": "Redis LangCache guidance for semantic caching of LLM responses on Redis Cloud — calling search/set via the SDK or REST API, tuning the similarity threshold, separating caches per task type, and filtering with custom attributes。中文触发：Redis 缓存 键值 TTL 集群 向量检索 全文检索 接口 检索",
+   "description": "Redis LangCache 语义缓存：LLM 响应缓存、相似度阈值、按任务分缓存与自定义属性过滤。触发词：LangCache、语义缓存、LLM 缓存、相似度阈值、Redis Cloud。不用于：RediSearch 全文/向量检索 → redis-search。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1301,7 +1301,7 @@
    "name": "senior-devops",
    "status": "shipped",
    "tier": "library",
-   "description": "Comprehensive DevOps skill for CI/CD, infrastructure automation, containerization, and cloud platforms (AWS, GCP, Azure)。中文触发：CI 流水线 容器",
+   "description": "DevOps：CI/CD、基础设施自动化、容器化与云平台（AWS/GCP/Azure）。触发词：CI 流水线、容器化、Kubernetes、Terraform、云平台、基础设施自动化。不用于：本机 Windows 脚本与 cmd 工具 → verify-windows-cmd-tool；GitHub Actions 成本 → audit-ci-cost-levers。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1457,7 +1457,7 @@
    "name": "spring-aop",
    "status": "shipped",
    "tier": "library",
-   "description": "Spring AOP (Aspect-Oriented Programming) per Spring Boot 3.x。中文触发：Spring AOP、切面、通知、切点、代理",
+   "description": "Spring AOP：切面、通知、切点、代理与事务/日志横切。触发词：Spring AOP、切面、@Aspect、通知、切点、代理。不用于：通用 Spring Boot 实现 → spring-boot；Spring 事件 → spring-boot §4。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1737,7 +1737,7 @@
    "name": "vibe-coding-workflow",
    "status": "shipped",
    "tier": "core",
-   "description": "大需求五阶段流程：需求、架构、模块、调试、迭代；检查阶段准入，已授权连续实施时不逐阶段重问。用于新项目或跨模块需求；用户明确设置的阶段批准继续保留。",
+   "description": "大需求五阶段流程：需求、架构、模块、调试、迭代；检查阶段准入，已授权连续实施时不逐阶段重问。用于新项目或跨模块需求；用户明确设置的阶段批准继续保留。触发词：五阶段、需求阶段、架构阶段、模块开发、阶段准入",
    "install": {
     "mode": "copy-skill",
     "tier": "core"
@@ -1899,6 +1899,32 @@
    },
    "source": "scripts/README-rule-enforcement.md",
    "dependencies": []
+  },
+  {
+   "id": "script:ambiguity-core.cjs",
+   "category": "script",
+   "name": "ambiguity-core.cjs",
+   "status": "shipped",
+   "source": "scripts/ambiguity-core.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:client-root.js"
+   ]
+  },
+  {
+   "id": "script:ambiguity-core.test.js",
+   "category": "script",
+   "name": "ambiguity-core.test.js",
+   "status": "shipped",
+   "source": "scripts/ambiguity-core.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:ambiguity-core.cjs"
+   ]
   },
   {
    "id": "script:archive-entries.cjs",
@@ -3124,6 +3150,7 @@
    },
    "source": "scripts/rules-reminder.js",
    "dependencies": [
+    "script:ambiguity-core.cjs",
     "script:capability-advisor.cjs",
     "script:capability-roots.cjs",
     "script:client-root.js",
@@ -3844,6 +3871,17 @@
     "mode": "copy-file"
    },
    "source": "commands/skill-load.md",
+   "dependencies": []
+  },
+  {
+   "id": "command:update-share-package",
+   "category": "command",
+   "name": "update-share-package",
+   "status": "shipped",
+   "source": "commands/update-share-package.md",
+   "install": {
+    "mode": "copy-file"
+   },
    "dependencies": []
   },
   {

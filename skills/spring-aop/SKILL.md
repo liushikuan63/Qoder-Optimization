@@ -1,6 +1,6 @@
 ---
 name: spring-aop
-description: "Spring AOP (Aspect-Oriented Programming) per Spring Boot 3.x。中文触发：Spring AOP、切面、通知、切点、代理"
+description: "Spring AOP：切面、通知、切点、代理与事务/日志横切。触发词：Spring AOP、切面、@Aspect、通知、切点、代理。不用于：通用 Spring Boot 实现 → spring-boot；Spring 事件 → spring-boot §4。"
 allowed-tools: Read, Grep, Glob, Write, Edit
 ---
 # Spring AOP

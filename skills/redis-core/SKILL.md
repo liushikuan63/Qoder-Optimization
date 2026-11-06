@@ -1,6 +1,6 @@
 ---
 name: redis-core
-description: "Core Redis modeling guidance — choose the right data structure (String, Hash, List, Set, Sorted Set, JSON, Stream, Vector Set) and use consistent colon-separated key names。中文触发：Redis 缓存 键值 TTL 集群 向量检索 全文检索 流式 建模"
+description: "Redis 核心建模：选对结构（String/Hash/List/Set/ZSet/JSON/Stream/Vector Set）、冒号键名、缓存对象与 Hash vs JSON。触发词：Redis 建模、数据结构选型、String、Hash、ZSet、Stream、Vector Set、键名设计、TTL、计数器、排行榜。不用于：连接池 → redis-connections；集群 → redis-clustering。"
 license: MIT
 metadata:
   author: Redis, Inc.

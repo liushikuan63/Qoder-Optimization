@@ -1,6 +1,6 @@
 ---
 name: local-api-contracts
-description: 补充 REST API 的兼容、分页、错误和幂等设计；用于新增或修改接口契约，不用于普通内部函数修改。
+description: "补充 REST API 的兼容、分页、错误和幂等设计；用于新增或修改接口契约。触发词：接口契约、API 兼容、分页、幂等、错误码、版本兼容。不用于：普通内部函数修改。"
 license: MIT
 metadata:
   origin: local-adaptation

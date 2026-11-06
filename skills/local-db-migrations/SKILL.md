@@ -1,6 +1,6 @@
 ---
 name: local-db-migrations
-description: 补充数据库 schema 与数据迁移的兼容、锁、回填和恢复验证；用于写迁移或迁移评审，不用于普通查询修改。
+description: "补充数据库 schema 与数据迁移的兼容、锁、回填和恢复验证；用于写迁移或迁移评审。触发词：数据库迁移、schema 变更、回填、锁表、迁移回滚、双写。不用于：普通查询修改。"
 license: MIT
 metadata:
   origin: local-adaptation

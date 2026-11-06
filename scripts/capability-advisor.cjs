@@ -317,7 +317,7 @@ function planCapabilities(options = {}) {
     else if (!sourcePath(entry, root)) decide('SKIP', ['plugin', 'mcp'].includes(entry.category) ? 'PLATFORM_STATE_UNVERIFIED' : 'PACKAGE_SOURCE_UNAVAILABLE');
     else if (installedPaths.length > 1) decide('REVIEW_UPDATE', 'AMBIGUOUS_INSTALLED_TIERS');
     else if (presence.present === true) {
-      if (entry.category === 'command' && ordinaryWithin(clientDir, output.entryPath, false, options.bindings)) decide('ASK_USE', 'RELEVANT_INSTALLED_COMMAND');
+      if (phase === 'task' && entry.category === 'command' && ordinaryWithin(clientDir, output.entryPath, false, options.bindings)) decide('ASK_USE', 'RELEVANT_INSTALLED_COMMAND');
       else if (phase === 'task' && intent === 'use' && ordinaryWithin(clientDir, output.entryPath, false, options.bindings)) { decide('KEEP', 'EXPLICIT_USE_REQUEST'); output.authorized = true; }
       else if (presence.differs !== false) {
         output.baseline = baselineFor(entry, installedPaths, previous, clientDir, options.bindings);

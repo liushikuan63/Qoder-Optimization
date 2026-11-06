@@ -6,6 +6,20 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.0.29] - 2026-11-06
+
+### Changed
+- Route installed commands and core skills by description trigger cues, recognize both "触发词：" and "触发：", and rank installed commands as usable candidates.
+- Restore 25 on-demand domain skills to the shipped library tier and give them object-level trigger cues plus "not for" routing, so MongoDB, Redis, Python, Spring, PostgreSQL, frontend/backend and game tasks reach the right entry point without per-turn injection.
+- Add trigger markers to the `python-programmer`, `redis-core` and `office-docs` umbrella descriptions so absorbed sub-domain capabilities remain discoverable.
+- Audit ambiguous requests before implementation and enforce the review gate when the answer changes scope, acceptance or authorization.
+- Apply the reviewed local workflow improvements, including session-budget continuity and expanded design-system references.
+
+### Fixed
+- Treat an installed command as current during a package re-installation instead of asking to use it, so the complete profile can refresh without a false "no safe update baseline" error.
+- Isolate migration PowerShell modules in CI and retain bounded stage traces for failed stages.
+- Refresh catalog, manifest, bilingual README highlights, skill inventory and download links for 0.0.29.
+
 ## [0.0.28] - 2026-11-06
 
 ### Changed

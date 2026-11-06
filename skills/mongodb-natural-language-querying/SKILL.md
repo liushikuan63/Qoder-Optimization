@@ -1,6 +1,6 @@
 ---
 name: mongodb-natural-language-querying
-description: "Generate read-only MongoDB queries (find) or aggregation pipelines using natural language, with collection schema context and sample documents。中文触发：MongoDB 文档库 集合 聚合管道 Atlas 数据建模。只管把自然语言转成查询/聚合；慢查询与索引用 mongodb-query-optimizer，全文与向量检索用 mongodb-search-and-ai。"
+description: "把自然语言转成只读 MongoDB find 或聚合管道，带集合 schema 与样本文档上下文。触发词：自然语言查 MongoDB、生成 find、聚合管道、aggregate、只读查询。不用于：慢查询与索引 → mongodb-query-optimizer；全文/向量检索 → mongodb-search-and-ai。"
 license: Apache-2.0
 metadata:
   version: "1.0.0"

@@ -1,6 +1,6 @@
 ---
 name: mongodb-connection
-description: "Optimize MongoDB client connection configuration (pools, timeouts, patterns) for any supported driver language。中文触发：MongoDB 文档库 集合 聚合管道 Atlas 性能优化 profiling 模式规范 配置"
+description: "MongoDB 客户端连接配置：连接池大小、超时、重试、读写关注与驱动参数（Node/Java/Python 等）。触发词：MongoDB 连接池、连接超时、maxPoolSize、连接数打满、读写关注、驱动配置。不用于：MCP Server 配置 → mongodb-mcp-setup；慢查询与索引 → mongodb-query-optimizer。"
 license: Apache-2.0
 metadata:
   version: "1.0.0"

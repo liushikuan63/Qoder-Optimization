@@ -1,6 +1,6 @@
 ---
 name: mongodb-schema-design
-description: "MongoDB schema design patterns and anti-patterns。中文触发：MongoDB 文档库 集合 聚合管道 Atlas 数据建模 schema 设计 模式规范 表结构"
+description: "MongoDB 文档建模：内嵌 vs 引用、数组与桶模式、schema 反模式。触发词：MongoDB 建模、集合结构、内嵌文档、引用关联、schema 反模式、文档设计。不用于：索引与慢查询 → mongodb-query-optimizer。"
 license: Apache-2.0
 metadata:
   version: "1.0.0"

@@ -1,6 +1,6 @@
 ---
 name: redis-search
-description: "Redis Search guidance covering FT.CREATE schema design, field type selection (TEXT, TAG, NUMERIC, GEO, GEOSHAPE, VECTOR, JSON path), DIALECT 2 query syntax, FT.SEARCH / FT.AGGREGATE / FT.HYBRID command selection, vector similarity with HNSW or FLAT, hybrid retrieval combining lexical and vector"
+description: "Redis Search：FT.CREATE schema、字段类型（TEXT/TAG/NUMERIC/GEO/VECTOR/JSON）、DIALECT 2、FT.SEARCH/AGGREGATE/HYBRID、HNSW/FLAT 向量与混合检索。触发词：RediSearch、FT.CREATE、FT.SEARCH、向量检索、HNSW、混合检索。不用于：LLM 语义缓存 → redis-semantic-cache。"
 license: MIT
 metadata:
   author: Redis, Inc.

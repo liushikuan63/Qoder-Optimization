@@ -1,6 +1,6 @@
 ---
 name: open-code-review-delegate
-description: "Delegation mode for open-code-review (OCR). Use when the host agent should drive the review with its own LLM capabilities。中文触发：代码评审 审查 评审"
+description: "由宿主自身 LLM 驱动 open-code-review（OCR）评审，而不是调用外部评审服务。触发词：OCR、open-code-review、宿主评审、代码评审代理、review delegate。不用于：外部评审服务（ocr CLI）；普通只读代码审查直接做。"
 license: Apache-2.0
 compatibility: >
   Requires the `ocr` CLI installed (via `npm install -g

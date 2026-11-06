@@ -1,6 +1,6 @@
 ---
 name: python-programmer
-description: 'Python programmer specialising in functional programming, clean code, documentation, and code quality using ruff and uv.'
+description: "Python 工程规范：函数式写法、整洁代码、文档、类型注解、ruff、uv、可测试性、错误处理与性能意识。触发词：Python 规范、Python 代码评审、类型注解、type hints、mypy、ruff、uv、异常处理、性能优化、反模式。不用于：后端框架 → python-backend-guidelines；项目结构 → python-project-structure。"
 applyTo: '**/{*.py,*.pyi,*.ipynb}'
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: mongodb-mcp-setup
-description: Guide users through configuring key MongoDB MCP server options. Use this skill when a user has the MongoDB MCP server installed but hasn't configured the required environment variables, or when they ask about connecting to MongoDB/Atlas and don't have the credentials set up.
+description: "配置 MongoDB MCP Server：环境变量、Atlas/本地连接串、只读模式与工具白名单。触发词：MongoDB MCP、MCP 配置、Atlas 连接串、MDB_MCP_CONNECTION_STRING、MCP 环境变量、MCP 只读。不用于：应用侧驱动连接池 → mongodb-connection。"
 license: Apache-2.0
 metadata:
   version: "1.0.0"

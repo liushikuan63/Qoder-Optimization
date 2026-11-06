@@ -1,6 +1,6 @@
 ---
 name: nodejs-backend-patterns
-description: Build production-ready Node.js backend services with Express/Fastify, implementing middleware patterns, error handling, authentication, database integration, and API design best practices. Use when creating Node.js servers, REST APIs, GraphQL backends, or microservices architectures.
+description: "Node.js 后端服务：Express/Fastify、中间件、鉴权、数据库集成、错误处理与部署。触发词：Node.js 后端、Express、Fastify、中间件、鉴权、连接池、优雅退出。不用于：接口契约设计 → local-api-contracts。"
 ---
 
 # Node.js Backend Patterns

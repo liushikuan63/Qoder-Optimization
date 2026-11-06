@@ -1,6 +1,6 @@
 ---
 name: deliver-prd
-description: Creates a comprehensive Product Requirements Document that aligns stakeholders on what to build, why, and how success will be measured. Use when specifying features, epics, or product initiatives for engineering handoff.
+description: "产品需求文档（PRD）：目标、范围、用户故事、验收标准与干系人对齐。触发词：PRD、产品需求文档、需求规格、验收标准、干系人对齐、功能立项。不用于：AI 实施四件套 → vibecoding-doc。"
 license: Apache-2.0
 metadata:
   phase: deliver

@@ -1,6 +1,6 @@
 ---
 name: redis-observability
-description: "Redis observability guidance — which metrics to monitor (memory, connections, hit ratio, ops/sec, rejected connections), which built-in commands to reach for during incident triage (SLOWLOG, INFO, MEMORY DOCTOR, CLIENT LIST, FT.PROFILE), and when to use the Redis Insight GUI。"
+description: "Redis 可观测性：监控指标（内存、连接数、命中率、ops/sec、拒绝连接）、slowlog、INFO、MEMORY DOCTOR、CLIENT LIST 与告警。触发词：Redis 监控、内存、连接数、命中率、慢日志、slowlog、延迟、告警。不用于：集群拓扑与分片 → redis-clustering。"
 license: MIT
 metadata:
   author: Redis, Inc.
