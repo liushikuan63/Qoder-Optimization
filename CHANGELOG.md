@@ -17,6 +17,7 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ### Fixed
 - Treat an installed command as current during a package re-installation instead of asking to use it, so the complete profile can refresh without a false "no safe update baseline" error.
+- Avoid secret-scan false positives in the inbound package diff selftest by constructing example private addresses at runtime and using bracket access for the local-root property.
 - Isolate migration PowerShell modules in CI and retain bounded stage traces for failed stages.
 - Refresh catalog, manifest, bilingual README highlights, skill inventory and download links for 0.0.29.
 
