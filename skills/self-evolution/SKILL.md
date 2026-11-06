@@ -69,7 +69,7 @@ description: 将用户明确的长期偏好、重复纠正、验证过的复用�
 
 定期（建议每月）运行本地候选扫描，把「观察很多、晋升靠人想」补成可核对清单：
 
-这是可选维护分支；若 `scripts/evolution-candidates.cjs` 尚未安装，先询问是否加装 `script:evolution-candidates.cjs`，未选择就跳过。核心安装提供必需的 `carrier-preflight.cjs`；非默认客户端调用时传 `--client-root <实际客户端目录>`，不得误读另一客户端。
+这是可选维护分支；若 `~/.qoder/scripts/evolution-candidates.cjs` 尚未安装，先询问是否加装 `script:evolution-candidates.cjs`，未选择就跳过。核心安装提供必需的 `carrier-preflight.cjs`；非默认客户端调用时传 `--client-root <实际客户端目录>`，不得误读另一客户端。
 
 ```bash
 node ~/.qoder/scripts/evolution-candidates.cjs --days 30 --write
