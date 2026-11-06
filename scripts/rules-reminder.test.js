@@ -18,6 +18,9 @@ const SCRIPT = path.join(__dirname, 'rules-reminder.js');
 const SB = path.join(os.tmpdir(), `reminder-sb-${Date.now()}`);
 const HOME = path.join(SB, 'home');
 fs.mkdirSync(path.join(HOME, '.qoder', 'scripts'), { recursive: true });
+// 宿主（Qoder 会话）会注入 QODER_HOME，优先级高于 HOME；不剥掉会把沙箱指回真实客户端，造成假失败。
+const CHILD_ENV = { ...process.env, USERPROFILE: HOME, HOME };
+delete CHILD_ENV.QODER_HOME;
 
 let fail = 0;
 const check = (label, ok, detail) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? ' :: ' + detail : ''}`); if (!ok) fail++; };
@@ -26,10 +29,10 @@ const run = (input) => spawnSync(process.execPath, [SCRIPT], {
   input,
   encoding: 'utf8',
   timeout: 15000,
-  env: { ...process.env, USERPROFILE: HOME, HOME },
+  env: CHILD_ENV,
 });
 
-const MARKERS = ['简体中文', '不随意停止', '需拍板', '验证要能失败', '先备份', '先只读预览命中范围', '明确结论', 'Vibecoding 两问', '目标模式', '过程落盘', '领域与流程纪律', '自进化采集'];
+const MARKERS = ['简体中文', '不随意停止', '需拍板', '验证要能失败', '先备份', '先只读预览命中范围', '明确结论', 'Vibecoding 两问', '目标模式', '开工先判定', '审查+成文', '过程落盘', '领域与流程纪律', '自进化采集'];
 const STRENGTHENED = ['只读', '不重复确认', '不得通过换工具', '零文件写入', '不适用记 N/A'];
 const checkText = (text, expected) => MARKERS.concat(STRENGTHENED).every((k) => expected ? text.includes(k) : true);
 
@@ -94,6 +97,9 @@ check('⑪ 单点小修复负对照 → 不注入目标候选', !smallCtx.includ
 const reviewRun = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: '只读审查方案并给建议，不要修改文件' }));
 const reviewCtx = JSON.parse(reviewRun.stdout).hookSpecificOutput.additionalContext;
 check('⑫ 只读审阅负对照 → 不注入目标候选', !reviewCtx.includes('【目标候选'));
+const reviewDocRun = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: '审查项目，列缺陷项修复方案，形成vibecoding文档' }));
+const reviewDocCtx = JSON.parse(reviewDocRun.stdout).hookSpecificOutput.additionalContext;
+check('⑫-补 审查+成文长任务 → 注入目标候选', reviewDocRun.status === 0 && reviewDocCtx.includes('【目标候选') && reviewDocCtx.includes('审查+成文'));
 
 // ⑬⑭ 抑制提醒（2026-10-27）：门禁因滑动窗上限放行时必须让"这一段在放行"可见，且同批只提醒一次
 const gateDir = path.join(HOME, '.qoder', 'tmp', 'stop-gate');
@@ -151,7 +157,7 @@ const runMut = (input) => spawnSync(process.execPath, [mutFile], {
   input,
   encoding: 'utf8',
   timeout: 15000,
-  env: { ...process.env, USERPROFILE: HOME, HOME },
+  env: CHILD_ENV,
 });
 const r15 = runMut(JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: P12 }));
 let ctx15 = '';
@@ -206,7 +212,7 @@ const runEvoMut = (input) => spawnSync(process.execPath, [evoMutFile], {
   input,
   encoding: 'utf8',
   timeout: 15000,
-  env: { ...process.env, USERPROFILE: HOME, HOME },
+  env: CHILD_ENV,
 });
 const evoPos = JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: '以后所有回复都用简体中文' });
 const evoMutCtx = JSON.parse(runEvoMut(evoPos).stdout).hookSpecificOutput.additionalContext;
@@ -253,7 +259,7 @@ const runB05Mut = (input) => spawnSync(process.execPath, [b05MutFile], {
   input,
   encoding: 'utf8',
   timeout: 15000,
-  env: { ...process.env, USERPROFILE: HOME, HOME },
+  env: CHILD_ENV,
 });
 const b05Pos = JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: '实现用户导出功能' });
 const b05MutCtx = JSON.parse(runB05Mut(b05Pos).stdout).hookSpecificOutput.additionalContext;
@@ -311,7 +317,7 @@ if (toolMutated !== toolSource) fs.writeFileSync(toolMutFile, toolMutated);
 check('联网查证变异体已移除实际调用', toolMutated !== toolSource);
 const runToolMut = input => spawnSync(process.execPath, [toolMutFile], {
   input, encoding: 'utf8', timeout: 15000,
-  env: { ...process.env, USERPROFILE: HOME, HOME },
+  env: CHILD_ENV,
 });
 const toolPositive = JSON.stringify({ prompt: '主动联网搜索官方资料，核对下载工具的来源' });
 const toolMutResult = runToolMut(toolPositive);

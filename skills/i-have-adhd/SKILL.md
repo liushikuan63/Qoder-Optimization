@@ -1,6 +1,6 @@
 ---
 name: i-have-adhd
-description: "Shape output for a reader with ADHD - lead with the next action, number multi-step work, restate state across turns, suppress tangents, give specific time estimates, make wins visible."
+description: '仅限"无需深度思考 / 无复杂步骤 / 非强逻辑性"的小型任务调用（复杂任务不要调用）。Shape output for a reader with ADHD：lead with the next action, number multi-step work, restate state across turns, suppress tangents, give specific time estimates, make wins visible. Invoke with /i-have-adhd; stays on until "stop adhd mode".'
 disable-model-invocation: true
 license: MIT
 metadata:
@@ -12,9 +12,15 @@ metadata:
 
 The reader has ADHD. Output is not just brief. It is shaped so an ADHD brain can act on it.
 
+## Scope（调用范围）
+
+仅当任务属于"无需深度思考 / 无复杂步骤 / 非强逻辑性"的**小型任务**时调用本技能。大型、复杂或强逻辑任务不要调用；这类任务按全局输出风格规则**只取用其中适用的部分**（结论先行、编号、进度、具体收尾），不套用本技能完整规则。
+
+会话中途任务类型变化时按新类型重新判断；"stop adhd mode" / "normal mode" 仍可随时关闭。
+
 ## Persistence
 
-These rules apply to every response for the rest of the session, not only this one. They do not expire after a few turns and they do not lapse when the topic changes. If you are unsure whether they still apply, they do.
+Within the scope above (small tasks only), these rules apply to every response for the rest of the session, not only this one. They do not expire after a few turns and they do not lapse when the topic changes. If you are unsure whether they still apply, they do.
 
 Turn them off only when the reader says "stop adhd mode" or "normal mode". Confirm in one line, then return to your default style.
 

@@ -11,14 +11,24 @@
 // 若项目根有未完成的 `.qoder-work-queue.md`，把"下一步"注入开局上下文，
 // 这样"被中断"的代价从"用户重新交代一遍"降到"新会话开局就知道做到哪"。
 //
-// 判据只依赖一个可观测量：**transcript 文件大小**（= 单请求 payload 的主要成分）。
+// 判据依赖两个**互相独立**的可观测量：
+//   ① transcript 文件大小（字节）= 单请求 payload 的主要成分 → 防传输层掐断；
+//   ② 本会话累计**事件条数**（qodercli 运行日志里的 session_message）= 渲染进程时间线的条数
+//      → 防渲染进程卡死。实测两者不相关（见下方 2026-10-28 取证），所以必须分开分档。
 // 取法：优先用 hook 给的 transcript_path；给不到就按 cwd 推导项目目录、取最近改动的 .jsonl。
 // 取值失败一律静默放行（fail-open），但**每次判定都落台账**，便于核对与看趋势。
 //
+// 卡死取证（2026-10-28）：会话 ff0caa09 正文只有 **2MB / 1283 行**——按字节判它完全健康；
+// 但它的 qodercli 运行日志里有 **136797 条** `inbound session_message received`（98% 的日志行都是事件），
+// 主进程按 64 条/批往渲染进程推、积压 1693 条后渲染进程陷入 React #185 更新循环、界面"看起来死了"。
+// 同批对照：健康会话 4590 条，次高 33298 / 14593 条。**只看字节的哨兵永远预测不到这次卡死。**
+//
 // 用法：脚本由 settings.json 的 hooks 调用，不手工跑。
-//   UserPromptSubmit → 体积分档注入；SessionStart → 未完成队列注入
+//   UserPromptSubmit → 体积 + 事件流分档注入；SessionStart → 未完成队列注入
 // 关闭：~/.qoder/session-budget.json 写 {"disabled":true}
 // 调档：环境变量 SB_YELLOW_MB / SB_ORANGE_MB / SB_RED_MB（默认 8 / 15 / 25）
+//   事件流档位 SB_EVENT_YELLOW / SB_EVENT_ORANGE / SB_EVENT_RED（默认 8000 / 20000 / 50000 条）
+//   事件扫描范围 SB_APPLOG_ROOT（测试夹具）/ SB_APPLOG_BOOTS（默认回溯 12 个启动目录）
 // 台账：~/.qoder/tmp/session-budget/checks.log
 'use strict';
 require('./hook-crash-guard.js').install('session-budget'); // 崩溃可见化：仍 fail-open，但写进 hooks-crash.log 供周检
@@ -39,6 +49,20 @@ const PROJECT_ROOTS = [path.join(CLIENT_ROOT, 'projects')];
 const YELLOW_MB = Number(process.env.SB_YELLOW_MB || 8);
 const ORANGE_MB = Number(process.env.SB_ORANGE_MB || 15);
 const RED_MB = Number(process.env.SB_RED_MB || 25);
+
+// —— 事件流分档（渲染进程侧）：阈值定标在"本次启动累计事件条数"这一维 ——
+// 卡死实测（2026-10-28，时间戳是 UTC，北京 13:16 = 05:16Z）：卡死那一刻本启动累计 **127,366 条**；
+// 同日同启动 33,298 / 20,618 / 14,209 条的会话都正常 ⇒ 黄档必须**高于**已实测正常的 33k，取三档 40k / 75k / 110k。
+// **速率不是判据**（已否证）：卡死前 12 分钟（05:05–05:17Z）一条事件都没有，界面是"累积太长后静止挂住"；
+// 而当天峰值 6,529 条/分（02:22）反而没卡。所以只做累计分档，不做 burst 告警——别看出发烟就装火警。
+// **为什么不累加跨启动**：渲染进程挂的是"这次启动收到的事件流"，把历史启动的条数加进来
+// 会把普通会话误判（实测同一会话本启动 803 条、累加 12,598 条），既报假警又白扫几十 MB 拖慢 hook。
+const EVENT_YELLOW = Number(process.env.SB_EVENT_YELLOW || 40000);
+const EVENT_ORANGE = Number(process.env.SB_EVENT_ORANGE || 75000);
+const EVENT_RED = Number(process.env.SB_EVENT_RED || 110000);
+const EVENT_SCAN_CAP = Number(process.env.SB_EVENT_SCAN_CAP_BYTES || 64 * 1048576); // 单文件最多扫这么多
+const APPLOG_BOOTS = Number(process.env.SB_APPLOG_BOOTS || 4);                      // 最多回溯几个启动目录
+const EVENT_MARK = 'inbound session_message received';
 
 function readStdin() {
   try {
@@ -65,7 +89,7 @@ function loadConfig() {
   try { return JSON.parse(fs.readFileSync(CONFIG, 'utf8')); } catch (e) { return {}; }
 }
 
-// cwd → harness 的项目目录名（实测：`<用户目录>\proj` → `C--Users-x-proj`）
+// cwd → harness 的项目目录名（实测：`C:\Users\x\proj` → `C--Users-x-proj`）
 function projectDirName(cwd) {
   return String(cwd || '').replace(/[\\/:]/g, '-').replace(/^--/, '--');
 }
@@ -119,6 +143,121 @@ function transcriptBytes(payload) {
     }
   }
   return best ? { bytes: best.n, src: 'newest-jsonl-in-project', file: best.file } : null;
+}
+
+// —— 事件流计数：渲染进程按"条"渲染整条时间线，所以它的工作量是事件条数，不是字节 ——
+// 数据源是宿主自己写的 per-session 运行日志（`%APPDATA%\com.qoder*.app.stable\logs\<启动>\qodercli\sessions\<sid>.log`）。
+// 从**最新往旧**找启动目录，一旦某个目录里有本会话的日志就只数那一个目录（= 本会话最近一次活动启动的条数），
+// 到红线即早退，不为"更准"去扫满 64MB。
+// 没有 session_id 一律返回 null：按 cwd 猜会把**别的会话**的事件数算到本会话头上（正是体积守卫踩过的坑）。
+function appLogRoots() {
+  if (process.env.SB_APPLOG_ROOT) return [process.env.SB_APPLOG_ROOT];
+  const appData = process.env.APPDATA || path.join(HOME, 'AppData', 'Roaming');
+  let names = [];
+  try { names = fs.readdirSync(appData); } catch (e) { return []; }
+  return names
+    .filter((n) => /^com\.qoder.*\.stable$/.test(n))
+    .map((n) => path.join(appData, n, 'logs'));
+}
+
+// 在单个文件里数 mark。返回 {count, capped} 或 null（读不到）。
+// carry 只留 mark.length-1 字节：跨块的命中在下一块补全，块内的命中不会被重复计一次。
+function countMark(p, stopAt) {
+  let fd;
+  try { fd = fs.openSync(p, 'r'); } catch (e) { return null; }
+  try {
+    const carryLen = EVENT_MARK.length - 1;
+    const buf = Buffer.alloc(1024 * 1024);
+    let scanned = 0, hits = 0, carry = '';
+    while (scanned < EVENT_SCAN_CAP) {
+      const n = fs.readSync(fd, buf, 0, buf.length, null);
+      if (!n) return { count: hits, capped: false };
+      scanned += n;
+      const chunk = carry + buf.toString('utf8', 0, n);
+      let from = 0, c = 0;
+      while (true) {
+        const i = chunk.indexOf(EVENT_MARK, from);
+        if (i < 0) break;
+        c++; from = i + EVENT_MARK.length;
+      }
+      hits += c;
+      if (stopAt > 0 && hits >= stopAt) return { count: hits, capped: true };
+      carry = chunk.slice(-carryLen);
+    }
+    return { count: hits, capped: true };   // 扫到上限：只能报"至少这么多"
+  } catch (e) {
+    return null;
+  } finally {
+    try { fs.closeSync(fd); } catch (e) {}
+  }
+}
+
+function sessionEvents(sid) {
+  const key = String(sid || '').trim();
+  if (!/^[A-Za-z0-9-]{8,}$/.test(key)) return null;
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const fileRe = new RegExp(`^${escaped}(\\.\\d+)?\\.log$`);   // 含滚动出的 <sid>.1.log
+  let total = 0, files = 0, capped = false;
+  for (const root of appLogRoots()) {
+    let boots = [];
+    try {
+      boots = fs.readdirSync(root).filter((d) => /^\d{8}-/.test(d)).sort().reverse().slice(0, APPLOG_BOOTS);
+    } catch (e) { continue; }
+    for (const b of boots) {
+      const dir = path.join(root, b, 'qodercli', 'sessions');
+      let hits = [];
+      try { hits = fs.readdirSync(dir).filter((f) => fileRe.test(f)); } catch (e) { continue; }
+      for (const f of hits) {
+        const r = countMark(path.join(dir, f), EVENT_RED - total);
+        if (!r) continue;
+        files++;
+        total += r.count;
+        if (r.capped) capped = true;
+      }
+      // 只认"最近一次活动启动"那一个目录：更旧的启动属于上一次挂载，加进来就是假警
+      if (files) return { count: total, files, capped };
+    }
+  }
+  return null;
+}
+
+function eventTier(ev) {
+  if (!ev) return null;
+  const n = ev.count;
+  const shown = `${n.toLocaleString('en-US')}${ev.capped ? '+' : ''}`;
+  if (n >= EVENT_RED) {
+    return {
+      tier: 'ev-red',
+      ctx:
+        `【本会话事件流 ${shown} 条 ≥ ${EVENT_RED} · 换会话，别再往这里加活】渲染进程要按条挂载整条时间线，` +
+        `卡死的判据就是这一维（实测卡死会话 127,366 条事件，而正文只有 2MB——按字节完全看不出问题）。\n` +
+        `**动作**：手头这一格做完就落盘 \`.qoder-work-queue.md\`，然后 \`mcp__builtin__create_chat_session\` 换新会话接着跑；` +
+        `本会话不再开新工作线。**界面一卡先点窗口/切前台等 90–120 秒**——积压事件会自己排空、循环自己退出，` +
+        `别急着发关闭信号（强杀才有会话损坏风险）。`,
+    };
+  }
+  if (n >= EVENT_ORANGE) {
+    return {
+      tier: 'ev-orange',
+      ctx:
+        `【本会话事件流 ${shown} 条 ≥ ${EVENT_ORANGE} · 省事件并准备换会话】渲染时间线按条挂载，堆到卡死实测是 127,366 条。\n` +
+        `事件量的量纲要看清：**分片数 ∝ 模型输出长度**（实测每条 assistant 回复 ≈ 248 个 stream_event，98% 的事件都是分片），` +
+        `一次失败重试 = 一整条回复 + 一段拒绝文本。所以真正省事件的是三个动作：\n` +
+        `① 长内容落盘，上下文只留路径与结论；回复别复述已经打过的大段内容；` +
+        `② **同一处失败不要重复撞**（改路径前先确认在工作区内、改锚点前先 Read）——反复撞同一堵墙是本档位最常见的爆量来源；` +
+        `③ 把交接写进 \`.qoder-work-queue.md\`，这一格做完就 \`mcp__builtin__create_chat_session\` 换新会话接着跑（任务不停，只是换个地方跑）。`,
+    };
+  }
+  if (n >= EVENT_YELLOW) {
+    return {
+      tier: 'ev-yellow',
+      ctx:
+        `【本会话事件流 ${shown} 条 ≥ ${EVENT_YELLOW} · 节约事件】渲染进程按条挂载整条时间线，事件量 ≈ 输出分片数` +
+        `（实测每条回复约 248 个分片）。本回合起：少刷屏、命令一律限流、长内容进文件只回路径与结论；` +
+        `同一处失败别反复重试。到 ${EVENT_ORANGE} 条会要求落盘并准备换会话，${EVENT_RED} 条要求立即换会话。`,
+    };
+  }
+  return null;
 }
 
 function tiers(mb) {
@@ -365,8 +504,20 @@ function main() {
 
   if (event && event !== 'UserPromptSubmit') return;
 
+  const ev = sessionEvents(payload.session_id);
+  const evTier = eventTier(ev);
+  const evField = 'ev=' + (ev ? ev.count.toLocaleString('en-US') + (ev.capped ? '+' : '') : '?');
+  // 台账列序不变（体积档仍独占第 4 列），事件维新开两列追加在尾部——老断言与已有核对脚本按列位取值，
+  // 把两维合成一个字符串会让"体积到没到档"这个问题再也读不出来。
+  const tierField = evTier ? evTier.tier : 'ev-ok';
+
   const t = transcriptBytes(payload);
-  if (!t) { ledger(['UserPromptSubmit', 'unknown', 'size-unavailable']); return; }
+  if (!t) {
+    // 体积取不到 ≠ 事件维也取不到：渲染卡死跟 payload 无关，这一路要独立成立
+    ledger(['UserPromptSubmit', 'unknown', 'size-unavailable', '-', '-', '-', evField, evTier ? 'red?' : tierField]);
+    if (evTier) emit('UserPromptSubmit', evTier.ctx);
+    return;
+  }
   const mb = t.bytes / 1048576;
   const comps = t.file ? countCompactions(t.file) : null;
   const deltaMb = turnGrowth(payload.session_id, t.bytes);
@@ -376,8 +527,8 @@ function main() {
   ledger(['UserPromptSubmit', mb.toFixed(1) + 'MB', g ? g.tier : 'ok',
     'comp=' + (comps === null ? '?' : comps),
     'Δ=' + (deltaMb === null ? '-' : deltaMb.toFixed(1) + 'MB'),
-    t.src, String(payload.session_id || '').slice(0, 8)]);
-  const parts = [g && g.ctx, note, grow].filter(Boolean);
+    t.src, String(payload.session_id || '').slice(0, 8), evField, tierField]);
+  const parts = [g && g.ctx, note, grow, evTier && evTier.ctx].filter(Boolean);
   if (parts.length) emit('UserPromptSubmit', parts.join('\n\n'));
 }
 

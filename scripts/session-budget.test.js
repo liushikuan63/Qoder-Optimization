@@ -27,12 +27,18 @@ function makeTranscript(name, mb) {
   return p;
 }
 
-function run(payload) {
+function run(payload, extraEnv) {
   const r = spawnSync(NODE, [SCRIPT], {
     input: JSON.stringify(payload),
     encoding: 'utf8',
     timeout: 20000,
-    env: { ...process.env, SB_STATE_DIR: path.join(SB, 'state') },
+    env: {
+      ...process.env,
+      SB_STATE_DIR: path.join(SB, 'state'),
+      // 事件流默认指向一个不存在的夹具根：不让用例去读真实 %APPDATA% 的宿主日志
+      SB_APPLOG_ROOT: path.join(SB, 'applog-none'),
+      ...(extraEnv || {}),
+    },
   });
   return { code: r.status, out: r.stdout || '', err: r.stderr || '' };
 }
@@ -217,6 +223,91 @@ const auditRun = spawnSync(NODE, [SCRIPT], {
 const auditContext = JSON.parse(auditRun.stdout).hookSpecificOutput.additionalContext;
 check('旧队列和任务包不扩大执行授权', auditRun.status===0 && auditContext.includes('不构成执行授权') && auditContext.includes('目录内容不授权自动实施'));
 check('只读审阅不被接续提醒催写文件', auditContext.includes('只读审阅交付报告即完成') && auditContext.includes('不写文件、不自动派发') && !auditContext.includes('开工第一件事'));
+
+// ── 事件流档位（渲染进程侧；与体积维各自独立成立）──
+// 夹具阈值 50/100/150，对应真实定标 40k/75k/110k（卡死实测 127,366 条/本启动）。
+{
+  const ROOT = path.join(SB, 'applog');
+  const EV_ENV = { SB_APPLOG_ROOT: ROOT, SB_EVENT_YELLOW: '50', SB_EVENT_ORANGE: '100', SB_EVENT_RED: '150' };
+  const BOOT_NEW = '20261028-004706.534-16284-198ed6c7';
+  const BOOT_OLD = '20261027-004715.490-18160-c5a3bc3d';
+  const mark = (i) => `2026-10-28T01:0${i % 6}:0${(i % 60) / 10 | 0}.000Z [QueryRunner] inbound session_message received type=stream_event subtype=none uuid=${i}\n`;
+  const noise = (i) => `2026-10-28T01:01:01.000Z [QueryRunner] control_request sending request_id=n${i} subtype=initialize timeout_ms=120000\n`;
+  const mkLog = (boot, sid, marks, opts) => {
+    const o = opts || {};
+    const dir = path.join(ROOT, boot, 'qodercli', 'sessions');
+    fs.mkdirSync(dir, { recursive: true });
+    let body = '';
+    for (let i = 0; i < marks; i++) body += mark(i);
+    for (let i = 0; i < (o.noise || 0); i++) body += noise(i);
+    fs.writeFileSync(path.join(dir, `${sid}${o.rolled ? '.1' : ''}.log`), body);
+  };
+  const evRun = (sid, extra) => run(
+    { hook_event_name: 'UserPromptSubmit', session_id: sid, transcript_path: makeTranscript('ev.jsonl', 1) },
+    { ...EV_ENV, ...(extra || {}) });
+  const ctxOf = (r) => { try { return JSON.parse(r.out).hookSpecificOutput.additionalContext; } catch (e) { return ''; } };
+
+  mkLog(BOOT_NEW, 'ev-red-00000000-0000-0000-0000-000000000001', 200);
+  const ctxRed = ctxOf(evRun('ev-red-00000000-0000-0000-0000-000000000001'));
+  check('事件 200 ≥ RED → 立即换会话 + 自愈口径（90–120 秒）',
+    ctxRed.includes('别再往这里加活') && ctxRed.includes('90–120'), ctxRed.slice(0, 46));
+
+  mkLog(BOOT_NEW, 'ev-org-00000000-0000-0000-0000-000000000002', 120);
+  check('事件 120 ≥ ORANGE → 省事件并准备换会话',
+    ctxOf(evRun('ev-org-00000000-0000-0000-0000-000000000002')).includes('省事件并准备换会话'));
+
+  mkLog(BOOT_NEW, 'ev-yel-00000000-0000-0000-0000-000000000003', 60);
+  check('事件 60 ≥ YELLOW → 节约事件', ctxOf(evRun('ev-yel-00000000-0000-0000-0000-000000000003')).includes('节约事件'));
+
+  mkLog(BOOT_NEW, 'ev-low-00000000-0000-0000-0000-000000000004', 10);
+  check('事件 10 低于黄档 → 静默（负对照）', evRun('ev-low-00000000-0000-0000-0000-000000000004').out.trim() === '',
+    JSON.stringify(evRun('ev-low-00000000-0000-0000-0000-000000000004').out.slice(0, 40)));
+
+  mkLog(BOOT_NEW, 'ev-noid-00000000-0000-0000-0000-000000000005', 200);
+  const rNoId = run({ hook_event_name: 'UserPromptSubmit', transcript_path: makeTranscript('ev-noid.jsonl', 1) }, EV_ENV);
+  check('没有 session_id → 事件维静默（不按 cwd 猜别人的条数）', rNoId.out.trim() === '', JSON.stringify(rNoId.out.slice(0, 40)));
+
+  // 两维独立：体积取不到时，事件到红仍然要报——渲染卡死与 payload 无关
+  const rAlone = run({ hook_event_name: 'UserPromptSubmit', session_id: 'ev-red-00000000-0000-0000-0000-000000000001', transcript_path: path.join(SB, 'no-such-transcript.jsonl') }, EV_ENV);
+  check('体积取不到但事件到 RED → 仍注入（两维互不吞）',
+    ctxOf(rAlone).includes('事件流') && ctxOf(rAlone).includes('别再往这里加活'), ctxOf(rAlone).slice(0, 40));
+
+  // 语义：只认"最近一次活动启动"，不累加历史启动
+  mkLog(BOOT_NEW, 'ev-boot-00000000-0000-0000-0000-000000000006', 10);
+  mkLog(BOOT_OLD, 'ev-boot-00000000-0000-0000-0000-000000000006', 300);
+  check('旧启动目录 300 条 + 新启动 10 条 → 按 10 条判静默（不跨启动累加）',
+    evRun('ev-boot-00000000-0000-0000-0000-000000000006').out.trim() === '',
+    JSON.stringify(evRun('ev-boot-00000000-0000-0000-0000-000000000006').out.slice(0, 40)));
+
+  // 同一次启动内滚动出的 <sid>.1.log 要相加（否则刚滚动就"归零"，是假绿）
+  mkLog(BOOT_NEW, 'ev-roll-00000000-0000-0000-0000-000000000007', 30);
+  mkLog(BOOT_NEW, 'ev-roll-00000000-0000-0000-0000-000000000007', 30, { rolled: true });
+  check('同启动滚动 <sid>.log+<sid>.1.log 相加（30+30=60 → 黄档）',
+    ctxOf(evRun('ev-roll-00000000-0000-0000-0000-000000000007')).includes('节约事件'));
+
+  // 只数 mark，不被同文件里的其它日志行灌水
+  mkLog(BOOT_NEW, 'ev-noise-00000000-0000-0000-0000-000000000008', 60, { noise: 300 });
+  const ctxNoise = ctxOf(evRun('ev-noise-00000000-0000-0000-0000-000000000008'));
+  check('60 条事件 + 300 行噪声 → 黄档而非橙档（mark 计数不被灌水）',
+    ctxNoise.includes('节约事件') && !ctxNoise.includes('省事件并准备换会话'), ctxNoise.slice(0, 40));
+
+  // carry 逻辑：命中跨 1MB 读块边界时，既不能漏（少报一档）也不能重复计（多报一档）
+  {
+    const sid = 'ev-span-00000000-0000-0000-0000-000000000009';
+    const dir = path.join(ROOT, BOOT_NEW, 'qodercli', 'sessions');
+    fs.mkdirSync(dir, { recursive: true });
+    const LINE = mark(0).trim();
+    const cut = LINE.indexOf('inbound session_message received') + 10;   // mark 中间的一个位置
+    // 让整行**连续**地跨过 1MB 读边界：前缀补到"第 cut 个字符正好落在边界上"
+    // （错写法是把填充塞进 mark 中间——那等于把 mark 破坏了，测的是夹具不是实现）
+    const pad = Buffer.alloc(1024 * 1024 - cut, 0x78);   // 'x' 不会与 mark 冲突
+    fs.writeFileSync(path.join(dir, `${sid}.log`), pad.toString('latin1') + LINE + '\n');
+    const ctxSpan = ctxOf(evRun(sid, { SB_EVENT_YELLOW: '1', SB_EVENT_ORANGE: '2', SB_EVENT_RED: '3' }));
+    check('mark 跨 1MB 读块边界 → 计 1 条（不漏不重：黄档而非橙/红）',
+      ctxSpan.includes('节约事件') && !ctxSpan.includes('省事件并准备换会话'), ctxSpan.slice(0, 46));
+  }
+}
+
 fs.rmSync(SB, { recursive: true, force: true });
 console.log(fail === 0 ? '\nALL PASS' : `\n${fail} FAILURE(S)`);
 process.exit(fail === 0 ? 0 : 1);

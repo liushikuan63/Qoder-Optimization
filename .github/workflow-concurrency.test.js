@@ -37,7 +37,9 @@ function sourceFixture(t) {
     assert.ok(match, 'the actual source resolver must be present');
     const script = block.slice(block.indexOf('        run: |\n') + '        run: |\n'.length).split('\n').map(line => line.startsWith('          ') ? line.slice(10) : line).join('\n');
     const output = path.join(root, 'github-output-' + Math.random());
-    const executable = process.platform === 'win32' ? 'C:\\Program Files\\Git\\bin\\bash.exe' : 'bash';
+    const executable = process.platform === 'win32'
+      ? [process.env.SHELL, 'C:\\Program Files\\Git\\bin\\bash.exe'].find(candidate => candidate && fs.existsSync(candidate)) || 'bash'
+      : 'bash';
     const result = spawnSync(executable, ['-c', script], { cwd: root, env: { ...env, GITHUB_SHA: a, GITHUB_EVENT_NAME: 'push', REQUESTED_TAG: '', GITHUB_OUTPUT: output.replace(/\\/g, '/'), ...extra }, encoding: 'utf8', timeout: 30000 });
     const text = fs.existsSync(output) ? fs.readFileSync(output, 'utf8') : '';
     return { ...result, commit: text.match(/^commit=([a-f0-9]{40})$/m)?.[1] };

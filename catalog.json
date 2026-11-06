@@ -399,7 +399,7 @@
    "name": "goal-driven-execution",
    "status": "shipped",
    "tier": "core",
-   "description": "目标化执行：把长任务设成\"带可失败判据的目标\"，逐格推进、每格落盘，直到判据全绿才算完成。当任务是中大型 / 跨多回合 / 容易半途跑偏或\"看起来做完了其实没做完\"时使用。触发词：设个目标、持续推进、盯到完成、别中途跑偏、长任务、多步骤、任务目标、Goal 模式、完成判据、什么时候算做完。不用于：小改动与单点修复（直接做）、纯探索类问题（先给结论）。",
+   "description": "目标化执行：把长任务设成\"带可失败判据的目标\"，逐格推进、每格落盘，直到判据全绿才算完成；后台任务按「启动 ≠ 完成」闭环（等完成通知不轮询、核对真实退出码与日志终态标记、通过验收再进依赖步骤）。当任务是中大型 / 跨多回合 / 容易半途跑偏或\"看起来做完了其实没做完\"时使用。触发词：设个目标、持续推进、盯到完成、别中途跑偏、长任务、多步骤、任务目标、Goal 模式、完成判据、什么时候算做完、后台任务、完成通知、退出码透传、DELIVERY_VERIFIED、启动不等于完成。不用于：小改动与单点修复（直接做）、纯探索类问题（先给结论）。",
    "install": {
     "mode": "copy-skill",
     "tier": "core"
@@ -427,7 +427,7 @@
    "name": "i-have-adhd",
    "status": "shipped",
    "tier": "library",
-   "description": "Shape output for a reader with ADHD - lead with the next action, number multi-step work, restate state across turns, suppress tangents, give specific time estimates, make wins visible.",
+   "description": "仅限\"无需深度思考 / 无复杂步骤 / 非强逻辑性\"的小型任务调用（复杂任务不要调用）。Shape output for a reader with ADHD：lead with the next action, number multi-step work, restate state across turns, suppress tangents, give specific time estimates, make wins visible. Invoke with /i-have-adhd; stays on until \"stop adhd mode\".",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -651,7 +651,7 @@
    "name": "memory-entry-update",
    "status": "shipped",
    "tier": "library",
-   "description": "在用户明确要求更新特定长期信息时，同步已有记忆正文、description 与 MEMORY.md 索引并验证。触发：更新记忆、记忆索引同步、记忆维护。只读审阅仅给差异；不用于新增条目、临时进度、排错配方或代码结构。",
+   "description": "在用户明确要求更新特定长期信息时，同步已有记忆正文、frontmatter description 与 MEMORY.md 索引，备份后定点编辑并验证。触发：更新记忆、记忆索引同步、记忆维护、记忆条目、周检0告警。只读审阅仅给差异；不用于新增条目、临时进度、排错配方、代码结构或凭据审计。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -679,7 +679,7 @@
    "name": "minigame-dev-pro",
    "status": "shipped",
    "tier": "library",
-   "description": "小游戏开发专家：从创意到上架到运营的全链路顾问。覆盖微信/抖音等主流小游戏平台，提供市场分析、合规审查（14条红线+8份SOP）、游戏设计、技术开发（Cocos/原生）、数据增长、质量保障、运营变现、失败复盘，并涵盖小游戏跨端经营（App/PC）路径。集成本地执行工具（环境验证/预览/日志/截图/真机/上传/就绪度/合规/包体/性能/素材/知识过滤/SOP时效巡检/官方规范核验 + 全平台规范实时核实 + 全维度安全合规扫描 +",
+   "description": "小游戏开发全链路顾问：微信/抖音等平台的市场分析、合规审查（14 条红线 + 8 份 SOP）、玩法设计、Cocos/原生开发、数据增长、质量保障、运营变现、失败复盘、跨端经营（App/PC）。含本地执行工具（环境验证/预览/日志/截图/真机/上传/就绪度/合规/包体/性能/素材/数值平衡/经济建模/无障碍/QA/本地化/本地 CI）。触发：小游戏开发/上架/审核/合规/变现/备案/软著。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1371,7 +1371,7 @@
    "name": "skill-authoring-closure",
    "status": "shipped",
    "tier": "library",
-   "description": "技能落地闭环：同域判重合并 → 通用 SKILL.md + references/<产品>.md → carrier-preflight 定级 → 校验元数据 → 重建索引 → 三组查询验收路由 → 双客户端 parity → skills-doctor 收口。触发词：把自进化建议合并成技能、自进化建议、标记 evolved、技能上线、双客户端上线、CN 侧技能同步、skill-load 检索不到。不用于：单技能从零编写（skill-creator）、分层迁移（skill-tiering-lazy-load）、描述瘦身（skill-description-route-cue-rewrite）。",
+   "description": "技能落地闭环：候选全文取证、同域判重合并、通用 SKILL.md + references/<产品>.md、carrier-preflight 定级、校验元数据、重建索引、三组查询验收路由、双客户端 parity、skills-doctor 收口。触发：技能建议、自进化建议、处理自进化建议、扫描全部建议、全量处理建议、建议扫描闭环、一次性生成技能、标记 evolved、新增技能、改名技能、技能上收、通用化改造、技能上线、CN侧技能同步、skill-load 检索不到、索引未更新、路由验证。不用于从零编写、分层迁移、描述瘦身或停用合并。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1695,7 +1695,7 @@
    "name": "verify-before-claim",
    "status": "shipped",
    "tier": "core",
-   "description": "验证证据纪律与复核：每条断言必须能失败；启动/HTTP 验收要有「不存在路径」对照组、本轮编译退出码入判据、请求打本轮独占端口；计数断言先列「会改世界的操作」；多出的红先归因自己；无证据须标「未验证」；流式分块/UTF-8 走专项反例矩阵；常驻进程「改了没生效」先证运行态版本==磁盘（启动时间/健康端点）；用户说再次检查/重复检查/循环检查时历史只作线索、按多路复核。用于检查排错、模型能力审查、证据审计及验收/测试/证据/判据/全绿前；区分静态、模拟、运行时与产物证据。不用于目标推进/接续（→goal-driven-execution）。",
+   "description": "验证证据纪律与通用检查排错：断言可失败、启动/HTTP独占端口与不存在路径对照、本轮构建退出码、计数前核对状态变化、分发产物字节一致/内容完整/干净环境消费、流式分块/UTF-8反例、运行态版本==磁盘、无证据标未验证。触发：检查排错、模型能力审查、证据审计、验收、测试、判据、全绿、汇报完成、再次检查、重复检查、循环检查。复核历史只作线索，区分静态/模拟/运行时/产物；不用于目标推进或接续。",
    "install": {
     "mode": "copy-skill",
     "tier": "core"
@@ -1751,7 +1751,7 @@
    "name": "vibecoding-doc",
    "status": "shipped",
    "tier": "core",
-   "description": "把模糊需求变成可交给 AI 实施的四层文档：AGENTS.md（地图/命令/禁区）、spec.md（what/why+验收）、plan/tasks（短周期计划）、运行时上下文（按需装载）。按风险定强度：小项目只留宪法+窄契约+验收，字段级模型/完整四态/全量版本冻结仅在跨人、长周期、高风险时加。降本靠稳定前缀缓存与子 agent 隔离，不靠写更长。触发词：写 vibecoding 文档、SPEC、需求规格、AGENTS.md、上下文工程、氛围编程。不用于需求已明确、架构评审、代码评审。",
+   "description": "把模糊需求变成可交给 AI 实施的四层文档：AGENTS.md（地图/命令/禁区）、spec.md（what/why+验收）、plan/tasks（短周期计划）、运行时上下文（按需装载）。按风险定强度：小项目只留宪法+窄契约+验收，字段级模型/完整四态/全量版本冻结仅在跨人、长周期、高风险时加。降本靠稳定前缀缓存与子 agent 隔离，不靠写更长。触发词：写 vibecoding 文档、SPEC、需求规格、AGENTS.md、上下文工程、氛围编程。也用于需求扩维后的文档同步；不用于明确需求的直接实施、架构评审、代码评审。",
    "install": {
     "mode": "copy-skill",
     "tier": "core"

@@ -149,7 +149,7 @@ Details: [installation and tiers](README-安装说明.md), [working rules](Qoder
 
 ### Catalog snapshot
 
-In the catalog generated on 2026-11-06, 12 core skill descriptions total 2,578 characters; all 133 skill descriptions total 26,887 characters. The core descriptions are 9.6% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
+In the catalog generated on 2026-11-06, 12 core skill descriptions total 2,616 characters; all 133 skill descriptions total 27,012 characters. The core descriptions are 9.7% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
 
 ### Requirements and limits
 
@@ -323,7 +323,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 
 ### 目录快照
 
-截至 2026-11-06 生成的目录，12 个常驻技能的描述共 2,578 字符；133 个技能的描述共 26,887 字符。常驻描述占全部技能描述文本的 9.6%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
+截至 2026-11-06 生成的目录，12 个常驻技能的描述共 2,616 字符；133 个技能的描述共 27,012 字符。常驻描述占全部技能描述文本的 9.7%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
 
 ### 环境与限制
 

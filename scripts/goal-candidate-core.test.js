@@ -30,6 +30,19 @@ check('多阶段候选仍要求弹窗确认两项', (() => {
   return n.includes('需弹窗确认') && n.includes('AskUserQuestion') && n.includes('创建目标并持续推进') && n.includes('Vibecoding 四层文档') && !n.includes('已获显式授权');
 })());
 
+const reviewDoc = '审查项目，列缺陷项修复方案，形成vibecoding文档';
+const reviewDocResult = classifyGoalCandidate(reviewDoc);
+check('审查项目+成文 → 命中长任务候选', reviewDocResult.candidate && reviewDocResult.matchedStages.includes('review') && reviewDocResult.matchedStages.includes('document'));
+check('审查+成文候选仍要求弹窗确认', (() => {
+  const n = goalCandidateNote(reviewDoc);
+  return n.includes('需弹窗确认') && n.includes('审查+成文') && !n.includes('已获显式授权');
+})());
+check('多版本审查+成文 → 命中长任务候选', classifyGoalCandidate('审查项目，列缺陷项修复方案，完整版/lite git/lite svn版本分别形成vibecoding文档').candidate);
+check('全项目分析+优化建议 → 命中长任务候选', classifyGoalCandidate('分析介绍一下本项目，并告诉我是否有可完善优化的地方').candidate);
+check('窄范围审查+方案不命中', !classifyGoalCandidate('审查这个按钮文案并给修复方案').candidate);
+check('窄范围分析+建议不命中', !classifyGoalCandidate('分析这个函数并给建议').candidate);
+check('只读审查+文档不命中', !classifyGoalCandidate('只读审查项目并形成文档，不要修改文件').candidate);
+
 check('单点小修复不命中', !classifyGoalCandidate('修复一个按钮文案并提交').candidate);
 check('纯只读审阅不命中', !classifyGoalCandidate('只读审查这个方案并给建议，不要修改文件').candidate);
 check('普通实现但无部署交付边界不命中', !classifyGoalCandidate('实现一个本地解析函数并测试').candidate);

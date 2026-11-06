@@ -1,6 +1,7 @@
 ---
 name: skill-authoring-closure
-description: 技能落地闭环：同域判重合并 → 通用 SKILL.md + references/<产品>.md → carrier-preflight 定级 → 校验元数据 → 重建索引 → 三组查询验收路由 → 双客户端 parity → skills-doctor 收口。触发词：把自进化建议合并成技能、自进化建议、标记 evolved、技能上线、双客户端上线、CN 侧技能同步、skill-load 检索不到。不用于：单技能从零编写（skill-creator）、分层迁移（skill-tiering-lazy-load）、描述瘦身（skill-description-route-cue-rewrite）。
+description: "技能落地闭环：候选全文取证、同域判重合并、通用 SKILL.md + references/<产品>.md、carrier-preflight 定级、校验元数据、重建索引、三组查询验收路由、双客户端 parity、skills-doctor 收口。触发：技能建议、自进化建议、处理自进化建议、扫描全部建议、全量处理建议、建议扫描闭环、一次性生成技能、标记 evolved、新增技能、改名技能、技能上收、通用化改造、技能上线、CN侧技能同步、skill-load 检索不到、索引未更新、路由验证。不用于从零编写、分层迁移、描述瘦身或停用合并。"
+
 ---
 
 # 技能落地上线闭环
@@ -51,6 +52,7 @@ node ~/.qoder/scripts/carrier-preflight.cjs --type skill --name <技能名>
 ## 5. 写盘与元数据校验
 
 - 目录名 = `name`，hyphen-case；frontmatter 用 `---` 包住；`description` **单行** ≤1024 字符。
+- 常驻 description 还须满足 `skills-doctor.cjs` 的当前上限（默认 300；仅已登记载体按其例外表），扩写前先量长度。压缩描述不得删除独有路由词，改后重跑原查询；领域技能仍留在按需库，不为方便检索上收常驻。
 - 正文控制在 500 行内；`references/` 按需拆；不要 README/CHANGELOG。
 - 自带脚本必须实测：1 条正向 + 每个失败分支的负对照（缺参、文件不存在、无命中），并把退出码写进技能。
 
@@ -74,7 +76,7 @@ node ~/.qoder/scripts/skill-load.cjs "<产品专有问法>"  # 必须命中自�
 node ~/.qoder/scripts/skill-load.cjs "<无关问法>"      # 必须不命中自己
 ```
 
-打分规则（`skill-load.cjs`）：整句命中 +5、名称含词 +4、描述含词 +1。
+检索只使用名称、ID 与 description，不读取正文；每个按空白或分隔符拆出的查询词都须子串命中，连续中文短语不会自动分词。评分以当前 `pkg-catalog.cjs` 实现为准，不在流程里重复固化数字。
 
 - 产品问法排不到第一时，在 description 补**产品族触发短语**（如「<产品名> 收不到更新推送」），重建索引再测。
 - 无关问法命中自己 ⇒ 描述里有过宽的词，收窄。
@@ -98,7 +100,7 @@ node ~/.qoder/scripts/skill-collisions.cjs     # 期望 触发重叠对=0
 ## 10. 回写与记录
 
 - 记忆：只写「哪个技能承载哪类流程」这类指针，不复制技能正文。
-- 证据：`node ../self-evolution/scripts/evolution.js record --input <证据.json>`，摘要写清合并了哪些候选、落在哪个技能。
+- 证据：`node ~/.qoder/skills/self-evolution/scripts/evolution.js record --input <证据.json>`，摘要写清合并了哪些候选、落在哪个技能。
 
 ## 11. 处理完必须标记完成并汇报
 
@@ -117,6 +119,7 @@ node "$S" --db "$DB" --names "建议A,建议B" --reason "..." --apply           
 ```
 
 - 脚本自带：命中预览 → 逻辑备份（改写前的 pending 原行）→ 短事务更新 → 复验 `evolved` 行数与 pending 减少量；减少量与匹配行数不符直接退出 4（并行写入信号）。
+- 处理建议 ID 数、唯一载体数、标记 ID 数、状态新增名字数分别统计；同名新 pending 不能凭旧 `processed` 名字直接跳过。名字去重可能使「标记 6 条、状态新增 5 个名字」同时成立，必须区分口径，不以状态条数反推数据库完成数。
 - 改脚本后跑隔离夹具：临时库造同名多行 + `evolving` 行，断言"预览零写入""部分命中判红""--allow-partial 只标命中行""缺参/库不存在退出 2"。夹具能失败才算测过。
 - **不要写 `evolution_session_id`**：该列有唯一约束，多行同值会 `UNIQUE constraint failed`（本机实测，写入自动回滚）。
 - 客户端运行时用 WAL 短事务写入是安全的，但面板可能要重新打开或重启才刷新；DB 状态才是判据。

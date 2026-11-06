@@ -26,7 +26,7 @@
   {
    "name": "awesome-design-md",
    "tier": "library",
-   "files": 2
+   "files": 76
   },
   {
    "name": "byok-model-retry",
@@ -236,7 +236,7 @@
   {
    "name": "merge-inbound-qoder-package",
    "tier": "library",
-   "files": 1
+   "files": 2
   },
   {
    "name": "minigame-dev-pro",
