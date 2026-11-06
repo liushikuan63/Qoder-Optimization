@@ -17,6 +17,7 @@ During the 0.x line, minor versions may contain breaking changes.
 - Generate self-contained context test fixtures in isolated temporary directories so installed tests, metadata generation and release builds succeed.
 - Preserve complete UTF-8 characters during paged source retrieval, validate byte cursors, retain existing ledger references in fold previews, and honor `--record false` without writing a manifest.
 - Publish skill navigation and the machine index together during fresh installation, upgrades, direct skill installation and tier changes; restore both views on failure and preserve concurrent edits.
+- Preview existing WAL ledgers through a verified temporary copy, including committed WAL-only references, so SQLite never creates source-side WAL/SHM files; reject a changing source instead of claiming a valid preview.
 
 ### 中文摘要
 - 上下文工具提供逻辑折叠、引用追回与交接证据；不改写模型请求，未取得独立物理执行回执时仍报告 `physicalSavings=0`。hook 默认未接线。

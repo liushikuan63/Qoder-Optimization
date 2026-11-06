@@ -3,6 +3,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const crypto = require('crypto');
 const { DatabaseSync } = require('node:sqlite');
 
@@ -221,6 +222,45 @@ function openLedger(dataDir, sessionId, create = true) {
   db.exec('PRAGMA busy_timeout = 5000');
   db.exec(SCHEMA_SQL);
   return db;
+}
+
+function importPreviewLedger(target, file) {
+  // SQLite can create WAL/SHM even with readOnly=true. Open only a stable copy
+  // so preview validation never opens the live ledger through SQLite.
+  const token = stat => [stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs];
+  const read = name => {
+    let before;
+    try { before = fs.lstatSync(name); } catch (err) { if (err.code === 'ENOENT') return null; throw err; }
+    if (!before.isFile() || before.isSymbolicLink()) throw new Error('preview ledger must be an ordinary file');
+    const bytes = fs.readFileSync(name);
+    const identity = token(before);
+    if (JSON.stringify(identity) !== JSON.stringify(token(fs.lstatSync(name)))) throw new Error('ledger changed during preview snapshot');
+    return { bytes, identity };
+  };
+  if (fs.existsSync(file + '-journal')) throw new Error('rollback journal present; preview requires a stable ledger');
+  const names = [file, file + '-wal'];
+  const captured = names.map(read);
+  if (!captured[0]) throw new Error('ledger disappeared during preview snapshot');
+  const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'qoder-ledger-preview-'));
+  let source;
+  try {
+    const copy = path.join(stage, 'ledger.db');
+    captured.forEach((item, i) => { if (item) fs.writeFileSync(copy + (i ? '-wal' : ''), item.bytes, { flag: 'wx', mode: 0o600 }); });
+    const checked = names.map(read);
+    if (fs.existsSync(file + '-journal') || captured.some((item, i) => item ? !checked[i] || JSON.stringify(item.identity) !== JSON.stringify(checked[i].identity) || !item.bytes.equals(checked[i].bytes) : checked[i])) throw new Error('ledger changed during preview snapshot');
+    source = new DatabaseSync(copy, { readOnly: true });
+    source.exec('BEGIN');
+    for (const table of ['pins', 'segments', 'folds']) {
+      const rows = source.prepare(`SELECT * FROM ${table}`).all();
+      if (!rows.length) continue;
+      const columns = Object.keys(rows[0]);
+      const insert = target.prepare(`INSERT INTO ${table} (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`);
+      for (const row of rows) insert.run(...columns.map(column => row[column]));
+    }
+  } finally {
+    try { if (source) source.close(); }
+    finally { fs.rmSync(stage, { recursive: true, force: true }); }
+  }
 }
 
 function hasFts(db) {
@@ -955,20 +995,11 @@ function cmdFold(args) {
     db.exec(SCHEMA_SQL);
     const existing = ledgerPath(dataDir, parsed.sessionId);
     if (fs.existsSync(existing)) {
-      const sourceDb = new DatabaseSync(existing, { readOnly: true });
       try {
-        // Validate against one existing snapshot, including recoverable refs and
-        // duplicate receipts. All copies remain in the in-memory preview ledger.
-        sourceDb.exec('BEGIN');
-        for (const table of ['pins', 'segments', 'folds']) {
-          const rows = sourceDb.prepare(`SELECT * FROM ${table}`).all();
-          if (!rows.length) continue;
-          const columns = Object.keys(rows[0]);
-          const insert = db.prepare(`INSERT INTO ${table} (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`);
-          for (const row of rows) insert.run(...columns.map((column) => row[column]));
-        }
-      } finally {
-        sourceDb.close();
+        importPreviewLedger(db, existing);
+      } catch (err) {
+        db.close();
+        return { code: 1, error: err.message };
       }
     }
   } else {

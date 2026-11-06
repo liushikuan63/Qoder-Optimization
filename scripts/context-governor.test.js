@@ -725,14 +725,56 @@ test('context-governor core', async (t) => {
     const args = { summary: secondPath, transcript: c.transcriptPath, dataDir: c.dataDir, force: true, reason: 'independent range fixture' };
     const ledger = path.join(c.dataDir, 'ledgers', c.parsed.sessionId + '.db');
     const before = fs.readFileSync(ledger);
+    const beforeFiles = fs.readdirSync(path.dirname(ledger)).sort();
     const preview = gov.cmdFold({ ...args, dryRun: true });
     assert.equal(preview.code, 0, JSON.stringify(preview));
     assert.deepEqual(fs.readFileSync(ledger), before);
+    assert.deepEqual(fs.readdirSync(path.dirname(ledger)).sort(), beforeFiles, 'preview must not create WAL or SHM beside the source');
     const beforeApply = gov.cmdVerify({ session: c.parsed.sessionId, dataDir: c.dataDir });
     assert.equal(beforeApply.folds, 1);
     assert.equal(beforeApply.segments, 1);
     const applied = gov.cmdFold(args);
     assert.equal(applied.code, 0, JSON.stringify(applied));
+  });
+
+  await t.test('fold preview reads WAL-only references without changing live ledger sidecars', () => {
+    const c = makeCase();
+    const first = gov.cmdFold({ summary: writeJson(c, 'wal-first.json', makeSummary(c, 'f-2', 'f-8')), transcript: c.transcriptPath, dataDir: c.dataDir, force: true, reason: 'fixture range' });
+    assert.equal(first.code, 0);
+    const ledger = path.join(c.dataDir, 'ledgers', c.parsed.sessionId + '.db');
+    const live = new (require('node:sqlite').DatabaseSync)(ledger);
+    try {
+      live.exec('PRAGMA wal_autocheckpoint=0');
+      live.prepare('UPDATE segments SET id = ? WHERE id = ?').run('seg-preview-wal', first.receipt.segmentIds[0]);
+      assert.ok(fs.statSync(ledger + '-wal').size > 0);
+      const inventory = () => Object.fromEntries(fs.readdirSync(path.dirname(ledger)).sort().map(name => [name, sha256(fs.readFileSync(path.join(path.dirname(ledger), name)))]));
+      const before = inventory();
+      const summary = makeSummary(c, 'f-12', 'f-15', { evidence: [{ ref: 'seg-preview-wal' }] });
+      const preview = gov.cmdFold({ summary: writeJson(c, 'wal-second.json', summary), transcript: c.transcriptPath, dataDir: c.dataDir, force: true, reason: 'fixture range', dryRun: true });
+      assert.equal(preview.code, 0, JSON.stringify(preview));
+      assert.deepEqual(inventory(), before);
+    } finally { live.close(); }
+  });
+
+  await t.test('fold preview rejects a ledger changed while its snapshot is copied', () => {
+    const c = makeCase();
+    const first = gov.cmdFold({ summary: writeJson(c, 'changed-first.json', makeSummary(c, 'f-2', 'f-8')), transcript: c.transcriptPath, dataDir: c.dataDir, force: true, reason: 'fixture range' });
+    assert.equal(first.code, 0);
+    const ledger = path.join(c.dataDir, 'ledgers', c.parsed.sessionId + '.db');
+    const summary = writeJson(c, 'changed-second.json', makeSummary(c, 'f-12', 'f-15'));
+    const read = fs.readFileSync;
+    let fired = false;
+    try {
+      fs.readFileSync = function(file, ...args) {
+        const bytes = read.call(this, file, ...args);
+        if (!fired && file === ledger) { fired = true; fs.appendFileSync(file, Buffer.from([0])); }
+        return bytes;
+      };
+      const result = gov.cmdFold({ summary, transcript: c.transcriptPath, dataDir: c.dataDir, force: true, reason: 'fixture range', dryRun: true });
+      assert.equal(result.code, 1);
+      assert.match(result.error, /ledger changed/);
+    } finally { fs.readFileSync = read; }
+    assert.equal(fired, true);
   });
 
   await t.test('fold dry-run and apply both reject a previously committed range', () => {
