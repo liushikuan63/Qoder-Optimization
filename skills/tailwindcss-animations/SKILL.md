@@ -1,6 +1,6 @@
 ---
 name: tailwindcss-animations
-description: "Tailwind CSS animations and transitions including built-in utilities and custom keyframes。中文触发：前端样式 设计系统 UI 组件库 动画"
+description: "Tailwind CSS animations/transitions：built-in animate-* (spin, ping, pulse, bounce), custom @keyframes via @theme, transition utilities (duration/ease/delay), transforms (scale/rotate/translate/skew). Proactively use for animation, keyframe, transition or transform work in Tailwind v3/v4."
 ---
 
 # Tailwind CSS Animations & Transitions

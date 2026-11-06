@@ -1,6 +1,6 @@
 ---
 name: redis-connections
-description: "Redis client and connection guidance covering connection pooling, multiplexing, pipelining, client-side caching with RESP3, avoiding slow commands (KEYS, SMEMBERS, HGETALL), and tuning socket timeouts。中文触发：Redis 缓存 键值 TTL 集群"
+description: "Redis client/connection guidance：pooling, multiplexing, pipelining, client-side caching (RESP3), avoiding slow commands (KEYS, SMEMBERS, HGETALL), socket timeouts. Use when configuring redis-py / Jedis / Lettuce / NRedisStack, batching commands, using SCAN, or tuning connect/read timeouts."
 license: MIT
 metadata:
   author: Redis, Inc.

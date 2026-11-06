@@ -1,6 +1,6 @@
 ---
 name: architecture-designer
-description: "Use when designing new high-level system architecture, reviewing existing designs, or making architectural decisions。中文触发：系统架构 ADR 技术选型 容量与扩展性 设计 架构 评审"
+description: "System architecture design/review：diagrams, ADRs, tech trade-offs, component interactions, scalability, microservices, infrastructure patterns. Use for system design, architecture review, ADR authoring. Not for code-level design patterns or database-only tasks."
 license: MIT
 metadata:
   author: https://github.com/Jeffallan

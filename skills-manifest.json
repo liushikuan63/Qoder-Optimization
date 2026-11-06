@@ -366,7 +366,7 @@
   {
    "name": "python-dataviz",
    "tier": "library",
-   "files": 12
+   "files": 14
   },
   {
    "name": "python-error-handling",

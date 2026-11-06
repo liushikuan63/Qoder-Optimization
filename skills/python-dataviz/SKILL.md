@@ -1,6 +1,6 @@
 ---
 name: python-dataviz
-description: "Professional data visualization using Python (matplotlib, seaborn, plotly)。中文触发：Python 图表、数据可视化、matplotlib、seaborn、plotly"
+description: "Professional data visualization in Python (matplotlib, seaborn, plotly)：publication-quality static charts, statistical visualizations, interactive plots, infographics; PNG/SVG/HTML export。中文触发：Python 图表、数据可视化、matplotlib、seaborn、plotly。"
 ---
 
 # Python Data Visualization
@@ -87,7 +87,7 @@ plt.savefig('output.svg', bbox_inches='tight')
 
 **Interactive:**
 - Any plotly chart → `plotly.express` or `plotly.graph_objects`
-- See scripts/interactive.py
+- See scripts/interactive.py or references/plotly-examples.md
 
 ## Best Practices
 
@@ -149,7 +149,8 @@ See references/ for detailed guides:
 
 - **Color theory & palettes**: references/colors.md
 - **Statistical plots**: references/statistical.md
-- **Plotly interactive charts**: scripts/interactive.py
+- **Plotly interactive charts**: scripts/interactive.py / references/plotly-examples.md
+- **Multi-panel layouts**: references/layouts.md
 
 ## Example Scripts
 

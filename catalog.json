@@ -33,7 +33,7 @@
    "name": "architecture-designer",
    "status": "shipped",
    "tier": "library",
-   "description": "Use when designing new high-level system architecture, reviewing existing designs, or making architectural decisions。中文触发：系统架构 ADR 技术选型 容量与扩展性 设计 架构 评审",
+   "description": "System architecture design/review：diagrams, ADRs, tech trade-offs, component interactions, scalability, microservices, infrastructure patterns. Use for system design, architecture review, ADR authoring. Not for code-level design patterns or database-only tasks.",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -75,7 +75,7 @@
    "name": "awesome-design-md",
    "status": "shipped",
    "tier": "library",
-   "description": "A bundled library of 74 DESIGN.md design-system documents analyzed from real product websites (Apple, Claude, Stripe, Linear, Figma, Nike, Vercel, Tesla, Starbucks, Notion and more)。中文触发：前端样式 设计系统 UI 组件库 设计",
+   "description": "74 份来自真实产品网站的 DESIGN.md 设计系统文档库（Apple / Stripe / Linear / Vercel / Notion 等）。当用户要「做成 XX 那样」、要设计语言或视觉方向（极简、暗黑电影感、编辑风、复古、奢华），或写前端前需要具体 design token（配色、字号、间距、圆角、阴影、组件规格）时使用。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -103,7 +103,7 @@
    "name": "cloudbase-wechat-integration",
    "status": "shipped",
    "tier": "library",
-   "description": "CloudBase WeChat integration guide for Mini Program WeChat Pay, Mini Program virtual payment (虚拟支付, wx.requestVirtualPayment), Official Account JSAPI Pay, Native QR-code Pay, Official Account OAuth, openid handling, payment callbacks, and CloudBase Integration Center generated functions。中文触发：微信小程序",
+   "description": "CloudBase 微信集成指南：小程序微信支付、虚拟支付（wx.requestVirtualPayment）、公众号 JSAPI 支付、Native 扫码支付、公众号 OAuth、openid 处理、支付回调、集成中心生成函数。用于在 CloudBase 上新增/排查/扩展微信支付、虚拟支付、公众号流程。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -315,7 +315,7 @@
    "name": "frontend-design-ui-ux",
    "status": "shipped",
    "tier": "library",
-   "description": "Produce a distinctive, LOCKED design language plus an implementation-ready UX/UI spec, written to `.ulpi/design/` - a per-brief visual identity (palette, type, signature), the design system to build on, user flows and states, component briefs, and accessibility constraints。中文触发：前端样式 设计系统 UI 组件库 前端",
+   "description": "Produce a distinctive LOCKED design language + implementation-ready UX/UI spec in `.ulpi/design/`：visual identity, design system, flows, component briefs, a11y. Bans AI-slop, locks identity across screens. Outputs spec, not UI code. Use for new features, redesigns, design-system work.",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -329,7 +329,7 @@
    "name": "frontend-development",
    "status": "shipped",
    "tier": "library",
-   "description": "Multi-framework frontend development。中文触发：前端 开发",
+   "description": "Multi-framework frontend development：React 18+ (Suspense/hooks/TanStack), Vue 3 (Composition API), Svelte 5 (Runes), Angular (Signals). Use for components/pages, TypeScript, state management, routing, data fetching, performance. Keywords：React, Vue, Svelte, Angular, component, hooks.",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -469,7 +469,7 @@
    "name": "java-quality",
    "status": "shipped",
    "tier": "library",
-   "description": "Java code quality with Checkstyle, SpotBugs, PMD, and SonarJava。中文触发：Java 后端 JVM",
+   "description": "Java code quality：Checkstyle, SpotBugs, PMD, SonarJava — static analysis, code style, best practices. Use for Java/Spring Boot/Maven/Gradle projects asking about Checkstyle, SpotBugs, PMD, Java code smells, or Java best practices. Not for SonarQube server administration.",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1033,7 +1033,7 @@
    "name": "python-dataviz",
    "status": "shipped",
    "tier": "library",
-   "description": "Professional data visualization using Python (matplotlib, seaborn, plotly)。中文触发：Python 图表、数据可视化、matplotlib、seaborn、plotly",
+   "description": "Professional data visualization in Python (matplotlib, seaborn, plotly)：publication-quality static charts, statistical visualizations, interactive plots, infographics; PNG/SVG/HTML export。中文触发：Python 图表、数据可视化、matplotlib、seaborn、plotly。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1173,7 +1173,7 @@
    "name": "redis-connections",
    "status": "shipped",
    "tier": "library",
-   "description": "Redis client and connection guidance covering connection pooling, multiplexing, pipelining, client-side caching with RESP3, avoiding slow commands (KEYS, SMEMBERS, HGETALL), and tuning socket timeouts。中文触发：Redis 缓存 键值 TTL 集群",
+   "description": "Redis client/connection guidance：pooling, multiplexing, pipelining, client-side caching (RESP3), avoiding slow commands (KEYS, SMEMBERS, HGETALL), socket timeouts. Use when configuring redis-py / Jedis / Lettuce / NRedisStack, batching commands, using SCAN, or tuning connect/read timeouts.",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1639,7 +1639,7 @@
    "name": "tailwindcss-animations",
    "status": "shipped",
    "tier": "library",
-   "description": "Tailwind CSS animations and transitions including built-in utilities and custom keyframes。中文触发：前端样式 设计系统 UI 组件库 动画",
+   "description": "Tailwind CSS animations/transitions：built-in animate-* (spin, ping, pulse, bounce), custom @keyframes via @theme, transition utilities (duration/ease/delay), transforms (scale/rotate/translate/skew). Proactively use for animation, keyframe, transition or transform work in Tailwind v3/v4.",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1653,7 +1653,7 @@
    "name": "typescript-pro",
    "status": "shipped",
    "tier": "library",
-   "description": "Implements advanced TypeScript type systems, creates custom type guards, utility types, and branded types, and configures tRPC for end-to-end type safety。中文触发：TypeScript 类型 泛型 配置",
+   "description": "Advanced TypeScript type systems：custom type guards, utility types, branded types, tRPC end-to-end type safety. Use when building TypeScript apps requiring advanced generics, conditional/mapped types, discriminated unions, monorepo setup, or full-stack type safety with tRPC.",
    "install": {
     "mode": "copy-skill",
     "tier": "library"

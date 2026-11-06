@@ -1,6 +1,6 @@
 ---
 name: cloudbase-wechat-integration
-description: "CloudBase WeChat integration guide for Mini Program WeChat Pay, Mini Program virtual payment (虚拟支付, wx.requestVirtualPayment), Official Account JSAPI Pay, Native QR-code Pay, Official Account OAuth, openid handling, payment callbacks, and CloudBase Integration Center generated functions。中文触发：微信小程序"
+description: "CloudBase 微信集成指南：小程序微信支付、虚拟支付（wx.requestVirtualPayment）、公众号 JSAPI 支付、Native 扫码支付、公众号 OAuth、openid 处理、支付回调、集成中心生成函数。用于在 CloudBase 上新增/排查/扩展微信支付、虚拟支付、公众号流程。"
 version: 2.34.4
 alwaysApply: false
 ---

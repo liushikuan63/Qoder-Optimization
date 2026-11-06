@@ -1,6 +1,6 @@
 ---
 name: java-quality
-description: "Java code quality with Checkstyle, SpotBugs, PMD, and SonarJava。中文触发：Java 后端 JVM"
+description: "Java code quality：Checkstyle, SpotBugs, PMD, SonarJava — static analysis, code style, best practices. Use for Java/Spring Boot/Maven/Gradle projects asking about Checkstyle, SpotBugs, PMD, Java code smells, or Java best practices. Not for SonarQube server administration."
 allowed-tools: Read, Grep, Glob, Bash
 ---
 # Java Quality - Quick Reference

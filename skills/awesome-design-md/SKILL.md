@@ -1,6 +1,6 @@
 ---
 name: awesome-design-md
-description: "A bundled library of 74 DESIGN.md design-system documents analyzed from real product websites (Apple, Claude, Stripe, Linear, Figma, Nike, Vercel, Tesla, Starbucks, Notion and more)。中文触发：前端样式 设计系统 UI 组件库 设计"
+description: "74 份来自真实产品网站的 DESIGN.md 设计系统文档库（Apple / Stripe / Linear / Vercel / Notion 等）。当用户要「做成 XX 那样」、要设计语言或视觉方向（极简、暗黑电影感、编辑风、复古、奢华），或写前端前需要具体 design token（配色、字号、间距、圆角、阴影、组件规格）时使用。"
 ---
 
 # Awesome DESIGN.md

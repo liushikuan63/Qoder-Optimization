@@ -1,6 +1,6 @@
 ---
 name: frontend-development
-description: "Multi-framework frontend development。中文触发：前端 开发"
+description: "Multi-framework frontend development：React 18+ (Suspense/hooks/TanStack), Vue 3 (Composition API), Svelte 5 (Runes), Angular (Signals). Use for components/pages, TypeScript, state management, routing, data fetching, performance. Keywords：React, Vue, Svelte, Angular, component, hooks."
 ---
 
 # Frontend Development Guidelines

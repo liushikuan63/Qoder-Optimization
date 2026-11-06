@@ -1,7 +1,7 @@
 ---
 name: frontend-design-ui-ux
 version: 3.1.0
-description: "Produce a distinctive, LOCKED design language plus an implementation-ready UX/UI spec, written to `.ulpi/design/` - a per-brief visual identity (palette, type, signature), the design system to build on, user flows and states, component briefs, and accessibility constraints。中文触发：前端样式 设计系统 UI 组件库 前端"
+description: "Produce a distinctive LOCKED design language + implementation-ready UX/UI spec in `.ulpi/design/`：visual identity, design system, flows, component briefs, a11y. Bans AI-slop, locks identity across screens. Outputs spec, not UI code. Use for new features, redesigns, design-system work."
 allowed-tools:
   - AskUserQuestion
   - Read

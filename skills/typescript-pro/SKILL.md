@@ -1,6 +1,6 @@
 ---
 name: typescript-pro
-description: "Implements advanced TypeScript type systems, creates custom type guards, utility types, and branded types, and configures tRPC for end-to-end type safety。中文触发：TypeScript 类型 泛型 配置"
+description: "Advanced TypeScript type systems：custom type guards, utility types, branded types, tRPC end-to-end type safety. Use when building TypeScript apps requiring advanced generics, conditional/mapped types, discriminated unions, monorepo setup, or full-stack type safety with tRPC."
 license: MIT
 metadata:
   author: https://github.com/Jeffallan
