@@ -66,6 +66,7 @@ node ~/.qoder/scripts/skill-load.cjs "技能分层"
 ## 索引与维护
 
 - 真源：两层实际 SKILL.md；`build-skills-index.cjs` 的扫描函数供检索与显式建索引共同使用。
+- 命令入口：`/skill-load` 与 `/pkg-find` 只是薄壳，检索、询问、安装更新与汇报的完整判据见 [route-commands.md](references/route-commands.md)。
 - 派生快照：`~/.qoder/skills-index.json`（机器：name / tier / path / description）与 `~/.qoder/SKILLS.md`（人读：一行一条，含层级、触发词/描述与相对路径）；主安装器、包技能安装与分层迁移在同一事务中更新两份视图，失败回滚并保留并发编辑。手动增删改技能后显式重建，检索本身不写盘。CN 对应 `~/.qoder-cn/SKILLS.md`。
 - 目录校验：`node ~/.qoder/scripts/build-skills-index.cjs --check`；过期退出 1 并输出 `CATALOG_STALE`，重建后退出 0。
 - 包候选：`pkg-catalog.cjs` 统一匹配与状态展示（未发现=可安装，内容不同=可更新，一致=已安装）；本地文件存在不证明已装载，插件/MCP 需通过平台工具核对。原始候选先按能力闭环筛选，符合时走 `/pkg-find` 的询问流程；`pkg-catalog.cjs drift` 可批量列出已安装但与包内不同的条目。
