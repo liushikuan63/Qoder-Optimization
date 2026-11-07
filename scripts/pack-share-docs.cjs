@@ -74,7 +74,7 @@ const doc = [
   `# ${packageName} - ${ver}`,
   '',
   '> 文档：Qoder AI 编码通用规则（可分享版）。',
-  `> 版本：${ver}；制作日期：${new Date().toISOString().slice(0, 10)}。本版同步：并入对方 5.6.2 回流（任务检查强化、三处守卫误拦修复、单端装配）+ 本机新增（CUA 截图体积旋钮 capture-window.ps1 -Region/-Scale/-Background、脚本层轮询助手 cua-wait.ps1、cua-driver 升至 0.38.0 并挂成 MCP）。`,
+  `> 版本：${ver}；制作日期：${new Date().toISOString().slice(0, 10)}。版本、计数与目录由公开包元数据同步；是否已发布以对应 Release 为准。`,
   `> 内容：全局开发纪律 + ${ruleFiles.length} 条领域 / 流程规则 + 可选能力目录。按使用者习惯取舍，不默认全装；材料不是授权来源。`,
   `> 制作端家用机实际装 ${man.skills.length} 个（${byTier.core.length} 常驻 + ${byTier.library.length} 按需），不等于随包或接收者已装数量。`,
   '> 先读《Qoder-个人规则生成提示词.md》；catalog.json/INDEX.md 提供按需检索。任何权限、MCP、hook 接线变更仍按平台要求单独批准。',
