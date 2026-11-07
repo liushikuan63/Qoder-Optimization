@@ -58,6 +58,34 @@ function sh(script, args, timeoutMs = 20000) {
 }
 function readText(p) { try { return fs.readFileSync(p, 'utf8'); } catch { return ''; } }
 function listRules(dir) { try { return fs.readdirSync(path.join(dir, 'rules')).filter(f => f.endsWith('.md')); } catch { return []; } }
+
+// hook 脚本身份提取：兼容单串命令行（CN）、command+args 数组（国际）、run-package-hook base64 包装（国际）。
+// 只比 command 字符串会把后两种误判成"另一侧没挂"（2026-11-07 实测 4 条恒亮假 WARN）。
+const normCmd = (c) => String(c).replace(/[\\/]\.qoder-cn[\\/]/g, '/.qoder/').replace(/\\/g, '/').replace(/\s+/g, ' ').trim();
+function hookIdentity(h) {
+  const tokens = [String(h.command || ''), ...(Array.isArray(h.args) ? h.args.map(String) : [])].join(' ').split(/\s+/).filter(Boolean);
+  const wi = tokens.findIndex(t => /(^|[\\/])run-package-hook\.cjs$/.test(t));
+  if (wi >= 0 && tokens[wi + 1] && /^[A-Za-z0-9+/=]+$/.test(tokens[wi + 1])) {
+    try {
+      const p = JSON.parse(Buffer.from(tokens[wi + 1], 'base64').toString('utf8'));
+      if (p && p.script) {
+        return {
+          name: String(p.script),
+          flags: (Array.isArray(p.args) ? p.args.map(String) : []).filter(t => t.startsWith('-')).join(' '),
+          scriptPath: path.join(String(p.client || ''), 'scripts', String(p.script)),
+        };
+      }
+    } catch (e) { /* 解码失败落回直接形式 */ }
+  }
+  // powershell -File <script>：脚本名取 -File 后的路径，参数取其后全部（-Action Start 这类值不是 - 开头）
+  const fi = tokens.findIndex(t => /^-file$/i.test(t));
+  if (fi >= 0 && tokens[fi + 1]) {
+    return { name: path.basename(tokens[fi + 1]), flags: tokens.slice(fi + 2).join(' ').trim(), scriptPath: tokens[fi + 1] };
+  }
+  const si = tokens.findIndex(t => /\.(js|cjs|mjs)$/i.test(t));
+  if (si < 0) return { name: normCmd(tokens.join(' ')), flags: '', scriptPath: null };
+  return { name: path.basename(tokens[si]), flags: tokens.slice(si + 1).filter(t => t.startsWith('-')).join(' '), scriptPath: tokens[si] };
+}
 function daysAgo(t) { return (Date.now() - t) / 86400000; }
 
 // 内联检查的耗时预算：脚本以子进程形式被 hook 调用时，调用方的超时若小于脚本耗时，
@@ -120,7 +148,7 @@ function checkConsistency() {
       try { cfg = JSON.parse(readText(p)); } catch (e) { continue; }
       for (const g of (cfg.hooks || {})[c.hookEvent] || []) {
         for (const h of g.hooks || []) {
-          if (String(h.command || '').includes(c.consumer)) hookSec = Math.min(hookSec ?? Infinity, h.timeout ?? Infinity);
+          if (hookIdentity(h).name === c.consumer || String(h.command || '').includes(c.consumer)) hookSec = Math.min(hookSec ?? Infinity, h.timeout ?? Infinity);
         }
       }
     }
@@ -188,34 +216,38 @@ function checkSoundness() {
     }
   }
 
-  // 2c. hook 接线完整性：两侧三个事件都要挂
+  // 2c. hook 接线完整性：两侧五个事件都要挂（PostToolUse 的 auth/attempt/payload 守卫同样关键）
+  const HOOK_EVENTS = ['UserPromptSubmit', 'Stop', 'SessionStart', 'PreToolUse', 'PostToolUse'];
   const hookCmds = {};
   for (const [label, p] of [['非 CN', path.join(A, 'settings.json')], ...(HAS_B ? [['CN', path.join(B, 'settings.json')]] : [])]) {
     let cfg;
     try { cfg = JSON.parse(readText(p)); } catch (e) { add('warn', '健全性', `${label} settings.json 解析失败：${e.message}`, '修 JSON'); continue; }
     const hooks = cfg.hooks || {};
-    for (const ev of ['UserPromptSubmit', 'Stop', 'SessionStart', 'PreToolUse']) {
-      const cmds = (hooks[ev] || []).flatMap(g => (g.hooks || []).map(h => h.command)).filter(Boolean);
+    for (const ev of HOOK_EVENTS) {
+      const entries = (hooks[ev] || []).flatMap(g => (g.hooks || []).map(hookIdentity));
       hookCmds[label] = hookCmds[label] || {};
-      hookCmds[label][ev] = cmds;
+      hookCmds[label][ev] = entries;
       // 完整性（每侧都要挂）与一致性（两侧要挂成一样）是**两件事**，都得查：
       // 只查一致 → "两侧都漏挂"会通过；只查非空 → "只挂一侧"会通过。（踩过：补一致性时把完整性删了，自测立刻红。）
-      if (cmds.length === 0) add('warn', '健全性', `${label} settings.json 缺 ${ev} 接线`, '规则强制层少一路，对应机制不会触发');
+      if (entries.length === 0) add('warn', '健全性', `${label} settings.json 缺 ${ev} 接线`, '规则强制层少一路，对应机制不会触发');
     }
   }
-  // 2d. 两侧 hook 清单必须一致——只查"某侧非空"会让**单边接线**静默通过（2026-09-19 补）
-  const norm = (c) => String(c).replace(/[\\/]\.qoder-cn[\\/]/g, '/.qoder/').replace(/\\/g, '/').replace(/\s+/g, ' ').trim();
+  // 2d. 两侧 hook 清单必须一致——按脚本身份比（调用形式不同不算差异）；同名脚本开关不同报 INFO
   if (hookCmds['非 CN'] && hookCmds['CN']) {
-    for (const ev of ['UserPromptSubmit', 'Stop', 'SessionStart', 'PreToolUse']) {
-      const a = new Set((hookCmds['非 CN'][ev] || []).map(norm));
-      const b = new Set((hookCmds['CN'][ev] || []).map(norm));
-      const onlyA = [...a].filter(x => !b.has(x));
-      const onlyB = [...b].filter(x => !a.has(x));
+    for (const ev of HOOK_EVENTS) {
+      const a = new Map((hookCmds['非 CN'][ev] || []).map(e => [e.name, e]));
+      const b = new Map((hookCmds['CN'][ev] || []).map(e => [e.name, e]));
+      const onlyA = [...a.keys()].filter(x => !b.has(x));
+      const onlyB = [...b.keys()].filter(x => !a.has(x));
       if (onlyA.length || onlyB.length) {
         add('warn', '健全性', `${ev} 两侧接线不一致：` +
-          (onlyA.length ? `仅非 CN 有 ${onlyA.map(x => path.basename(x)).join(', ')}；` : '') +
-          (onlyB.length ? `仅 CN 有 ${onlyB.map(x => path.basename(x)).join(', ')}` : ''),
+          (onlyA.length ? `仅非 CN 有 ${onlyA.join(', ')}；` : '') +
+          (onlyB.length ? `仅 CN 有 ${onlyB.join(', ')}` : ''),
           '把缺的那侧补上（同一份脚本两侧都要挂），否则该侧静默失效');
+      }
+      for (const [name, ea] of a) {
+        const eb = b.get(name);
+        if (eb && ea.flags !== eb.flags) add('info', '健全性', `${ev} 的 ${name} 两侧开关不同：非 CN [${ea.flags || '无'}] / CN [${eb.flags || '无'}]`, '确认是否有意为之；行为开关（如 --workflow-mode）不同会让两侧纪律口径分叉');
       }
     }
   }
@@ -226,11 +258,10 @@ function checkSoundness() {
   {
     const seen = new Set();
     for (const [label, byEv] of Object.entries(hookCmds)) {
-      for (const [ev, cmds] of Object.entries(byEv)) {
-        for (const c of cmds) {
-          const m = String(c).match(/node(?:\.exe)?\s+"?((?:[A-Za-z]:[\\/]|~[\\/]|\/)[^"\s]+\.(?:js|cjs|mjs|sh))"?/i);
-          if (!m) continue;
-          let p = m[1].replace(/^~(?=[\\/])/, os.homedir()).replace(/[\\/]/g, path.sep);
+      for (const [ev, entries] of Object.entries(byEv)) {
+        for (const e of entries) {
+          if (!e.scriptPath || !/^([A-Za-z]:[\\/]|~[\\/]|[\\/])/.test(e.scriptPath)) continue;
+          let p = e.scriptPath.replace(/^~(?=[\\/])/, os.homedir()).replace(/[\\/]/g, path.sep);
           if (p.includes('$') || p.includes('%')) continue;   // 含环境变量的路径无法解析，不判
           if (seen.has(label + '|' + p)) continue;
           seen.add(label + '|' + p);

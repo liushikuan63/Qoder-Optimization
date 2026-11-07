@@ -27,7 +27,7 @@ const RULE = (name, trig) => `---\ntrigger: ${trig}\nglob: ["**/*.java"]\ndescri
 // 基线里这条 hook 必须指向**真实存在**的脚本：V18（hook 指向不存在的脚本）落地后，
 // 指向一个不存在的路径会让"健康沙箱零告警"直接判红。桩文件在 buildSandbox 里落盘。
 const GUARD = path.join(H, 'scripts', 'global-config-guard.js');
-const SETTINGS = JSON.stringify({ hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: 'x', timeout: 5 }] }], Stop: [{ hooks: [{ type: 'command', command: 'x', timeout: 5 }] }], SessionStart: [{ hooks: [{ type: 'command', command: 'x', timeout: 5 }, { type: 'command', command: 'node ' + GUARD, timeout: 15 }] }], PreToolUse: [{ hooks: [{ type: 'command', command: 'x', timeout: 5 }] }] } }, null, 2);
+const SETTINGS = JSON.stringify({ hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: 'x', timeout: 5 }] }], Stop: [{ hooks: [{ type: 'command', command: 'x', timeout: 5 }] }], SessionStart: [{ hooks: [{ type: 'command', command: 'x', timeout: 5 }, { type: 'command', command: 'node ' + GUARD, timeout: 15 }] }], PreToolUse: [{ hooks: [{ type: 'command', command: 'x', timeout: 5 }] }], PostToolUse: [{ hooks: [{ type: 'command', command: 'x', timeout: 5 }] }] } }, null, 2);
 
 function buildSandbox({ slowMemory = false, staleHeartbeat = false } = {}) {
   fs.rmSync(SB, { recursive: true, force: true });
@@ -237,6 +237,104 @@ const cases = [
       }
     },
     expect: /声明的总预算 11s ≥ hook 超时 8s/,
+  },
+  // ── hook 身份比较（2026-11-07：只比 command 字符串把 args/base64 形式误判成"另一侧没挂"）──
+  {
+    name: 'V22 args 数组与单串指向同一脚本 → 不算接线差异（假阳性回归对照）',
+    plant: () => {
+      const script = path.join(H, 'scripts', 'stop-gate.js');
+      const ph = path.join(H, 'settings.json');
+      const ch = JSON.parse(fs.readFileSync(ph, 'utf8'));
+      ch.hooks.Stop = [{ hooks: [{ type: 'command', command: NODE, args: [script], timeout: 15 }] }];
+      fs.writeFileSync(ph, JSON.stringify(ch, null, 2));
+      const pc = path.join(C, 'settings.json');
+      const cc = JSON.parse(fs.readFileSync(pc, 'utf8'));
+      cc.hooks.Stop = [{ hooks: [{ type: 'command', command: 'node ' + script, timeout: 15 }] }];
+      fs.writeFileSync(pc, JSON.stringify(cc, null, 2));
+    },
+    want: 0,
+    expect: /^((?!两侧接线不一致)[\s\S])*$/,
+  },
+  {
+    name: 'V23 base64 包装与单串指向同一脚本 → 不算接线差异（run-package-hook 形式）',
+    plant: () => {
+      const payload = Buffer.from(JSON.stringify({ client: H, event: 'Stop', script: 'stop-gate.js', args: [] })).toString('base64');
+      const ph = path.join(H, 'settings.json');
+      const ch = JSON.parse(fs.readFileSync(ph, 'utf8'));
+      ch.hooks.Stop = [{ hooks: [{ type: 'command', command: NODE, args: [path.join(H, 'scripts', 'run-package-hook.cjs'), payload], timeout: 15 }] }];
+      fs.writeFileSync(ph, JSON.stringify(ch, null, 2));
+      const pc = path.join(C, 'settings.json');
+      const cc = JSON.parse(fs.readFileSync(pc, 'utf8'));
+      cc.hooks.Stop = [{ hooks: [{ type: 'command', command: 'node ' + path.join(H, 'scripts', 'stop-gate.js'), timeout: 15 }] }];
+      fs.writeFileSync(pc, JSON.stringify(cc, null, 2));
+    },
+    want: 0,
+    expect: /^((?!两侧接线不一致)[\s\S])*$/,
+  },
+  {
+    name: 'V24 包装形式的脚本另一侧没挂 → 仍要报"仅非 CN 有"（身份比较不能漏报真差异）',
+    plant: () => {
+      const payload = Buffer.from(JSON.stringify({ client: H, event: 'Stop', script: 'stop-gate.js', args: [] })).toString('base64');
+      const ph = path.join(H, 'settings.json');
+      const ch = JSON.parse(fs.readFileSync(ph, 'utf8'));
+      ch.hooks.Stop = [{ hooks: [{ type: 'command', command: NODE, args: [path.join(H, 'scripts', 'run-package-hook.cjs'), payload], timeout: 15 }] }];
+      fs.writeFileSync(ph, JSON.stringify(ch, null, 2));
+    },
+    expect: /两侧接线不一致[\s\S]{0,120}仅非 CN 有 stop-gate\.js/,
+  },
+  {
+    name: 'V25 单侧缺 PostToolUse → 完整性检查要报（第五事件纳入后）',
+    plant: () => {
+      const pc = path.join(C, 'settings.json');
+      const cc = JSON.parse(fs.readFileSync(pc, 'utf8'));
+      delete cc.hooks.PostToolUse;
+      fs.writeFileSync(pc, JSON.stringify(cc, null, 2));
+    },
+    expect: /缺 PostToolUse 接线/,
+  },
+  {
+    name: 'V26 args 形式指向不存在的脚本 → 存在性检查要穿透 args（V18 只覆盖单串）',
+    plant: () => {
+      for (const side of [H, C]) {
+        const p = path.join(side, 'settings.json');
+        const c = JSON.parse(fs.readFileSync(p, 'utf8'));
+        c.hooks.Stop = [{ hooks: [{ type: 'command', command: NODE, args: [path.join(H, 'scripts', 'ghost-stop-gate.js')], timeout: 15 }] }];
+        fs.writeFileSync(p, JSON.stringify(c, null, 2));
+      }
+    },
+    expect: /指向不存在的脚本[\s\S]{0,160}从未运行过/,
+  },
+  {
+    name: 'V27 同名脚本两侧开关不同 → 报 INFO 但不判红（行为口径分叉要可见）',
+    plant: () => {
+      const script = path.join(H, 'scripts', 'rules-reminder.js');
+      const ph = path.join(H, 'settings.json');
+      const ch = JSON.parse(fs.readFileSync(ph, 'utf8'));
+      ch.hooks.UserPromptSubmit = [{ hooks: [{ type: 'command', command: NODE, args: [script, '--workflow-mode', 'model'], timeout: 5 }] }];
+      fs.writeFileSync(ph, JSON.stringify(ch, null, 2));
+      const pc = path.join(C, 'settings.json');
+      const cc = JSON.parse(fs.readFileSync(pc, 'utf8'));
+      cc.hooks.UserPromptSubmit = [{ hooks: [{ type: 'command', command: 'node ' + script, timeout: 5 }] }];
+      fs.writeFileSync(pc, JSON.stringify(cc, null, 2));
+    },
+    want: 0,
+    expect: /两侧开关不同：非 CN \[--workflow-mode\] \/ CN \[无\]/,
+  },
+  {
+    name: 'V28 powershell -File 的 args 形式与单串形式 → 同一脚本不算差异（BYOK guardian 形态）',
+    plant: () => {
+      const script = path.join(H, 'scripts', 'stop-gate.js');
+      const ph = path.join(H, 'settings.json');
+      const ch = JSON.parse(fs.readFileSync(ph, 'utf8'));
+      ch.hooks.Stop = [{ hooks: [{ type: 'command', command: 'C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe', args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-Action', 'Start'], timeout: 10 }] }];
+      fs.writeFileSync(ph, JSON.stringify(ch, null, 2));
+      const pc = path.join(C, 'settings.json');
+      const cc = JSON.parse(fs.readFileSync(pc, 'utf8'));
+      cc.hooks.Stop = [{ hooks: [{ type: 'command', command: 'powershell -NoProfile -ExecutionPolicy Bypass -File ' + script + ' -Action Start', timeout: 10 }] }];
+      fs.writeFileSync(pc, JSON.stringify(cc, null, 2));
+    },
+    want: 0,
+    expect: /^((?!两侧接线不一致)[\s\S])*$/,
   },
 ];
 
