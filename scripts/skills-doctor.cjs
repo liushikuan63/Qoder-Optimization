@@ -43,8 +43,8 @@ const BODY_MAX = 500;
 // self-ref = bare "scripts|references|assets|templates/..." with no path prefix, no ~ and no <placeholder>/
 // 扩展名放宽到 10 字符：`.conf.example` 曾被截成 `.conf.examp` 造成假悬空（2026-10-21）
 const REF_RE = /(?<![\w./~><-])(?:scripts|references|assets|templates)\/[A-Za-z0-9_.\/-]*\.[A-Za-z0-9]{1,10}/g;
-// cross-skill ref = "../<other-skill>/whatever"
-const XREF_RE = /\.\.\/([a-z][a-z0-9-]+)\/[A-Za-z0-9_.\/-]*\.[A-Za-z0-9]{1,5}/g;
+// cross-skill ref = "../<other-skill>/whatever"；负向后行排除 ../../ 等多级引用（../../scripts/x.cjs 不是兄弟技能）
+const XREF_RE = /(?<!\.\.\/)\.\.\/([a-z][a-z0-9-]+)\/[A-Za-z0-9_.\/-]*\.[A-Za-z0-9]{1,5}/g;
 // adjudicated false positives (bare-path hits that are NOT files of the skill itself)
 const WAIVERS = new Set([
   'CN|setup-windows-selfhosted-runner|scripts/check.sh', // generated into the user's repo CI, not shipped by the skill
@@ -302,12 +302,13 @@ function selftest() {
   const applied2 = applySync(o, analyze(o), false);
   res.push(['POS apply copies and re-check clean on that item', applied2.some((s) => /COPIED beta-kit/.test(s)) && analyze(o).missingInCn.length === 0]);
   // phase 2: ref predicates (tightened) — must catch true dangling, must not re-invent false positives
-  mk(Q, 'gamma-kit', 'desc', 'node scripts/nope.cjs\nsee ../delta-kit/references/x.md\nyou must read ../zeta-kit/references/gate.md before uploading\nuse ~/.qoder/scripts/there.ps1 and <placeholder>/scripts/other.cjs and cloudbase-platform/references/y.md\n');
+  mk(Q, 'gamma-kit', 'desc', 'node scripts/nope.cjs\nsee ../delta-kit/references/x.md\nyou must read ../zeta-kit/references/gate.md before uploading\nuse ~/.qoder/scripts/there.ps1 and <placeholder>/scripts/other.cjs and cloudbase-platform/references/y.md\nrun ../../scripts/convention-core.cjs discover\n');
   const a4 = analyze(o);
   res.push(['NEG6 real dangling ref caught', a4.dangling.some((s) => s.includes('gamma-kit') && s.includes('scripts/nope.cjs'))]);
   res.push(['NEG7 see-also sibling ref is INFO not RED', a4.siblingSeeAlso.some((s) => s.includes('delta-kit')) && !a4.missingSibling.some((s) => s.includes('delta-kit'))]);
   res.push(['NEG10 precondition sibling ref is RED', a4.missingSibling.some((s) => s.includes('zeta-kit'))]);
   res.push(['POS8 prefixed paths not flagged', !a4.dangling.some((s) => /there\.ps1|other\.cjs|y\.md/.test(s))]);
+  res.push(['NEG15 two-level ../../ ref is not a sibling xref', !a4.siblingSeeAlso.some((s) => s.includes('../scripts'))]);
   mk(Q, 'delta-kit', 'desc', 'body');
   res.push(['POS9 sibling ref clears once installed', !analyze(o).siblingSeeAlso.some((s) => s.includes('delta-kit'))]);
   res.push(['NEG11 gate only counts the visible side', cnGate(['Q/x (350)', 'CN/y (320)']).length === 1 && cnGate(['Q/x (350)']).length === 0]);
