@@ -426,7 +426,7 @@ function capabilityNote(promptText) {
 function workflowReminder() {
   if (WORKFLOW_MODE !== 'model') return REMINDER;
   const original = REMINDER.split('\n').find(line => line.startsWith('7.'));
-  return REMINDER.replace(original, '7. 开工先判定：由当前模型依据完整需求和最小现场证据判断工作方式，关键词不强制出计划或追问。Vibecoding 两问按实际需求与已有授权判断，明确需求不弹窗。阶段检查不等于逐阶段批准。目标模式仅在用户或系统/开发者明确要求时创建；目录有任务包不构成授权。只读、只审查或禁止写入时只展示计划，不写计划文件、不派发；其余并行仍须完整计划和明确 opt-in，中大型、多阶段或审查+成文不据关键词自动追问。');
+  return REMINDER.replace(original, '7. 开工先判定：由当前模型依据完整需求和最小现场证据判断工作方式，关键词不强制出计划或追问。Vibecoding 两问按实际需求与已有授权判断，明确需求不弹窗。阶段检查不等于逐阶段批准。目标模式仅在用户或系统/开发者明确要求时创建；模型判定任务中大型、多阶段或审查+成文且无活动目标时，可在开工前用 AskUserQuestion 问一次是否创建（推荐建），同意才建，拒绝/取消不催问，小任务不弹窗；目录有任务包不构成授权。只读、只审查或禁止写入时只展示计划，不写计划文件、不派发；其余并行仍须完整计划和明确 opt-in。');
 }
 
 function emit() {
