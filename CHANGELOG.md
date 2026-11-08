@@ -6,6 +6,21 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-08
+
+### Changed
+- Ask once before creating a goal: the per-turn reminder and the session-budget handoff now offer a single opening confirmation for medium/large tasks (recommended), create a goal only on consent, and never re-prompt an existing goal or nag after a decline. Small tasks do not pop up.
+- Route the `/skill-load` and `/pkg-find` command entry points through thin shells to the `skills-router` skill and its `references/route-commands.md`, so retrieval, asking and install/update criteria live in one place instead of being duplicated in each command.
+- Sync the shareable rules document with the 5.7.0 live configuration (rule sedimentation, the hard-fact register, and the long-task and delivery workflow blocks) while preserving the curated release wording; the document generator no longer hardcodes a stale version header.
+
+### Fixed
+- Compare hook wiring by script identity in the weekly rule audit (command + args, base64 `run-package-hook` payload, and `powershell -File` forms), track `PostToolUse` among the five hook events, and report flag-only differences as INFO instead of false wiring drift.
+- Ignore two-level sibling references in `skills-doctor` cross-reference lookups so a `../../<skill>/...` path is not mistaken for a dangling same-level reference.
+
+### 中文摘要
+- 目标模式改为开局问一次（推荐建、同意才建、已有目标不重复问、拒绝或取消不催问，小任务不弹窗）；`/skill-load` 与 `/pkg-find` 收口为薄壳，检索、询问与安装更新判据统一到 skills-router。
+- 周检按脚本身份比对 hook 接线（含 PostToolUse 与 `powershell -File` 形态），仅 flag 差异降为 INFO；doctor 忽略两级同级引用，消除悬空误报；分享版规则同步 5.7.0 并保留人工策展措辞，生成器不再写死过期版本头。
+
 ## [0.0.30] - 2026-11-06
 
 ### Added
