@@ -1,6 +1,6 @@
 ---
 name: miniprogram-development
-description: "WeChat Mini Program development skill for building, debugging, previewing, testing, publishing, and optimizing mini program projects (小程序开发、调试、预览、发布)。中文触发：微信小程序 uni-app 云开发 发布 测试 性能优化。不用于：Web frontend (use web-development), pure backend services (use cloudrun-development / clo"
+description: "WeChat Mini Program development：项目配置（appid/miniprogramRoot/tabBar/路由）、开发者工具 Nightly 与 wechatide CLI、miniprogram-ci 预览上传、控制台调试、消息推送与客服消息、搜索收录、CloudBase。触发词：小程序开发、微信小程序、miniprogram-ci、预览上传、客服消息、CloudBase、tabBar、appid。用于小程序开发/调试/预览/发布/推广；不适用于 Web 前端、纯后端、纯 UI 设计。"
 version: 2.34.4
 alwaysApply: false
 ---

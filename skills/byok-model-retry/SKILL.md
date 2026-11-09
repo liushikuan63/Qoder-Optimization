@@ -1,6 +1,6 @@
 ---
 name: byok-model-retry
-description: "诊断和验收模型/BYOK 请求失败、Qoder CN 自定义模型保存校验与本地中转接入：401/403/429、输出上限/maxOutputTokens、配置落盘负对照、网络/协议/流式终包/代理对照、UA 指纹、首包超时与重试。默认只读，鉴权失败不重试，密钥只报掩码；覆盖 providers.qoder-custom-*、openai-responses、general.maxAttempts 与本地反代运行态。"
+description: "模型/BYOK 请求失败诊断与验收：401/403/429、空响应、首包超时、配置/网络/协议/流式终包/代理对照、UA 指纹、输出上限/maxOutputTokens、Qoder CN 保存校验与本地中转。默认只读，鉴权失败不重试，密钥只报掩码；覆盖 outerProvider/customModels、providers.qoder-custom-*、openai-responses、general.maxAttempts、QODER_DISABLE_MODEL_RETRY_PAYLOAD_GUARD、QODER_CONFIG_MODEL_RETRY_AFTER_PAYLOAD。"
 ---
 
 # 模型访问诊断与 Qoder 版本参考

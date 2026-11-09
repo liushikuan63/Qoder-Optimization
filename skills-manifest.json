@@ -286,7 +286,7 @@
   {
    "name": "mysql",
    "tier": "library",
-   "files": 1
+   "files": 19
   },
   {
    "name": "nextjs-app-router-patterns",

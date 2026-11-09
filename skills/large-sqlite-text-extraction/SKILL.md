@@ -1,6 +1,6 @@
 ---
 name: large-sqlite-text-extraction
-description: 从超大 SQLite / 二进制文件（数百 MB 到 1GB+，常无 sqlite3 CLI）按关键词取回 UTF-8 文本——典型场景是 UI 里被截断、或只存在于应用库中的完整描述：先解析数据目录真实路径（可能被搬迁成 junction）→ 单点用 grep -a 触发词：超大 SQLite、main.sqlite、二进制取证、UI 截断文本、取全文、grep 搜不到、ERR_STRING_TOO_LONG、分块扫描、按关键词提取、WAL；不用于：会话归档取证（chat-session-evidence-extraction）、正常规模的 SQL 查询（sqlite3 / dbhub）。
+description: 从超大 SQLite / 二进制文件（数百 MB 到 1GB+，常无 sqlite3 CLI）按关键词取回 UTF-8 文本——典型场景是 UI 里被截断、或只存在于应用库中的完整描述：先解析数据目录真实路径（可能被搬迁成 junction）→ 单点用 grep -a 快速取证 → 全量用 32MB 分块 + latin1 字节偏移 + 窗口 UTF-8 解码（整文件 toString 必触发 ERR_STRING_TOO_LONG）→ 用 --filter 锚点过滤「只有名字的清单」类噪声命中 → 命中数 + 不存在关键词负对照验收；含 WAL 未落盘、字符串跨页、递归 grep 超时、MSYS 路径等坑。内置 scripts/scan-binary-text.cjs 可直接运行。触发词：超大 SQLite、main.sqlite、二进制取证、UI 截断文本、取全文、grep 搜不到、ERR_STRING_TOO_LONG、分块扫描、按关键词提取、WAL。不用于：会话归档取证（chat-session-evidence-extraction）、正常规模的 SQL 查询（sqlite3 / dbhub）。
 ---
 
 # 超大库文本取证
