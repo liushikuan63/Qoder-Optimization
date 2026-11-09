@@ -301,7 +301,7 @@
    "name": "encrypted-office-visual-inspection",
    "status": "shipped",
    "tier": "library",
-   "description": "企业透明加密（DLP）Office 读取、复刻、编辑与回归。信号：Node/JSZip 报 Can't find end of central directory、文件头不是 zip（非 504b0304/d0cf11e0； 触发词：透明加密、DLP 加密、密文、明文、转明文、加密 Word、加密 Excel、加密 PPT、加密 PDF、表格打不开、复刻加密文档、加密夹具、解密测试、文档截图取证、版式层对象、CUA 编辑加密文档；不用于：普通 xlsx/docx→office-docs；PPT 制作→pptx；口令破解不支持。",
+   "description": "企业透明加密（DLP）Office 读取、复刻、编辑与回归。信号：JSZip 报 Can't find end of central directory、文件头非 zip；桌面/微信打不开；Office MCP 报 QODER_OFFICE_FILE_TYPE_INVALID（仅 PPTX）。触发词：透明加密、DLP 加密、密文、明文、加密 Word、加密 Excel、加密 PPT、加密 PDF、表格打不开、复刻加密文档、加密夹具、解密测试、文档截图取证、版式层对象、CUA 编辑加密文档；不用于：普通 xlsx/docx→office-docs；PPT 制作→pptx；口令破解不支持。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
