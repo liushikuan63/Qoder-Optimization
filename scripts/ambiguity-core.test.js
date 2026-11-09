@@ -20,6 +20,7 @@ const HIGH = [
   '你看下这个提需求怎么改比较好',
   '你看怎么弄',
   '帮我看看怎么弄',
+  '恢复用户指令不清，提示词纠正提示推荐能力',
 ];
 const MEDIUM = ['看看这个', '看下这个'];
 const CLEAR = [
@@ -33,6 +34,7 @@ const CLEAR = [
   '/clarify 帮我优化一下',
   '把导出改成 CSV',
   '帮我优化一下提示词技能的描述长度',
+  '优化需求文档的结构',
 ];
 
 function missed(list, expected) {
@@ -59,6 +61,16 @@ test('高置信提示要求弹窗给备选且禁止猜测开工', () => {
   for (const phrase of ['AskUserQuestion', '2–4 个真实备选', '推荐项在前', '不得凭猜测直接开工', '只问一个核心问题']) {
     assert.ok(note.includes(phrase), phrase);
   }
+});
+test('含混提示推荐 /clarify 提示词纠正，但明确不构成执行授权', () => {
+  for (const level of ['high', 'medium']) {
+    const note = buildAmbiguityNote({ level, signals: ['显式指令不清'] });
+    for (const phrase of ['提示词纠正', '/clarify', '纠正稿', '不构成执行授权']) {
+      assert.ok(note.includes(phrase), level + ' 缺少 ' + phrase);
+    }
+  }
+  const high = buildAmbiguityNote({ level: 'high', signals: ['显式指令不清'] });
+  assert.ok(high.includes('不得借改写扩大范围'));
 });
 test('初筛必须声明不是结论，并要求模型三档判别与 clear 证据门槛', () => {
   for (const level of ['high', 'medium']) {

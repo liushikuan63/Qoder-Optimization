@@ -333,7 +333,12 @@ const ambiguous = run(JSON.stringify({ prompt: '帮我优化一下' }));
 let ambiguousCtx = '';
 try { ambiguousCtx = JSON.parse(ambiguous.stdout).hookSpecificOutput.additionalContext || ''; } catch {}
 check('含混请求 → 注入规则初筛并要求模型判别与备选',
-  ambiguous.status === 0 && ambiguousCtx.includes('【需求含混 · 规则初筛命中（高）】') && ambiguousCtx.includes('模型判别') && ambiguousCtx.includes('AskUserQuestion') && ambiguousCtx.includes('2–4 个真实备选'));
+  ambiguous.status === 0 && ambiguousCtx.includes('【需求含混 · 规则初筛命中（高）】') && ambiguousCtx.includes('模型判别') && ambiguousCtx.includes('AskUserQuestion') && ambiguousCtx.includes('2–4 个真实备选') && ambiguousCtx.includes('提示词纠正') && ambiguousCtx.includes('/clarify'));
+const selfUnclearReq = run(JSON.stringify({ prompt: '恢复用户指令不清，提示词纠正提示推荐能力' }));
+let selfUnclearCtx = '';
+try { selfUnclearCtx = JSON.parse(selfUnclearReq.stdout).hookSpecificOutput.additionalContext || ''; } catch {}
+check('显式指令不清 → 注入提示词纠正推荐且不构成执行授权',
+  selfUnclearReq.status === 0 && selfUnclearCtx.includes('【需求含混 · 规则初筛命中（高）】') && selfUnclearCtx.includes('显式指令不清') && selfUnclearCtx.includes('提示词纠正') && selfUnclearCtx.includes('不构成执行授权'));
 const clearReq = run(JSON.stringify({ prompt: '把 src/auth.ts 的 login 改成返回 401' }));
 let clearCtx = '';
 try { clearCtx = JSON.parse(clearReq.stdout).hookSpecificOutput.additionalContext || ''; } catch {}

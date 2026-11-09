@@ -678,3 +678,25 @@ test('explicit use does not authorize missing or linked local entrypoints or lin
   fs.rmdirSync(target); fs.symlinkSync(outside, target, process.platform === 'win32' ? 'junction' : 'dir');
   assert.notEqual(item(f.plan({ phase: 'task', prompt }), 'skill:safe-text-editing').authorized, true);
 });
+
+test('unclear requests recommend the clarify command and clear requests do not', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'capability-clarify-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const pkg = path.join(dir, 'pkg'), client = path.join(dir, 'client');
+  const command = '---\nname: clarify\ndescription: 保留原意优化提示词或澄清需求。触发词：指令不清、提示词纠正\n---\n\n# /clarify\n';
+  for (const base of [pkg, client]) {
+    fs.mkdirSync(path.join(base, 'commands'), { recursive: true });
+    fs.writeFileSync(path.join(base, 'commands', 'clarify.md'), command);
+  }
+  fs.writeFileSync(path.join(pkg, 'catalog.json'), JSON.stringify({ schema: 1, entries: [{
+    id: 'command:clarify', name: 'clarify', category: 'command', status: 'shipped',
+    source: 'commands/clarify.md', install: { mode: 'copy-file' }, dependencies: [],
+  }] }));
+  const options = { catalogFile: path.join(pkg, 'catalog.json'), clientRoot: client, phase: 'task' };
+  const unclear = advisor({ ...options, prompt: '恢复用户指令不清，提示词纠正提示推荐能力' });
+  const found = unclear.items.find(entry => entry.id === 'command:clarify');
+  assert.equal(found && found.action, 'ASK_USE');
+  assert.equal(found && found.reason, 'RELEVANT_INSTALLED_COMMAND');
+  const clear = advisor({ ...options, prompt: '把 src/auth.ts 的 login 改成返回 401' });
+  assert.equal(clear.items.some(entry => entry.id === 'command:clarify'), false);
+});

@@ -6,6 +6,12 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Changed
+- Restore the prompt-correction recommendation for ambiguous requests: the ambiguity note recognizes explicit `指令/需求不清` phrasing and offers a `/clarify` corrected prompt as an advisory option, while keeping the corrected prompt non-authorizing and the existing AskUserQuestion evidence checks. `clarify` is now routable as a relevant installed command and carries trigger words in its description.
+
+### 中文摘要
+- 恢复「指令/需求不清 → 推荐 `/clarify` 提示词纠正」：含混初筛识别显式表述并给出保留原意的纠正稿选项，纠正稿只作建议、不构成执行授权；`clarify` 命令补触发词并接入能力路由。
+
 ## [0.1.1] - 2026-11-09
 
 ### Changed

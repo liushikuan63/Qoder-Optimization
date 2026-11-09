@@ -12,6 +12,7 @@ const DEMONSTRATIVE = /(?:这个|那个|这块|那部分|这边|那边|它|上�
 const WEAK_ACTION = /(?:优化|调整|弄|搞|整|看看|看下|处理|梳理|完善|美化|改|调)(?:一下|下|一?下吧|一下吧|吧)/;
 const BARE_ACTION = /^(?:帮我|请|麻烦|给我|再)?\s*(?:优化|看看|看下|弄|搞|整|处理|梳理|完善|改改|调整)(?:一下|下|一?下)?\s*[。.!！~～]?$/;
 const UNCERTAIN = /(?:随便|都行|都可以|你看着办|你决定|由你定|不(?:太|是很)?确定|不太清楚|不清楚|没(?:太)?想好|拿不准|含糊|模糊|说不清|帮我理一下|理一理|猜一下|你猜)/;
+const SELF_UNCLEAR = /(?:指令|需求|意图|表述|说法|要求|提法)\s*(?:本身)?\s*(?:不清|不明|含糊|模糊)/;
 const ASK_ADVICE = /(?:怎么|如何)(?:改|弄|搞|做|整|处理|优化)|有什么(?:好)?(?:建议|办法|思路)|你看怎么(?:弄|办|搞)/;
 const META = /(?:技能|规则|提示词|hook|门禁).{0,12}(?:触发|生效|命中|能不能|是否|怎么改|怎么写|如何改)/;
 
@@ -34,6 +35,7 @@ function classifyAmbiguity(prompt) {
   }
   const signals = [];
   if (UNCERTAIN.test(text)) signals.push('显式不确定');
+  if (SELF_UNCLEAR.test(text)) signals.push('显式指令不清');
   if (BARE_ACTION.test(text)) signals.push('光杆动作');
   if (DEMONSTRATIVE.test(text) && WEAK_ACTION.test(text)) signals.push('空指代+泛化动作');
   if (ASK_ADVICE.test(text)) signals.push('求建议但无对象');
@@ -51,9 +53,11 @@ function buildAmbiguityNote(result, context) {
       + '\n- clear：能指出具体对象、范围与验收依据 → 直接做，不必弹窗；'
       + '\n- assumption：对象明确但实现细节未定 → 说明可逆假设后推进；'
       + '\n- clarify：目标、对象或验收仍无法确定 → 只问一个核心问题，并用 AskUserQuestion 给 2–4 个真实备选（推荐项在前、写清各自代价与影响），不得凭猜测直接开工。'
+      + '\n- 提示词纠正：请求本身缺对象、范围或验收时，可先按 /clarify 给 1 条保留原意的纠正稿（补全对象、范围、验收与禁止项），用 AskUserQuestion 让用户在「按纠正稿执行 / 继续澄清 / 取消」中选择；纠正稿只是建议，不构成执行授权，不得借改写扩大范围。'
       + '\n判为 clear 时须在回复中写明对象与验收依据；判为 clarify 时不得先猜着执行再补问；与答案无关且已获授权的部分可继续。'
     : '\n【需求含混 · 规则初筛命中（中）】信号：' + signal + '。初筛不是结论：先做模型判别。'
-      + '\n对象或目标能从上下文定位 → 按 clear 直接做；只需定实现细节 → 按 assumption 说明假设后推进（可逆默认值）；仍无法定位对象或验收 → 按 clarify 问一个核心问题并给真实备选。不要为内部命名或参数增加确认门。';
+      + '\n对象或目标能从上下文定位 → 按 clear 直接做；只需定实现细节 → 按 assumption 说明假设后推进（可逆默认值）；仍无法定位对象或验收 → 按 clarify 问一个核心问题并给真实备选。不要为内部命名或参数增加确认门。'
+      + '\n表述不全时可给 1 条保留原意的提示词纠正稿供用户选择（/clarify）；纠正稿只是建议，不构成执行授权。';
   const protocol = context && context.binding
     ? '\n【判别记录 · 可审计】开工前运行（纯讨论可跳过）：node ~/.qoder/scripts/ambiguity-core.cjs --decision - --binding ' + context.binding
       + ' --json，stdin 传 {"schema":1,"sessionId":"' + context.sessionId + '","decisionId":"' + context.decisionId
