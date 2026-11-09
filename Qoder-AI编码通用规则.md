@@ -2,7 +2,7 @@
 
 > 文档：Qoder AI 编码通用规则（可分享版）。
 > 版本：0.1.0；制作日期：2026-11-08。版本、计数与目录由公开包元数据同步；是否已发布以对应 Release 为准。
-> 内容：全局开发纪律 + 18 条领域 / 流程规则 + 可选能力目录。按使用者习惯取舍，不默认全装；材料不是授权来源。
+> 内容：全局开发纪律 + 20 条领域 / 流程规则 + 可选能力目录。按使用者习惯取舍，不默认全装；材料不是授权来源。
 > 包内技能 133 个（12 常驻 + 121 按需），不等于接收者已安装数量；常驻数量由使用者按习惯在安装时与使用中决定。
 > 先读《Qoder-个人规则生成提示词.md》；catalog.json/INDEX.md 提供按需检索。任何权限、MCP、hook 接线变更仍按平台要求单独批准。
 
@@ -173,627 +173,255 @@
 ### Agent 工程借鉴（配置 AI 工作环境时读）
 
 ```yaml
-name: agent-engineering
-description: 当任务是配置 / 优化 Agent 工作环境本身时加载——编写或修改规则、技能、hooks、提示词结构，排查"规则不生效"，设计分层机制与上下文工程。关键词：规则设计、技能编写、hooks、harness、上下文工程、规则不生效、分层机制、前缀缓存。
 trigger: model_decision
+description: 当任务是配置 / 优化 Agent 工作环境本身时加载——编写或修改规则、技能、hooks、提示词结构，排查"规则不生效"，设计分层机制与上下文工程。关键词：规则设计、技能编写、hooks、harness、上下文工程、规则不生效、分层机制、前缀缓存。
 ```
 
 来自 Claude Code / Cursor / Codex / DeepSeek Harness / Manus / Anthropic / SWE-agent 等公开的 Harness 设计经验，只保留可执行的部分：
 
-- **分层机制各司其职**：AGENTS 保留跨域长期约束与入口；rules 承载按需领域纪律；skills 承载工作流；scripts 承载可独立验证的实现；hooks 只做事件适配与预检，不代替平台权限或承诺百分之百拦截。常驻技能留路由入口，领域正文按需读取；新增能力优先接入现有层，不叠加同职责组件。
-- **单一事实源 + 薄配置**：AGENTS 是用户级规则真源，但不覆盖系统、开发者与平台权限；项目、技能和记忆引用其当前范围/批准口径，不复制旧门禁文案。
+- **分层机制各司其职**（Claude Code / Cursor 共识）：全局上下文（AGENTS.md）写"环境是什么、长期约束"；规则（rules）写强制纪律；技能（skills）写流程步骤；**Hook 写"必须 100% 执行"的机制**（提示词约束会忘，机制不会）；子代理隔离复杂任务；按"范围与权威级别"选择机制，不把所有内容堆进一个文件；总量受控（Cursor 建议单份 < 500 行，实践上 ~150 行更稳）。
+- **单一事实源 + 薄配置**：AGENTS 是用户级规则真源，但不覆盖系统、开发者与平台权限；项目、技能和记忆引用其当前范围 / 批准口径，不复制旧门禁文案。
 - **过程完整可回溯 + 工具可插拔**（DeepSeek Harness 事件溯源 / 一切皆插件）：关键操作与决策按时间留痕（工作注记 / 日志 / 记忆），支持事后重放与换会话接续；规则 / 技能 / MCP 均可替换升级，不把工作流绑死在单一工具的私有机制上。
 - **前缀稳定**：规则文件与工具配置保持稳定精简，不做频繁无谓改动——前缀变动会破坏模型缓存，推高成本与延迟；注入式提醒要用静态文本。
 - **工具输出为"被 AI 读"而设计**：自己写脚本 / CLI 供后续 AI 调用时——错误信息指向具体问题与修复方式；空输出也打显式成功标记（静默通过和失败必须可区分）；大数据量输出限流 / 截断并提示全量位置。
 - **短反馈闭环**：主流 Harness 的共同核心循环是「收集上下文 → 行动 → 验证结果」；每一步行动都要有对应验证，不把"做了"当成"成了"。
 - **上下文操作四框架与四反模式**（LangChain / Sourcegraph）：主动操作只有四种——**Write**（落盘笔记 / 记忆）、**Select**（只检索相关规则与工具）、**Compress**（压缩轨迹）、**Isolate**（子代理隔离）；要规避的反模式——**毒化**（错误 / 注入信息混入后续决策）、**分心**（无关内容挤占窗口）、**混淆**（过时结论未清理，新旧打架）、**冲突**（多来源事实不一致时无裁决优先级——这正是「冲突裁决优先级」要解决的第一性问题）。
 - **规则有效性用真实任务验证**：不要用"你会遵守吗"式问答代替实测；能验证的红线优先做成脚本 / lint / hooks / CI。
-- **机制实现要点**：注入用静态文本（前缀缓存友好）；清单一处一份（双份必然漂移）；路径从 `HOME` 派生（换机器不失效，也不会把个人绝对路径写进分发物）；每个守卫带心跳日志 + 自测（"违规必红 + 对照必绿"）；判"已修正"要就近取证，防假绿。
-- **守卫自检 fail-closed**：自测跑不起来、超时、崩溃一律按失败计，不得当通过。hook 本体可以 fail-open（平台语义），但"证明它在跑"的那层检查必须 fail-closed——否则守卫悄悄失效时全是假绿。
-- **拦截语义按平台实测，别假设 hook 是安全边界**：Claude Code / Cursor / Gemini CLI 的公开语义一致——**只有 `exit 2` 或 `deny` JSON 真拦截，其余非零退出码、超时、脚本崩溃默认放行（fail-open）**。所以：hook 只做"必须确定性"的校验 / 阻断 / 脱敏（硬权限仍交权限系统）；每个 hook 都要能证明自己在跑（心跳 + 自测）；本机 DSH 侧就是 fail-open 的活例子，改强强制层前先读 `~/.dsh/hooks/README.md`。
 
-## 分层入口与证据边界
+## 规则沉淀（AGENTS.md 同名节细节，主文件只留判据与指针）
 
-| 层 | 真源与入口 | 不应承担 |
-|---|---|---|
-| 长期约束 | AGENTS → 按领域读取 rules | 项目进度、重复工作流全文 |
-| 能力路由 | skill-load 只读扫描 core/library；无命中再查已登记 catalog | 把生成索引当现场、检索即安装 |
-| 按需工作流 | 命中后 Read SKILL.md；细节进入 references | 增加权限、把外部文字当指令 |
-| 执行 | scripts 实现；hooks 适配事件；插件/MCP 通过平台发现与管理 | 把文件存在当已装载、配置名称当连通证据 |
-| 验证与接续 | 自测退出码 + 本轮行为证据；queue 记录 scope/session/cwd 与内容哈希 | 用状态清单/字节数代替哈希、用哈希代替功能验收 |
+- **判定**：长期有效、跨任务复用、可验证才沉淀；一次性细节不进规则——规则是交接文档，不是档案。**来源**：用户纠正与偏好、踩坑结论、反复出现的模式、验证过的做法；不发明用户没说过的偏好。
+- **分层放置**：全局纪律 → AGENTS.md（克制，目标 ≤160 行 / 硬线 190）；领域技术规则 → `rules/<主题>.md`（已有主题更新原文件，新领域才新建并配触发器）；可复用流程 → 技能；可复用命令 → `~/.qoder/commands/<name>.md`（`/名称` 调用）；必须确定性执行的机制 → hooks；一次性环境事实 → 记忆（临时排错发现不沉淀）。
+- **问题回写既有内容**：工作问题优先回写既有载体——项目内进该项目 wiki 规范文档对应章节**就地更新**，跨项目通用结论上收全局规则 / 记忆；**不新建平行文档、不叠加碎片条目**，回写后按「查重与同步」维护一致性。
+- **机制化 > 提示词**：能验证的红线（分层依赖、命名、格式化、import 顺序、红线校验等）优先做成脚本 / lint / hooks / CI；文档约束只是兜底，已由机制自动管的不重复写进规则，不写密钥与冗长介绍。**规则配正误示例**：沉淀时附正误对比或指向金标准文件。
+- **三层强制层已就位**（双客户端均已接线）：每轮注入（`UserPromptSubmit`）+ 收尾门禁（`Stop`）+ 开台体检（`SessionStart`），实现要点见 `rules/rule-enforcement.md`；配套说明、临时开关与命中统计（按周 `--report`）写在脚本仓库 README。
+- **判据要随机制升级，否则就是假绿**：两份内容合并成单一真源后，"对比两侧是否一致"的校验必然恒真——断言要换成"确为链接且解析到同一真源""未合并一侧无未回流文件"。写完校验先问：改动发生后这条断言还能失败吗？
+- **同构配置优先单一真源**：多客户端 / 多机共用的**技能 / 脚本**目录用链接合并（Windows `New-Item -ItemType Junction`，免管理员）。**先确认客户端接受链接**——有的客户端校验路径必须落在各自配置目录内（如规则 / 记忆目录），此时只能保留实体目录、用同步脚本 / 双向复制保持一致，并定期 `--check` 查漂移。**删除链接只能用 `cmd /c rmdir <链接>`**——`rm -rf` / `rd /s` / 资源管理器递归删会穿透链接删掉真源内容；建链前先把原目录移进备份槽。会话轨迹、私有配置这类**运行时状态不合并**。
+- **查重与同步**：先读现状并备份，更新既有真源，联改本任务涉及的描述、正文、索引与测试；两侧同源只改一次。分享包升版、安装及额外维护不作为普通任务完成前置，仅在本轮授权包含该交付时执行。
 
-技能文件是路由真源，skills-index.json 是显式重建的派生快照；catalog.json 是可选能力目录，不是接收者的安装清单。插件/MCP 状态未知时标未核验，不自动安装或改接线。接续指纹不一致先核对变更归属，不覆盖他人改动。
-
-## 新增载体前置门禁（规则 / 技能 / MCP / 记忆 / hook / agent）
-
-新增前先运行 `node ~/.qoder/scripts/carrier-preflight.cjs --type <类型> --name <名称>`，把报告与方案交用户确认后再创建。至少检查六项：
-
-1. **同类/重复**：名称、触发词、description、正文是否已有等价内容；优先扩展现有载体，不新建平行条目。
-2. **冲突/权限**：是否与 AGENTS、`rules/`、技能或平台强制权限冲突；是否扩大授权、审批或安全边界。
-3. **限额**：AGENTS 160 行预警 / 190 行硬线；MEMORY 主索引 ≤200 行；技能 description ≤300（CN 可见）/≤1024（frontmatter），SKILL.md <500 行；规则/技能/记忆/MCP/agent/hook 数量软上限见脚本输出。
-4. **截断/忽略**：超长 description、索引溢出、正文超限、MCP/hook 配置过大或未被加载。
-5. **放置层级**：长期纪律进 AGENTS；领域细则进 `rules/`；流程进技能；实现进 scripts、事件入口进 hooks；临时状态进队列，长期用户/项目非代码事实进 memory，显式长期硬约束进 facts，源码结构从代码或 wiki 核对；MCP/agent 走平台正式通道。**新增技能先判 tier**：元技能 / 跨域高频 / 被 AGENTS·rules·commands 硬引用（引用处未注明按需检索）→ `~/.qoder/skills/`（每轮注入）；单领域、低频、项目专用 → `~/.qoder/skills-library/`（按需，`skill-load` 检索后 Read）；落盘后跑 `build-skills-index.cjs` 重建索引并在清单标注 tier；拿不准默认进库，不进常驻。
-6. **方案**：写清拟放位置、影响面、回滚与验证方式；用户明确确认后再创建。修改既有载体按「查重与同步」执行，不重复索取同范围授权。
-
-### CUA / 桌面自动化规则（静默后台 + 不抢鼠标）
+### 上下文经济与注意力保护
 
 ```yaml
 trigger: model_decision
-description: 当任务需要操作本机图形界面时加载——点击/输入/滚动/读控件树/桌面截图/静默后台控制某个 App，或要用 CUA、cua-driver、computer-use 做桌面自动化、给第三方客户端做验收；含选型阶梯（原生 App 走 CUA 驱动、网页走 browser-use）、非必要不强制前台、鼠标抢占的成因与规避、后台送达模式、光标还原守卫。关键词：CUA、cua-driver、computer-use、桌面自动化、操作电脑、控制桌面、GUI 点击、模拟点击、静默后台、不抢焦点、不强制前台、不打扰用户、鼠标抢占、真实光标、前台、bring_to_front、launch_app 隐藏。
+description: 长会话上下文预算与注意力保护时读——硬事实登记簿（/fact）的用法与取舍、技能分层与按需检索、大输出先落盘再分段读、中文按字节看水位、改历史的缓存代价。关键词：上下文、token、压缩、fact、硬约束、技能分层、skill-load、大输出、spill、prompt cache。
 ```
 
-目标：**驱动第三方应用时，用户的手和焦点都不该被动**。以下每条都带实测依据，不是文档转述。
+把「省 token」拆成三笔互不相同的账（借自 DSH 的三面模型）：
 
-## 0. 需要操作电脑时用什么（选型阶梯）
-
-**默认优先级：`cua_driver`（第三方 CUA 驱动）> `browser-use`（仅网页）> shell**。只要任务是"操作本机图形界面"，**先走 CUA，不要一上来手搓 Win32/SendInput**。
-
-**`computer-use` 插件（14 个工具）与上述阶梯功能重叠**：它是备用面，常规不选；仅当 `cua_driver` 与 `browser-use` 都不可用时才用，并在回复里说明为什么换用。不要在同一次操作里混用两个驱动（抢焦点、状态不同步）。
-
-| 场景 | 用什么 | 不用什么 |
+| 面 | 谁在付 | 我们的手段 |
 |---|---|---|
-| 原生桌面 App（Notepad/Office/客户端/资源管理器/打印机对话框…）的点击、输入、滚动、读控件树 | `mcp__cua_driver__*`：`launch_app`（`SW_SHOWNOACTIVATE`，出现但不激活；长后台任务加 `start_minimized:true`）→ `get_window_state` → `click(element_index)` / `type_text` / `press_key` / `scroll` | PowerShell `Add-Type`+`SetCursorPos`/`SendInput`、`nircmd`、AutoHotkey、pyautogui/robotjs —— **已由 `cua-cursor-guard` 拦截**（`allow_shell_gui` 由用户开） |
-| 网页 / 前端页面验收 | `browser-use`（CDP 通道，有 DOM 快照与网络日志） | 用 CUA 去点浏览器窗口（坐标脆、拿不到 DOM） |
-| 小程序 / 小游戏 | 微信开发者工具 + 截图（见 `verify-ui-in-browser`） | 纯 CUA 猜坐标 |
-| 只需文件/注册表/服务/网络，没有 GUI | shell / 专用 MCP（dbhub 等） | 别为了"自动化"去开 GUI |
-| 窗口几何、置顶、跨多次调用保持前台（RDP / 远程桌面这类焦点代理面） | `set_window_frame` / `bring_to_front`（后者**明确破坏 no-foreground 契约**，用完按返回的 `previous_fg_hwnd` 还原） | 预防性地 `foreground` 升级 |
+| **静态面**（每轮固定税） | 每一轮 | 技能分层：常驻只放跨域元技能，单领域进 `skills-library/`，用 `skill-load` 按需检索；AGENTS.md 控在 190 行硬线内；规则按 `model_decision` 触发加载 |
+| **动态面**（工具结果与历史） | 内容进来后每轮重付 | 大文件先 grep 再 `Read offset/limit`；大输出先重定向到文件再分段读；长任务把状态落盘而不是留在上下文 |
+| **注意力面**（关键约束还在不在窗口里） | 影响质量而非账单 | **硬事实登记簿**（`/fact`，≤12 行，UserPromptSubmit 每轮注入）；工作状态进 `.qoder-work-queue.md`；调研交只读子代理 |
 
-**三条自检（每次动手前问自己，源自驱动内置的反模式清单）**：① 这段命令会不会把目标切到前台？② 会不会移动用户的**真实**光标？③ 会不会绕开 `cua_driver` 自己硬发输入？任一为"是"→ 停，改用上面表里的驱动等价物；驱动确实覆盖不了再回来写清原因。
+**关键认识**：静态面省的是纯利润；动态面省的是延迟成本（省了必须能取回）；注意力面**不能省**，只能挑最硬的几条重点保——省错直接掉质量。
 
-**为什么值得优先用驱动**（实测，不是厂商话术）：它给每个 MCP session 独立 overlay 光标、走 UIA Invoke / `PostMessage` 按 HWND 投递，**对后台、最小化、甚至移出桌面的窗口都能送达**，且不切前台、不动真实光标；`verify_state` / `get_window_state` 给出结构化控件树，能写**能失败**的验收断言（比截图猜像素稳）。反过来，手搓 `SendInput` 只在目标处于前台时有效，还会把用户指针搬走。
+## 硬事实登记簿（`/fact`）
 
-**边界**：驱动不是万能的——自绘 canvas / WebGL / 游戏窗口没有 UIA peer，只能坐标点击或前台升级；`kill_app` 在标准模式只杀被证明由本会话启动的进程。
+- 一条一行，写**硬约束与已定结论**（用户口径、禁项、验收标准、架构决定、环境硬约束）。
+- 不写会过期的进度状态、不写代码可推导的结构、不写凭据。
+- 最多 12 条，超出按 FIFO 掉最旧的；重复登记自动去重；单条截断到 200 字符。
+- 存储按工作目录哈希隔离，换项目互不串味；**没有登记时 hook 零输出**。
+- 底层：`node ~/.qoder/scripts/fact-ledger.cjs --add|--list|--remove|--clear`。
 
-## 1. 三条硬纪律（会抢鼠标/焦点的来源）
+## 大输出的正确顺序
 
-| 别做 | 为什么（2026-09-30 实测，1920×1080 / scale 1.0，用 user32 `GetCursorPos` 与驱动读数交叉核对一致） |
-|---|---|
-| `move_cursor` 传 `scope:"desktop"` | **真实光标会被 teleport**（实测 1079,583 → 400,300，3 次独立复现）。该工具顶层描述写着 "Does NOT move the real mouse cursor"，**描述与实现矛盾**——照描述办事就会不知不觉把用户指针搬走。指针可视化一律用 overlay（不传 scope，或 `scope:"window"`）。 |
-| `click` / `drag` 传 `delivery_mode:"foreground"` | 走 `SetForegroundWindow + SendInput`，**真实光标 warp 到点击点**（实测 → 332,327）。工具文档说"restoring the prior foreground afterward"，还原的是**前台窗口**，不是**光标位置**；二进制里没有任何 `cursor_restore` 符号。更糟：**升级本身失败时也照样 warp**（返回 `foreground_unavailable`，指针已经不回到用户手上）。 |
-| `bring_to_front` | 它自己的描述就写着 **"deliberately breaks the no-foreground contract"**。不属于正常送达阶梯；只有跨多次调用必须保持前台的焦点代理面（RDP / 远程桌面会话）才用，用完必须显式还原原前台 HWND（返回值里有 `previous_fg_hwnd`）。 |
+1. 先把命令输出重定向到 `%TEMP%/qoder-work/<名>.log`（或 `D:\tmp\`）；
+2. 再 `grep` 定位、`Read offset/limit` 只读那一段；
+3. **不要重跑一次产生它的命令**——重跑才是真正的浪费。
+4. 结果确实丢了就先找文件，找不到再重跑，并在汇报里说明。
 
-**安全路径（实测不动真实光标，放心用）**：`element_index` 点击（UIA Invoke）、`x,y` + 默认 `delivery_mode:"background"`、`scroll`（WM_VSCROLL）、`type_text` / `press_key`（PostMessage 送达）、`move_cursor` overlay、`launch_app`（`SW_SHOWNOACTIVATE`，不抢焦点）、`start_session` / `list_windows` / `get_window_state`。
+## 三个已核实的坑
 
-## 1.5 非必要不强制前台（默认纪律；用户原则："不影响用户正常操作"）
+1. **中文按字节看水位**：本机 `session-budget` 读的是 `statSync().size`（字节），不是 `字符/4`；声明窗口很大但请求体先撞上限时，压缩永远不触发。长中文会话按字节盯。
+2. **改历史会断 prompt cache**：压缩、修剪、替换旧内容都会让提供方缓存只能复用到第一条被改动的消息之前。频繁小改历史可能比一次大改更贵——能在本轮做完就别留给下一轮改。
+3. **技能分层是显式取舍**：移入 `skills-library/` 的技能**不再出现在目录里**，只能靠 `skill-load` 检索或显式引用发现。行为型元技能（澄清、记忆更新、技能落地、端侧验收）必须留在常驻，否则会失去自动触发。改分层前先想清楚「这条是不是靠描述自动命中」。
 
-- **默认永不召唤到前台**：launch 不激活、输入走 background、读树/断言不需要前台。**不要**为了"看一眼"而还原最小化窗口或截图——最小化窗口用 UIA 树 + `verify_state` 断言（实测可用）；确实需要截图时接受"还原但不激活"，别为截图做多余的窗口体操。
-- **长后台自动化用 `start_minimized:true`**（0.30.2 起支持）：窗口落任务栏、用户当前前台不受打扰，UIA / 后台送达照常可用；只有 `screenshot` 与 `delivery_mode:"foreground"` 需要还原。
-- **批量 / 脚本工具同受约束（0.35.2 新增，守卫已覆盖）**：`run_steps` 的**顶层 `delivery_mode:foreground`**、**`foreground_fallback:true`**、steps 里嵌的 `delivery_mode:foreground` 或 `move_cursor scope:"desktop"`、`run_script` 脚本文本里的同款参数——一律按 §1 三条硬纪律拦。写批量调用**不要**为省事加 `foreground_fallback`（它会激活窗口 + 移动真实指针）；驱动报 `background_unavailable` 时按 §2 阶梯逐动作处理。
-- **验收判据**：动作前后比对**真实光标 + 前台窗口**两项都没变才算"没影响用户"（只看截图会假绿）。
+## 我们做不到的（宿主级，别再找插件）
 
-## 2. 送达阶梯（顺序不可颠倒）
+工具呈现（PTC 单 wire）、工具结果 spill 文件、历史压缩/修剪、图片 offload、token meter 都由宿主实现，Qoder 的插件只有 Skills / MCP / Agents / Commands / Rules / Hooks 六类组件，**没有改写工具结果或压缩历史的接口**。能做的只有：把上下文**送进去之前**变少（技能分层、规则精简、事实登记簿）和**进来之后**少读（grep + 分段读 + 落盘）。
 
-1. **优先 `element_index`**（先 `get_window_state(pid, window_id)` 拿快照，索引由下一次快照顶替，所以**同一回合内取即用**）——对后台 / 最小化 / 隐藏 / 出界窗口都有效，无光标移动、无焦点切换。
-2. 元素不可寻址（canvas / 视频 / WebGL / 自绘表面）才用 `x,y`，且**保持默认 `background`**。
-3. **只有驱动自己报 `background_unavailable`（或验证过的空操作）时**，才对**那一个动作**补一次 `delivery_mode:"foreground"`。不许凭"看起来像 GTK/Chromium/Electron"预防性前台——**是驱动判断，不是 agent 猜**。
-4. `drag` 例外：起点在标题栏 / 边框（移动或缩放窗口本身）无法后台送达，会返回 `background_unavailable`，此时才 foreground。
+## 硬事实登记簿与接续证据（AGENTS.md「工具选用」原末条）
 
-`type_text` 走逐字符 `PostMessage(WM_CHAR)`，Chromium/Electron 内容面常丢事件——遇到就按阶梯走，别直接上前台。
+`/fact` 只存显式长期硬约束（至多 12 条、按目录隔离，凭据不入簿；`fact-ledger.cjs --hook` 无事实时不注入）；`/checkpoint` 记录任务 / 会话 / cwd / 采样时间和逐文件 SHA-256——`git status`、mtime、字节数只算旁证，哈希相等只证明内容未变，不证明功能正确；两者注入效果都需在接收者环境实测。
 
-## 3. 机制层守卫（不靠提示词自觉）
-
-`scripts/cua-cursor-guard.js` 已挂到两侧 `settings.json` 的 `hooks.PreToolUse` + `hooks.PostToolUse`，matcher `mcp_call|mcp__cua[_-]?driver__.*|^Bash$`（客户端按**正则匹配工具名**）：
-
-- **Pre**：输入类工具执行前**快照真实光标位置**（按 session 存状态文件）；命中高危参数（§1 三条）**或 shell 里手搓 GUI 输入原语**（`SetCursorPos` / `SendInput` / `SetForegroundWindow` / `nircmd sendmouse` / pyautogui / AutoHotkey）→ **直接 deny**，并在拒绝理由里给出替代路径。
-- **Post**：比对当前与快照，**位置变了就用 `SetCursorPos` 还原并复验**；未变则静默（不刷噪声）。
-- 每次判定写台账 `<客户端目录>/tmp/cua-cursor-guard/decisions.log`。
-- **拦的是 `mcp_call` 元工具**（不是驱动工具名）——MCP 懒加载下模型发的是 `mcp_call{toolName,arguments}`，脚本要**自己解包**；`toolName` 里的 server 名被规范化成**下划线**（`mcp__cua_driver__…`），按注册名写连字符 `mcp__cua-driver__.*` 会**一个都不匹配**（2026-09-30 实测翻车：`scope:"desktop"` 照样执行、台账零记录）。
-- 也拦 **Bash 直调 `cua-driver call …`**——这条路完全绕开 MCP 通道，不一起管就只管一半。
-
-**关掉/放宽**（都写在 `<客户端目录>/cua-cursor-guard.json`，客户端目录 = `QODER_CONFIG_DIR`，缺省 `~/.qoder`）：
-
-```jsonc
-{ "disabled": true }            // 全关（或 env CUA_GUARD_DISABLE=1）
-{ "allow_foreground": true }     // 只放开 foreground 升级
-{ "allow_desktop_warp": true }   // 只放开 scope=desktop
-{ "allow_bring_to_front": true } // 只放开 bring_to_front
-{ "allow_shell_gui": true }      // 只放开 shell 手搓 GUI 输入
-```
-
-**这是需要用户拍板的口子**：需要真指针/前台/自绘表面时**问用户**由用户开，不要自己写这个文件绕过守卫。改任何一项都要在汇报里点名。
-
-自检：`node <配置目录>/scripts/cua-cursor-guard.test.js`（**50 条**：三条高危必拦（含 0.35.2 新增 `run_steps` 顶层 foreground / `foreground_fallback` / 嵌套 foreground、`run_script` 脚本文本扫描 7 条）、安全路径必放行、`mcp_call` 包装形态必解包、非 CUA 的 `mcp_call`/普通 Bash 必不受影响、`allow_shell_gui` 只开自己那一格）。
-
-**还原链路（2026-10-14 加固）**：Post 阶段发现光标被搬走后 `driver 写入 → 沉降复读（3×120ms）→ 未落位则 user32 兜底 → 再复读`，两条都失败才记 `UNVERIFIED` 并提示人工确认（此前只有一个 driver 写入 + 立即复读，异步落位会误判）；批量工具 `run_steps` / `run_script` 也在快照/还原覆盖内。
-
-**改完 hooks 不必重启**（2026-09-30 实测：同会话内下一次工具调用即生效，被拦调用会在台账留 `deny` 行）。**台账按客户端侧分目录**（跟随 `QODER_CONFIG_DIR`：CN 写 `~/.qoder-cn/tmp/…`，国际版写 `~/.qoder/tmp/…`）——查记录前先 `echo $QODER_CONFIG_DIR`，在错的侧找不到会误判成"守卫没跑"。
-
-## 4. 接入与运行
-
-- 二进制：`%LOCALAPPDATA%\Programs\Cua\cua-driver\bin` → junction 到 `~/.cua-driver/packages/current`；daemon pipe `\\.\pipe\cua-driver`。
-- MCP：`cua-driver.exe mcp`（stdio，连已运行的 daemon）。**两侧 `settings.json` 都要各自注册**；写完 `mcpServers` 后当前会话的 `mcp_list` 看不到，要重开会话。
-- 自启：计划任务需管理员，改用启动文件夹 VBS 以窗口样式 0 启动 `cua-driver serve`。
-- 版本：`cua-driver update --apply`；通道 `cua-driver channel set stable|nightly`。
-- **自动更新纪律（2026-10-14 起）**：daemon 自带版本检查（`~/.cua-driver/version_check.json`，本机周检会把"有新版未升"报成 warn）——**发现新版即升级**，升法：① 先跑基线备份（tar `~/.cua-driver` + 记录 `installed-hashes.txt` 到 `D:\qoder-backups\cua-driver\<日期>-baseline\`，含回滚说明）；② **github.com 直连被本网络阻断**（`update --apply` 会卡在下载）——改用 api.github.com 资产通道下载 zip + `SHA256SUMS` + `.sigstore.json` 到本地资产目录，`sha256sum -c` 对齐官方；③ 给**官方安装器**打"本地资产"最小补丁（只把下载来源换成 `$env:CUA_DRIVER_RS_LOCALASSETS`，解压/junction/校验/GC 全用官方代码），`-Release <x.y.z> -NoAutoStart` 运行（本机自启用启动文件夹 VBS，不用计划任务）；④ 装完重启 daemon：`cscript //nologo <启动文件夹>\CuaDriverServe.vbs`（旧 daemon 会被安装器收走）；⑤ 复验：`--version`、`status`、MCP 冒烟 + 旧 release 目录应保留（GC 默认留 5 个，完整回滚点 = 基线目录）。**升级后必须复查守卫**：新版本若引入批量/脚本类新工具（如 0.35.2 的 `run_steps`/`run_script`），把它们加进 `INPUT_TOOLS` 与 `classify()` 再放行（0.35.2 已做，见 §3）。
-- CLI 探参（比猜 schema 可靠）：`cua-driver list-tools`、`cua-driver describe <tool>`、`cua-driver call <tool> [--args JSON]`。
-- **跨 CLI 调用 token 会失效**：`snapshot_id` / `capture_id` / `element_token` 只在**同一 session** 内有效，分开两次 `call` 会报 `stale_element_token` / `capture_not_found`。多步操作先 `start_session --args '{"session":"标签"}'`，之后每个调用都带上同一个 `session`。
-
-## 5. 取证与验收纪律
-
-- **验收"没抢鼠标/没惊动前台"要有能失败的判据**：动作前后各读一次真实光标坐标（`get_cursor_position` 或 user32 `GetCursorPos`）**并比对前台窗口**；只看截图会假绿。
-- 别用驱动自己的 `get_cursor_position` 单独作证——先证明它读的是**真实**光标（warp 到一个探针点，看它跟不跟）。
-- 自动化实验**用完自己收尾**：`launch_app` 起的进程要关掉（`kill_app` 只允许杀被证明由本会话启动的进程，标准模式对别人家的进程返回 `foreign_process_termination_denied`，此时用 `taskkill /PID`）。
-- 工具**描述与实现冲突时以实现为准**（`move_cursor` 就是实例）：拿不准就实测一次再下结论，别把文档承诺写进规则。
-
-## 5.5 cua_driver 浏览器调用序列（已验证）
-
-网页自动化优先 `browser-use`；需要隔离会话或验证登录态时用 cua_driver 的浏览器工具，按下面顺序，参数缺失会被直接拒绝：
-
-1. `browser_prepare`：`allow_launch` + `isolated_named`（保留 cookie 的隔离会话）。
-2. `list_windows`：拿 `window_id`。
-3. `get_browser_state`：绑定需要 `pid` + `window_id`；快照需要 `target_id` + `tab_id`。
-4. `browser_navigate`：必须同时带 `target_id` + `tab_id`。
-5. 截图走 `get_browser_state(include_screenshot)`。
-
-坑位：会话标签会失效（需开新标签重绑）；进程退出后按 `user-data-dir` 判定归属再清理，**防止误杀用户自己的浏览器**。
-
-## 6. 已知未定论
-
-`move_cursor scope:"window"` 在一次观测中把真实光标移到了 (461,441)（≈窗口内 400,300 加窗口原点），但**受控复测下不再复现**（同形状重复 10 次都不动）。可能是打包应用激活时的异步副作用。**不依赖这个结论**——守卫的快照/还原对任何实际发生的 warp 都兜得住。
-
-### 数据库规则
+### 桌面自动化（CUA / computer-use：优先走驱动 + 不抢鼠标）
 
 ```yaml
 trigger: model_decision
-description: 当任务涉及 PostgreSQL、瀚高、MySQL、Oracle、MongoDB 或 Redis 的数据模型设计、查询编写、索引优化、缓存策略、连接配置、性能排查、数据库迁移时加载。数据库、缓存、Mongo、Redis、PG、MySQL、Oracle、瀚高、索引、慢查询、SQL。
+description: 当任务需要操作本机图形界面时加载——点击/输入/滚动/读控件树/桌面截图/静默后台控制某个 App，或要用 CUA、cua-driver、computer-use 做桌面自动化、给第三方客户端做验收；含选型阶梯（原生 App 走 CUA 驱动、网页走 browser-use）、鼠标抢占的成因与规避、后台送达模式、光标还原守卫。关键词：CUA、cua-driver、computer-use、桌面自动化、操作电脑、控制桌面、GUI 点击、模拟点击、静默后台、不抢焦点、鼠标抢占、真实光标、前台、bring_to_front、launch_app 隐藏。
 ```
 
-## PostgreSQL / 瀚高（HighGo）
+- **选型阶梯：操作图形界面默认走 CUA 驱动**。原生桌面 App（点击 / 输入 / 滚动 / 读控件树）→ `cua_driver` MCP：`launch_app`（`SW_SHOWNOACTIVATE`，不抢焦点）→ `get_window_state` 取控件树 → `click(element_index)` 或 `x,y` + 默认 `background`；网页 → `browser-use`（CDP，能拿 DOM 快照与网络日志）；只有文件 / 注册表 / 服务 / 网络要做的事没有 GUI → shell 或专用 MCP，别为了"自动化"去开窗口。**别手搓 `SetCursorPos` / `SendInput` / `nircmd` / AutoHotkey / pyautogui**——已由 `scripts/cua-cursor-guard.js` 的 PreToolUse 拦截（放宽 `allow_shell_gui` 由用户开）。值得优先用驱动是实测理由：它按 HWND 走 UIA Invoke / PostMessage，**对后台、最小化、甚至移出桌面的窗口都能送达**，不切前台、不动真实光标，还给结构化控件树——验收断言能失败，比截图猜像素稳。
+- **三条硬纪律（会抢鼠标 / 焦点的来源，均实测）**：① `move_cursor` 别传 `scope:"desktop"`（会把用户真实指针 teleport 走，3 次复现；而这工具顶层描述写着 "Does NOT move the real mouse cursor"，**描述与实现矛盾**）；② `click`/`drag` 别预防性传 `delivery_mode:"foreground"`（走 `SetForegroundWindow+SendInput` 会 warp 光标，且**升级失败 `foreground_unavailable` 时照样 warp**）；③ `bring_to_front` 自述 "deliberately breaks the no-foreground contract"，只给必须跨多次调用保持前台的焦点代理面（RDP 之类），用完按返回的 `previous_fg_hwnd` 还原。实测**不动**真实光标的：`element_index` 点击、`x,y` 默认 background、`scroll`(WM_VSCROLL)、`type_text`/`press_key`(PostMessage)、`launch_app`、`move_cursor` overlay。
+- **非必要不强制前台（2026-10-14 起默认纪律）**：用户原则＝"**不影响用户正常操作**"。launch 不激活（长后台任务加 `start_minimized:true`，窗口落任务栏）；输入走 background、读树与断言不要求前台；不为一瞥而还原最小化窗口（用 UIA 树 + 断言）；网页优先 `browser-use`（Chromium 键盘天然要求前台，走 CDP 可完全绕开）。**验收判据＝动作前后"真实光标 + 前台窗口"两项都没变**（只看截图会假绿）。**批量 / 脚本类新工具同受约束**：0.35.2 的 `run_steps`（顶层 `delivery_mode:foreground` / `foreground_fallback:true` / 步骤内嵌前台参数）与 `run_script`（脚本文本含 `delivery_mode:'foreground'`、`scope:'desktop'`、`bring_to_front`）会被"逐工具分类"漏掉——守卫已覆盖同一口径（自检 35→50 条），并**在真实客户端做了活体 deny 验证**。**升级后必须复查守卫是否覆盖新工具**（红线：只加严不放松）。
+- **送达阶梯不可颠倒**：优先 `element_index`（先 `get_window_state`，索引会被下一次快照顶替）→ 元素不可寻址（canvas / 视频 / 自绘）才 `x,y` 且保持 `background` → **只有驱动自己报 `background_unavailable`** 才对那一个动作补 `foreground`。不许凭"看起来像 GTK/Chromium"抢跑——**是驱动判断，不是 agent 猜**。例外：起点在标题栏 / 边框的 `drag`（移动 / 缩放窗口）本就无法后台送达。
+- **驱动不会自己还原光标**：文档说的 "restoring the prior foreground afterward" 还原的是**前台窗口**不是**指针位置**，二进制里没有任何 `cursor_restore` 符号 → 还原必须做成机制。`cua-cursor-guard.js` 挂 `hooks.PreToolUse`+`hooks.PostToolUse`，matcher `mcp_call|mcp__cua[_-]?driver__.*|^Bash$`（客户端按正则匹配工具名）：Pre 快照真实光标 + 拦高危参数与 shell 手搓 GUI 输入，Post 发现指针被搬走就**两跳还原**（driver 写入 → 沉降复读 → 未落位则 user32 兜底 → 再复读；两条都失败才提示人工确认——单写 + 立即复读会把异步落位误判成失败），台账 `tmp/cua-cursor-guard/decisions.log`。
+- **升级通道（含 github 直连被墙的走法）**：`cua-driver update --apply` 的下载走 github.com、被墙时会重试 3 次后失败；改走 **api.github.com 资产通道**下载 zip + `SHA256SUMS` + `.sigstore.json` 并 `sha256sum -c` 对齐官方清单，再给**官方安装器**打"本地资产"最小补丁（只把下载来源换成 `$env` 指向的本地目录，解压 / junction / 校验 / GC 全用官方代码）后 `-Release x.y.z -NoAutoStart` 运行（本机自启用启动文件夹 VBS，避免与计划任务双 daemon）；装完重启 daemon、`--version` + MCP 冒烟复验；旧 release 目录保留（GC 默认留 5 个版本）= 回滚点。**升级限于已获批准的维护任务**；发现新版只报告，不把升级作为日常验收的前置；需停机、权限提升或改变审批流程时保留单独批准；周检把"有新版未升"报 warn。坑：官方安装器是 UTF-8 无 BOM，**往里面插中文注释会被 Windows PowerShell 按 GBK 读并吞字符**——补丁注释用纯 ASCII。
+- **接线最大的坑**：MCP 懒加载下真实 `tool_name` 是元工具 **`mcp_call`**（驱动名在 `tool_input.toolName`、参数在 `tool_input.arguments`，脚本要自己解包），且 server 名被规范化成**下划线** `mcp__cua_driver__…`。只按注册名写 `mcp__cua-driver__.*` 会**一个都不匹配**——脚本单测 18/18 全绿、实调却照样执行（假绿）。**验 matcher 用客户端同款算法** `new RegExp(m).test(真实工具名)`，且测试 payload 必须从 run 日志的 `hook_name=` 实际值取。
+- **放宽由用户拍板**：`<配置目录>/cua-cursor-guard.json` 的 `disabled` / `allow_foreground` / `allow_desktop_warp` / `allow_bring_to_front` / `allow_shell_gui` 是给**人**开的口子（客户端目录 = `QODER_CONFIG_DIR`，缺省 `~/.qoder`）；自动化不许自己绕过守卫，开了哪一项要在汇报里点名。自检 `node <配置目录>/scripts/cua-cursor-guard.test.js`（50 条：三条高危必拦〔含 0.35.2 新增 `run_steps` / `run_script` 的 7 条形态〕、安全路径必放行、`mcp_call` 包装必解包、非 CUA 调用与普通 Bash 必不受影响、还原兜底两跳与双失败留痕）。
+- **截图体积与"等它出现"都在脚本层解决（2026-10-27 实测）**：**两条 CUA 线要分开看**——Qoder 内置的 `computer_use`（本机 = `QoderComputerUse.exe`，stdio MCP、**无 CLI**）的 `get_window_state` 只有 `include_screenshot/include_text/max_tree_*`，**没有 region / scale 参数**；而 trycua `cua-driver` 线（本机 = `Quiet CUA`）**有原生旋钮**：`get_window_state` 的 `max_image_dimension`（长边像素上限，保比例）+ `screenshot_out_file`（图写文件、响应只回路径）+ `zoom`（按区域以原生分辨率重取，自动加 20% 边距、可 `from_zoom=true` 回映射坐标）+ `verify_state`（有界谓词轮询）。所以"整屏截图再让模型自己裁"在两条线上都不必。**computer_use 这一侧的体积只能脚本层控**，两个入口：
+  - `scripts/capture-window.ps1 -Hwnd <hwnd> -Out x.png [-Region x,y,w,h] [-Scale 0.1-1.0] [-Background]`：`-Background` 走 `PrintWindow(PW_RENDERFULLCONTENT)`，**不抢前台、不动光标、被遮住的窗口也能拿全图**（实测抓非前台窗口，前后 `GetForegroundWindow` 不变）；窗口最小化会**判红退 3**（PrintWindow 只会存一张空图，宁可不给）。实测同一窗口体积阶梯：整窗 2576×1408 / 272KB → 区域 1288×704 / 52KB → 区域+0.4 / 18KB → 区域+0.1 / 2.3KB。坑：`-Region 0,0,w,h` 从 bash 传进来是**一个字符串**（`[int[]]` 只绑到 1 个元素），所以参数按字符串收、脚本内自己按逗号切。
+  - `scripts/cua-wait.ps1 -TitleRegex|-ProcessName|-Hwnd+-Text [-TimeoutSec][-IntervalMs]`：把"轮询到窗口/文本出现"压成**一次调用**，单行结构化返回 `FOUND|what=|attempts=|elapsed_ms=|hwnd=|detail=` / `TIMEOUT|...`，退出码 0 命中、1 超时、2 参数错。UIA 走 `AutomationElement.FromHandle + FindAll(Descendants)`（`-MaxNodes` 封顶，Chromium 树很大）。实测：已存在窗口 attempts=1/146ms；延迟 2 秒出现的窗口 attempts=6/2249ms；不存在谓词 3 秒 7 次后判红。**输出必须显式 `[Console]::OutputEncoding = UTF8`**，否则中文 `detail` 经 bash 管道回来是乱码（`模型`→`ģ`），而 detail 正是这工具的产物。
+- **cua-driver 0.38.0 实测的两个"别信"**（2026-10-27，CLI 走 `serve` daemon + `call`）：① `verify_state` 对 Qoder 自己的窗口返回 `status:"unknown"` + `unknown_reason:"untrusted_source"`，**真谓词（matches:3）也判不出 pass，且退出码恒 0**——它确实轮询（4 秒 22 次采样），但**不能当能失败的判据**；要"等到出现并据此判红"就用 `cua-wait.ps1`（超时退 1）。用 `verify_state` 必须自己解析 `status`，把 `unknown` 一律按未通过处理。② `cua-driver check-update` 自报 `latest_version:0.37.0 / update_available:false`，而 GitHub 上 stable 已是 0.38.0 ⇒ **判版本以 `gh api repos/trycua/cua/releases` 里带 `cua-driver-rs-*-windows-x86_64.zip` 资产的最新 tag + 二进制 `--version` 为准**，别拿自报当结论（周检"有新版未升"若接它的答案会误判）。
+- **本机 CUA 现状（2026-10-27）**：`Quiet CUA` 线 0.38.0 装在 `D:\Program Files\Quiet CUA\0.38.0`（zip 与 sigstore sidecar 均按 GitHub 公布的 digest 逐字节核过；`provenance.json` 记 9 个运行时文件哈希）；回滚点 `C:\Program Files\Quiet CUA\0.37.0` 原样未删；`background-only.rego` 是本机自加的非上游文件，随版本带过去。**两侧 `settings.json` 都已挂 MCP server `cua-computer-use`（`command=<exe>` + `args:["mcp"]`，官方 `mcp-config --client claude` 口径）**，与 Qoder 内置的 `computer-use` 并存——内置那个的 `get_window_state` 没有体积参数，要 `max_image_dimension` / `screenshot_out_file` / `zoom` 就走 `cua-computer-use`。守卫侧不用改：`cua-cursor-guard.js` 的判据是 `/cua/i.test(toolName)`（不是只认 `cua-driver`），新 server 名天然落进覆盖范围。**MCP 与 hook 一样要重启客户端才加载**，本会话里它不可调用，接线后的验收只能用 stdio 直跑 `cua-driver mcp` 做协议冒烟（initialize + tools/list，实测 63 工具、serverInfo 0.38.0）；daemon 平时不常驻（验证用 `serve --no-overlay` 起、完事 `stop`）。
+- **验收"没抢鼠标"要能失败**：动作前后各读一次真实光标坐标比对，且先证明测量工具读的是真实光标（warp 到探针点看它跟不跟）——只看截图会假绿。
+- **跨 CLI 调用 token 会失效**：`snapshot_id` / `capture_id` / `element_token` 只在同一 session 内有效，多步操作先 `start_session` 且每个调用带同一个 `session`；`kill_app` 标准模式只杀被证明由本会话启动的进程，不能证明归属时停止该动作并核对身份或申请批准，不得改用 `taskkill /PID` 绕过归属保护；仅清理本会话可确认归属的测试进程，服务停机仍按单独批准和人工执行要求处理。
+- **文档与实现冲突时以实现为准**（`move_cursor` 就是实例）：拿不准就实测一次再写进规则，别把厂商文档的承诺当事实传播。
+- **改完 hooks 不必重启**（实测：同会话内下一次工具调用即生效，被拦调用会在台账留 `deny` 行、安全调用留 `allow`——这就是"能失败"的验收）。**台账按客户端侧分目录**（脚本跟随 `QODER_CONFIG_DIR`：CN 写 `~/.qoder-cn/tmp/cua-cursor-guard/`，国际版写 `~/.qoder/tmp/…`）；查记录前先 `echo $QODER_CONFIG_DIR`，在错的侧找不到会误判成"守卫没跑"。
 
-瀚高基于 PostgreSQL，规则通用；瀚高特有差异单独标注。
+### 数据库（PostgreSQL / 瀚高 / MySQL / Oracle / MongoDB / Redis）
 
-- **表设计**：优先用 `NUMERIC` 表示精确小数（金额），不用 `FLOAT/REAL`；时间戳用 `TIMESTAMPTZ`（带时区）；大文本用 `TEXT` 不限 `VARCHAR(n)`；枚举用 `VARCHAR` + `CHECK` 约束或独立表，不用 PG 原生 `ENUM` 类型（迁移困难）。
-- **索引**：复合索引遵循最左前缀原则；高频 JSONB 查询用 GIN 索引；全文检索用 `tsvector` + GIN；大表精确匹配考虑 `HASH` 索引（比 B-tree 小）；定期 `REINDEX` 和 `VACUUM ANALYZE`。
-- **查询**：`EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)` 看实际执行计划；警惕 `SELECT *`、隐式类型转换导致索引失效、`OR` 条件拆索引；分页用 keyset（`WHERE id > ?`）替代 `OFFSET`；`COUNT(*)` 大表走估算（`pg_class.reltuples`）或维护计数表。
-- **事务与锁**：长事务及时提交，避免 hold 住行锁/VACUUM；`SELECT ... FOR UPDATE` 慎用，优先乐观锁（`version` 字段）；死锁排查用 `pg_stat_activity` + `pg_locks`。
-- **连接**：应用内连接池（HikariCP 默认），池大小 = CPU 核数 × 2 + 磁盘数；配置 `connectionTimeout`、`idleTimeout`、`maxLifetime`；禁止每次请求新建连接。
-- **瀚高特有**：JDBC 驱动用 `com.highgo.jdbc.Driver`（或兼容 PG 驱动 `org.postgresql.Driver`）；`connection-init-sqls` 在 YAML 中必须用列表格式，不用分号拼接（详见 [[feedback-druid-init-sqls-yaml-list]]）；部分版本对 `bytea` 编码、`interval` 运算有差异，改动前先测。
-- **迁移**：DDL 变更必须可回滚（写 `ALTER ... ADD` 同时备 `ALTER ... DROP`）；大表加列用 `ALTER TABLE ... ADD COLUMN ... DEFAULT NULL` 再异步回填（PG 11+ 加 `DEFAULT` 值已是元数据操作，不再锁表重写）。
+```yaml
+trigger: model_decision
+description: 当任务涉及 PostgreSQL、瀚高、MySQL、Oracle、MongoDB 或 Redis 的数据模型设计、查询编写、索引优化、缓存策略、连接配置、性能排查、数据库迁移时加载。数据库、SQL、建表、索引、慢查询、缓存、Mongo、Redis、PG、瀚高。
+```
 
-详细模式见 `postgresql-table-design`、`postgresql-optimization` 技能。
-
-## MySQL
-
-- **表设计**：主键用自增 `BIGINT`（不用 UUID 做聚簇键，避免页分裂）；字符集统一 `utf8mb4`（不是 `utf8`）；时间字段用 `DATETIME`（业务时区）或 `TIMESTAMP`（UTC 存储）；金额用 `DECIMAL(18,2)` 不用 `FLOAT`。
-- **索引**：InnoDB 二级索引含主键列，主键过长会拖慢所有二级索引；覆盖索引优先（`SELECT` 列全在索引中，不回表）；前缀索引（`VARCHAR(255)` 只索引前 20 字符）节省空间但丧失排序能力。
-- **查询**：`EXPLAIN` 看 `type`（至少 `ref` 级别）、`Extra`（避免 `Using filesort`、`Using temporary`）；`LIMIT` 大偏移用延迟关联（`SELECT ... FROM (SELECT id FROM ... LIMIT offset, n) AS t JOIN ...`）；`GROUP BY` 默认隐式排序（MySQL 8.0 已移除）。
-- **事务**：InnoDB 行锁基于索引，无索引条件退化为表锁；`autocommit=1` 是默认值，批量插入要显式 `BEGIN/COMMIT`；隔离级别默认 `REPEATABLE READ`，注意幻读由 gap lock 部分解决但非完全。
-- **运维**：大表 DDL 用 `pt-online-schema-change` 或 `gh-ost`（MySQL 原生 `ALTER` 会锁表）；慢查询日志开启后定期分析（`mysqldumpslow` 或 `pt-query-digest`）。
-
-详细模式见 `mysql` 技能。
-
-## Oracle
-
-- **SQL 兼容**：字符串拼接用 `||` 不用 `CONCAT()`（Oracle 的 `CONCAT` 只接受两参数）；空字符串等于 `NULL`（`'' IS NULL` 为 true）；日期字面量用 `TO_DATE('2026-01-01', 'YYYY-MM-DD')`；分页用 `OFFSET ... FETCH NEXT ... ROWS ONLY`（12c+）或 `ROWNUM` 嵌套（旧版）。
-- **性能**：绑定变量防硬解析（`WHERE id = :id` 不用 `WHERE id = ${id}`）；执行计划用 `EXPLAIN PLAN FOR ... ` + `SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY)`；统计信息过期会导致优化器选错计划，定期 `DBMS_STATS.GATHER_TABLE_STATS`。
-- **序列**：主键用 `SEQUENCE` + 触发器（旧版）或 `IDENTITY` 列（12c+）；序列缓存大小（`CACHE 20`）影响 RAC 环境下的序列间隙。
-- **迁移注意**：Oracle → PG 迁移时，`NVL` → `COALESCE`、`DECODE` → `CASE WHEN`、`SYSDATE` → `NOW()`、`ROWNUM` → `LIMIT`、`(+)` 外连接 → `LEFT JOIN`。
-
-详细模式见 `db`（Oracle）技能。
-
-## MongoDB
-
-- 先定文档模型再做查询：明确 embed vs reference，警惕无界数组、索引爆炸、16MB 上限。
-- 查询必须能命中索引；慢查询先看 `explain` 的 `executionStats` 再优化。
-- 连接：应用内单例客户端 + 连接池，不要每次请求新建连接。
-- schema 变更要有迁移路径。
-
-## Redis
-
-- 键命名统一 `业务:对象:标识` 冒号分隔风格；非持久语义的缓存键必须设 TTL。
-- 禁止在大键空间上使用 `KEYS`、`SMEMBERS`、`HGETALL` 等慢命令，用 `SCAN` 系列。
-- 缓存要有明确的失效策略与正确性边界。
-- 连接复用，配置合理超时。
-- **集群形态**：本机项目用单实例；一旦上 Cluster，多键操作必须同 hash tag（`{}` 包住同一段，如 `order:{42}:items`），否则 `CROSSSLOT`；读多写少时可读副本，但**读副本会读到旧值**，一致性敏感场景不读副本。
-- **安全基线**（上生产才要求）：`bind` 到内网 + 防火墙，别裸露公网；开 `requirepass` 或 ACL 用户（按前缀授权 `~业务:*`），关掉 / 重命名 `FLUSHALL`、`CONFIG` 这类危险命令；跨网段走 TLS。
-- **排障顺序**：先 `INFO memory|clients|stats` 看水位与连接数 → `SLOWLOG GET 20` 找慢命令 → `MEMORY DOCTOR` 给内存诊断 → `CLIENT LIST` 查连接堆积。命中率掉了优先怀疑键设计或 TTL 抖动，而不是先调参数。
-- **Redis Search / 向量检索 / LangCache 语义缓存**：属 Redis Stack / 云服务形态，本机项目未用；真要用再按官方文档选型（`FT.CREATE` 的字段类型与 `DIALECT 2` 语法与普通命令不是一套心智模型，别凭记忆写）。
-
-## 跨数据库通用纪律
-
-- **跨 schema 库必须写 schema 限定名**：同一实例常挂多套 schema（业务库 / 配置库 / 报表库各一套），psql 或 JDBC 不带 schema 会报 `relation "xxx" does not exist`；查询与 DDL 一律显式 `schema.table`，**不依赖 `search_path`**（瀚高上曾因 `currentSchema` 覆盖 search_path 引发连环坑）。
-- **大表迁移 / 批量写要分批且可续跑**：一次全量会长时间压库、放大锁等待；按主键区间或时间窗**分批**执行、把进度落盘、支持暂停续跑；迁移前备份、改完核对行数并抽样比对内容（验收要有改动前后的量级对比）。
-- **改数据前先 SELECT 查证影响面**（详见 [[feedback-database-safety]]）；破坏性 SQL（`DROP`、`TRUNCATE`、无条件 `DELETE/UPDATE`）绝对禁止。
-- **SQL 注入**：所有参数用绑定变量 / 预编译语句（`?` 或 `:name`），禁止字符串拼接 SQL。
-- **连接池**：任何数据库都通过连接池访问，不新建连接；池参数（最大连接数、超时、空闲回收）按负载调整。
+- **PostgreSQL / 瀚高**：金额用 `NUMERIC` 不用 `FLOAT`；时间戳用 `TIMESTAMPTZ`；大文本用 `TEXT` 不限 `VARCHAR(n)`；复合索引遵循最左前缀原则；分页用 keyset 替代 `OFFSET`；连接池用 HikariCP；瀚高 JDBC 驱动用 `com.highgo.jdbc.Driver`，`connection-init-sqls` 在 YAML 中必须用列表格式不用分号拼接。
+- **MySQL**：主键用自增 `BIGINT`；字符集统一 `utf8mb4`；金额用 `DECIMAL` 不用 `FLOAT`；InnoDB 二级索引含主键列，主键过长拖慢所有二级索引；`EXPLAIN` 看 `type` 至少 `ref` 级别；大表 DDL 用 `pt-online-schema-change` 或 `gh-ost`。
+- **Oracle**：绑定变量防硬解析；字符串拼接用 `||`；空字符串等于 `NULL`；分页用 `OFFSET ... FETCH NEXT`（12c+）或 `ROWNUM` 嵌套；迁移到 PG 时 `NVL` → `COALESCE`、`DECODE` → `CASE WHEN`、`ROWNUM` → `LIMIT`。
+- **MongoDB**：先定文档模型再做查询（明确 embed vs reference，警惕无界数组、索引爆炸、16MB 上限）；慢查询先看 `explain` 的 `executionStats` 再优化；应用内单例客户端 + 连接池。
+- **Redis**：键命名统一 `业务:对象:标识` 冒号分隔风格；非持久语义的缓存键必须设 TTL；禁止在大键空间上用 `KEYS`、`SMEMBERS`、`HGETALL` 等慢命令，用 `SCAN` 系列；连接复用，配置合理超时。上 Cluster 后多键操作必须同 hash tag（`order:{42}:items`）否则 `CROSSSLOT`，读副本能扩展读但会读到旧值、一致性敏感场景不读；上生产要有安全基线（`bind` 内网 + 防火墙、`requirepass` 或按前缀授权的 ACL、禁用/重命名 `FLUSHALL`/`CONFIG`、跨网段走 TLS）；排障顺序是 `INFO memory|clients|stats` → `SLOWLOG GET 20` → `MEMORY DOCTOR` → `CLIENT LIST`，命中率掉了先怀疑键设计与 TTL 抖动，而不是先调参数。Redis Search / 向量检索 / LangCache 语义缓存属 Redis Stack / 云服务形态，用之前按官方文档选型（`FT.CREATE` 与 `DIALECT 2` 跟普通命令不是一套心智模型）。
+- **跨数据库通用纪律**：所有参数用绑定变量 / 预编译语句，禁止字符串拼接 SQL；任何数据库都通过连接池访问；改数据前先 `SELECT` 查证影响面，破坏性 SQL（无条件 DELETE/UPDATE/DROP/TRUNCATE）绝对禁止；**改结构 / 数据前先备份，并给出回滚方案**。
 - **验证**：数据相关改动验收要有改动前后的量级对比、一条属于本轮的判据、以及清理方案。
 
-详细模式见对应技能（`postgresql-optimization`、`postgresql-table-design`、`mysql`、`db`、`redis-core`、`redis-connections`）；MongoDB / Redis 集群 / Redis Search 等专项技能 2026-09-29 已停用（本机无对应项目，移入 `skills-disabled/`，接了项目再装回）；直连可用对应 MCP（需先配连接串）。
+- **跨 schema 库必须写 schema 限定名**：同一实例常挂多套 schema（业务库 / 配置库 / 报表库），不带 schema 会报 `relation "xxx" does not exist`；一律显式 `schema.table`，**不依赖 `search_path`**。
+- **大表迁移 / 批量写要分批且可续跑**：按主键区间或时间窗分批、进度落盘、支持暂停续跑；迁移前备份，改完核对行数与抽样内容。
+- **迁移设计与验证（写迁移 / 评审迁移时）**：① **不改写已执行的版本化迁移**（可能受校验管理），按项目工具**新增修正迁移**。② 列重命名 / 拆分 / 类型变化走「扩展 → 兼容读写 → 分批回填 → 核验 → 切换 → 收缩」，旧客户端还在用时别急着删字段。③ **"新增 nullable 列"不叫无锁**——仍可能取元数据 / 表锁；`DEFAULT` / `NOT NULL` / 索引 / DDL 事务行为依引擎与版本判断（PG `CONCURRENTLY` 有事务限制、失败留 invalid 索引）；执行前查**目标版本**官方文档（`current` 页 ≠ 项目锁定版本）。④ 回填用稳定键 + 有界批次 + 恢复位置，验证重跑不会覆盖新写入。⑤ 恢复计划分三层：应用回退 / schema 恢复 / 数据恢复；删列或有损转换**不能靠 DOWN 文件保证恢复**。⑥ 在已授权的隔离库或 fixture 上验证迁移链、新旧代码兼容与可逆性；**准备迁移文件 ≠ 批准执行生产变更**。
 
-## 迁移设计与验证（写迁移 / 评审迁移时）
-
-- **不改写已执行的版本化迁移**：它可能受校验管理；按项目迁移工具**新增修正迁移**。只有本次未应用的文件才可在确认归属后修订。
-- **列重命名 / 拆分 / 类型变化走"扩展 → 兼容读写 → 分批回填 → 核验 → 切换 → 收缩"**；旧客户端或旧服务还在用时，不立即删掉其依赖字段。
-- **"新增 nullable 列"不叫无锁**：仍可能取元数据 / 表锁；`DEFAULT` / `NOT NULL` / 索引 / DDL 事务行为**依引擎与版本**判断。PG 并发建索引（`CONCURRENTLY`）有事务限制、失败会留 invalid 索引需清理；MySQL 的在线 DDL 选项不能直接套到 PG。执行前查**目标版本**官方文档（`current` 页面 ≠ 项目锁定版本）。
-- **回填**用稳定键 + 有界批次 + 恢复位置，并验证重跑不会覆盖新写入或重复生成；避免用一个巨大事务处理全表。
-- **恢复计划分三层**：应用回退 / schema 恢复 / 数据恢复。删列或有损转换**不能靠 DOWN 文件保证恢复**，需可验证的备份/恢复或前向修复方案。
-- **验证在已授权的隔离库或 fixture 上做**：迁移链、约束、旧/新代码兼容、回填恢复与真实可逆性；大表性能需带数据规模与锁等待证据。没有代表性数据时**只交付静态检查与准确缺口**。
-- **准备迁移文件 ≠ 批准执行生产变更**；生产执行仍走当前授权。
-- 沿已有迁移机制选工具，不强制所有工具都写 DOWN。来源：Codex `local-db-migrations`（2026-10-11 并入）。
-
-### 交付纪律（提交 / PR / 发布 / 部署）
+### 交付（提交 / PR / 发布 / 部署）
 
 ```yaml
 trigger: model_decision
 description: 当任务涉及 git 提交、推送、创建/更新/撤回 PR、合并、发布、部署、清理提交历史时加载。提交、推 PR、开 PR、合入、交付、发布、部署、上线、撤回 PR。
 ```
 
-- **提交与发布分开授权**：本地小步增量在验证后主动 commit、不等提醒（2026-11-09 用户拍板同步制作端 2026-10-07 口径）；所有 push、SVN commit、PR、部署和发布均为对外动作，须授权覆盖仓库、环境、目标与批次。同范围不重问，范围变化再申请批准。
-- **推送 / 开 PR / 部署 / 发布前必须完整检验，确保正确无误**（最高优先级）：测试全绿 + 服务真启动 + 关键路径走通；前端改动要真实浏览器验证。**本地增量提交按影响面配比**（一条能失败的判据 + 相关测试即可）。任何一项没验证就明确说"未验证"，**不得推送或部署**。
-- **先分辨改动归属**：提交/还原前跑 `git status`，区分「本轮改的」与「工作区里本就有的」。同仓库可能有多会话/AI 并行改动——非本会话的改动不提交、不还原、不修改，报告用户由其决定。
-- **只加明确路径**：`git add <具体文件>`，禁止 `git add -A` / `git add .`；暂存后复核一遍没混入敏感文件（`.env`、凭据）。
-- **说明语言跟随仓库**：上游 / 开源仓库用英文（含 why / impact / verification）；内网仓库沿用团队既有语言。回复用户仍用中文。
-- **测试无误再提交**：本地增量 commit 前跑**相关测试**（一条能失败的判据）；**推送 / 开 PR / 部署 / 发布前全量一次跑全**（批量模块一次跑全，防中断漏跑）。
-- **推送前同步上游**：让目标分支与上游一致，PR diff 只含本批次文件（否则会混进几百个同步文件）。
-- **唯一 PR**：fork/上游里未合入主分支的旧 PR 要撤回，只保留当前一条；撤回/关闭是对外可见动作，先给选项让用户拍板。
-- **汇报格式**：PR 链接 + 文件数 / 增删行 + mergeable 状态；未验证与未完成项与已落地部分严格分开写。
+- **提交与发布分开授权**：本地修改、测试和明确路径暂存可在当前任务内推进；创建本地 commit 须用户明确要求。所有 push（含已有同名特性分支）、SVN commit、PR、部署与发布均为对外动作，须授权覆盖仓库、目标、环境和批次；同范围不重问，范围变化再申请。
+- **推送 / 开 PR / 部署 / 发布前必须完整检验**：测试全绿 + 服务真启动 + 关键路径走通；前端改动要真实浏览器验证。**本地增量提交按影响面配比**（一条能失败的判据 + 相关测试）。任何一项没验证就明确说"未验证"，不得推送或部署。
+- **先分辨改动归属**：提交 / 还原前跑 `git status`，区分「本轮改的」与「工作区里本就有的」；多会话并行改动非本会话的不提交、不还原、不修改。
+- **只加明确路径**：`git add <具体文件>`，禁止 `git add -A` / `git add .`；暂存后复核没混入敏感文件。
+- **说明语言跟随仓库**：上游 / 开源用英文（含 why / impact / verification）；内网仓库沿用团队惯例。
+- **推送前同步上游**：让目标分支与上游一致，PR diff 只含本批次文件。
+- **唯一 PR**：未合入主分支的旧 PR 要撤回，只保留当前一条；撤回 / 关闭是对外可见动作，先给选项让用户拍板。
+- **汇报格式**：PR 链接 + 文件数 / 增删行 + mergeable 状态；未验证与未完成项与已落地部分严格分开。
+- **重要交付（鉴权 / 数据 / 计费 / 迁移类，或跨模块 / 接口级大改动）加一道独立对抗审查**：推送前把**最终 diff** 交给全新上下文的只读子代理（若已装 `ocr` CLI，可用 `open-code-review-delegate` 技能）——只给 diff、先不给自己的结论，专门挑功能缺陷与反例；**小步修补只需完整检验**，不加这一道。
+- **完整流程见 `ship-clean-pr` 技能**；PR / Issue 状态查询用 GitHub MCP（已配置时）或 `gh` CLI。
 
-完整流程见 `ship-clean-pr` 技能；PR/Issue 状态查询用 GitHub MCP。
+---
 
-### 文档生成规则
-
-```yaml
-trigger: model_decision
-description: 当任务要生成或大修文档体系（repo wiki、repowiki、知识卡、README、规格/需求文档、架构文档、YAML 配置）或多代理并行写长文时加载。文档、wiki、repowiki、知识卡、README、规格、PRD、架构文档、校对、解除页数上限。
-```
-
-## wiki 优先（仓库已有 wiki 时）
-
-- **先查后动**：仓库存在 `.qoder/repowiki/`（或既有 `docs/` 知识库）时，**先查 wiki 定位模块 / 入口 / 约定再动手**，不要一上来通读源码；wiki 与代码冲突时**以代码为准**，就地修 wiki 并在汇报里点出冲突。
-- **随时回写**：代码产生改动后**同批更新**受影响的 wiki 页（含 `<cite>` 与 `file://#Lx-Ly` 行号），不攒到最后——文档不同批更新就会退化成"第二真相"。
-- 没有 wiki 而需要建：用技能 `write-repowiki`（Qoder `.qoder/repowiki/` 四层标准 + 校验脚本 + 多写手并行流程 + 事实源与传播纪律）。
-
-## 交付三件套（动工前必须就位）
-
-1. **事实源文件**（如 `_FACTS.md`）：只放已核验事实 + 精确 `路径:行号` + 冲突裁决。所有页面由它派生，禁止凭印象写。
-2. **写手简报**（如 `_AUTHORING.md`）：格式契约、禁编造清单、凭据一律 `<redacted>`、自查命令。
-3. **校验脚本**（放项目 `scripts/`，可复用）：解析 YAML/JSON、校验每个引用路径存在、`#Lx-Ly` 行号越界、内链可达、代码块/mermaid 闭合、疑似明文凭据、plan↔磁盘结构一致、索引页是否提到每一页。**每完成一批就跑一次，不靠通读。**
-
-## 结构约束（Qoder `.qoder/repowiki/`）
-
-- 四层：`wiki_plan.yaml` + `knowledge/zh/_index.yaml` + `knowledge/zh/<模块>/{_module.yaml,概述,技术栈,架构设计,编码规范,特殊配置与命令}.md` + `zh/content/<章节>/<页>.md`。
-- `wiki_plan.yaml` 的 `documents` 是**白名单＝上限**（≤50 页 / 顶级 ≤12 / 每顶级 ≤8 子页 / 仅 1 层嵌套，超出静默截断）。要更多页或两级子目录：**删掉 `documents`**，把结构写成 notes 章节地图，并让校验脚本切到"章节名单 + 索引页存在 + 每页被本目录索引提及"模式。
-- `scope.include/exclude` 当前不解析，不要写；YAML 双引号标量内禁用 ASCII 双引号（用「」），改完立刻重跑解析。
-
-## 多写手并行
-
-- 每个写手 **≤10 个文件**、独占目录、prompt 里明写"边写边落盘，不要先通读"；共享索引页与跨目录登记由主会话写，写手禁改。
-- 写手异常退出（轮次上限 / 平台报错）后**先做差集**：列已落盘文件 → 只补缺口 → 把已完成文件名写进重投 prompt，禁止整批重跑（会覆盖已完成页并引入新幻觉）。
-- 半成品状态允许的唯一噪声是"指向尚未生成页面的内链不可达"，其余问题必须为 0。
-
-## 事实冲突裁决与传播
-
-- 写手回报的分歧当线索不当结论：主会话亲自复验（`javap -c` 看分支常量、`grep -rlo` 数引用、`wc -l`/`svn status` 取计数）再定性。"类存在"≠"被调用"，"注解为零"≠"机制不存在"。
-- 结论定了要四处传播：事实源 → plan notes → 知识卡 → 各页面；用一次性 codemod 精确替换并打印命中数，**排除事实源/待办文件**（否则会咬掉"早期文档写'25 条路由'是漏了…"这类引用句），改完 grep 复查含"旧说法/早期文档/以本页为准"的句子。
-- 口径冲突写成双口径并列，不互相否定；无证据的写"未确认 + 缺什么证据"。
-
-## 收尾
-
-- 汇报严格区分"已落地并验证"与"未做/未验证"；文档类任务的判据是"校验脚本全绿 + 抽查读码"，未真实运行程序要明说。
-- 重写整套文档前先快照（`.qoder/repowiki.bak-<date>`），快照里的明文口令要顺手脱敏；清理一次性脚本与中间文件。
-- 详见记忆：[[feedback-repowiki-hybrid-format]]、[[feedback-parallel-doc-writers]]、[[feedback-doc-generation-anti-hallucination]]
-
-### 文档运行时复核（Document Runtime Verification）
+### 文档运行时复核（评审方案文档时读）
 
 ```yaml
 trigger: model_decision
-description: 当任务是评审 / 复核 / 验收方案文档（B0x 批次卡、技术方案、改造方案）时加载——任何基于代码 / 数据库的方案文档，评审前必须做真机实测复核。关键词：文档复核、方案评审、改造方案复核、B0x 批次卡、真机实测、事实断言。
+description: 当任务是评审 / 复核 / 验收方案文档（批次卡、技术方案、改造方案）时加载——任何基于代码 / 数据库的方案文档，评审前必须做真机实测复核。关键词：文档复核、方案评审、改造方案复核、批次卡、真机实测、事实断言。
 ```
 
-**核心纪律**：任何基于代码 / 数据库的方案文档，评审前必须做真机实测复核——不能凭"合理假设"编写，不能用"印象"代替事实。
+- **任何基于代码 / 数据库的方案文档，评审前必须真机实测复核**——不能凭"合理假设"编写，不能用"印象"代替事实；文档里的每条事实断言都要能指到实测证据。
+- 复核清单逐条实测：文件 / 表 / 字段 / 接口 / 端口 / 行号是否真实存在，口径是否与现网一致；**"快照"与"现网实测"必须区分**（快照会漂移）。
+- 拿不到实测证据的结论显式标注"未验证 + 原因"，不写成确定事实。
 
-## 复核清单（逐条实测）
+### 文档体系（repo wiki / 规格文档 / 多代理分工审阅）
 
-1. **表结构**：`information_schema.columns` 查询确认列存在性、类型、默认值
-2. **字段存在性**：grep 全仓确认字段是否已被使用（含数据库列 + 代码引用）
-3. **匹配率**：用 SQL 实测关联方案的匹配率（不是"预期 80%"，而是"实测 0/0/2"）
-4. **实体位置**：确认实体类在本地源码还是外部 jar（检查 import 路径 + javap 输出）
-5. **查询路径**：确认实际使用的查询方法（如 getBySelective vs getBySelective2）
-6. **索引 / 约束**：`pg_constraint` / `pg_index` 查询确认目标表的 PK / 索引情况
-7. **数据现实**：查询真实数据确认关联可行性（不是"理论上可以关联"）
+```yaml
+trigger: model_decision
+description: 当任务要生成或大修文档体系（repo wiki、repowiki、知识卡、README、规格/需求文档、架构文档、YAML 配置）或多代理分工审阅文档时加载。文档、wiki、repowiki、知识卡、README、规格、PRD、架构文档、校对、解除页数上限。
+```
 
-## 证据形式
+- **有 wiki 先查、改完回写（铁律）**：仓库已有 `.qoder/repowiki/` 时——**先查 wiki 定位模块 / 入口 / 约定再动手**（别一上来通读源码）；代码产生改动后**同批回写**受影响页（含 `<cite>` 与 `file://#Lx-Ly` 行号）；wiki 与代码冲突**以代码为准**并就地修正、汇报里点出冲突。要新建 wiki 按四层标准 + 校验脚本 `validate-repowiki.js` / `fix-repowiki-toc.js`，可参考技能 `write-repowiki`；研究可分工，写入遵守主会话串行落盘。**校验读数别自己猜**：`#L1-Ln` 整文件锚点越界只作计数说明，`lo>1` 的切片越界与 `#L31-L...` 这种残缺才报——判据写宽会一次刷出上百条噪声，噪声多就会被忽略。
+- **交付三件套（动工前就位）**：**事实源**（`_FACTS.md`：只放已核验事实 + 精确 `路径:行号` + 冲突裁决）→ **审阅简报**（格式契约、禁编造清单、凭据一律 `<redacted>`）→ **校验脚本**（解析 YAML/JSON、引用路径存在性、`#Lx-Ly` 行号越界、内链可达、围栏闭合、疑似明文凭据、plan↔磁盘一致）；每完成一批跑一次，不靠通读。
+- **结构约束**（`.qoder/repowiki/`）：四层结构（`wiki_plan.yaml` + `knowledge/zh/` 知识卡 + `zh/content/` 内容页）；`documents` 是**白名单＝上限**（≤50 页、仅 1 层嵌套，超出静默截断）——要更多页或两级子目录就**删掉 `documents`**，改用 notes 写章节地图，并让校验脚本切到"无白名单模式"（章节名单 + 索引页存在 + 每页被本目录索引提及）。
+- **只读并行、串行写入**：每个审阅者 ≤10 个文件，返回证据与建议，由主会话串行落盘并逐批校验；异常退出后**先做差集**（已落盘清单 vs 应该产出）再补缺口，禁止整批重跑。
+- **事实裁决与传播**：审阅者回报的分歧当线索不当结论，主会话亲自复验后再定性；结论定了按"事实源 → plan notes → 知识卡 → 各页"四处传播，改完 grep 复查旧说法残留。
+- **收尾**：重写整套文档前先快照（`.qoder/repowiki.bak-<date>`，顺带脱敏明文口令）；判据是"校验脚本全绿 + 抽查读码"，未真实运行程序要明说。
 
-- SQL 查询结果（`information_schema.columns`、`pg_constraint`、业务表 count）
-- grep 结果（全仓字段引用）
-- javap 输出（实体类字段列表）
-- ss 连接实测（服务端口监听状态）
-
-## 常见陷阱
-
-- **预留列 / 死列**：表里已有类似列（全 NULL、零引用），不要再新增
-- **外部 jar 实体**：实体类在外部共享 jar，不能在本项目内直接加字段，只能子类扩展
-- **多 schema 同名表**：识别权威源（源表 vs 副本表），不要读漂移的快照
-- **无索引 JOIN**：目标表无 PK / 索引时，JOIN 必须用去重子查询包装，防行数膨胀
-- **HashMap vs 实体返回**：列表查询返回 `List<Map>` 时新字段自动透传；返回实体时只能子类扩展
-
-## 一致性自检（写文档后必跑）
-
-1. 行号引用是否准确（打开文件核对）
-2. 路径是否真实存在（ls / grep 验证）
-3. TBD 标记是否已解决（不留未决断言）
-4. 前后矛盾检查（同一文档内断言一致性）
-5. 凭据红线（内网 IP / 口令不入文档，改为"见对应 yml"）
-
-## 接续队列更新
-
-复核完成后更新 `.qoder-work-queue.md`，记录：
-- 关键修正（哪些假设被推翻）
-- 实测证据（SQL / grep / javap 输出）
-- 待办事项（需要用户决策的开放问题）
+---
 
 ### 外部 jar 实体扩展约束
 
 ```yaml
 trigger: model_decision
-description: 当任务涉及跨模块 / 跨项目的实体类扩展时加载——识别实体是否在外部 jar，决定扩展方式（直接改 vs 子类）。关键词：外部 jar、实体扩展、Feign 契约、EquipmentInfo、子类继承、跨模块实体。
+description: 当任务涉及跨模块 / 跨项目的实体类扩展时加载——识别实体是否在外部 jar，决定扩展方式（直接改 vs 子类）。关键词：外部 jar、实体扩展、Feign 契约、子类继承、跨模块实体。
 ```
 
-**核心纪律**：实体类在外部共享 jar 时，不能在本项目内直接加字段——会导致 Feign 契约变更、所有引用模块受影响。
+- 实体类在**外部共享 jar** 时，不能在本项目内直接加字段——会导致 Feign 契约变更、所有引用模块受影响。
+- 识别方法：看该类来自哪个 artifact（源码在仓内 vs 依赖 jar）；在 jar 内就用**子类继承 / 扩展类**承载新增字段。
+- 子类要注意序列化与反序列化契约、Mapper 映射与返回类型（HashMap 自动透传，实体只能子类扩展）。
 
-## 识别方法
-
-1. **检查 import 路径**：实体类的 package 是否属于本项目（如 `com.hisense.hiatmp.vms.dao.model`）还是外部 jar（如 `com.hisense.hiatmp.model.vms`）
-2. **检查本地源码**：`find src -name "EquipmentInfo.java"` 找不到 → 在外部 jar
-3. **javap 验证**：`javap -cp <jar路径> <全限定类名>` 列出字段，确认是否在外部 jar
-
-## 扩展方式
-
-### 情况 A：实体在本项目源码内
-- 直接修改实体类，加字段
-- 同步修改 Mapper XML 的 resultMap 和 SQL
-
-### 情况 B：实体在外部共享 jar
-- **不能直接改原类**（会影响所有引用模块）
-- **正确做法**：子类扩展
-  ```java
-  // 本项目内新建
-  public class EquipmentInfoExt extends EquipmentInfo {
-      private String newField;
-      // getter/setter
-  }
-  ```
-- Mapper XML 的 `parameterType` 改为子类全限定名
-- resultMap 里加新字段的映射
-
-## Feign 契约影响
-
-- 外部 jar 的实体类常被 Feign 契约引用（如 `IEquipmentInfoClient`）
-- 直接改原类 → 所有依赖该 Feign 契约的模块都要重新编译
-- 子类扩展 → 不影响 Feign 契约，只在 Mapper 层使用
-
-## 常见陷阱
-
-- **误判路径**：文档写"实体在 `hiatmp-vms-api/.../model/vms/EquipmentInfo.java`"，但实际在外部 jar `hiatmp-model-0.1.0-SNAPSHOT.jar`
-- **HashMap 透传**：列表查询返回 `List<Map>` 时，新字段自动透传（无需改实体）；详情查询返回实体时，必须子类扩展
-- **Feign 契约不变**：子类扩展不影响 Feign 接口签名，只在 DAO 层使用
-
-## 案例（B04 设备表改造）
-
-- **错误做法**：在 `hiatmp-vms-api` 内给 `EquipmentInfo` 加 `bisDeviceCode` 字段
-- **正确做法**：新建 `EquipmentInfoExt extends EquipmentInfo`，Mapper XML 用子类
-
-### 前端通用规则（TypeScript 为准）
+### 前端通用（TS / JS / HTML / SVG / 小程序·小游戏）
 
 ```yaml
 trigger: glob
-glob:
-  - "**/*.ts"
-  - "**/*.tsx"
-  - "**/*.jsx"
-  - "**/*.vue"
-  - "**/*.svelte"
-  - "**/*.html"
-  - "**/*.svg"
-  - "**/tsconfig*.json"
-  - "**/package.json"
-  - "**/vite.config.*"
-  - "**/next.config.*"
-  - "**/nuxt.config.*"
+glob: ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.mjs", "**/*.cjs", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.wxml", "**/*.wxss", "**/*.wxs", "**/*.html", "**/*.svg", "**/tsconfig*.json", "**/package.json", "**/game.json", "**/project.config.json", "**/app.json", "**/vite.config.*", "**/next.config.*", "**/nuxt.config.*"]
 ```
 
-## 类型
-
-- 严格模式为准：不开 `any` 后门（必要时 `unknown` + 收窄）；外部输入在边界处校验，内部信任类型。
-- 状态用判别联合表达，不用一堆可选布尔字段拼状态机。
-- 前后端契约变更必须同步：接口字段改名/改类型时两端一起改，改完跑一次类型检查。
-
-## 工程约定
-
-- 遵循项目既有框架与目录约定，不擅自引入第二套状态管理 / 请求库 / 样式方案。
-- 依赖版本以 lockfile 为准，不手工改版本号绕过冲突。
-
-## 动效与可视化交付基线（HTML / SVG / Canvas 动画）
-
-自研动效件（SVG 插画、海报、loading、演示动图）按产品级交付，不因"只是 demo"打折。2026-09-18 与一份同类作品逐项对标后定的标准：
-
-- **动画技术优先 CSS `@keyframes` / WAAPI，而非 SMIL**（注意：SMIL **并没有被弃用**——Chrome 2015 提过弃用意图但从未实施，各浏览器至今完整支持；别拿"已废弃"当理由）。真正的理由是：SMIL 不参与 `prefers-reduced-motion`（要 JS `pauseAnimations()` 兜底）、无法与页面的 `animation-play-state` 一起统一暂停。唯一例外：需要把动画内联进单体 `.svg` 资产时（CSS 写在 HTML `<head>` 里，抠出 SVG 就成静态图）。
-- **三件套必带，缺一不算交付完**：① 暂停/播放控件（`animation-play-state` + `aria-pressed`）；② `@media (prefers-reduced-motion: reduce)` 关动效；③ 自适应宽度 + 移动端断点。
-- **复用而非复制**：重复图形（轮/云/树）进 `<defs>` + `<use>`；平铺层用「tile + 同宽副本 + `translateX(-tileW)`」无缝循环，不手写两遍同构代码。
-- **补齐次级动画**：主体会动之后再加一层——眨眼 / 呼吸 / 影子同步缩放 / 头身不同周期；同类多元素（双围巾、多团烟）用不同 duration + `alternate-reverse` 错相，整块同步位移最显塑料感。
-- **节奏要有理由**：匀速位移 `linear`，衰减飘散 `ease-out`；同场景多个周期避免互为整数倍（节奏锁死会看出循环）。
-- **物理一致性自检（可算，必查）**：轮速与地面线速度必须对得上——`2πr / 轮转周期` ≈ `路面平移距离 / 周期`，±5% 内；差 15%+ 就是"一直在打滑"，静态看不出、动起来能感觉到。
-- **可移植性**：字体别只写系统字体名（`"Microsoft YaHei"` 到 macOS/Linux 必走样），标题字要么 self-host 要么给足 fallback；色值走 CSS 变量。
-
-动画"是否真在跑 / 轴心与接缝对不对"的判据见记忆 `reference-svg-loop-animation-checks`：对称图形（8 辐条有 45° 对称性）验不出角度，必须挑组内唯一的不对称元素当标记。
-
+- **类型**：严格模式为准，不开 `any` 后门（必要时 `unknown` + 收窄）；外部输入在边界处校验，内部信任类型；状态用判别联合表达，不用一堆可选布尔字段拼状态机；前后端契约变更必须同步（字段改名 / 改类型时两端一起改，改完跑一次类型检查）。
+- **工程约定**：遵循项目既有框架与目录约定，不擅自引入第二套状态管理 / 请求库 / 样式方案；依赖版本以 lockfile 为准，不手工改版本号绕过冲突；**布局优先扩展空间而非隐藏内容**——信息密度高时先考虑扩展空间（加大容器、换行、分页、展开区），核心信息永远不能为辅助展示让路，隐藏 / 折叠只用于次要辅助项。
+- **设计→代码映射**：设计结构落到代码结构要有意为之——frame / auto layout → flex / grid、component + variant → 组件 API + props、local styles → tokens、prototype 交互 → 真实状态与路由；设计阶段就带入实现约束（握手优先于交接），原型要如实标注还需生产化的工作。
+- **动效与可视化交付基线**：动画优先 CSS `@keyframes` / WAAPI 而非 SMIL（注意 SMIL **并未被弃用**，2015 年的弃用意图从未实施；真正的理由是它不参与 `prefers-reduced-motion`、也无法与 `animation-play-state` 统一暂停）；三件套必带——暂停控件（`animation-play-state` + `aria-pressed`）、`prefers-reduced-motion` 关动效、自适应与移动端断点；重复图形进 `<defs>` + `<use>`，平铺层用「tile + 同宽副本 + `translateX(-tileW)`」；主体动起来后补次级动画（眨眼 / 呼吸 / 影子同步 / 头身不同周期），同类多元素错相避免塑料感；匀速用 `linear`、衰减用 `ease-out`，多个周期避免互为整数倍；**物理一致性必查**——`2πr/轮转周期 ≈ 路面平移距离/周期`，差 15%+ 就是一直打滑；字体别只写系统字体名（跨平台必走样）。
 - **主题切换与"看着没动"**：`var()` 在**声明所在的元素**上解析——`color: var(--ink)` 写在祖先（如 `body`）上时，子容器重定义 `--ink` 不会改变已经算完并被继承的颜色，局部换肤会"失效"；把声明放在重定义变量的那个容器上，验证读 `getComputedStyle(el).color` 的实际值，不靠截图猜。判断"动画没在跑 / 轴心错了"也不要静态推理：`document.getAnimations()` **不枚举** `<use>` 影子树里的动画、`getBBox()` **不含**自身与祖先 `transform`，两者都不能当判据；可行做法是注入式放大标记（把目标动画放慢 + 染红组内唯一的不对称元素，隔几秒两次截图比对位置与角度），或直接量测可计算的量（`2πr/轮转周期` vs 路面速度、首尾切线斜率）。
+- **前端验收（硬要求）**：不能只靠单测和构建验收——必须启动 dev server 用真实浏览器走完整用户路径（含负向用例），页面证据 + 后端证据双重取证；HTTP 判活要用"不存在路径"对照组 + content-type 区分（SPA fallback 会把任意路径答成 `200 text/html`）；用户说"打开界面"时用系统默认浏览器打开目标地址并保持服务运行；拿不到视觉证据就如实降级说明，不要谎报看到了界面。
 
-## 请求层与多语言（项目实战沉淀）
+- **请求层**：① **取消 ≠ 失败**——同 URL 去重（`cancelToken` / `AbortController`）会 abort 先发请求，UI 必须用 `isCancel(e)` 识别（取消不弹错、不清空列表）并加请求序号守卫防迟到响应覆盖界面。② **"请求次数"断言先数清实现**：带重试的封装常把"首调"放在预算之外（总数 = 1 原请求 + 1 首调 + maxRetries）；业务错误码（HTTP 200 + `code != 200`）**不触发**重试；先跑一次夹具数出真值再写断言。③ 失败会逐条弹通知，**截图前先关掉**。
+- **多语言界面**：长语言（如阿姆哈拉语）在紧凑位（tag / 窄列 / 竖排 / 图例）用**专用短键**，不复用 `common.*` 长标签；服务端渲染文案**不在落库时拼句**（存 messageKey + messageParams，双端同键渲染，新增类型两端补文案）；列头用 `min-width`。
+- **语义判据取数据字段，不从几何/坐标反推**：上下游 / 父子 / 收敛方向一律读边类型等数据字段（多套布局下 X 坐标语义可能相反）；非要用坐标就先查 `layoutMode` 并显式分支。
+- **二级信息优先弹窗**：按需查看的明细用弹窗承载，别内联撑高主面板。
+- **交互无障碍（表单 / 弹窗 / 菜单，只查受影响组件）**：可操作元素优先原生 `button` / `link`（`div` + `onClick` 不算键盘可用）；输入有可访问名称、`label` 正确关联，`placeholder` 不替代 `label`，错误 / 帮助信息关联到输入，**只改颜色不能传达错误**；弹窗核对可访问名称、打开后焦点、Tab 范围、Escape 与关闭回焦点，真实模态还要验证背景不可被键盘 / 指针操作（`aria-modal` 只表语义）；图标按钮有名称、装饰图不重复朗读；表单中非提交按钮显式写 `type`（避免意外提交），链接保留真实地址；菜单与 tab 按所选组件模式的键盘约定，不把所有浮层套同一组角色。**自动化规则判定不了完整屏幕阅读器体验**——没有真实键盘 / 辅助技术验收要说明边界。
 
-- **取消 ≠ 失败**：请求层做了同 URL 去重（`cancelToken` / `AbortController`）时，先发的请求会被 abort——UI 必须用 `isCancel(e)` 识别取消（**取消不弹错、不清空列表**），并加请求序号守卫防迟到/被取代的响应覆盖界面。默认同时渲染的多个面板（如 el-tab-pane）要么加 `lazy`、要么共享一次请求；**别为消灭取消去改全局去重语义**。
-- **"请求次数"断言的正确口径**：写计数断言前先读实现——`withRetry` 之类常把"首调"放在重试预算之外（总次数 = 1 原请求 + 1 首调 + `maxRetries`）；HTTP 层 5xx 才触发重试，**业务错误码（HTTP 200 + `code != 200`）不触发**。夹具选能隔离传输层的形态，**先跑一次数出真值再写断言**，别把某次实测数字硬编码；失败尝试会逐条弹通知，截图前先关掉避免遮挡。
-- **i18n 约定**：① 面向长语言（阿姆哈拉语等）的紧凑位（tag / 窄列 / 竖排 / 图例）用**命名空间内专用短键**，不复用 `common.*` 长标签；新增紧凑元素一次性补 zh/en/am 三语；图例加 `type:'scroll'` 分页。② 需要服务端渲染的文案**不在落库时拼句**，而是"存参数（messageKey + messageParams JSON）+ 双端按同一套键渲染"，新增类型时两端补同名文案 + 渲染器分支，历史脏数据原样直显、不做数据迁移。③ 表格列头有国际化时用 `min-width` 不用固定 `width`。
-- **语义判据取数据字段，不从几何/坐标反推**：涉及"上下游 / 父子 / 收敛方向"的交互（折叠、连线路由、动画方向）必须读**边类型等数据字段**——多套布局算法下 X 坐标语义相反（六列排布 vs BFS 树可能完全反向）。非要用坐标就先查当前 `layoutMode` 并显式分支；改完在默认布局下实际点击验证，不能只测另一套布局。
-- **二级信息优先弹窗**：信息密集型页面里"按需查看"的二级信息（版本历史、明细）用**弹窗**承载，不要内联插进主面板把它撑高、逼用户滚动；弹窗内写操作在只读模式要禁用。
-
-## 前端验收（硬要求）
-
-- 前端功能不能只靠单测和构建验收：必须启动 dev server 用真实浏览器走完整用户路径（含负向用例），页面证据 + 后端证据双重取证。详见 `verify-ui-in-browser` 技能。
-- HTTP 判活要用"不存在路径"对照组 + content-type 区分（SPA fallback 会把任意路径答成 `200 text/html`）。
-- 用户说"打开界面"时：用系统默认浏览器打开目标地址并保持服务运行，而不是只开自动化会话。
-- 拿不到视觉证据就如实降级说明（如"以 DOM 断言代替视觉检查"），不要谎报看到了界面。
-
-## 交互无障碍（表单 / 弹窗 / 菜单，只查受影响组件）
-
-- 可操作元素**优先原生 `button` / `link`**；`div` + `onClick` 不算键盘可用。表单里非提交按钮明确 `type`。
-- 输入有可访问名称，`label` 与控件正确关联，`placeholder` 不替代 `label`；错误 / 帮助信息关联到输入，`required` / `invalid` 与真实状态一致；**只改颜色不能传达错误**。
-- 弹窗核对可访问名称、打开后焦点、Tab 范围、Escape 行为与关闭回焦点；真实模态还要验证背景不可被键盘或指针操作（`aria-modal` 只表达语义，不代替焦点管理与背景隔离）。菜单 / tab 用所选组件模式的键盘约定，不把所有浮层套同一组角色。
-- 图标按钮有名称，装饰图不重复朗读；异步结果的通知方式适度。**自动化规则判定不了完整屏幕阅读器体验**——没有真实键盘 / 辅助技术验收要说明边界，只有任务要求合规评估时才扩到标准级审计，不以局部检查宣称整体达标。
-- 更全的审计走 design-review 插件的 `accessibility-review` 技能。来源：Codex `local-frontend-a11y`（2026-10-11 并入，原技能已停用）。
-
-### 中间件规则（nginx / Nacos / MQ）
+### 中间件（nginx / Nacos / 消息队列）
 
 ```yaml
 trigger: model_decision
-description: 当任务涉及 nginx 反向代理/配置、Nacos 服务注册与配置中心、消息队列（RabbitMQ/RocketMQ/Kafka）的使用与排查时加载。nginx、Nacos、MQ、消息队列、反向代理、配置中心、服务注册。
+description: 当任务涉及 nginx 反向代理/配置、Nacos 服务注册与配置中心、消息队列（RabbitMQ/RocketMQ/Kafka/ActiveMQ）的使用与排查时加载。中间件、nginx、网关、注册中心、消息队列、MQ、kafka、rabbitmq。
 ```
 
-## nginx
+- **nginx**：配置分 `main` → `events` → `http` → `server` → `location` 层级；改配置前先备份，改完 `nginx -t` 测语法再 reload；`proxy_pass` 末尾有无斜杠决定路径拼接方式；必须设 `proxy_set_header Host/X-Real-IP/X-Forwarded-For`；SSL 只开 TLSv1.2+；静态资源开 `sendfile` + gzip。
+- **Nacos**：双重角色——服务注册中心 + 配置中心；生产必须用 MySQL 持久化（内嵌 Derby 不支持集群）；不同环境用不同 Namespace 隔离；配置变更用灰度发布先推单台验证。
+- **RabbitMQ**：消息不丢必须两端都开确认（publisher confirm + consumer ack）；队列 `durable` + 消息 `PERSISTENT`；死信队列兜住处理失败的消息；exchange 类型（direct/topic/fanout/headers）决定路由，`RedeliveryPolicy` 控制重试，生产注意集群与高可用队列。
+- **RocketMQ**：NameServer + Broker 架构；支持事务消息和延迟消息；`@RocketMQMessageListener` 消费。
+- **Kafka**：消息按 partition 有序；消费者 rebalance 时短暂停消费；用 `kafka-consumer-groups.sh` 看 lag。
+- **ActiveMQ**：新项目优先 Artemis；持久化消息 + 消费者手动确认；`RedeliveryPolicy` 控制重试；死信队列自动兜住重试耗尽的消息。
+- **通用纪律**：**消费端必须幂等**（至少一次投递是常态，重复消费不可避免）；修改配置前备份；排查前先确认实际监听端口；生产环境启停 / 配置变更是高危操作，必须有回滚方案；改动后用实际请求 / 消息走通完整链路验证。
 
-- **配置结构**：`nginx.conf` 分 `main` → `events` → `http` → `server` → `location` 层级；`include` 拆分站点配置到 `conf.d/*.conf`；改配置前**先备份**（`cp nginx.conf nginx.conf.bak.日期`），改完先 `nginx -t` 测语法再 `nginx -s reload`。
-- **反向代理**：`proxy_pass` 末尾有无斜杠决定路径拼接方式——`proxy_pass http://backend/` 会剥离 `location` 前缀，无斜杠则原样传递；需设 `X-Real-IP`、`X-Forwarded-For`，否则后端拿不到真实客户端 IP。
-- **⚠️ Host 头必须带端口（`$http_host`，勿用裸 `$host`）**：`$host` **丢端口**，后端 Spring/Servlet 用 `getServerName():getServerPort()` 比对浏览器 `Origin` 判同源/拼回跳 URL 时会误判——表现为**同源页面 POST/PUT 全 403 "Invalid CORS request"**（2026-10-15 在 32 实机定性；同根因另一实例：SSO 回跳丢端口，见 `tle-embed-entry.conf` 注释"必须带端口透传"）。两个不暴露条件：GET 不带 Origin；无 token 请求被鉴权过滤器短路 → 排查必须用**浏览器真实请求**或 **curl 带 token**。详见记忆 `reference-nginx-host-port-strip-trap`。
-- **负载均衡**：默认轮询；`ip_hash` 保持会话亲和（但后端扩缩容会重分布）；`least_conn` 适合长连接场景；健康检查用 `max_fails` + `fail_timeout`（开源版）或 nginx plus 的主动检查。
-- **SSL/TLS**：证书 + 私钥配对；`ssl_protocols TLSv1.2 TLSv1.3`（禁用 1.0/1.1）；`ssl_ciphers` 优先用 `ECDHE` 系列前向保密；HTTP/2 用 `http2` 指令（nginx 1.25+）或 `listen 443 ssl http2`（旧版）。
-- **性能**：`worker_processes auto`（匹配 CPU 核数）；`worker_connections` 按并发调；静态资源开 `sendfile on` + `tcp_nopush on`；gzip 压缩 `text/plain text/css application/json application/javascript`；大文件用 `X-Accel-Redirect` 交给 nginx 发送。
-- **排查**：`nginx -t` 检查语法；`error.log` 看具体错误（`permission denied` → SELinux/文件权限；`upstream timed out` → 后端慢或超时太短）；`access.log` 配合 `awk` 统计高频 IP/路径。
-- **按 Host 选 server 块（验收误判高发）**：服务器上 `curl http://127.0.0.1/...` 命中的是**默认 server 块**，返回 403/404 不代表服务不可用；校验要用外部真实 IP，或在服务器上 `curl -H 'Host: <真实域名/IP>' http://127.0.0.1/...`。**部署脚本不要拿本机 127.0.0.1 的返回码当发布失败判据**（本机实测踩过：误判成"配置没 reload"并准备改共享服务的 nginx）。另：`reload` 不换 master 进程——判断配置是否生效要看 **worker 启动时间**，不是 master。
+- **nginx 按 Host 选 server 块（验收误判高发）**：服务器上 `curl http://127.0.0.1/...` 命中的是**默认 server 块**，403/404 不代表服务不可用；校验用外部真实 IP 或 `curl -H 'Host: <真实域名/IP>'`；部署脚本别拿本机回环的返回码当发布失败判据；`reload` 不换 master，判断配置生效看 **worker 启动时间**。
+- **时间戳跨系统对齐（三层）**：① `java.sql.Timestamp` 转 `LocalDateTime` 输出纯字符串（别让 Jackson 按 UTC 序列化）；② JVM `-Duser.timezone=Asia/Shanghai`；③ JDBC 会话 `SET TimeZone`。
 
-详细模式见 `nginx-configuration` 技能。
-
-## Nacos（Spring Cloud Alibaba）
-
-- **双重角色**：服务注册中心（替代 Eureka/Consul）+ 配置中心（替代 Spring Cloud Config / Apollo）；部署模式单机（开发/测试）或集群（生产 ≥ 3 节点 + MySQL 持久化）。
-- **服务注册**：Spring Boot 引入 `spring-cloud-starter-alibaba-nacos-discovery`；`spring.cloud.nacos.discovery.server-addr` 指向 Nacos 地址；服务名默认取 `spring.application.name`，消费者用 `@LoadBalanced` RestTemplate 或 OpenFeign 按服务名调用。
-- **配置中心**：引入 `spring-cloud-starter-alibaba-nacos-config`；`bootstrap.yml`（或 Spring Boot 2.4+ 的 `spring.config.import: nacos:`）配 `server-addr`、`namespace`、`group`、`dataId`；Data ID 命名规则 `${prefix}-${spring.profile.active}.${file-extension}`。
-- **命名空间隔离**：不同环境（dev/test/prod）用不同 Namespace ID；配置变更用"灰度发布"功能先推单台验证再全量。
-- **排查**：控制台 `http://<nacos>:8848/nacos`（默认账号 `nacos/nacos`）查服务列表与配置版本；服务调不通先确认注册成功（控制台有实例）→ 检查命名空间一致 → 检查网络/防火墙；配置不生效检查 `bootstrap.yml` 是否被加载（Spring Boot 2.4+ 需额外引 `spring-cloud-starter-bootstrap`）。
-- **持久化**：生产必须配 MySQL 外部数据库（内嵌 Derby 不支持集群）；`conf/nacos-mysql.sql` 初始化表结构。
-
-详细模式见 `spring-cloud-alibaba` 知识（如已安装）或 Spring Cloud Alibaba 官方文档。
-
-## 消息队列
-
-### RabbitMQ（AMQP）
-
-- **核心概念**：Producer → Exchange（fanout/direct/topic/headers）→ Binding → Queue → Consumer；消息确认分 publisher confirm + consumer ack 两层，不丢消息必须两端都开。
-- **Spring Boot 集成**：`spring-boot-starter-amqp`；`RabbitTemplate` 发送，`@RabbitListener` 消费；声明式绑定用 `@Bean Queue/Exchange/Binding`；消息序列化推荐 JSON（`Jackson2JsonMessageConverter`）。
-- **可靠性**：队列设 `durable=true`；消息设 `deliveryMode=PERSISTENT`；消费者手动 ack（`acknowledge-mode: manual`）处理完再确认；死信队列（DLX）兜住处理失败的消息。
-- **排查**：管理控制台 `http://<rabbitmq>:15672`（默认 `guest/guest`）看队列深度、消费者数、消息速率；消息堆积检查消费者是否异常退出或处理太慢；`Unroutable` 消息检查 Exchange 类型与 routing key 匹配。
-
-### RocketMQ（阿里系常见）
-
-- **适用场景**：高吞吐（十万级 TPS）、事务消息、延迟消息、消息回溯；国内企业用得多。
-- **核心概念**：NameServer（路由）+ Broker（存储）+ Producer + Consumer Group；Topic 分普通 Topic 和顺序 Topic；消费模式集群（一条消息只被组内一个消费者处理）和广播（每条消息被组内所有消费者处理）。
-- **Spring Boot 集成**：`rocketmq-spring-boot-starter`；`@RocketMQMessageListener` 消费；`RocketMQTemplate` 发送（支持同步/异步/单向/事务消息）。
-- **排查**：控制台查 Topic 消费进度（`ConsumerProgress`）；消息轨迹（`MessageTrace`）追踪投递链路；消息堆积查消费者在线数和消费 TPS。
-
-### Kafka（高吞吐日志/流）
-
-- **适用场景**：日志收集、流处理、事件溯源；百万级 TPS，消息按 partition 有序。
-- **核心概念**：Broker → Topic → Partition → Consumer Group；offset 按 partition 独立维护；消费者 rebalance 时短暂停消费。
-- **Spring Boot 集成**：`spring-kafka`；`@KafkaListener` 消费；`KafkaTemplate` 发送；序列化用 `StringSerializer`/`StringDeserializer` 或 Avro/Protobuf。
-- **排查**：`kafka-consumer-groups.sh --describe` 看 lag；消费延迟检查 partition 分布是否均匀（热点 partition 拖慢整组）。
-
-### ActiveMQ
-
-- **两种形态**：ActiveMQ Classic（老版，JMX 管理，适合传统企业集成）和 ActiveMQ Artemis（新版，高性能，兼容 AMQP/MQTT/OpenWire）；新项目优先 Artemis。
-- **核心概念**：Broker → Queue / Topic → Consumer；支持持久化（KahaDB 默认 / JDBC 可选）；消息选择器（`MessageSelector`）按属性过滤消费。
-- **Spring Boot 集成**：`spring-boot-starter-activemq`；`JmsTemplate` 发送，`@JmsListener` 消费；连接工厂配 `ActiveMQConnectionFactory`（Classic）或 `PooledConnectionFactory`（连接池）；消息序列化用 `JacksonJmsMessageConverter`（JSON）或 `SimpleMessageConverter`（Java 序列化，不推荐跨语言）。
-- **可靠性**：持久化消息 + 消费者手动确认（`Session.CLIENT_ACKNOWLEDGE` 或 `Session.SESSION_TRANSACTED`）；死信队列（`ActiveMQ.DLQ`）自动兜住重试耗尽的消息；配 `RedeliveryPolicy` 控制重试次数与间隔。
-- **排查**：管理控制台 `http://<activemq>:8161/admin`（Classic，默认 `admin/admin`）看队列深度、消费者数、入出速率；消息堆积检查消费者连接是否存活（`Connections` 页）；Artemis 用 `artemis producer/consumer` CLI 工具压测。
-
-## 通用中间件纪律
-
-- **时间戳跨系统对齐（三层，缺一即差 8 小时）**：外部报文/消息里的时间常无时区标记（默认按北京时间理解）。要三层齐备——① **代码层**：把 `java.sql.Timestamp` 转 `LocalDateTime` 并按固定格式输出纯字符串（别让 Jackson 按 UTC 序列化成 `...T02:34:44.000+00:00`）；② **JVM**：启动参数加 `-Duser.timezone=Asia/Shanghai`；③ **JDBC 会话**：连接初始化执行 `SET TimeZone = 'Asia/Shanghai'`。三层都做了，迁移服务器/换时区才不复发；排查时先看是"存错"还是"渲染错"（量一下库里原始值）。
-- **修改配置前备份**（详见 [[feedback-backup-before-modify]]）；服务器配置修改先给用户审核（详见 [[feedback-review-before-server-modification]]）。
-- **端口与地址**：排查前先确认实际监听端口（`ss -tlnp` 或 `netstat`），不凭默认端口假设（详见 [[feedback-verify-before-diagnose]]）。
-- **核心服务红线**：生产环境的 nginx/Nacos/MQ 启停/配置变更是高危操作，必须有回滚方案；不可在未确认影响面的情况下直接操作。
-- **验证**：中间件改动后，用实际请求/消息走通完整链路（不是只看控制台状态），确认端到端正常。
-
-### Java / Spring Boot 开发规则
+### Java / Spring Boot
 
 ```yaml
 trigger: glob
-glob:
-  - "**/*.java"
-  - "**/pom.xml"
-  - "**/*.gradle"
-  - "**/application*.yml"
-  - "**/application*.properties"
+glob: ["**/*.java", "**/pom.xml", "**/*.gradle", "**/application*.yml", "**/application*.properties"]
 ```
 
-## 版本与兼容（先确认再写码）
+- **版本与兼容（先确认再写码）**：改动前先读模块 `pom.xml` 确认 Java 版本与 Spring Boot 版本；Java 8 模块禁用 `var`、`record`、文本块、`sealed`、`switch` 表达式、`List.of()`/`Map.of()`、`Stream.toList()`；Spring Boot 2.x 用 `javax.*`，3.x 用 `jakarta.*`，不可混用。
+- **多模块 Maven**：依赖方向只能向下（web → service → dao/domain），禁止反向依赖与循环依赖；新增跨模块依赖前先确认父 POM 的 `dependencyManagement` 里有版本管理，不要就地写版本号。
+- **依赖注入与分层**：构造器注入优先（依赖 `final`），不用字段注入 `@Autowired`；Controller 只做参数校验与编排，业务逻辑在 Service，事务边界在 Service 层；统一异常处理走 `@RestControllerAdvice`，不把堆栈直接返回客户端。
+- **AOP（横切关注点）**：只把真正横切的东西放切面（日志 / 审计 / 权限 / 缓存 / 事务），业务分支不进切面；切点用注解锚定（自定义注解 + `@annotation(...)`）或包名锚定，别用宽泛的 `execution(* *(..))`；**同类内部调用不走代理**——`this.method()` 上的 `@Transactional` / `@Cacheable` 不生效，要生效就拆到另一个 Bean；`@Around` 里必须保证 `proceed()` 被调用或明确说明为何短路。
+- **接口文档（SpringDoc OpenAPI）**：3.x 用 `springdoc-openapi-starter-webmvc-ui`、2.x 用 `springdoc-openapi-ui`，版本交给父 POM 管；入参出参用注解补全（`@Operation` / `@Parameter` / DTO 的 `@Schema(description, example)`），错误码与统一异常结构也要标；生产按需关掉 UI（`springdoc.swagger-ui.enabled=false`）；上线自检取一次 `/v3/api-docs` 并断言本轮新增接口在里面。
+- **验证**：完成后跑 `mvn -q -pl <module> -am test`；编译退出码必须作为验收判据的一部分（`spring-boot:run` 会复用旧编译产物，编译红而启动绿是假证据）；启动验收要确认打出 `Started Application` 的是本轮自己起的进程，请求打的是本轮独占端口。
 
-- 改动前先读模块 `pom.xml` 确认 Java 版本与 Spring Boot 版本：本机同时维护 Java 8 与 Java 17 模块。
-- Java 8 模块禁用：`var`、`record`、文本块、`sealed`、`switch` 表达式、`List.of()`/`Map.of()`、`Stream.toList()`。
-- Spring Boot 2.x 用 `javax.*`，3.x 用 `jakarta.*`，不可混用；改依赖前先确认大版本。
+- **运行期排障（按症状找，别静态反推）**：① 一个模块多环境时**启动必须显式指定 profile**（默认 profile 常指向另一个环境的库，症状是"查不到数据/终端不在线/注册到错误 endpoint"）；启动后核对日志里的 `The following profiles are active` 与 JDBC URL。② 跨 fastjson 版本取嵌套对象一律 `getJSONObject(key)`——用 1.x 兼容包解析字符串 payload 后，嵌套对象实际是 `com.alibaba.fastjson2.JSONObject`，`get(key) instanceof com.alibaba.fastjson.JSONObject` **恒为 false**，且只影响快路径（慢路径照常、日志正常，极隐蔽）。③ ACK 超时 / 命令丢失用**线程名**定位（`nioEventLoopGroup-*` 与 `agent-business-*` 是两条路）；修复方向是给显式超时预算，不是"重启试试"。④ 接收 path 的接口必须走统一的"编码兼容解码 + 穿越校验"（`%2F` 字面量会伪装成 target file not found，curl 直连却正常）。⑤ 同一对象的「列表 / 查看 / 恢复 / 删除」同一口径：多通道写入 OR 全通道，归属校验复用同一判据；MyBatis-Plus 里 OR 与 AND 混用要显式加括号。
+- **REST API 契约（新增 / 改接口时）**：兼容边界是**已有消费者的行为**，不因上游推荐风格就改路由 / 返回结构 / 版本；新增可选字段比删字段、改类型、改 null 语义更易兼容，列出真实消费者。参数校验覆盖类型 / 长度 / 枚举 / 页大小 / 排序范围，排序键映射服务端白名单；**租户与资源范围来自可信认证上下文，不能由请求参数决定**。分页沿已有机制选 offset / cursor（cursor 需稳定排序 + 唯一兜底，明确筛选变化时的行为——"列表能返回"不代表翻页无遗漏）。可能被重试的写入要明确幂等语义，幂等键绑定**调用方 + 操作 + 请求内容**，覆盖并发首次请求 / 同键不同内容 / 结果复用；不能靠前端禁用按钮。**幂等状态要与业务提交可恢复一致**——避免业务已成功但结果未记录时再次执行，或失败请求永久占用幂等键；核对进程重启、键保留期与重复请求的恢复路径；旧客户端不提供幂等键时不得承诺任意重试都能去重。状态码语义区分创建 / 异步受理 / 校验 / 认证 / 授权 / 冲突 / 限流，不暴露内部栈与敏感字段。
+- **MyBatis 检查（映射 / 绑定 / 性能）**：值一律 `#{...}` 绑定，`${...}` 是文本替换（动态列名 / 排序需服务端闭合映射）；多参数核对 `@Param` / XML namespace-id / resultMap。dynamic SQL 的空集合与空过滤边界必须明确（不能因条件被省略就 update/delete 全表）；复杂连接查行倍增与去重，nested select 查 N+1；批处理查 flush 时机 / 部分失败 / 幂等 / 恢复位置。**不因方法上写了 `@Transactional` 就宣称已回滚**（核对代理入口、自调用、异常传播、`rollbackFor`、多数据源、异步线程）。参数绑定 / 方言 / 事务回滚优先用**真实数据库集成测试**验证，H2 / mock 不能单独证明生产引擎行为。
 
-## 多模块 Maven
-
-- 依赖方向只能向下（web → service → dao/domain），禁止反向依赖与循环依赖。
-- 新增跨模块依赖前先确认该依赖在父 POM 的 `dependencyManagement` 里有版本管理，不要就地写版本号。
-
-## 依赖注入与分层
-
-- 构造器注入优先（依赖 `final`），不用字段注入 `@Autowired`；可选协作者用 `ObjectProvider`。
-- 分层职责：Controller 只做参数校验与编排；业务逻辑在 Service；事务边界在 Service 层。
-- 统一异常处理走 `@RestControllerAdvice`，对外错误结构保持一致，不把堆栈直接返回给客户端。
-
-## AOP（横切关注点）
-
-- 只把**真正横切**的东西放切面：日志、审计、权限、缓存、事务；业务分支不进切面。
-- 切点写**注解锚定**（自定义注解 + `@annotation(...)`）或包名锚定，别用宽泛的 `execution(* *(..))` —— 它会把框架内部调用也织进去。
-- **同类内部调用不走代理**：`this.method()` 上的 `@Transactional` / `@Cacheable` 不生效；要生效就拆到另一个 Bean 或注入自身代理。
-- 切面里别吞异常、别改返回值语义；`@Around` 必须保证 `proceed()` 被调用（或明确说明为什么短路）。
-
-## 接口文档（SpringDoc OpenAPI）
-
-- 3.x 用 `springdoc-openapi-starter-webmvc-ui`（2.x 用 `springdoc-openapi-ui`），版本由父 POM 管，别就地写。
-- 对外接口的入参 / 出参用**注解补全**：`@Operation(summary=…)`、`@Parameter(description=…)`、DTO 字段 `@Schema(description=…, example=…)`；错误码与统一异常结构也要标注，否则前端只能猜。
-- 生产环境按需关掉 UI（`springdoc.swagger-ui.enabled=false`）或限制访问路径——它默认暴露全部接口结构。
-- 上线前自检：`/v3/api-docs` 能取到 JSON，且本轮新增接口在里面（这是"文档真的生效"的可失败判据）。
-
-## 运行期排障（项目实战沉淀，按症状找）
-
-- **profile 必须显式指定**：一模块多环境时，默认 profile 常指向**另一个环境的库**（症状：查不到数据 / "终端不在线" / 注册到错误的 endpoint / 写进错误的库）。启动命令显式 `--spring.profiles.active=<env>`，启动后立刻核对日志里的 `The following profiles are active` 与 JDBC URL。
-- **跨 fastjson 版本取嵌套对象一律用 `getJSONObject(key)`**：用 fastjson 1.x 兼容包解析字符串 payload 后，嵌套对象实际是 `com.alibaba.fastjson2.JSONObject` → `get(key) instanceof com.alibaba.fastjson.JSONObject` **恒为 false**。表现极隐蔽：慢路径（用 `getJSONObject`）照常工作、日志正常，只有快路径静默失效（回执退回业务线程队列、延迟成批到达）。别用 `get(key)` + instanceof 做类型判据。
-- **ACK 超时 / 命令丢失：定位靠线程名，修复靠预算**：网络快速通道的线程名是 `nioEventLoopGroup-*`，退回业务队列是 `agent-business-*`——日志里全是一个线程名就说明走了慢路径。方向是给出显式超时预算（如 ACK 5s→15s、文件操作 15s→45s、重试 2→3 次）**并说明余量**，不要靠"重启服务"掩盖。
-- **接收 path / 文件名的接口必须走统一的"编码兼容解码 + 穿越校验"**：浏览器会把路径里的 `/` 编码成 `%2F`，代理链路后可能拿到字面 `%2F...` → 报 `target file not found`，而 curl 直连原始路径正常（极易误判"文件不存在"）。新增接口复用既有解码+校验工具，别自己 `trim()` 后直接用。
-- **同一业务对象的"列表 / 查看 / 恢复 / 删除"必须同一口径**：数据可能经多条通道写入（A 通道写 `a_id`、B 通道写 `b_id`），列表查询要 OR 全通道，**归属校验也要复用同一套判据**——否则列表能显示、点进去却报"不存在或不属于"。MyBatis-Plus 里 OR 与 AND 混用要显式加括号：`w.and(x -> x.eq(a).or().in(b))`，否则 `a OR b AND c` 的优先级会让 `c` 只在 `b` 分支生效。
-
-## 验证
-
-- 完成后跑 `mvn -q -pl <module> -am test`；**编译退出码必须作为验收判据的一部分**（`spring-boot:run` 会复用旧编译产物，编译红而启动绿是假证据）。
-- 启动验收要确认打出 `Started Application` 的是本轮自己起的进程，请求打的是本轮独占端口。
-
-## REST API 契约（新增 / 改接口时）
-
-- **兼容边界是已有消费者的行为**：不因上游示例推荐 REST 风格就重命名路由、改统一返回结构或切换版本。新增可选字段比删字段 / 改类型 / 改 null 语义更易兼容；列出真实消费者，必要时安排并存或迁移，而不是只改服务端测试。
-- **参数校验**覆盖类型、长度、枚举、页大小与排序范围；排序键映射到服务端允许字段；**租户与资源访问范围来自可信认证上下文，不能由请求参数决定**。
-- **分页**沿已有机制选 offset 或 cursor；cursor 需稳定排序 + 唯一兜底字段，并明确筛选条件变化时的行为——"列表能返回"不能证明翻页无遗漏或重复。
-- **幂等**：可能被重试的写入要明确幂等语义，幂等键绑定**调用方 + 操作 + 请求内容**，覆盖并发首次请求、同键不同内容与结果复用；不能靠前端禁用按钮。去重状态与业务提交要可恢复一致，核对进程重启 / 键保留期 / 重复请求恢复路径；旧客户端未提供幂等键时不能承诺任意重试都去重。
-- **状态码语义**区分创建 / 异步受理 / 校验 / 认证 / 授权 / 冲突 / 限流；成功状态不放错误内容，响应不暴露内部栈与敏感字段。
-- 来源：Codex `local-api-contracts`（2026-10-11 并入）。
-
-## MyBatis 检查（映射 / 绑定 / 性能）
-
-- **值一律 `#{...}` 绑定**，`${...}` 是 SQL 文本替换；动态列名 / 排序需服务端闭合映射或固定语句。多参数核对 `@Param`、XML namespace/id 与 DTO/resultMap。
-- **dynamic SQL 的空集合 / 空过滤边界必须明确**：不能因条件被省略就 update/delete 全表。
-- **复杂连接**查行倍增、去重与分页；**nested select 查 N+1**，而不是只看单次 SQL 很快。
-- **批处理**查 flush 时机、部分失败、幂等性与恢复位置；连接与 session 沿现有 Spring 管理方式，不手动关闭受管 session。
-- **不因方法上写了 `@Transactional` 就宣称已回滚**：按当前代理模式与配置核对代理入口、自调用、异常传播、`rollbackFor`、多数据源与异步线程。
-- **参数绑定 / 方言 / 约束 / 事务回滚优先用真实数据库集成测试**；H2 / mock 不能单独证明生产引擎行为。按 Maven / Gradle 门禁核实实际测试数量与跳过情况。
-- 结构变更转 `rules/databases.md` 的「迁移设计与验证」一节。来源：Codex `local-spring-mybatis`（2026-10-11 并入）。
-
-### 需求澄清、提示词与长任务纪律
+### 长任务与上下文纪律
 
 ```yaml
-name: long-task-discipline
-description: 用于需求含糊、意图澄清、提示词优化、/clarify，以及多步长任务、规格、接续和中断恢复。先检索再分明确/轻微歧义/关键歧义三档；给出推荐但不擅加需求、不把理解确认当实施授权。长任务含上下文预算、SDD与跨会话交接；成套任务包走 rules/vibe-coding.md。
 trigger: model_decision
+description: 当任务是多步 / 长流程时加载——跨会话或跨批次推进、上下文接近上限、需要拆解与接续、写规格或提示词、中断后恢复；请求含混需要分级澄清与提示词优化时也按本章判档。关键词：长任务、多步、接续、上下文压缩、SDD、规格、需求拆解、子代理、工作注记、中断恢复、任务拆分、批次、VibeCoding、分级澄清、歧义澄清、提示词优化、理解卡、A档B档C档。
 ```
+
+- **警惕"沉默的崩溃"**：上下文窗口填满后模型不会报错，只会自信地遗忘——接近上限时主动拆分任务 / 压缩摘要 / 把关键状态落盘，不能等它崩。
+- **大范围调研交只读子代理**：广搜、大文件通读、跨文件盘点交给 Explore / 只读子代理，**只要结论不要文件内容**（1-2k token 量级），保护主上下文。
+- **Prompt 先给角色再给任务**：起草提示词 / 子代理指令时，先用"你是一个有 N 年经验的 X 开发者"式声明角色，再给目标 + 约束 + 路径。
+- **大功能先出规格（SDD 社区实践）**：新模块 / 大功能先写"需求 → 设计 → 任务拆分"三件套再写码（Kiro 风格），规格锚定验收标准防实现漂移；小改动不套模板。
+- **大需求按五阶段推进（阶段门禁）**：① 需求澄清——**先不碰技术栈**，只谈谁用 / 什么场景 / 痛点 / 一次典型流程，产出含"≥3 个异常场景 + 可测试验收标准"的需求文档；② 架构——到文件级的目录结构 + 每文件职责 + 数据流图 + 模块接口约定 + **最脆弱 / 最不确定的一处**（此阶段不写实现）；③ 逐模块生成——每模块先写清路径 / 职责 / 依赖与对外接口，**一次只在一个模块上下文里写**，每模块至少"能 import + 关键函数能调"；④ 调试——完整报错 + 触发操作 + 期望 / 实际 → 解释原因（1-3 个可能 + 排查顺序）→ 分步修（逐步反馈）→ 三行总结；⑤ 迭代——新功能回 ①、性能 / 体验回 ④、结构混乱回 ②。**每阶段检查准入并给小结；已获连续实施授权且条件满足时继续，用户明确设置的阶段审批仍等待**；同一问题连续 3 轮未解决就换会话换角度重来（现场与已试方案先落盘）；要出成套文档按 Vibecoding 两模式（技能 `vibecoding-doc`），要流程规范按五阶段门禁（技能 `vibe-coding-workflow`，`route-phase.js` 可判"该回哪一阶段"）。
+- **需求还模糊时先出 Vibecoding Doc**：用户给的是感觉词（"酷 / 极简 / 硬核"）而非明确需求时，把"感觉与意图"先固化下来——**小需求**出单篇（Vibe 氛围 / Intent 意图 / User Stories / Tech Stack Vibe / Constraints / Success Vibe 六节）；**完整项目 / 长任务**出**多文件包**（`B00-共享上下文`＝氛围锚 + 统一约束（铁律 / 技术栈 / 目录约定）/ `总发起指令`（装配表 + 可复制提示词 + 停下条件）/ `B0x-批次卡`（按依赖排序，含输入输出契约、可勾选验收、产出文件清单、禁止项）/ `验收与台账`），让 AI 按顺序执行、换会话可接续。格式以 `rules/vibe-coding.md` 为准，**不要另造第二套**；出稿后用技能 `vibecoding-doc` 的 `check-vibecoding-doc.js` 验结构（六节齐 / 四件齐 / 编号连续）。
+- **任务拆分产出用 VibeCoding 格式**：把需求拆成给 AI 执行的开发任务 / 批次时，按「开发任务拆分（VibeCoding 格式）」一节生成成套任务包（B00 共享上下文 + 批次卡 + 开工提示词）——让 AI 拿到角色、铁律、契约与边界，减少长对话漂移。
+- **关键节点写工作注记**：做到哪、下一步、阻塞点——供压缩 / 中断 / 换会话后无痛接续。
+- **长任务三件套**：① **压缩**——逼近上限时总结重开，保留架构决策 / 未解决 bug / 实现细节，工具输出最先丢；② **笔记**——里程碑状态写进项目文档，上下文只留引用；③ **子代理**——广搜交子代理，只回浓缩摘要。
+- **复述防漂移**：长任务反复更新待办清单（做完划掉、新发现补上），并定期回看原始目标与完成标准——防止 lost-in-the-middle 式的目标漂移。
+- **保留失败轨迹**：走错的路、报错、被否决的方案留在工作注记 / 记忆里，不要抹掉——它们是后续判断的证据；擦掉会导致下次重蹈覆辙。
+- **复杂方案先分叉探索再收敛**：方向不明时先 fork 会话 / 子代理并行试跑多个方向，主会话只收敛结论；旁路小问题用独立会话处理，不打断主任务。
 
 ## 分级澄清与提示词优化
 
@@ -847,195 +475,95 @@ trigger: model_decision
 
 文案契约检查：`node ~/.qoder/scripts/clarify-contract.test.js`；该检查只证明条款与入口完整，不能证明模型在所有自然语言场景下都会正确判断。
 
-## 长任务与上下文纪律
-
-- **警惕"沉默的崩溃"**：上下文窗口填满后模型不会报错，只会自信地遗忘——接近上限时主动拆分任务 / 压缩摘要 / 把关键状态落盘，不能等它崩。
-- **两次纠错仍不对就换会话**：同一问题连续两次按反馈修正还是不对，别在原会话硬试——先把现场（原始报错 / 已试方案 / 失败轨迹）落盘，再开新会话或分叉，从头重述并要求"从不同角度重新分析、不要重复之前方向"。（与「同类修复连败三次就停」配套：两次换环境、三次才停手问人。）
-- **Vibecoding 两问按当前授权触发**：规模大且需求或验收口径不明时才询问成文；已授权直接实施且判据明确时不再问。文档完成后仅在实施未授权时申请批准；明确阶段审批保留。
-- **大范围调研交只读子代理**：广搜、大文件通读、跨文件盘点交给 Explore / 只读子代理，**只要结论不要文件内容**（1-2k token 量级），保护主上下文。
-- **Prompt 先给任务上下文**：写清目标、现有证据、边界、交付与可失败验收；只有角色影响做法时才补职责，不虚构年限或专家身份，也不以角色包装替代具体约束。
-- **大功能先出规格（SDD 社区实践）**：新模块 / 大功能先写"需求 → 设计 → 任务拆分"三件套再写码（Kiro 风格），规格锚定验收标准防实现漂移；小改动不套模板。
-- **大需求按五阶段推进（阶段门禁）**：① 需求澄清——**先不碰技术栈**，只谈谁用 / 场景 / 痛点 / 一次典型流程，产出含"≥3 个异常场景 + 可测试验收标准"的需求文档；② 架构——到文件级的目录结构 + 每文件职责 + 数据流 + 接口约定 + **最脆弱 / 最不确定的一处**（此阶段不写实现）；③ 逐模块生成——一次只在一个模块的上下文里写，每模块至少"能 import + 关键函数能调"的最小验证；④ 调试——完整报错 + 触发操作 + 期望 / 实际 → 解释原因（1-3 个可能 + 排查顺序）→ 分步修 → 三行总结；⑤ 迭代——新功能回 ①、性能 / 体验回 ④、结构混乱回 ②。**每阶段检查准入并给小结；已获连续实施授权且准入满足时继续，只有用户明确设置的阶段审批才等待**；同一问题连续 3 轮未解决就换会话换角度重来（现场与已试方案先落盘）。规范全文见技能 `vibe-coding-workflow`（`route-phase.js` 可判"该回哪一阶段"），出成套批次文档用技能 `vibecoding-doc`。
-- **任务拆分产出用 VibeCoding 格式**：把需求拆成给 AI 执行的开发任务 / 批次时，按 `rules/vibe-coding.md` 生成成套任务包（B00 共享上下文 + 批次卡 + 开工提示词）——让 AI 拿到角色、铁律、契约与边界，减少长对话漂移。
-- **目标化执行**：仅用户或系统/开发者明确要求、或用户同意开局询问时创建目标（中大型 / 多阶段 / 审查+成文且无活动目标时，开工前问一次并推荐建，同意才建，拒绝/取消不催问），已有目标不重复问/建。任务包、旧队列只能提供线索，不构成执行授权；先确认本轮任务归属。目标判据只包含本轮获准交付，不能包含不适用的记忆或提交义务；全部必需判据满足才标完成。
-
-- **关键节点写工作注记（每格完成即更新）**：写进项目根 `.qoder-work-queue.md`，四要素——**当前状态**（做到哪 / 明确未做）、**下一步**（第一件事，具体到能直接开工）、**阻塞点**（外部条件；没阻塞写"无"）、**关键入口**（文件路径 + 可复跑命令，尚未创建的标「待建」）。**不要攒到会话末尾才写**——上下文可能先崩（见上一条"沉默的崩溃"）。机器自检：`node ~/.qoder/scripts/work-queue-check.js`（四要素齐不齐 / 阻塞有没有理由 / 入口路径还在不在）；stop-gate 的 R6 与 R6c 会分别在收尾时拦下"还有未完成格"与"队列写了但接不了手"；快速落盘用 `/checkpoint` 指令。
-- **阶段检查不是批准仪式**：内部技术口径可自行选定并说明，只有无法定义验收、安全边界或授权范围时才澄清。
-- **长任务三件套**：① **压缩**——逼近上限时总结重开，保留架构决策 / 未解决 bug / 实现细节，工具输出最先丢；② **笔记**——里程碑状态写进项目文档，上下文只留引用；③ **子代理**——广搜交子代理，只回浓缩摘要。
-- **复述防漂移**：长任务反复更新待办清单（做完划掉、新发现补上），并定期回看原始目标与完成标准——防止 lost-in-the-middle 式的目标漂移。
-- **保留失败轨迹**：走错的路、报错、被否决的方案留在工作注记 / 记忆里，不要抹掉——它们是后续判断的证据；擦掉会导致下次重蹈覆辙。
-- **复杂方案先分叉探索再收敛**：方向不明时先 fork 会话 / 子代理并行试跑多个方向，主会话只收敛结论；旁路小问题用独立会话处理，不打断主任务。
-- **跨会话交接边界**：用户只要求交接/开工提示词时，交付自包含目标、判据、入口和未完成项即可，不自动派发。只有明确要求代开并执行时才派发，派发不能扩大授权或绕过平台权限。接手方按当前请求和目标工具要求决定是否创建目标。
-
-### Python 开发规则
-
-```yaml
-trigger: glob
-glob:
-  - "**/*.py"
-  - "**/pyproject.toml"
-  - "**/requirements*.txt"
-```
-
-**定位**：本机 Python 主要用于零散脚本与工具链（真源 3.14.6，用完整路径调用、**不写进 PATH**，见记忆 `reference-python-real-path`）。风格与工具链以技能 `python-programmer`（ruff + uv）为准；本文件补的是那张"工程纪律"清单——原先由 5 个专项技能（设计模式 / 反模式 / 错误处理 / 类型 / 性能）覆盖，2026-09-29 已收敛到本文件，别为这些再装技能。
-
-## 类型
-
-- 公共函数、脚本入口、跨模块数据结构必须写类型标注；`Any` 出现要给理由（它等于关掉这块检查）。
-- 真要做类型检查就配 mypy / pyright 并按**严格档**起步，别一边写一边往下放宽阈值。
-- 用 `dataclass` / `TypedDict` 描述结构，别靠裸 `dict` 传字段。
-
-## 结构与设计
-
-- 纯逻辑与 IO 分离（IO 在边界、逻辑可单测）；一个模块一件事，避免全局可变状态。
-- 组合优于继承；模式只在**解决已出现的重复**时引入，不为"将来可能"预埋抽象。
-- 类方法超过 10 个、文件超过 300 行先想拆；单一职责比"少几个文件"重要。
-
-## 错误处理
-
-- **禁止吞异常**：`except Exception: pass` 一律不接受；要忽略必须写清原因并记录。
-- 自定义异常继承一个项目基类、带上下文（做了什么 + 关键参数），别只抛 `Exception("error")`。
-- 只在系统边界校验（用户输入 / 外部 API / 文件 / 环境变量）；内部调用信任契约，不层层重复校验。
-- 批量处理先明确策略：**遇错即停**还是**继续并汇总失败清单**——默认后者，且把失败明细落盘。
-
-## 测试
-
-- 用 pytest；资源用 fixture 管（文件 / 连接 / 临时目录，`tmp_path`）。
-- 外部依赖在边界处替换（fixture / monkeypatch），不 mock 自己写的纯函数。
-- 断言要能失败：别用"函数被调用过"当结论，要断言**行为结果**；关键路径配一条负对照。
-
-## 性能
-
-- 先测量再优化：`cProfile` / `timeit` 拿基线，改完再测一次对比；没有基线不许说"更快了"。
-- 热点优先改算法与批量 IO；大文件流式处理（逐行 / 分块），不要 `readlines()` 全量进内存。
-- 字符串拼接在循环里用 `join`；能用生成器就别建中间列表。
-
-## 验证
-
-- 脚本类交付：真跑一次 + 断言输出（退出码 / 关键字段），别只看"没报错"。
-- 依赖安装走官方源（镜像曾误报"无可用版本"），装完 `pip index versions` 或 import 复验。
-
-### React 开发规则
-
-```yaml
-trigger: glob
-glob:
-  - "**/*.tsx"
-  - "**/*.jsx"
-```
-
-## Hooks
-
-- 只在组件或自定义 Hook 的**顶层**调用 Hooks，不放条件/循环/嵌套函数里。
-- 依赖数组必须完整（以 lint 为准）；**不要用 `// eslint-disable-next-line` 绕过 exhaustive-deps**——那通常意味着逻辑有问题。
-- 状态更新用函数式写法（`setX(prev => ...)`），避免闭包读到旧值。
-- **派生数据在渲染中直接算**，不要 `useEffect` + `setState` 同步（会多一次渲染且易不同步）。
-- Effect 必须清理：订阅、定时器、监听器要 return 清理函数；请求用 `AbortController` 防竞态（组件卸载后 setState 会报警告/错乱）。
-
-## 渲染
-
-- 列表 `key` 用**稳定唯一 id**，不要用数组索引（增删/排序会错位并丢状态）。
-- 受控与非受控二选一：表单组件统一一种模式，不要中途切换。
-- 不要过早 `memo`/`useMemo`/`useCallback`：先测量再优化，滥用反而增加复杂度。
-
-## 状态管理
-
-- **服务端状态**（缓存、重试、失效）用 TanStack Query 一类库管理；**客户端状态**（UI、表单）用本地 state 或轻量 store——不要把所有东西塞进全局 store。
-- 跨组件共享的状态提升到最近的公共祖先，不要为省事直接全局化。
-
-## 验证
-
-- 交互改动要在真实浏览器验证（见 `verify-ui-in-browser`）；React 的 Suspense/条件渲染分支单测覆盖不到，必须实际点击。
+<!-- qoder-package-workflow:start -->
+# 长任务与接续
+沿现有任务卡记录目标与适用授权、当前状态及本轮证据、下一条具体操作、阻塞和关键文件入口。使用 /checkpoint 前先检查写入授权；只读任务在回复中交接，不写队列。
+上下文或会话接近承载上限时先保存可接续状态，再使用宿主支持的接续入口。检查真实进程、会话与写入归属，不删除锁、不改会话数据库、不停止其他活跃任务。队列和会话摘要只作线索，接手先核对当前用户意图与现场状态。
+目标只在明确要求时创建。使用 goal-driven-execution 或 continuation-state-audit 前读取真实技能入口；未验证的宿主接续能力标明前置条件，不假报自动接续。
+<!-- qoder-package-workflow:end -->
 
 ### 多 schema 同名表权威源识别
 
 ```yaml
 trigger: model_decision
-description: 当任务涉及多 schema 数据库的同名表查询时加载——识别权威源（源表 vs 副本表），避免读漂移的快照。关键词：多 schema、同名表、权威源、副本表、快照漂移、bis_device、hiatmp、hibisaisai。
+description: 当任务涉及多 schema 数据库的同名表查询时加载——识别权威源（源表 vs 副本表），避免读漂移的快照。关键词：多 schema、同名表、权威源、副本表、快照漂移。
 ```
 
-**核心纪律**：多 schema 同名表时，必须先识别权威源（源表 vs 副本表）——副本表可能有漂移的陈旧数据，不能作为真值。
+- 多 schema 同名表时，**必须先识别权威源**（源表 vs 副本表）——副本表可能有漂移的陈旧数据，不能作为真值。
+- 查询与 DDL 一律显式 `schema.table`，不依赖 `search_path`（`currentSchema` 会覆盖 search_path）。
+- 写路径要确认实际落库的表；只读路径若接到副本表，结论要标注"来自副本 / 快照"。
 
-## 识别方法
+---
 
-1. **查 schema 列表**：
-   ```sql
-   SELECT table_schema, table_name
-   FROM information_schema.tables
-   WHERE table_name = 'bis_device'
-   ORDER BY table_schema;
-   ```
-   常见结果：`hiatmp.bis_device`、`hibisaisai.bis_device`、`hibiswx.bis_device`
-
-2. **判断权威源**：
-   - **源表**：业务写入的主表（通常是 `hiatmp.bis_device`）
-   - **副本表**：数据同步的目标表（通常是 `hibisaisai.bis_device`、`hibiswx.bis_device`）
-   - 权威源 = 源表（写入方），不是副本表（读取方）
-
-3. **验证漂移**：
-   ```sql
-   -- 对比源表与副本表的行数
-   SELECT 'hiatmp' AS schema_name, count(*) AS row_count FROM hiatmp.bis_device
-   UNION ALL
-   SELECT 'hibisaisai', count(*) FROM hibisaisai.bis_device;
-   ```
-   若行数不一致，说明副本表有漂移
-
-## 文档引用纪律
-
-- **区分"快照"与"现网实测"**：
-  - `_prod_snapshot/` 目录下的文件是某时刻的快照，不是现网真值
-  - 文档引用必须标注"快照"或"现网实测"
-  - 现网真值以实测为准（用 dbhub MCP 查询生产库）
-
-- **引用格式**：
-  - ❌ 错误："`bis_device` 表有 100 行"（未说明是哪个 schema、是否快照）
-  - ✅ 正确："`hiatmp.bis_device`（权威源）现网实测 100 行；`hibisaisai.bis_device`（副本）有 8 行漂移"
-
-## 常见陷阱
-
-- **读副本表当源表**：查询 `hibisaisai.bis_device` 以为是真值，实际是漂移的副本
-- **快照当现网**：引用 `_prod_snapshot/` 的数据，但现网已漂移
-- **跨 schema JOIN**：JOIN 时未识别权威源，导致关联到漂移数据
-
-## 案例（B04 设备表改造）
-
-- **问题**：初版方案引用 `_prod_snapshot/` 的 `bis_device` 数据，未说明是快照
-- **修正**：用 dbhub MCP 查询 `hiatmp.bis_device`（权威源），标注"现网实测"
-- **发现**：`hibisaisai.bis_device` 有 8 行陈旧数据（漂移），不能作为真值
-
-### 测试编写规则
+### Python
 
 ```yaml
 trigger: glob
-glob:
-  - "**/*Test.java"
-  - "**/*Tests.java"
-  - "**/*IT.java"
-  - "**/*.test.ts"
-  - "**/*.test.tsx"
-  - "**/*.spec.ts"
-  - "**/*.spec.tsx"
-  - "**/*_test.go"
+glob: ["**/*.py", "**/pyproject.toml", "**/requirements*.txt"]
 ```
 
-## 断言必须能失败
+- **类型**：公共函数、脚本入口、跨模块数据结构必须写类型标注；`Any` 出现要说明理由（等于关掉这块检查）；真要做类型检查就配 mypy / pyright 并按**严格档**起步，别一边写一边放宽；用 `dataclass` / `TypedDict` 描述结构，不靠裸 `dict` 传字段。
+- **结构与设计**：纯逻辑与 IO 分离（IO 在边界、逻辑可单测）；一个模块一件事，避免全局可变状态；组合优于继承；设计模式只在**解决已出现的重复**时引入；类方法超 10 个、文件超 300 行先想拆。
+- **错误处理**：禁止吞异常（`except Exception: pass` 一律不接受，要忽略必须写清原因并记录）；自定义异常继承项目基类并带上下文；只在系统边界校验（用户输入 / 外部 API / 文件 / 环境变量），内部信任契约；批量处理先定策略——遇错即停还是继续并汇总失败清单，默认后者且失败明细落盘。
+- **测试**：pytest + fixture 管资源（`tmp_path` 等）；外部依赖在边界处替换，不 mock 自己写的纯函数；断言要能失败——别拿"函数被调用过"当结论，要断言行为结果，关键路径配负对照。
+- **性能**：先测量再优化（`cProfile` / `timeit` 拿基线，改完再测一次对比）；热点优先改算法与批量 IO；大文件流式处理，不要 `readlines()` 全量进内存。
+- **验证**：脚本类交付真跑一次 + 断言输出（退出码 / 关键字段），别只看"没报错"；依赖安装走官方源（镜像会误报"无可用版本"），装完 import 复验。
 
-- 写完每条断言先问："它失败得了吗？"被改坏时会红的断言才算数。
-- 禁止两边都算过的分支：`if (成功) { ... } else { 断言失败 }` 这类写法等于没写。
-- 计数型断言（"某集合应有 N 项"）先把该断言行**之前所有会增删对象的操作**列一遍再定数字；并确认摘掉被测过滤后它仍会变红。
-- 时间边界夹具留足余量（≥100ms），不要让执行耗时自己跨过边界。
+### React
 
-## 覆盖
+```yaml
+trigger: glob
+glob: ["**/*.tsx", "**/*.jsx"]
+```
 
-- 异常路径与边界值必须有用例，不能只有 happy path。
-- 每条修复单独附带一个能复现原缺陷的测试。
-- 探针/检查器类代码：先植入一次违规，确认它报红；给命中数加下限断言（0 命中是故障不是结论）。
+- **Hooks**：只在组件或自定义 Hook 顶层调用；依赖数组必须完整（以 lint 为准），不要用 `// eslint-disable-next-line` 绕过 exhaustive-deps；状态更新用函数式写法（`setX(prev => ...)`）；派生数据在渲染中直接算，不要 `useEffect` + `setState` 同步；Effect 必须清理（订阅 / 定时器 / 监听器），请求用 `AbortController` 防竞态。
+- **渲染**：列表 `key` 用稳定唯一 id，不用数组索引；受控与非受控二选一，不中途切换；不要过早 `memo`/`useMemo`/`useCallback`——先测量再优化。
+- **状态管理**：服务端状态（缓存、重试、失效）用 TanStack Query 一类库；客户端状态（UI、表单）用本地 state 或轻量 store——不要把一切塞进全局 store；跨组件共享的状态提升到最近公共祖先。
+- **验证**：交互改动要在真实浏览器验证；Suspense / 条件渲染分支单测覆盖不到，必须实际点击。
 
-## 运行
+### 规则强制层：三层机制与 hook 实现要点
 
-- 批量模块的测试**一次跑全**，中途中断（某个模块挂了导致后面没跑）等于没验证。
-- 报告"全绿"时要能说明：本轮编译退出码、测试命令、覆盖范围。
+```yaml
+trigger: model_decision
+description: 配置或修改 Qoder 规则强制层时读——三层机制（每轮注入 / 停手门禁 / 开台体检）的分工、hook 契约与实现要点、认证锁库门禁。关键词：hook、规则不生效、接线、心跳、fail-open、settings.json、认证锁库。
+```
+
+规则写了却不被遵守，绝大多数不是"模型不听话"，而是**规则被长文稀释**：文件越长，单条约束的注意力权重越低。
+
+**① 精简 AGENTS.md**：把只在该领域才需要的内容拆出去——领域细节进 `rules/<主题>.md`（配触发器按需加载），流程性长文进技能，装备清单进记忆。**AGENTS.md 只留跨领域、长期有效、每轮都可能用到的约束**，控制在 ~150 行。实测从 200 行压到 142 行后，约束一条没少（用"从备份提取 86 个约束标记逐条比对"验证，丢失 0 条）。
+
+**② 机制层不是"配一个提醒"，而是分工明确的一组**（本机已落地，**脚本随包分发**、每个都有自己的自测）：
+
+| 机制 | 挂哪 | 管什么 |
+|---|---|---|
+| 每轮提醒 | UserPromptSubmit | 把最易被忽略的几条纪律每次重注入——抗上下文压缩丢失与注意力衰减 |
+| 会话体积与接续 | UserPromptSubmit + SessionStart | **三个独立信号**：① 体积（≥8/15/25MB 分档降速→落盘→立即落盘）② **本会话已被压缩的次数**（丢过几次上下文）③ **上一回合的上下文增量**（返回侧入账）。SessionStart 还注入未完成的接续队列 + 看门狗（查"周检自己有没有停"）+ **磁盘水位**（低于告警线就注入"必须弹窗问全（清理两问 + 迁移一问）"的指令；**读不到盘就返回空串，磁盘检查绝不能把会话卡住**） |
+| 停手门禁 | Stop | 收尾文本命中"停手等待 / 裁决没弹窗 / 前台无视觉证据 / 记忆写入无证据 / 无主张踢皮球"即强制续跑；只检查当前授权任务，只读 / 交接 / 旧队列不催办；R3 需真实截图证据，R8 仅在明确记忆请求时检查（滑动窗口限次；**只作提醒式拦截，换措辞仍会漏**） |
+| 大输出守卫 | PreToolUse | 拦"整读大文件 / 无上限命令"，并给子代理提示词追加"只回结论 ≤300 字" |
+| 备份提醒 | PreToolUse | 只在"整文件覆盖 + 文件已存在 + ≥2KB + **无 git 兜底**"时提醒先备份（有版本库就不吵），advisory 不拦截 |
+| **认证锁库门禁** | PreToolUse（并入 `risky-match-guard.js`）+ PostToolUse（`auth-lock-guard.js`），判据真源 `auth-lock-core.js` | 把"连败三次即停"从提示词变成**计数器**：PostToolUse 只认认证 / 锁定类签名（连接被拒、超时＝中性；SQL 语法错＝凭据是通的 → 清零），按目标（服务别名 / 主机 / 账号任一相同）累计，满 3 次后 PreToolUse 硬拦该目标的一切连接动作；出现"已锁定"签名一次即拦。解封只能人工 `--clear`（一次"看起来成功"的返回不自动解封）。**为什么必须做成机制**：服务端锁定策略因目标而异，而"再试一次"是 Agent 的默认动作，纯提示词的三次上限在长会话里必然被忘掉 |
+| 开台体检 | SessionStart | 两侧规则漂移、记忆分叉、规则里的悬空引用；**健康时零输出**（"静默通过"与"失败"必须可区分） |
+| 每周深检 | 定时任务 | 查开台体检覆盖不到的：frontmatter、规则文件篇幅、**接线完整性与两侧一致性**、机制心跳新鲜度、**内联检查耗时 vs 调用方超时**、**冲突回归**、**遵守率覆盖审查** |
+
+**两条硬认识**（都是实测踩出来的，比任何技巧都重要）：
+
+- **防线要放在事故发生之前**：被传输层掐断的回合**根本到不了 Stop**，所以"在收尾时判体积"的门禁救不了它要防的那件事——体积判据必须前移到回合开始前。通用判据：**凡是"防某事故"的检查，先问一句"事故发生时，这个检查跑得到吗"。**
+- **谁看住看门的人**：周检会查其它机制的心跳，但**周检自己没跑**（定时失效 / 机器关机错过）没人知道。要用一条**不同节奏的独立通道**去确认它还活着（本机做法：每次会话开台检查"周检上次成功是多久前"）。每个周期性自动化都该配这么一条。
+
+**③ hook 实现要点**：
+
+- **拦截语义：只有 `exit 2` 或 `deny` JSON 真拦截**——其余非零退出码、超时、脚本崩溃默认**放行（fail-open）**。所以别把 hook 当安全边界（硬权限仍交权限系统），hook 只做"必须确定性"的校验 / 阻断 / 脱敏；每个 hook 都要能自证在跑（心跳 + 自测），并假定"它可能已经静默失效"来设计兜底。
+- **hooks 自动维护有边界**：在现有维护授权内、证据充分且与当前任务直接相关时补改 hooks；只读审阅仅列建议。改权限、审批流程、拦截范围或安全边界须明确批准；不静默摘掉守卫。脚本、两侧接线、可失败正负测试和周检同步维护，改配置前备份；hook 是 fail-open，不替代平台权限。可复用载体见随包技能 `self-evolution`。
+- 脚本从 **stdin** 读事件 JSON，向 **stdout** 写这个形状（没有别的输出）：注入用 `{"hookSpecificOutput":{"hookEventName":"...","additionalContext":"<文本>"}}`，PreToolUse 拦截用同结构的 `permissionDecision: deny|allow|ask`，Stop 门禁用 `{"decision":"block","reason":"..."}`；退出码 `0`。
+- **注入文本用静态字符串**——前缀稳定才不会破坏提示词缓存；某轮缺了提醒本身就是漂移信号。
+- **纪律清单一处一份**：AGENTS.md 与 hook 脚本里的清单要一起改（两份副本必然漂移）；周检里再加一条"机制掉了"的探针，改坏了会报。
+- 配置写在 `settings.json` 的 `hooks.<事件名>`（数组，元素形如 `{"hooks":[{"type":"command","command":"...","timeout":10}]}`）。**双客户端要挂成同一套**——只挂一侧会让另一侧静默失效，所以"两侧清单逐条对照"要进周检。**随包给了一份可直接改占位符的接线：`hooks/hooks.example.json` + `hooks/README-hooks.md`（事件×脚本对照）**——脚本不接线不会自己跑。
+- **Windows 命令串坑**：路径无空格时**不要加引号**——`"a.exe" "b.js"` 在宿主以朴素 `cmd /c <命令>` 执行时会被剥掉首尾引号而报"文件名、目录名或卷标语法不正确"；写成 `a.exe b.js` 在多种 shell 下都稳。
+- **脚本要先排空 stdin**（否则大载荷可能把宿主阻塞到超时），输出用异步写回调收尾，别让 `process.exit()` 截断。
+- **路径一律从 `HOME` 派生**，不写死用户名——否则换机器直接失效（本机就是出包扫描时被自己的门禁抓出来的）。
+- **加一行心跳日志**（每次触发追加一行时间戳），这样"规则到底有没有在跑"是可查的，不用猜。**验证过配置正确 ≠ 验证过它真的生效**——注册后要新开会话，再看心跳日志里有没有出现不是自己测试进程留下的时间戳。
+- **每个守卫都要有能失败的自测**：违规用例必红 **+ 不该触发的对照组必绿**（守卫最容易犯的错不是漏检，而是噪声太多被人忽略）。改判据必须跑自测。
+- **判"某处是否已修正"时，证据必须落在同一处附近**：全文件范围找"正确措辞"会被文件别处的正确表述满足，于是"这里旧措辞仍在、别处写着正确版"的自相矛盾被判成绿的（实测漏检，改成命中点就近窗口后立刻抓出 3 处）。
 
 ### 文本与输入的字符安全（改文件 / 传参 / 生成脚本）
 
@@ -1044,118 +572,55 @@ trigger: model_decision
 description: 当任务要修改文件内容、生成脚本或把含特殊字符的文本传给命令时加载——引号 / 反斜杠 / 反引号 / `$` 被 shell 先解释、中文编码（GBK/CRLF）被改写、整文件覆盖丢内容、替换串手抄失配、管道吞退出码。关键词：编辑、写入、替换、sed、heredoc、转义、引号、反引号、乱码、编码、GBK、CRLF、覆盖、退出码。
 ```
 
-**为什么单独成文**：这类错误的表现是"字符被吃掉或改写"——文件写出来了但内容不对、脚本语法没错但语义变了、命令成功但改的是别的地方。它们**不报错、只出错**，所以要有固定的写法与回读判据。
+- **要写的文本 / 要跑的多行脚本先落成文件再执行**：用编辑工具或带引号的 heredoc（`<<'EOF'`）；**禁止**在 `node -e "…"`、`bash -c "…"` 里出现反引号 / `$` / `\`；被 `huge-output-guard` 拦下就改写法。
+- **改既有文件优先局部替换、不整覆盖**；替换串**从文件里程序化提取**，不要手抄（手抄必错在转义层数 / 全角半角引号 / 尾随空格 / CRLF 上）；覆盖前备份、覆盖后回读关键片段。
+- **写完回读、跑完看退出码**：`.js` 跑 `node --check`、`.sh` 跑 `bash -n`；片段断言"新片段在"与"旧片段不在"两条都要有；别把命令塞进管道还读 `$?`。
+- **编码照抄**：`.cmd` / `.bat` 必须 **GBK + CRLF**（见技能 `verify-windows-cmd-tool`）；`git commit` 中文用 `-F`；PowerShell 写盘带 BOM；Git Bash 里裸露 `/x` 会被改写（用 `MSYS_NO_PATHCONV=1`）。
 
-## 三条硬纪律
+### 测试
 
-1. **要写的文本、要跑的多行脚本，先落成文件再执行**——不要内联。
-   - 落文件用编辑工具或带引号的 heredoc（`<<'EOF'`）：带引号的 heredoc 里 bash **不做**变量替换与命令替换，文本原样进去。
-   - **禁止** `node -e "…"` / `bash -c "…"` / `python -c "…"` 里出现反引号、`$`、`\`：双引号下的这些字符会先被 shell 解释。内联反引号会被 `huge-output-guard` 拦（那是保护，不是误报）；被拦就改写成"文件 + `node <file>`"。
-   - **替换文本里含 `$` 时用函数式替换**：JS `s.replace(锚点, () => 文本)`、Python `re.sub(锚点, lambda m: 文本, s)`。因为 `` $` ``（匹配点之前的内容）、`$'`（之后的内容）、`$&`、`$1` 在**字符串替换**里有特殊含义——实测一次把 47k 字符的文档放大到 128k（三倍）。写完后断言"目标节只出现 1 次"就能当场抓住这类膨胀。
-   - 只有**单行、无特殊字符**的命令才允许内联。
-2. **改既有文件优先局部替换，不整文件覆盖**；替换串**从文件里程序化提取**，不要手抄。
-   - 手抄的匹配串必错在转义层数上（`\\` vs `\`、全角/半角引号、尾随空格、CRLF）。做法：先用脚本读出那一行/那一段，再用它构造替换（本机两次实测：手抄的反斜杠串一次没命中、一次把条目分隔符吃掉导致语法错）。
-   - **别按"行号 + 行长度"算偏移做批量替换**：`split('\n')` 在 CRLF 文件上每行少算 1 个 `\r`，偏移逐行累积漂移，写入点会顶掉前一个字符（2026-10-21 实测：12 个 SKILL.md 的 frontmatter 被 `\r` → `：` 顶坏，描述整段失效）。改用**正则定位段边界**（`^---\r?\n([\s\S]*?)\r?\n---` + `^description:([\s\S]*?)(?=\r?\n[A-Za-z_][\w-]*:)`），先在一个文件上验证再批量。
-   - 用 Write 整覆盖既有文件前先备份（`edit-guard` 会在没有版本库兜底时提醒）；覆盖后必须回读关键片段确认。
-3. **写完回读、跑完看退出码**——判据要能失败。
-   - 语法：`.js` 跑 `node --check`；`.json` / XML 解析一次；`.sh` 跑 `bash -n`。
-   - 内容：`grep -c` 断言关键片段**在**、再断言旧片段**不在**（两条都要有，只查"在"会被残留文件蒙混）。
-   - 字节：需要精确时比对 md5/size，或 `diff` 源与目标。
-   - **别把命令塞进管道还读 `$?`**：`cmd | tail` 的退出码是 `tail` 的。用 `cmd > /tmp/x.log 2>&1; echo $?` 或 `${PIPESTATUS[0]}`。
+```yaml
+trigger: glob
+glob: ["**/*Test.java", "**/*Tests.java", "**/*IT.java", "**/*.test.ts", "**/*.test.tsx", "**/*.test.js", "**/*.test.mjs", "**/*.spec.ts", "**/*.spec.tsx", "**/*.spec.js", "**/*_test.go", "**/tests/**"]
+```
 
-## 编码与平台（照抄即可）
-
-| 场景 | 写法 |
-|---|---|
-| 写 `.cmd` / `.bat` | **GBK + CRLF**，且不要靠 `chcp` 兜底（链：UTF-8 工作副本 → 转 CRLF → 转 GBK → md5 逐字节比对；完整 playbook 见技能 `verify-windows-cmd-tool`） |
-| 提交信息含中文 | `git commit -F <消息文件>`，不要内联 `-m "…"`（编码会 E175008 或存成乱码）；提交后向 HEAD 复验 |
-| PowerShell 脚本 | 写盘要带 BOM（无 BOM 的中文会吞引号）；`param()` 必须是首条语句；`"$var:"` 会被当驱动器写法 |
-| Git Bash 里传路径类环境变量 | 裸露的 `/`、`/x` 会被 MSYS 改写成安装目录（如 `VITE_BASE=/` → `/software/Git/`）——用 `MSYS_NO_PATHCONV=1`，或在配置文件里传值 |
-| 中文经 `curl` / `plink` 往返 | 不手工 iconv 猜编码；先用 `file`/`xxd` 看真实字节，再决定转换 |
-
-## 收尾自检（改完文本类文件必跑）
-
-1. `node --check` / `bash -n` / JSON 解析——**本轮**的退出码入判据；
-2. 关键片段"在"与"旧片段不在"两条 `grep -c` 断言；
-3. 涉及 .cmd/.bat 或中文时，回读 `xxd`/md5 确认编码与行尾（GBK 双字节开头会落在 0x81–0xFE 区间，CRLF 是 `0d 0a`）；
-4. 被 `huge-output-guard` 拦下时**改写法**，不要绕。
-
-
-## 反引号被 shell 先解释：本轮真实事故与判据（2026-10-08）
-
-**现象**（不是假设，是发生过的事）：用 `printf '%s\n' "…含 \`#root\` 与 \`jar\` 的中文句子" >> 队列.md`
-追加交接件，结果：① 目标文件尾部被写进命令的**输出**而不是原文；② 命令替换顺带**执行**了
-`jar`（打出用法帮助）并把一份 `.md` 当脚本 source 进 bash（报语法错）；③ 在**项目根误建了 3 个 0 字节文件**，
-文件名是句子里被 `>` 截断出来的碎片（`2026-09-30`、`部署动作本身（替换`、一整句中文）。
-
-**根因**：`printf` 的格式串用单引号是安全的，但**参数**用了双引号——bash 在双引号内**仍会做命令替换**，
-反引号（和 `$( )`）先被求值，再作为参数传给 printf。markdown / 代码引用天然含反引号，所以"往文件里写文档"是高危场景。
-
-**正误对比**：
-
-| ❌ 会出事 | ✅ 正确 |
-|---|---|
-| `printf '%s\n' "结论见 \`验收矩阵.md\` 第 10 节" >> 队列.md` | 文本先用 Write 工具落成文件，再 `cat 文件 >> 队列.md` |
-| `node -e "…\`cmd\`…"`（双引号包整段脚本） | 脚本写成 `.cjs` 文件再 `node x.cjs`；或 `-e` 的参数用**单引号**包住 |
-| `echo "部署后跑 \`jar cf a.jar …\` 打包"` | 带引号 heredoc：`cat <<'EOF' > x.txt` … `EOF`（引号 heredoc 内不做任何替换） |
-
-**判据（追加完立刻跑，别信"看起来成功了"）**：
-1. `svn status` / `git status` 复验**没有新增未预期文件**（本事故就是靠这条抓出 3 个误建件）；
-2. 回读被追加段落的前几行（`tail -n 8 文件`），确认是**原文**而非命令输出；
-3. 误建文件删除时**按条件删**（大小 + mtime 窗口，写在 `.cjs` 里列清单），不要按名字手打——中文名在 Git Bash 里会被转码。
-
-**适用边界**：任何"把含反引号 / `$` / 引号的文本经 shell 写进文件"的动作，包括追加文档、生成配置、
-拼 SQL、写提交信息。纯 ASCII 且无反引号的短文本可以内联，但仍优先走"落文件 + cat"。
+- **断言必须能失败**：写完每条断言先问"它失败得了吗"；禁止两边都算过的分支（`if (成功) {...} else { 断言失败 }` 等于没写）；计数型断言先列出该行之前所有会增删对象的操作再定数字；时间边界夹具留足余量（≥100ms）。
+- **覆盖**：异常路径与边界值必须有用例；每条修复单独附带一个能复现原缺陷的测试；探针 / 检查器类代码先植入一次违规确认它报红，给命中数加下限断言（0 命中是故障不是结论）。
+- **分层与选型**：按测试金字塔配比（单元多而快、集成适量、E2E 少而高置信）；按组件类型选测试种类——API 端点（业务单测 + HTTP 集成 + 消费方契约）、数据管道（输入校验 / 转换正确性 / 幂等）、前端（组件 / 交互 / 视觉回归 / 无障碍）、基础设施（冒烟 / 负载）。覆盖优先级＝业务关键路径、错误处理、边界值、安全边界、数据完整性；跳过 trivial getter/setter 与框架代码。需要测试计划时产出「测什么 / 每块用什么类型 / 覆盖目标 / 示例用例」并指出既有覆盖缺口。
+- **运行**：批量模块的测试一次跑全，中途中断等于没验证；报告"全绿"要能说明：本轮编译退出码、测试命令、覆盖范围。
 
 ### 开发任务拆分（VibeCoding 格式）
 
 ```yaml
-name: vibe-coding-format
-description: 当需要把开发需求拆分成可执行的开发任务 / 任务包 / 批次（尤其要交给 AI 实现）时加载——按 VibeCoding 四层格式生成成套任务文档。关键词：任务拆分、拆解、批次、任务包、开发包、VibeCoding、vibecoding、AGENTS.md、spec、plan、tasks、喂给 AI、开发任务。
 trigger: model_decision
+description: 当需要把开发需求拆分成可执行的开发任务 / 任务包 / 批次（尤其要交给 AI 实现）时加载——按 VibeCoding 格式生成成套任务文档。关键词：任务拆分、拆解、批次、任务包、开发包、VibeCoding、vibecoding、喂给 AI、开发任务。
 ```
 
-- **成文与实施按授权分开**：用户明确要求文档时直接生成；规模大且需求/验收口径不明、尚未获相应授权时才问是否成文。实施未授权才再申请批准，沉默不授权写入。
-- **目标与任务归属**：目录内任务包只是线索；先核对本轮授权。仅用户或系统/开发者明确要求、或用户同意开局询问时创建目标（中大型 / 多阶段 / 审查+成文且无活动目标时开局问一次并推荐建，同意才建，拒绝/取消不催问），不重复问/建已有目标。获准实施后按验收标准逐格推进，明确阶段审批保留；只读审阅以报告为完成标准。
+- **成文与实施按授权分开**：用户明确要求文档时直接生成；规模大且需求 / 验收口径不明、尚未获相应授权时才问是否成文。实施未授权才再申请批准，沉默不授权写入。目标工具仅在用户或系统 / 开发者明确要求、或用户同意开局询问时使用；目录内任务包只是线索，不构成实施授权。
+- **一套任务包的组成**：`B00 共享上下文`（宪法：角色 / 目标 / 技术栈 / 铁律 / 目录约定 / 固定流程——**每开新对话必发**，防长对话遗忘）→ `B00 总发起指令`（批次状态与装配对照表 + 可整段复制的总发起提示词 + 收尾自检清单 + 必须停下问的条件）→ `B0x 批次卡`（一个任务一张卡，编号连续、依赖显式）→ 台账（收口清单 / 验收矩阵：每批收工记一行——做了什么 / 怎么验的 / 没做什么）。
+- **批次卡的固定结构（七段 + 现状段）**：头部（依赖 / 工期 / 一句话风险）→ 开工提示词（用 4 反引号的 text 代码块包裹、可整段复制给 AI）→ 〇 现状（在活代码库上增补时必写：现在有什么、缺什么，**引用状态前先现跑复核**）→ 必做清单（分小节编号）→ 输入 / 输出契约 → 固定约定 → 可勾选验收（每条带判定方式与数字）→ 产出文件清单（写清文件边界）→ 禁止项（防自由发挥）→ 开放问题（AI 第一步先反问，不许静默假设）。
+- **喂给 AI 的标准流程**：新开对话 → 先贴 B00 全文 → 再贴对应批次卡 → 贴"开工提示词"整段。每批固定四步：① ≤20 行复述理解与拆法（唯一一次大改口径的机会）→ ② 输出验收清单 → ③ 分文件输出完整代码（单次 ≤600 行、文件边界明确）→ ④ 给可复制执行的自测命令。
+- **硬要求**："铁律措辞 + 禁止项 + 产出文件清单 + 可失败验收"四件缺一不可；数字与口径不发明——找不到出处的写进"开放问题"，不填感觉值；文档计数引用前先现跑。增量任务卡装配进已有批次：不另建批次、不重做已验收模块。
 
-- **一套任务包的组成（四层映射）**：`AGENTS.md`（宪法：地图 / 命令 / 禁区 / 按需阅读；跨功能复用，每次新会话加载）→ `spec.md`（窄契约：目标 / 明确不做 / 关键路径 / 数据与行为约束 / 非功能 / 可执行验收；**只写 what/why**）→ `plan.md`（≤60 行：改动集合 / 首选与回退 / 技术栈与依赖 / 验证 / 回滚）+ `tasks.md`（一卡一验收：只做 / 明确不做 / 入口 / 验证）→ 台账或 `IMPLEMENTATION_LOG.md`（真实命令与退出码）。旧包继续用 `B00 共享上下文`（≈宪法快照）+ `总发起指令` + `B0x 批次卡`（≈tasks）；B00 **引用 AGENTS.md 与 spec.md，不重复粘贴**。字段级模型、完整 UI 四态、全量版本冻结仅在跨人 / 长周期 / 高风险时加。**无 AGENTS.md / spec.md 的旧包按原格式执行，不强行改造。**
-- **批次卡的固定结构（七段 + 现状段）**：头部（依赖 / 工期 / 一句话风险）→ 开工提示词（用 4 反引号的 text 代码块包裹、可整段复制给 AI）→ 〇 现状（在活代码库上增补时必写：现在有什么、缺什么，**引用状态前先现跑复核**）→ 必做清单（分小节编号）→ 输入 / 输出契约 → 固定约定 → 可勾选验收（每条带判定方式与数字）→ 产出文件清单（写清文件边界）→ 禁止项（防自由发挥）→ 开放问题（先检索；影响验收、安全或授权的缺失才询问，内部实现默认值注明即可）。
-- **喂给 AI 的标准流程（四层）**：宪法 `AGENTS.md` 与契约 `spec.md` 只给路径/节号不重贴 → 计划 `plan.md` 获批后清空规划上下文或开新会话 → 任务 `tasks.md` 一次只发一张卡 → 再贴该卡"开工提示词"整段。每批固定四步：① ≤20 行复述理解与拆法（唯一一次大改口径的机会）→ ② 输出验收清单 → ③ 分文件输出完整代码（单次 ≤600 行、文件边界明确、**只输出变更文件**）→ ④ 给可复制执行的自测命令。L2 改 bug 不立卡：一条消息给 `文件:函数名` + 行号 + 只改什么 + 不要动什么，只输出 diff。
-- **硬要求**：AGENTS.md 有地图/命令/禁区；spec 有"明确不做"与可执行验收；"铁律措辞 + 禁止项 + 产出文件清单 + 可失败验收"四件缺一不可；spec 未覆盖的歧义一律停下问，不自行假设；**验证失败写 `IMPLEMENTATION_LOG.md`（命令 / 退出码 / 最后 30 行 / 最小复现）并停止，不宣布完成**；数字与口径不发明——找不到出处的写进"开放问题"，不填感觉值；文档计数引用前先现跑。增量任务卡装配进已有批次：不另建批次、不重做已验收模块。
+<!-- qoder-package-workflow:start -->
+# 开发任务与交付
+按任务规模形成简短计划与可失败完成条件；充分明确的需求直接实施，不为形式额外索取设计批准。检查项目约定、锁文件、生产调用路径与已有改动，先定位原因，再做最小完整改动。
+并行工作先标明依赖、ownedPaths、唯一写入者和固定基线，保护共享接口/生成物；真实隔离写入后核验逐提交范围、漂移与合并树。下一依赖波次使用已集成并通过验证的新基线。
+执行相关回归与真实关键流程，保留首红和失败原因；按影响同步注释/现有文档。最后复核差异、精确暂存，交付说明完成项、命令/退出码和仍未验证的边界。
+<!-- qoder-package-workflow:end -->
 
-### Vue 开发规则
+### Vue
 
 ```yaml
 trigger: glob
-glob:
-  - "**/*.vue"
+glob: ["**/*.vue"]
 ```
 
-## 组件写法
-
-- 统一用 Composition API + `<script setup>`（Vue 3）；不用 Options API 混写。
-- 组件通信：props 向下 / emit 向上；跨层级用 `provide`/`inject`；全局状态用 Pinia。
-
-## 响应式陷阱（最容易踩）
-
-- **不要直接解构 `reactive` 对象或 `props`**——会丢响应性。用 `toRefs` / `toRef`，或直接 `props.xxx` 访问。
-- `ref` 与 `reactive` 选择：基本类型用 `ref`；对象集合可用 `reactive`，但**同一模块内保持统一风格**，不要混用造成心智负担。
-- `computed` 里**只做纯计算、不写副作用**；`watch` / `watchEffect` 中发起的异步操作要处理清理（`onCleanup`）与竞态。
-
-## 模板
-
-- **`v-if` 与 `v-for` 不要用在同一个元素上**（Vue 3 中 `v-if` 优先级更高，拿不到循环变量）。
-- 列表 `key` 用稳定唯一 id，不要用 index。
-- 大列表考虑虚拟滚动；`v-memo` 一类优化先测量再上。
-
-## 状态管理（Pinia）
-
-- store 按领域拆分，不在 store 里放纯 UI 临时状态。
-- 组合式写法（setup store）与选项式二选一，与项目现状一致。
-
-## 验证
-
-- 交互改动要在真实浏览器验证（见 `verify-ui-in-browser`）；条件渲染、路由守卫、权限分支单测覆盖不到，必须实际点击。
+- **组件写法**：统一 Composition API + `<script setup>`（Vue 3），不用 Options API 混写；通信 props 向下 / emit 向上，跨层级用 `provide`/`inject`，全局状态用 Pinia。
+- **响应式陷阱**：不要直接解构 `reactive` 对象或 `props`（会丢响应性），用 `toRefs` / `toRef` 或直接 `props.xxx`；基本类型用 `ref`，对象集合可用 `reactive` 但同一模块保持统一；`computed` 只做纯计算不写副作用；`watch` / `watchEffect` 中发起的异步操作要处理清理（`onCleanup`）与竞态。
+- **模板**：`v-if` 与 `v-for` 不要用在同一个元素上（Vue 3 中 `v-if` 优先级更高，拿不到循环变量）；列表 `key` 用稳定唯一 id；大列表考虑虚拟滚动，`v-memo` 一类优化先测量再上。
+- **状态管理（Pinia）**：store 按领域拆分，不放纯 UI 临时状态；组合式写法（setup store）与选项式二选一，与项目现状一致。
+- **验证**：交互改动要在真实浏览器验证；条件渲染、路由守卫、权限分支单测覆盖不到，必须实际点击。
 
 ## 三、推荐技能清单（按域速查）
 

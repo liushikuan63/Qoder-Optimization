@@ -3,6 +3,9 @@
  * 生成分享包的《Qoder-AI编码通用规则.md》：第一节 = 本机 AGENTS.md 逐字节；
  * 第二节 = rules/*.md（每篇一个 yaml 块 + 正文）；第三节 = 随包技能按域清单；
  * 第四节 = 沿用上一版文档的设计原则原文。顺带把 README 里的"制作端现场"计数改成实测值。
+ * 注意：第二节会按 --home 的现役 rules/*.md 全量重写（含机器路径与升级口径）。分享文档的
+ * CUA / 文档协作 / memory 段落是人工 curated 的，--apply 前必须与上一版逐节对比并手工保留，
+ * 否则会覆盖 curated 措辞并让 .github/maintenance.test.js 的脱敏断言判红。
  * 用法：node pack-share-docs.cjs <包目录> [--name Qoder-Optimization] [--version 0.0.1] [--home <目录>] [--apply]
  */
 'use strict';
