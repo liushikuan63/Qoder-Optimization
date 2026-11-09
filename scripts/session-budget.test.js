@@ -39,6 +39,7 @@ function run(payload, extraEnv) {
       SB_APPLOG_ROOT: path.join(SB, 'applog-none'),
       // 临时根也沙箱化：否则"超期临时产物"提醒会去扫真实 %TEMP%/qoder-work，把静默用例判红
       TEMP: path.join(SB, 'temp-none'), TMP: path.join(SB, 'temp-none'), TMPDIR: path.join(SB, 'temp-none'),
+      LOCALAPPDATA: path.join(SB, 'localappdata-none'),
       ...(extraEnv || {}),
     },
   });
@@ -186,7 +187,8 @@ for (const c of cases) {
   const trTemp = path.join(SB, 'tr-temp');
   const trWork = path.join(trTemp, 'qoder-work');
   const trState = path.join(SB, 'tr-state');
-  const env = { HOME: trHome, USERPROFILE: trHome, SB_STATE_DIR: trState, TEMP: trTemp, TMP: trTemp, TMPDIR: trTemp };
+  const env = { HOME: trHome, USERPROFILE: trHome, SB_STATE_DIR: trState, TEMP: trTemp, TMP: trTemp, TMPDIR: trTemp,
+    LOCALAPPDATA: path.join(SB, 'tr-localappdata') };
   const runTr = () => spawnSync(NODE, [SCRIPT], {
     input: JSON.stringify({ hook_event_name: 'SessionStart', cwd: path.join(SB, 'empty-proj') }),
     encoding: 'utf8', timeout: 20000,

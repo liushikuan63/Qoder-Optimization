@@ -484,11 +484,13 @@ function tmpOverdueNote() {
   if (!fs.existsSync(SWEEPER_SCRIPT)) return null;        // 清理器没装，不是它能管的事
   let sweeper;
   try { sweeper = require(SWEEPER_SCRIPT); } catch (e) { return null; }
-  if (typeof sweeper.walk !== 'function' || typeof sweeper.defaultRoot !== 'function') return null;
-  const root = sweeper.defaultRoot();
-  if (!fs.existsSync(root)) return null;
-  const found = [];
-  try { sweeper.walk(root, found); } catch (e) { return null; }
+  let res;
+  try {
+    res = typeof sweeper.scan === 'function'
+      ? sweeper.scan({ maxMs: 800 })                       // 开台预算：0.8s 内扫到多少报多少
+      : (() => { const f = []; sweeper.walk(sweeper.defaultRoot(), f); return { stale: f, partial: false }; })();
+  } catch (e) { return null; }
+  const found = res.stale || [];
   if (!found.length) return null;
   try {
     const st = JSON.parse(fs.readFileSync(TMP_REMIND_STATE, 'utf8'));
@@ -497,9 +499,9 @@ function tmpOverdueNote() {
   } catch (e) { /* 没有状态文件 ⇒ 第一次提醒 */ }
   try {
     fs.mkdirSync(path.dirname(TMP_REMIND_STATE), { recursive: true });
-    fs.writeFileSync(TMP_REMIND_STATE, JSON.stringify({ at: new Date().toISOString(), stale: found.length }));
+    fs.writeFileSync(TMP_REMIND_STATE, JSON.stringify({ at: new Date().toISOString(), stale: found.length, partial: !!res.partial }));
   } catch (e) { /* 状态写不进去最多重复提醒，不影响清理本身 */ }
-  return `【清理提醒 · 超期临时产物】\`${root}\` 有 **${found.length} 个**超期件（图/文 >3 天、脚本 >15 天），` +
+  return `【清理提醒 · 超期临时产物】多根临时目录共扫到 **${found.length} 个**超期件（图/文 >3 天、脚本 >15 天）${res.partial ? '（扫描预算内，数量为下限）' : ''}，` +
     `其中可能有已用完的截图 / 探针 / 日志。按 /clean-temp 流程：先 \`node ~/.qoder/scripts/tmp-sweeper.js --json\` 列清单，` +
     `再用 AskUserQuestion 一次问全（推荐清理），确认后才 \`--apply\`，最后复验清单为空。默认只列不删。`;
 }

@@ -37,11 +37,10 @@ description: 清理我方临时产物（截图 / 探针脚本 / 日志）——�
 
 - **保留意图优先**：用户明确保留或被证据/文档引用的产物不得因会话ID命名而删除。
   名称不清晰时可在获准范围内改名，但不把改名或写记忆作为保留文件的前置。
-- **本机临时根是 `%TEMP%/qoder-work`**（即 `C:\Users\<user>\AppData\Local\Temp\qoder-work`）：
-  `tmp-sweeper.js` 默认只扫它；放在**别处**（如 `D:\tmp`）的产物**扫不到**，需显式 `--root <路径>`
-  或按精确路径处理，否则"超期兜底"对那个目录是静默失效的。
-  > 注：入站包原文写"本机临时根是 `D:\tmp`"，那是**对方机器**的实况；本机（2026-10-12 复核）仍是
-  > `%TEMP%/qoder-work`，故按本机口径落笔。
+- **扫描根（2026-11-09 多根）**：默认 `%TEMP%/qoder-work`；自动附带 `%TEMP%/qoder-cli`（会话任务输出，`.output` 按文本类）与 `%LOCALAPPDATA%/Temp/qoder-work`（TEMP 迁盘前遗留，若存在）；额外根只能由 `~/.qoder/tmp-sweeper.json` 的 `extraRoots`（本机含 `D:/tmp`）或显式 `--root` 给出，**脚本不接受通配或相对路径**。
+- **活跃保护**：任一顶层条目 24h 内有改动 ⇒ 视为活跃会话产物、整棵跳过（`--include-fresh` 可解除）；删除后回收本次扫描过的空目录。
+- **证据排除**：`tmp-sweeper.json` 的 `excludePaths` / `excludeTopPrefixes` 列出被记忆或交付文档引用的取证目录（本机含 `D:/tmp/context-continuity-924e5d4b`、`D:/tmp/qo-deploy-*`、`D:/tmp/QO-REL-*` 等），一律不扫不删；新增证据目录时同步登记。
+- **本机临时目录约定**：`D:\tmp` 是临时文件专用目录（AGENTS.md「不往 C 盘写」）；放在未登记位置的产物**扫不到**，需补 `extraRoots` 或按精确路径处理。
 
 ## 安全边界（违反即停手）
 
