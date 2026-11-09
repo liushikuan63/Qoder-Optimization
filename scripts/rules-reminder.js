@@ -237,11 +237,11 @@ function workflowNote(promptText) {
 }
 
 function goalNoteFor(promptText) {
-  return WORKFLOW_MODE === 'model' ? '' : goalCandidateNote(promptText);
+  return goalCandidateNote(promptText);
 }
 
 function verificationNote(promptText) {
-  if (WORKFLOW_MODE === 'model' || !verificationEnabled()) return '';
+  if (!verificationEnabled()) return '';
   const text = typeof promptText === 'string' ? promptText : '';
   const result = classifyVerificationTrigger(text);
   logVerificationDecision(result, text);
@@ -388,10 +388,6 @@ function capabilityNote(promptText) {
         lines.push(`- 用户本轮已明确指定 ${name}：现在读取对应入口 ${reference} 并按其适用步骤执行；无需重复询问是否使用。${local}`);
         continue;
       }
-      if (WORKFLOW_MODE === 'model') {
-        lines.push('- ' + JSON.stringify({ name, entry: entry.replace(/\\/g, '/'), installed, candidateAction: item.action }) + '（仅召回数据；由模型判断相关性，不据此自动使用、询问、安装或更新。）');
-        continue;
-      }
       if (item.action === 'AUTO_LOAD') {
         // 只读加载不进入永久去重台账：投递只证明提示已送达，未读取时下一轮仍须提示。
         lines.push(`- ${name}（AUTO_LOAD）：已按需发现本地技能，只读加载；现在读取入口 ${reference}，按其适用步骤执行；不得据此安装、更新、发布或扩大操作授权；投递不等于已读取。`);
@@ -406,14 +402,6 @@ function capabilityNote(promptText) {
       const question = item.action === 'ASK_USE' ? `是否使用 ${name} 来完成当前任务？` : `是否${verb} ${name} 用于当前任务？`;
       const qualifier = item.action === 'REVIEW_UPDATE' ? '本地已有差异，先展示并审查差异，不覆盖本地内容。' : '';
       lines.push(`- ${name}（${item.action}）：可核对入口 ${reference}。${qualifier}用 AskUserQuestion 提问：${JSON.stringify(question)}，给出“${verb} / 本次不用”选项；用户未明确选择前保留原状态。`);
-    }
-    if (WORKFLOW_MODE === 'model') {
-      if (!lines.length) return '';
-      const review = result.items.some(item => item && item.action === 'REVIEW_UPDATE');
-      return '\n【当前任务能力候选 · 仅召回】\n' + lines.join('\n')
-        + (review ? '\nREVIEW_UPDATE 只表示本地版本与包内有差异：当前任务先用本地版本，更新另行确认，不要把差异审查当成使用前置。' : '')
-        + '\n逐条做相关性判别：与当前任务实质相关才 USE / ASK；只是词面相近但任务不同就 SKIP 并忽略，不为使用而使用；判不准时说明依据。'
-        + '\n明确指名仍按原始授权处理；其余候选不得冒充启用或安装批准。';
     }
     return lines.length ? '\n【当前任务能力建议】\n' + lines.join('\n')
       + '\n以上是能力建议或本轮明确指名路由；自动触发只自动加载与判定，不等于派发授权；投递记录不等于用户批准。已有适用授权不重复询问，能力使用也不扩大安装、发布或生产操作权限。' : '';

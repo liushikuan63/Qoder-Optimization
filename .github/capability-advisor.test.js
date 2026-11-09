@@ -342,6 +342,8 @@ test('workflow note is bound to the full prompt rather than its clipped summary'
   assert.ok(note.includes('WORKFLOW_BINDING ' + workflow.workflowBinding(context)));
   assert.ok(note.includes('--workflow-decision'));
   assert.ok(note.includes('不另调模型'));
+  assert.ok(note.includes('AskUserQuestion'));
+  assert.ok(note.includes('四个选项'));
   assert.ok(!note.includes(prompt));
 });
 

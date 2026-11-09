@@ -14,6 +14,7 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ### Fixed
 - Replace the compaction recovery pointer's nonexistent fold-handle instruction with the continuity archive and raw transcript routes, and state explicitly that no fold handle exists.
+- Restore the explicit B05 verification-tier ask, goal candidate note and capability use/install/update questions in `--workflow-mode model`: `rules-reminder.js` no longer suppresses `verificationNote`/`goalCandidateNote` or downgrades capability candidates to recall-only, and the workflow contract now requires AskUserQuestion before executable work when a tier is assessed.
 
 ### 中文摘要
 - 新增 `pkg-diff review`：逐文件文本/文案 diff、三路判定与 `MERGE_DECISIONS` 清单；合并、发布后同步现役与安装更新流程改为逐条询问（保留本地 / 采纳包内 / 手工合并 / 跳过），不再只问“是否部署”。
@@ -21,6 +22,7 @@ During the 0.x line, minor versions may contain breaking changes.
 - 审阅时把包内 `skills/<name>` 自动映射到本机 `skills-library/<name>`，按需层技能不再被误报为新增。
 - context-governor hook 快照改为增量（缓存偏移 / 哨兵 / 上次 usage，截断或重写回退全量），压缩前使用率提示用 `<data-dir>/config.json` 的 `{"inject":true}` 开启（env 优先）；22MB 会话稳态扫描由约 2.0 秒降至约 0.13 秒。
 - 压缩恢复指针不再指向不存在的 fold 句柄，改为 continuity 档案与原始 transcript，并明说没有 fold 句柄。
+- 恢复 `--workflow-mode model` 下的 B05 验证选档、目标候选与能力使用/安装/更新询问：不再短路 `verificationNote`/`goalCandidateNote`，能力候选恢复 AskUserQuestion；工作流契约明确要求业务写入前先询问四档。
 
 ## [0.1.0] - 2026-11-08
 

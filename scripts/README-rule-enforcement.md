@@ -9,7 +9,7 @@
 
 | 机制 | 入口 | 作用 |
 |---|---|---|
-| 每轮规则提醒 | `scripts/rules-reminder.js`（UserPromptSubmit） | 把首要纪律每轮重注入，抗压缩丢失与注意力衰减；并内置目标候选、自进化采集、B05 自动选档触发（新装默认 `--workflow-mode model` 的结构化判定；回退 `route` 时用 `verification-trigger-core.js`，可写 `~/.qoder/verification-trigger.json` 的 `{"enabled":false}` 关闭）及主动联网查证/工具获取提示。禁止联网或引用不触发，只读/禁止下载只提示查证；hook 不联网、不下载或安装，不改变平台权限 |
+| 每轮规则提醒 | `scripts/rules-reminder.js`（UserPromptSubmit） | 把首要纪律每轮重注入，抗压缩丢失与注意力衰减；并内置目标候选、自进化采集、B05 自动选档触发（新装默认 `--workflow-mode model`：结构化判定 + `verification-trigger-core.js` 关键词兜底；回退 `route` 时仅走关键词判定，可写 `~/.qoder/verification-trigger.json` 的 `{"enabled":false}` 关闭）及主动联网查证/工具获取提示。禁止联网或引用不触发，只读/禁止下载只提示查证；hook 不联网、不下载或安装，不改变平台权限 |
 | 停手门禁 | `scripts/stop-gate.js`（Stop） | 收尾文本命中 R1 停手等待 / R1b 声明下一步未做 / R2 裁决未弹窗 / R3 前台无视觉证据 / R4 明确记忆请求无成功证据 / R5 无主张踢皮球 / R6-R6c 队列与阻塞 / R7 大会话交接 / R8 记忆证据 / R10 安装更新未询问 / R11 发布后未询问部署 ⇒ `decision:block` 逼回正轨；只检查当前授权任务，只读/交接不催办 |
 | 规则真源体检 | `scripts/global-config-guard.js`（SessionStart） | AGENTS.md 与 `rules/*.md` 两侧漂移、memory 分叉、规则里的悬空文件引用；健康时零输出。**两路 bash 检查共用一个 11s 截止线**（hook 只给 15s，各设 8s 会相加越界、被掐时连提醒都不输出）：到点跳过剩余项并明说「未检查」，检查器跑不起来（退出码非 0/1）也一律出声 |
 | 会话体积与接续 | `scripts/session-budget.js`（UserPromptSubmit + SessionStart） | **三个独立信号**：① 体积 ≥8MB 节约模式 / ≥15MB **先落盘再继续** / ≥25MB **立即落盘**；② transcript 里 `isCompactSummary:true` 的**压缩次数** ≥1 条提醒落盘、≥2 条**落盘并继续**。体积说"会不会被掐断"，压缩次数说"已经丢过几次上下文"（context rot），**③ 上一回合的上下文增量**（≥2MB 报警，`SB_TURN_GROWTH_MB` 可调）说"上一回合灌得太快"——这是**返回侧入账**：读取侧守卫只拦"明显超标的单条"，拦不住多条中等返回累积。**已知局限**：增量只有回合粒度，看不出是哪一个工具贡献的（要单工具粒度需 PostToolUse，尚未接）。SessionStart 另注入两样：未完成的 `.qoder-work-queue.md` 接续点（文案是"**第一条未完成项就是你本轮的第一件事，直接接着做**"） + **看门狗**（见下行）。**为什么必须前移**：被掐断的回合到不了 Stop，R7 兜不住它要防的那件事。**文案定调**：落盘与换会话都是手段、都**不是收工信号**——到档位先落盘，**然后继续推进当前任务**，任务不停只是换个地方跑 |

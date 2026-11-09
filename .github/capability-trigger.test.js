@@ -50,13 +50,16 @@ function workflowHook(f, prompt, extra = [], target = path.join(root, 'scripts/r
   });
 }
 
-test('model mode injects a bound semantic decision contract without old workflow auto-prompts', t => {
+test('model mode injects a bound decision contract and keeps the explicit verification and goal asks', t => {
   const f = fixture(t);
   const result = workflowHook(f, '实现多个模块，部署验收后提交；再判断是否成文');
   assert.equal(result.status, 0, result.stderr);
   const text = JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
   assert.match(text, /【工作方式 · 模型判断】/);
-  assert.doesNotMatch(text, /【目标候选|【B05 自动选档 · 已触发】/);
+  assert.match(text, /【B05 自动选档 · 已触发】/);
+  assert.match(text, /用 AskUserQuestion 原样提问/);
+  assert.match(text, /【目标候选 · 需弹窗确认】/);
+  assert.match(text, /用 AskUserQuestion 同轮询问两项/);
   const reminder = text.split('【工作方式 · 模型判断】')[0];
   assert.match(reminder, /关键词不强制出计划或追问/);
   assert.doesNotMatch(reminder, /全项目\/多模块\/多端\/多文件\/多版本任务先按 parallel-orchestration|中大型、多阶段或审查\+成文任务先用 AskUserQuestion/);
@@ -109,7 +112,7 @@ test('the actual model hook emits executable argv and a local shell command for 
   }
 });
 
-test('model mode treats keyword matches as data while explicit current choices keep their original authority', t => {
+test('model mode keeps capability routing and explicit current choices authoritative', t => {
   const f = fixture(t);
   const installed = f.skill('parallel-orchestration');
   const entry = { id: installed.id, name: installed.name, category: 'skill', status: 'shipped', tier: 'library', source: 'skills/parallel-orchestration', description: 'parallel orchestration', install: { mode: 'copy-skill', tier: 'library' }, dependencies: [] };
@@ -118,14 +121,27 @@ test('model mode treats keyword matches as data while explicit current choices k
   let result = workflowHook(f, '把多个模块并行审查');
   assert.equal(result.status, 0, result.stderr);
   let text = JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
-  assert.match(text, /【当前任务能力候选 · 仅召回】/);
-  assert.match(text, /仅召回数据/);
-  assert.doesNotMatch(text, /parallel-orchestration（AUTO_USE）|已自动触发/);
-  assert.equal(fs.existsSync(path.join(f.client, 'tmp/capability-advisor/sessions')), false);
+  assert.match(text, /【当前任务能力建议】/);
+  assert.match(text, /parallel-orchestration（AUTO_USE）/);
+  assert.match(text, /已自动触发/);
+  assert.match(text, /不得自动派发 worker/);
+  assert.equal(fs.existsSync(path.join(f.client, 'tmp/capability-advisor/sessions')), true);
   result = workflowHook(f, '请使用 parallel-orchestration 审查模块');
   text = JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
   assert.match(text, /本轮已明确指定 parallel-orchestration/);
   assert.doesNotMatch(text, /是否使用 parallel-orchestration/);
+});
+
+test('model mode restores the capability use question for ASK_USE candidates', t => {
+  const f = fixture(t), item = f.skill(); f.setItems([item]); f.register();
+  // The fixture advisor boundary supplies adviceItems; the copied hook uses it.
+  const result = workflowHook(f, '修复浏览器页面', [], path.join(f.scripts, 'rules-reminder.js'));
+  assert.equal(result.status, 0, result.stderr);
+  const text = JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
+  assert.match(text, /【当前任务能力建议】/);
+  assert.match(text, /browser-helper（ASK_USE）/);
+  assert.match(text, /用 AskUserQuestion 提问/);
+  assert.match(text, /是否使用 browser-helper 来完成当前任务/);
 });
 
 test('model mode cannot silently fall back when optional decision support or identity is absent', t => {
@@ -135,10 +151,13 @@ test('model mode cannot silently fall back when optional decision support or ide
   const text = JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
   assert.match(text, /模型判断不可绑定/);
   assert.match(result.stderr, /WORKFLOW_NOTE_UNAVAILABLE/);
-  assert.doesNotMatch(text, /【目标候选|【B05 自动选档 · 已触发】/);
+  assert.match(text, /【B05 自动选档 · 已触发】/);
+  assert.match(text, /【目标候选 · 需弹窗确认】/);
   const missingIdentity = spawnSync(process.execPath, [path.join(root, 'scripts/rules-reminder.js'), '--workflow-mode', 'model'], { env: f.env, cwd: f.dir, input: JSON.stringify({ prompt: '实现完整功能并提交' }), encoding: 'utf8', timeout: 20000 });
   assert.equal(missingIdentity.status, 0);
-  assert.match(JSON.parse(missingIdentity.stdout).hookSpecificOutput.additionalContext, /模型判断不可绑定/);
+  const missingText = JSON.parse(missingIdentity.stdout).hookSpecificOutput.additionalContext;
+  assert.match(missingText, /模型判断不可绑定/);
+  assert.match(missingText, /【B05 自动选档 · 已触发】/);
 });
 
 test('workflow route mode preserves default output and malformed model flags do not select another mode', t => {
