@@ -80,7 +80,7 @@ function snapshotFor(event) {
 }
 
 function pointerText() {
-  return '[context-governor] 压缩已发生：仅恢复指针，不申报输入减量。先核对当前请求/授权，再按 D:/qoder-data/context-governor 的 fold 句柄追回；未核对前不要把摘要当事实。';
+  return '[context-governor] 压缩已发生：仅恢复指针，不申报输入减量，也没有 fold 句柄。先核对当前请求/授权；需要原文时用 continuity 档案检索（node "D:/tools/qoder-context-continuity/continuity.cjs" search --cwd <目录> --session <会话> --query "<关键词>"），或直接读取原始 transcript；未核对前不要把摘要当事实。';
 }
 
 function injectText(ratio, level) {
