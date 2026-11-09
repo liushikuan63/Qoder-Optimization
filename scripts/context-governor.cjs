@@ -1590,6 +1590,7 @@ module.exports = {
   estimateTokens,
   canonicalJson,
   integrityOf,
+  extractUsage,
   readTranscript,
   buildSnapshot,
   buildProtection,

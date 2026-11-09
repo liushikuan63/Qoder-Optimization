@@ -10,6 +10,9 @@ const COOLDOWN_TURNS = 8;
 const SOFT_RATIO = 0.65;
 const PRESSURE_RATIO = 0.75;
 const EMERGENCY_RATIO = 0.88;
+const SENTINEL_BYTES = 64;
+const SCAN_CHUNK_BYTES = 64 * 1024;
+const FALLBACK_WINDOW = 200000;
 
 function dataDir() {
   return path.resolve(process.env.CONTEXT_GOVERNOR_DATA || DEFAULT_DATA_DIR);
@@ -72,11 +75,124 @@ function transcriptOf(event) {
   return event.transcript_path || event.transcriptPath || null;
 }
 
-function snapshotFor(event) {
+function injectEnabled() {
+  const raw = process.env.CONTEXT_GOVERNOR_INJECT;
+  if (raw === '1') return true;
+  if (raw === '0') return false;
+  try {
+    const cfg = JSON.parse(fs.readFileSync(path.join(dataDir(), 'config.json'), 'utf8'));
+    return Boolean(cfg) && cfg.inject === true;
+  } catch (err) {
+    return false;
+  }
+}
+
+function sentinelAt(fd, position, length) {
+  if (position <= 0) return '';
+  const start = Math.max(0, position - length);
+  const buf = Buffer.alloc(position - start);
+  const read = fs.readSync(fd, buf, 0, buf.length, start);
+  return buf.subarray(0, read).toString('hex');
+}
+
+function scanUsages(fd, start, end) {
+  const usages = [];
+  let tail = Buffer.alloc(0);
+  let pos = start;
+  while (pos < end) {
+    const len = Math.min(SCAN_CHUNK_BYTES, end - pos);
+    const buf = Buffer.alloc(len);
+    const read = fs.readSync(fd, buf, 0, len, pos);
+    if (!read) break;
+    pos += read;
+    const chunk = tail.length ? Buffer.concat([tail, buf.subarray(0, read)]) : buf.subarray(0, read);
+    let lineStart = 0;
+    let nl;
+    while ((nl = chunk.indexOf(0x0a, lineStart)) !== -1) {
+      const text = chunk.subarray(lineStart, nl).toString('utf8').replace(/\r$/, '');
+      if (text.trim()) {
+        let obj = null;
+        try {
+          obj = JSON.parse(text);
+        } catch (err) {
+          obj = null;
+        }
+        if (obj && typeof obj === 'object') {
+          const msg = obj.message && typeof obj.message === 'object' ? obj.message : obj;
+          const usage = gov.extractUsage(obj, msg);
+          if (usage) usages.push(usage);
+        }
+      }
+      lineStart = nl + 1;
+    }
+    tail = chunk.subarray(lineStart);
+  }
+  return { usages, nextOffset: end - tail.length };
+}
+
+function snapshotFor(event, state) {
   const transcript = transcriptOf(event);
-  if (!transcript || !fs.existsSync(transcript)) return null;
-  const parsed = gov.readTranscript(transcript);
-  return gov.buildSnapshot(parsed, []);
+  if (!transcript) return null;
+  const abs = path.resolve(transcript);
+  let stat;
+  try {
+    stat = fs.statSync(abs);
+  } catch (err) {
+    return null;
+  }
+  let fd;
+  try {
+    fd = fs.openSync(abs, 'r');
+    let cache = state.snapshotCache && state.snapshotCache.path === abs ? state.snapshotCache : null;
+    let offset = cache ? Number(cache.offset) || 0 : 0;
+    let lastUsage = cache ? cache.lastUsage : null;
+    let fullScan = false;
+    if (cache && stat.size >= offset && offset > 0) {
+      const sentinel = sentinelAt(fd, offset, SENTINEL_BYTES);
+      if (sentinel !== (cache.sentinel || '')) {
+        cache = null;
+      }
+    }
+    if (!cache || stat.size < offset || offset === 0) {
+      fullScan = true;
+      offset = 0;
+      lastUsage = null;
+    }
+    let nextOffset = offset;
+    let scanBytes = 0;
+    if (stat.size > offset) {
+      const scanned = scanUsages(fd, offset, stat.size);
+      scanBytes = stat.size - offset;
+      if (scanned.usages.length) lastUsage = scanned.usages[scanned.usages.length - 1];
+      nextOffset = scanned.nextOffset;
+    }
+    state.snapshotCache = {
+      path: abs,
+      size: stat.size,
+      offset: nextOffset,
+      sentinel: sentinelAt(fd, nextOffset, SENTINEL_BYTES),
+      lastUsage: lastUsage || null,
+      updatedAt: new Date().toISOString(),
+    };
+    state.lastScanBytes = scanBytes;
+    state.lastScanFull = fullScan;
+    const U = lastUsage
+      ? (Number.isFinite(lastUsage.ratio)
+        ? lastUsage.ratio
+        : (lastUsage.inputTokens > 0
+          ? lastUsage.inputTokens / (Number.isFinite(lastUsage.window) && lastUsage.window > 0 ? lastUsage.window : FALLBACK_WINDOW)
+          : null))
+      : null;
+    return { U, P: lastUsage ? lastUsage.inputTokens : null };
+  } finally {
+    if (fd !== undefined) {
+      try {
+        fs.closeSync(fd);
+      } catch (err) {
+        // fail-open: closing a read handle must never break the hook
+      }
+    }
+  }
 }
 
 function pointerText() {
@@ -90,11 +206,11 @@ function injectText(ratio, level) {
 }
 
 function decideUserPrompt(event) {
-  if (process.env.CONTEXT_GOVERNOR_INJECT !== '1') return { status: 'disabled' };
+  if (!injectEnabled()) return { status: 'disabled' };
   const sessionId = sessionIdOf(event);
   const state = readState(sessionId);
   state.turnsSinceInject = Number.isFinite(state.turnsSinceInject) ? state.turnsSinceInject + 1 : 1;
-  const snapshot = snapshotFor(event);
+  const snapshot = snapshotFor(event, state);
   if (!snapshot || snapshot.U === null || snapshot.U < SOFT_RATIO) {
     writeState(sessionId, state);
     return { status: 'below-threshold' };
@@ -116,7 +232,7 @@ function main(argv = process.argv.slice(2)) {
   if (argv.includes('--help')) {
     process.stdout.write('context-governor-hook: reads one hook event from stdin and exits 0.\n' +
       'Events: PreCompact, PostCompact, SessionStart, UserPromptSubmit.\n' +
-      'Default: zero injection. Set CONTEXT_GOVERNOR_INJECT=1 to allow soft-threshold candidates.\n');
+      'Default: zero injection. Enable with CONTEXT_GOVERNOR_INJECT=1 (or 0 to force off) or {"inject":true} in <data-dir>/config.json; env wins.\n');
     return 0;
   }
   let event = {};
@@ -127,8 +243,8 @@ function main(argv = process.argv.slice(2)) {
     sessionId = sessionIdOf(event);
     const name = normalizeEventName(event);
     if (name === 'PreCompact') {
-      const snapshot = snapshotFor(event);
       const state = readState(sessionId);
+      const snapshot = snapshotFor(event, state);
       state.lastPreCompactAt = new Date().toISOString();
       state.lastKnownInputTokens = snapshot ? snapshot.P : null;
       state.lastKnownRatio = snapshot ? snapshot.U : null;

@@ -10,11 +10,17 @@ During the 0.x line, minor versions may contain breaking changes.
 - Add `pkg-diff review`: per-file text/wording diffs with `KEEP-LOCAL` / `TAKE-INBOUND` / `BOTH-CHANGED` / `NO-BASELINE` / `WHITESPACE` verdicts and a mandatory `MERGE_DECISIONS` list. Merge, release-sync and install-update workflows now require per-file merge choices (keep local / take inbound / manual merge / skip) instead of a single deploy question.
 - Add a stop-gate check that blocks share-package updates or merges performed without a merge review and a per-file decision.
 - Match inbound `skills/<name>` against the client's `skills-library/<name>` tier during review, so library-tier skills reach a per-file decision instead of being reported as new.
+- Make the context-governor hook snapshot incremental: cache the transcript offset, sentinel and last usage in hook state, scan only appended bytes, and fall back to a full scan when the file shrinks or is rewritten. Enable pre-compaction usage hints with `{"inject":true}` in `<data-dir>/config.json` (env wins). Steady-state scans of a 22 MB transcript drop from ~2.0 s to ~0.13 s.
+
+### Fixed
+- Replace the compaction recovery pointer's nonexistent fold-handle instruction with the continuity archive and raw transcript routes, and state explicitly that no fold handle exists.
 
 ### 中文摘要
 - 新增 `pkg-diff review`：逐文件文本/文案 diff、三路判定与 `MERGE_DECISIONS` 清单；合并、发布后同步现役与安装更新流程改为逐条询问（保留本地 / 采纳包内 / 手工合并 / 跳过），不再只问“是否部署”。
 - stop-gate 新增门禁：未做合并审阅与逐条决策就更新/合并分享包会被拦截。
 - 审阅时把包内 `skills/<name>` 自动映射到本机 `skills-library/<name>`，按需层技能不再被误报为新增。
+- context-governor hook 快照改为增量（缓存偏移 / 哨兵 / 上次 usage，截断或重写回退全量），压缩前使用率提示用 `<data-dir>/config.json` 的 `{"inject":true}` 开启（env 优先）；22MB 会话稳态扫描由约 2.0 秒降至约 0.13 秒。
+- 压缩恢复指针不再指向不存在的 fold 句柄，改为 continuity 档案与原始 transcript，并明说没有 fold 句柄。
 
 ## [0.1.0] - 2026-11-08
 

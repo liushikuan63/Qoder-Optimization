@@ -37,6 +37,19 @@ function makeTranscript(dir, sessionId, ratio) {
   return file;
 }
 
+function usageLine(sessionId, ratio, inputTokens = 70000, pad = '') {
+  return JSON.stringify({
+    type: 'user',
+    uuid: `u-${sessionId}-${ratio}`,
+    sessionId,
+    cwd: 'D:/tmp',
+    message: { role: 'user', content: 'appended prompt' },
+    usage: { input_tokens: inputTokens, output_tokens: 10, context_usage_ratio: ratio },
+    model: 'hook-fixture',
+    pad,
+  });
+}
+
 function run(event, dataDir, env = {}) {
   const result = spawnSync(process.execPath, [HOOK], {
     input: typeof event === 'string' ? event : JSON.stringify(event),
@@ -139,5 +152,137 @@ test('context-governor hook', async (t) => {
     const help = spawnSync(process.execPath, [HOOK, '--help'], { encoding: 'utf8', timeout: 30000 });
     assert.equal(help.status, 0);
     assert.ok(help.stdout.includes('context-governor-hook'));
+  });
+
+  await t.test('incremental scan reads only appended bytes and picks up new usage', () => {
+    const dir = path.join(ROOT, 'incremental');
+    const dataDir = path.join(dir, 'data');
+    const transcript = makeTranscript(dir, 'hook-inc', 0.4);
+    const first = run({
+      hook_event_name: 'UserPromptSubmit',
+      session_id: 'hook-inc',
+      transcript_path: transcript,
+    }, dataDir, { CONTEXT_GOVERNOR_INJECT: '1' });
+    assert.equal(first.status, 0);
+    assert.equal(first.stdout.trim(), '');
+    const appended = usageLine('hook-inc', 0.7) + '\n';
+    fs.appendFileSync(transcript, appended, 'utf8');
+    const second = run({
+      hook_event_name: 'UserPromptSubmit',
+      session_id: 'hook-inc',
+      transcript_path: transcript,
+    }, dataDir, { CONTEXT_GOVERNOR_INJECT: '1' });
+    assert.equal(second.status, 0);
+    const payload = JSON.parse(second.stdout);
+    assert.ok(payload.hookSpecificOutput.additionalContext.includes('70%'));
+    const state = JSON.parse(fs.readFileSync(path.join(dataDir, 'hook-state', 'hook-inc.json'), 'utf8'));
+    assert.equal(state.lastScanFull, false);
+    assert.equal(state.lastScanBytes, Buffer.byteLength(appended));
+  });
+
+  await t.test('partial trailing line is not consumed until newline arrives', () => {
+    const dir = path.join(ROOT, 'partial');
+    const dataDir = path.join(dir, 'data');
+    const transcript = makeTranscript(dir, 'hook-partial', 0.4);
+    run({
+      hook_event_name: 'UserPromptSubmit',
+      session_id: 'hook-partial',
+      transcript_path: transcript,
+    }, dataDir, { CONTEXT_GOVERNOR_INJECT: '1' });
+    const line = usageLine('hook-partial', 0.7);
+    fs.appendFileSync(transcript, line.slice(0, 20), 'utf8');
+    const mid = run({
+      hook_event_name: 'UserPromptSubmit',
+      session_id: 'hook-partial',
+      transcript_path: transcript,
+    }, dataDir, { CONTEXT_GOVERNOR_INJECT: '1' });
+    assert.equal(mid.status, 0);
+    assert.equal(mid.stdout.trim(), '');
+    fs.appendFileSync(transcript, line.slice(20) + '\n', 'utf8');
+    const after = run({
+      hook_event_name: 'UserPromptSubmit',
+      session_id: 'hook-partial',
+      transcript_path: transcript,
+    }, dataDir, { CONTEXT_GOVERNOR_INJECT: '1' });
+    assert.equal(after.status, 0);
+    const payload = JSON.parse(after.stdout);
+    assert.ok(payload.hookSpecificOutput.additionalContext.includes('70%'));
+  });
+
+  await t.test('truncated transcript triggers full rescan', () => {
+    const dir = path.join(ROOT, 'truncated');
+    const dataDir = path.join(dir, 'data');
+    const transcript = makeTranscript(dir, 'hook-trunc', 0.9);
+    const first = run({
+      hook_event_name: 'UserPromptSubmit',
+      session_id: 'hook-trunc',
+      transcript_path: transcript,
+    }, dataDir, { CONTEXT_GOVERNOR_INJECT: '1' });
+    assert.equal(first.status, 0);
+    assert.ok(JSON.parse(first.stdout).hookSpecificOutput.additionalContext.includes('90%'));
+    const rewritten = usageLine('hook-trunc', 0.4) + '\n';
+    fs.writeFileSync(transcript, rewritten, 'utf8');
+    const second = run({
+      hook_event_name: 'UserPromptSubmit',
+      session_id: 'hook-trunc',
+      transcript_path: transcript,
+    }, dataDir, { CONTEXT_GOVERNOR_INJECT: '1' });
+    assert.equal(second.status, 0);
+    assert.equal(second.stdout.trim(), '');
+    const state = JSON.parse(fs.readFileSync(path.join(dataDir, 'hook-state', 'hook-trunc.json'), 'utf8'));
+    assert.equal(state.lastScanFull, true);
+    assert.equal(state.snapshotCache.lastUsage.ratio, 0.4);
+  });
+
+  await t.test('rewritten transcript with larger size triggers sentinel fallback', () => {
+    const dir = path.join(ROOT, 'rewritten');
+    const dataDir = path.join(dir, 'data');
+    const transcript = makeTranscript(dir, 'hook-rewrite', 0.4);
+    run({
+      hook_event_name: 'UserPromptSubmit',
+      session_id: 'hook-rewrite',
+      transcript_path: transcript,
+    }, dataDir, { CONTEXT_GOVERNOR_INJECT: '1' });
+    const rewritten = [
+      usageLine('hook-rewrite', 0.7, 70000, 'x'.repeat(1024)),
+      JSON.stringify({ type: 'assistant', uuid: 'a-1', sessionId: 'hook-rewrite', message: { role: 'assistant', content: 'rewritten' } }),
+    ].join('\n') + '\n';
+    fs.writeFileSync(transcript, rewritten, 'utf8');
+    const second = run({
+      hook_event_name: 'UserPromptSubmit',
+      session_id: 'hook-rewrite',
+      transcript_path: transcript,
+    }, dataDir, { CONTEXT_GOVERNOR_INJECT: '1' });
+    assert.equal(second.status, 0);
+    assert.ok(JSON.parse(second.stdout).hookSpecificOutput.additionalContext.includes('70%'));
+    const state = JSON.parse(fs.readFileSync(path.join(dataDir, 'hook-state', 'hook-rewrite.json'), 'utf8'));
+    assert.equal(state.lastScanFull, true);
+  });
+
+  await t.test('config.json inject flag enables injection and env 0 overrides', () => {
+    const dir = path.join(ROOT, 'config');
+    const dataDir = path.join(dir, 'data');
+    fs.mkdirSync(dataDir, { recursive: true });
+    fs.writeFileSync(path.join(dataDir, 'config.json'), JSON.stringify({ inject: true }), 'utf8');
+    const transcript = makeTranscript(dir, 'hook-config', 0.7);
+    const on = run({
+      hook_event_name: 'UserPromptSubmit',
+      session_id: 'hook-config',
+      transcript_path: transcript,
+    }, dataDir, { CONTEXT_GOVERNOR_INJECT: '' });
+    assert.equal(on.status, 0);
+    assert.ok(JSON.parse(on.stdout).hookSpecificOutput.additionalContext.includes('70%'));
+
+    const offData = path.join(dir, 'data-off');
+    fs.mkdirSync(offData, { recursive: true });
+    fs.writeFileSync(path.join(offData, 'config.json'), JSON.stringify({ inject: true }), 'utf8');
+    const offTranscript = makeTranscript(dir, 'hook-config-off', 0.9);
+    const off = run({
+      hook_event_name: 'UserPromptSubmit',
+      session_id: 'hook-config-off',
+      transcript_path: offTranscript,
+    }, offData, { CONTEXT_GOVERNOR_INJECT: '0' });
+    assert.equal(off.status, 0);
+    assert.equal(off.stdout.trim(), '');
   });
 });
