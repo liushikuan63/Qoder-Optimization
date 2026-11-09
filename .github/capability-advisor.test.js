@@ -344,6 +344,9 @@ test('workflow note is bound to the full prompt rather than its clipped summary'
   assert.ok(note.includes('不另调模型'));
   assert.ok(note.includes('AskUserQuestion'));
   assert.ok(note.includes('四个选项'));
+  assert.ok(note.includes('先生成计划'));
+  assert.ok(note.includes('Vibecoding 四层/批次文档'));
+  assert.ok(note.includes('跨会话'));
   assert.ok(!note.includes(prompt));
 });
 

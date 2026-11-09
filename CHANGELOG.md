@@ -16,6 +16,8 @@ During the 0.x line, minor versions may contain breaking changes.
 - Update the offline bundle's cua-driver asset from 0.38.0 to 0.44.0 (official Windows x86_64 release, `SHA256SUMS` and Sigstore sidecar refreshed).
 - Auto-clean this round's temp artifacts when `autoClean.enabled` is on while keeping share-package artifacts behind an explicit ask; `tmp-round-scan` gains `--apply`, `--include-share-package` and `--only`.
 
+- Encode the parallel and documentation prompt thresholds in the model workflow contract: parallel asks for explicit opt-in only after a plan; Vibecoding documents ask once for medium/large, handoff or review+documentation work, and small tasks stay quiet.
+
 ### Fixed
 - Replace the compaction recovery pointer's nonexistent fold-handle instruction with the continuity archive and raw transcript routes, and state explicitly that no fold handle exists.
 - Record zero or missing token counts as `null` and tag governor hook state with `usageBasis` (`tokens` / `ratio-only` / `unknown`), so models that only report `context_usage_ratio` no longer look like a real 0-token measurement.
@@ -31,6 +33,7 @@ During the 0.x line, minor versions may contain breaking changes.
 - 压缩恢复指针不再指向不存在的 fold 句柄，改为 continuity 档案与原始 transcript，并明说没有 fold 句柄。
 - hook 状态把 0 或缺失的 token 记为 `null` 并标注 `usageBasis`（`tokens` / `ratio-only` / `unknown`），只上报 ratio 的模型不再显示为“真实 0 token”。
 - 恢复 `--workflow-mode model` 下的 B05 验证选档、目标候选与能力使用/安装/更新询问：不再短路 `verificationNote`/`goalCandidateNote`，能力候选恢复 AskUserQuestion；工作流契约明确要求业务写入前先询问四档。
+- model 工作流契约补并行/文档提示阈值：并行先生成计划再问 opt-in；中大型/交接/审查+成文时 Vibecoding 文档问一次，小任务不问。
 - 离线包 cua-driver 资产由 0.38.0 更新到 0.44.0，`SHA256SUMS` 与 Sigstore sidecar 同步。
 - 开启自动清理时按本轮清理临时产物；分享包产物仍默认逐轮询问；扫描器新增 `--apply` / `--include-share-package` / `--only`。
 - 超期清单只作参考，证据、回滚点与符号链接不参与清理；reference-integrity 契约测试在 Windows 上按大小写不敏感比较路径。

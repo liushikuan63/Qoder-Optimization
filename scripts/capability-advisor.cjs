@@ -454,7 +454,7 @@ function buildWorkflowNote(context, script) {
     + '\nWORKFLOW_SHELL_COMMAND ' + JSON.stringify(shellCommand)
     + '\n结构化输入：{schema:1,context:<上方原样对象>,model:{schema:1,bindingDigest:<上方绑定值>,taskId:<当前任务ID>,intent:question|read-only|execute|continuation|unclear,confidence:low|medium|high,sourceRefs:[<真实来源>],reason:<简短判断>,parallel:assess|skip,goal:recommend|skip,verification:assess|skip,documentation:recommend|skip},parallelPlan?:<parallel-plan 的完整输入>,verificationRequest?:<verification-policy 的完整输入>}。不能编造事实或授权；confidence 是自评，不是正确性证明。'
     + '\n在业务写入或启用额外流程前，按 WORKFLOW_COMMAND 的 executable 和 args 原样调用，结构化输入经 stdin 传入；WORKFLOW_SHELL_COMMAND 是本机 ' + (process.platform === 'win32' ? 'PowerShell' : 'POSIX shell') + ' 的等价命令。只读任务不写请求文件。没有当前身份、结果无效或 NEEDS_FACTS 时不回退成关键词自动启用；保留串行/任务清单及必需验证，补足最小证据后再判断。'
-    + '\n并行 assess 先给完整依赖/资源计划；只读任务只展示计划，不写文件、不派发。仅当前已获计划写入授权且校验可并行时，才生成计划文档并明确询问方案和启用范围。目标只检查活动目标/原始授权，缺明确请求才询问，不依据模型建议调用 CreateGoal。成文检查现有文档与当前需求，不自动补四层文档。'
+    + '\n并行：模型先判断依赖与资源；可并行时先生成计划，再用 AskUserQuestion 询问是否启用（推荐按计划并行 / 串行执行），未确认按串行执行；只读任务只展示计划，不写文件、不派发。目标只检查活动目标/原始授权，缺明确请求才询问，不依据模型建议调用 CreateGoal。成文：中大型、跨会话、需要交接或审查+成文时，检查现有文档并与目标询问同轮合并，用 AskUserQuestion 问一次是否创建或更新 Vibecoding 四层/批次文档（推荐创建或更新 / 本轮不成文）；小任务与明确不需要成文的不问，已有文档只更新，不重复新建。'
     + '\n验证选档须给真实 facts/checks/baseline，taskId 绑定当前任务，sessionId/workspaceKey/requestMessageId 与本轮 context 一致；当本请求属于业务写入/执行类且未 veto 选档时，必须在开工前用 AskUserQuestion 展示推荐档与四个选项并取得明确选择，facts/checks/baseline 不足时先补最小只读证据，未答复/取消不默认档，同任务不重复询问；没有 resolveAuthority 仍为咨询模式，不调用 applyChoice/beginVerification。skip 只跳过可选选档，不能删除必需验证或降低发布检查。'
     + '\n继续同一任务先核对既有计划、目标和明确答复；已有适用选择不重复询问，拒绝/取消不催问，范围或事实改变重新判断。所有裁决只是建议，不发放创建目标、派发、写入、安装、发布或生产操作权限。';
 }
