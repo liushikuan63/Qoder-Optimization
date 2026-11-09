@@ -1,6 +1,6 @@
 ---
 name: desktop-update-push-triage
-description: Windows 桌面客户端（Electron/electron-updater + NSIS 为主）「收不到更新推送 / 更新不生效 / 自动更新失败」的通用分层取证与修复流水线：先读客户端自证的更新状态（状态文件 lastError / 决策字段 + 日志状态机），三分类为「服务端 hold / 下载失败 / 安装失败」；按 checking→available→downloading→installing 分段，用「亚秒失败＝本地前置校验」区分网络；下载失败先查更新缓存目录路径形态（符号链接/junction 被客户端硬校验拦截），安装失败走 NSIS 静默重装（Start-Process /S，Node spawn 必 EACCES）；网络只在真进入 downloading 后查，并按 installType 选 latest-system.yml / latest.yml；收口用版本三处一致（build-manifest / exe FileVersion / 注册表 DisplayVersion）。含换产品的入口定位法、已排除项清单与 High-IL UIPI 边界；Qoder 国际版/CN 的实例路径与日志标签见 references/qoder-desktop.md。触发词：收不到更新推送、Qoder 收不到更新推送、Qoder 更新不生效、Qoder 更新失败、桌面客户端更新失败、自动更新不生效、检查不到新版本、更新缓存目录不能是符号链接、无法安全完成 System 更新、updaterCacheDirName、junction 更新、electron-updater、NSIS 静默重装。不用于：浏览器打不开网页（edge-net-check）、纯磁盘腾空间与目录迁移（disk-junction-migration）、~/.qoder 配置体检（global-config-smoke-runner）。
+description: "Windows 客户端（electron-updater + NSIS）更新失败分层取证：读状态文件 lastError 与日志状态机，按 checking→downloading→installing 分段；下载失败查缓存目录符号链接/junction 拦截，安装失败走 NSIS 静默重装（/S，spawn 必 EACCES）；版本三处一致收口。触发词：收不到更新推送、更新不生效、自动更新失败、junction 更新、electron-updater、NSIS 静默重装；不用于：edge-net-check、disk-junction-migration。"
 ---
 
 # 桌面客户端更新推送排查（通用）

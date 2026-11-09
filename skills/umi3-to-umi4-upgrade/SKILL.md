@@ -1,6 +1,6 @@
 ---
 name: umi3-to-umi4-upgrade
-description: umi3 → umi4 / webpack5 升级后的回归排查与恢复流水线：document.ejs 模板被静默取消（用 headScripts/links 恢复、#root 动态注入与 loading 约定）、深色主题样式回归（elementsFromPoint 分层归因、CSS module hash 失配、antd 异步 chunk、minify 改写色值）、以及产物 / 全局变量 / 无头浏览器三层验证；含部署时 mv 改名备份与字节断言。触发词：umi4 升级、umi3 升 umi4、document.ejs 失效、umi 样式回归、升级后白块、loading 不显示、headScripts、CSS module hash、webpack5 迁移、umi_locale_url_applied。不用于：部署后用户端未生效（user-side-deploy-verify）、一般构建报错、非 umi 框架的前端样式问题。
+description: "umi3 → umi4 / webpack5 升级后的回归排查与恢复：document.ejs 被静默取消（headScripts/links 恢复、#root 注入与 loading 约定）、深色主题样式回归（elementsFromPoint 归因、CSS module hash）、产物/全局变量/无头浏览器三层验证；含 mv 改名备份与字节断言。触发词：umi4 升级、document.ejs 失效、umi 样式回归、升级后白块、loading 不显示、headScripts、CSS module hash、webpack5 迁移；不用于：部署后用户端未生效、一般构建报错。"
 ---
 
 # umi3 → umi4 升级回归
