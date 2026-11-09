@@ -1,6 +1,6 @@
 ---
 name: local-reverse-proxy-triage
-description: "本机反向代理 / 中转层（回环端口转发、UA 改写、鉴权前置、SSE 透传）的超时归属判定与加固 playbook：先证明运行态代码==磁盘代码再谈缺陷，再把「超时/断连」分为客户端首包超时、代理自身超时、上游慢或限流三类（按日志签名判定），用自签证书的假慢上游做头延迟与非 2xx 两场景正负对照，加固项含早期响应头 + 心跳保活的阈值算法、keepAliveTimeout 与上游超时、EADDRINUSE 保活接管、日志尾部轮转；每条判据都要能失败。触发词：本地反代排障、超时归属、代理不转发、客户端先断、CLIENT_DISCONNECTED、假慢上游、心跳保活、早期响应头、keepAliveTimeout、EADDRINUSE 接管、日志轮转。不用于：客户端侧模型重试与 BYOK 配置项（→byok-model-retry）、间歇性卡死的单变量归因（→intermittent-hang-ab-triage）、Windows 守护停启与自启（→windows-hidden-autostart-daemon）、生产 nginx / 网关配置变更（→infra-ops，需单独批准）。"
+description: "本机反向代理/中转层（回环转发、UA 改写、鉴权前置、SSE 透传）的超时归属与加固：先证明运行态代码==磁盘代码；把超时分为客户端首包、代理自身、上游慢/限流三类；自签证书假慢上游做头延迟与非 2xx 正负对照；加固含早期头+心跳阈值、keepAlive、EADDRINUSE 接管、日志轮转。触发词：本地反代排障、超时归属、CLIENT_DISCONNECTED、假慢上游、心跳保活、keepAliveTimeout、EADDRINUSE 接管；不用于：生产 nginx/网关变更（infra-ops，需批准）。"
 ---
 
 # 本机反向代理超时归属与加固
