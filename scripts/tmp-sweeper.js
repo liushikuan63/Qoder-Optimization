@@ -237,8 +237,9 @@ function scan(opts) {
   let skippedFresh = 0
   for (const r of roots) {
     const res = scanRoot(r, scanOpts)
-    found.push(...res.found)
-    scannedDirs.push(...res.scannedDirs)
+    // 大根（如 D:/tmp 数十万文件）下 spread 实参超调用栈上限，逐条追加
+    for (const item of res.found) found.push(item)
+    for (const dir of res.scannedDirs) scannedDirs.push(dir)
     skippedFresh += res.skippedFresh
     if (state.partial) break
   }
