@@ -31,7 +31,7 @@ description: 审阅或按本轮批准范围合并 Qoder 分享包、回流包和
 
 `node <技能目录>/scripts/pkg-diff.cjs review --inbound <入站包> --local <目标根> [--baseline <上次共同基线>] [--scope rules,skills,commands]`
 
-它会输出逐行 `-`/`+` 文案差异、`KEEP-LOCAL` / `TAKE-INBOUND` / `BOTH-CHANGED` / `NO-BASELINE` / `WHITESPACE` 判定和 `MERGE_DECISIONS` 清单。**只报文件哈希、字节数或“内容不同”不算完成对比**；`BOTH-CHANGED` / `NO-BASELINE` 必须读差异原文。
+它会输出逐行 `-`/`+` 文案差异、`KEEP-LOCAL` / `TAKE-INBOUND` / `BOTH-CHANGED` / `NO-BASELINE` / `WHITESPACE` 判定和 `MERGE_DECISIONS` 清单；本机按需层技能在 `skills-library/` 时自动映射包内 `skills/<name>`，输出会标注「本机位置」。**只报文件哈希、字节数或“内容不同”不算完成对比**；`BOTH-CHANGED` / `NO-BASELINE` 必须读差异原文。
 
 ## 3. 卫生预检
 
@@ -98,4 +98,4 @@ description: 审阅或按本轮批准范围合并 Qoder 分享包、回流包和
 
 ## Resources
 
-`scripts/pkg-diff.cjs` — 只读比对器，五模式：`classify` / `funcs` / `diffjs` / `review` / `scan`，另有 `--selftest`（21 条断言，含 review 三路判定、空白归一化、逐条决策、脱敏与同源负对照；改判据后必跑）。`review` 是合并前必做：输出逐行文案差异、`KEEP-LOCAL` / `TAKE-INBOUND` / `BOTH-CHANGED` / `NO-BASELINE` / `WHITESPACE` 判定和 `MERGE_DECISIONS`。`scan --strict` 有命中时退出码 2，可做门禁。绝不写文件、绝不删除。
+`scripts/pkg-diff.cjs` — 只读比对器，五模式：`classify` / `funcs` / `diffjs` / `review` / `scan`，另有 `--selftest`（22 条断言，含 review 三路判定、按需层 skills→skills-library 映射、空白归一化、逐条决策、脱敏与同源负对照；改判据后必跑）。`review` 是合并前必做：输出逐行文案差异、`KEEP-LOCAL` / `TAKE-INBOUND` / `BOTH-CHANGED` / `NO-BASELINE` / `WHITESPACE` 判定和 `MERGE_DECISIONS`。`scan --strict` 有命中时退出码 2，可做门禁。绝不写文件、绝不删除。

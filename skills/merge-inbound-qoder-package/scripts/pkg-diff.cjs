@@ -59,6 +59,21 @@ function walk(dir, base, acc) {
   return acc.sort();
 }
 
+// 技能在按需层落在 skills-library/：包内 skills/<name> 要能对上本机副本，
+// 否则库内技能会被误报成 NEW，审阅阶段就不会为它做文案对比。
+const LOCAL_ALT = [['skills/', 'skills-library/']];
+function localTarget(local, rel) {
+  const direct = path.join(local, rel);
+  if (fs.existsSync(direct)) return { file: direct, rel };
+  for (const [from, to] of LOCAL_ALT) {
+    if (!rel.startsWith(from)) continue;
+    const altRel = to + rel.slice(from.length);
+    const alt = path.join(local, altRel);
+    if (fs.existsSync(alt)) return { file: alt, rel: altRel };
+  }
+  return { file: direct, rel };
+}
+
 // zip 解包常带一层顶层目录，自动下钻，免得每次都手填长路径
 function resolveRoot(dir, autodetect) {
   let cur = path.resolve(dir);
@@ -169,7 +184,9 @@ function classify(opts) {
 
   const buckets = { NEW: [], SAME: [], DIFFER: [], VETOED: [], ARCHIVE: [] };
   for (const rel of inboundFiles) {
-    const inf = path.join(inbound, rel), lf = path.join(local, rel);
+    const inf = path.join(inbound, rel);
+    const tgt = localTarget(local, rel);
+    const lf = tgt.file;
     const veto = vetoReason(rel);
     if (veto) { buckets.VETOED.push({ rel, reason: veto, bytes: fs.statSync(inf).size }); continue; }
     if (ARCHIVE_RE.test(rel)) { buckets.ARCHIVE.push({ rel, bytes: fs.statSync(inf).size }); continue; }
@@ -178,7 +195,7 @@ function classify(opts) {
     } else if (md5(lf) === md5(inf)) {
       buckets.SAME.push({ rel });
     } else {
-      buckets.DIFFER.push({ rel, lb: fs.statSync(lf).size, ib: fs.statSync(inf).size,
+      buckets.DIFFER.push({ rel, localRel: tgt.rel, lb: fs.statSync(lf).size, ib: fs.statSync(inf).size,
         lm: fs.statSync(lf).mtime.toISOString().slice(0, 10) });
     }
   }
@@ -342,7 +359,8 @@ function review(opts) {
   const rows = [];
   for (const item of c.DIFFER.slice(0, limit)) {
     const rel = item.rel;
-    const localText = readText(path.join(local, rel));
+    const localRel = item.localRel || rel;
+    const localText = readText(path.join(local, localRel));
     const inboundText = readText(path.join(inbound, rel));
     const baselineFile = baseline ? path.join(baseline, rel) : null;
     const baselineText = baselineFile && fs.existsSync(baselineFile) ? readText(baselineFile) : null;
@@ -364,7 +382,7 @@ function review(opts) {
       : /\.(js|cjs|mjs|ts)$/i.test(rel) ? '代码'
       : /\.(json|ya?ml)$/i.test(rel) ? '配置' : '文本';
     rows.push({
-      rel, verdict, kind,
+      rel, localRel, verdict, kind,
       added: ops.filter((o) => o.t === '+').length,
       removed: ops.filter((o) => o.t === '-').length,
       recommendation: recommend[verdict], ops,
@@ -384,6 +402,7 @@ function review(opts) {
   for (const row of rows) {
     lines.push(`### ${row.rel}  [${row.verdict}]  ${row.kind}  (+${row.added}/-${row.removed})`);
     lines.push(`建议：${row.recommendation}`);
+    if (row.localRel && row.localRel !== row.rel) lines.push(`本机位置：${row.localRel}`);
     if (row.verdict === 'BINARY') lines.push('  （二进制/非文本，未展示内容差异）');
     else if (row.verdict === 'WHITESPACE') lines.push('  （归一化后仅空白或换行差异）');
     else if (row.ops.length) lines.push(...renderOps(row.ops, context, maxLines));
@@ -601,12 +620,20 @@ function selftest() {
   write('review-inbound/rules/ws.md', 'a\nb\n');
   write('review-local/rules/secret.md', '# 配置\n\npassword: fake-secret-123456\n');
   write('review-inbound/rules/secret.md', '# 配置\n\npassword: other-secret-654321\n');
+  write('review-local/skills-library/lib-skill/SKILL.md', '---\nname: lib-skill\n---\n旧文案。\n');
+  write('review-inbound/skills/lib-skill/SKILL.md', '---\nname: lib-skill\n---\n新文案。\n');
+  write('review-base/skills/lib-skill/SKILL.md', '---\nname: lib-skill\n---\n旧文案。\n');
   const rvLog = log(() => review({ inbound: RI, local: RL, baseline: RB, 'no-autodetect': true, limit: 20 }));
   const rv = rvLog.r;
   const rowOf = (rel) => rv.rows.find((x) => x.rel === rel);
   check('review 三路判定：仅包内改动 → TAKE-INBOUND',
     rowOf('rules/wording.md')?.verdict === 'TAKE-INBOUND',
     `verdict=${rowOf('rules/wording.md')?.verdict}`);
+  check('review 按需层技能自动映射 skills → skills-library',
+    rowOf('skills/lib-skill/SKILL.md')?.verdict === 'TAKE-INBOUND'
+    && rowOf('skills/lib-skill/SKILL.md')?.localRel === 'skills-library/lib-skill/SKILL.md'
+    && /本机位置：skills-library\/lib-skill/.test(rvLog.out),
+    `verdict=${rowOf('skills/lib-skill/SKILL.md')?.verdict} localRel=${rowOf('skills/lib-skill/SKILL.md')?.localRel}`);
   check('review 三路判定：双方都改 → BOTH-CHANGED 且展示增删行',
     rowOf('rules/both.md')?.verdict === 'BOTH-CHANGED'
     && rowOf('rules/both.md')?.added >= 1 && rowOf('rules/both.md')?.removed >= 1,
