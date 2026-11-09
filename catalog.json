@@ -1737,7 +1737,7 @@
    "name": "vibe-coding-workflow",
    "status": "shipped",
    "tier": "core",
-   "description": "大需求五阶段流程：需求、架构、模块、调试、迭代；检查阶段准入，已授权连续实施时不逐阶段重问。用于新项目或跨模块需求；用户明确设置的阶段批准继续保留。触发词：五阶段、需求阶段、架构阶段、模块开发、阶段准入",
+   "description": "大需求五阶段流程：需求澄清→架构→逐模块生成→调试→迭代；每阶段检查准入，已授权连续实施时不逐阶段重问；含 spec/plan/tasks 四层载体与 route-phase.js 阶段判定。触发词：五阶段、需求阶段、架构阶段、模块开发、调试、迭代、阶段准入。不用于：单点小改（直接做）、成套任务包→vibecoding-doc、纯文档分层→vibecoding-doc。",
    "install": {
     "mode": "copy-skill",
     "tier": "core"

@@ -1,6 +1,6 @@
 ---
 name: vibe-coding-workflow
-description: 大需求五阶段流程：需求、架构、模块、调试、迭代；检查阶段准入，已授权连续实施时不逐阶段重问。用于新项目或跨模块需求；用户明确设置的阶段批准继续保留。触发词：五阶段、需求阶段、架构阶段、模块开发、阶段准入
+description: "大需求五阶段流程：需求澄清→架构→逐模块生成→调试→迭代；每阶段检查准入，已授权连续实施时不逐阶段重问；含 spec/plan/tasks 四层载体与 route-phase.js 阶段判定。触发词：五阶段、需求阶段、架构阶段、模块开发、调试、迭代、阶段准入。不用于：单点小改（直接做）、成套任务包→vibecoding-doc、纯文档分层→vibecoding-doc。"
 ---
 
 # vibe-coding-workflow
@@ -8,6 +8,21 @@ description: 大需求五阶段流程：需求、架构、模块、调试、迭�
 大需求最容易死在两件事上：**在需求没说清时选技术栈**，和**一口气写完再调**。五阶段是给这两件事上锁的。
 
 **每阶段检查准入并给小结**；已获连续实施授权且条件满足时继续。只有用户明确设置的阶段批准才等待，不把质量检查当作逐阶段问询。
+
+> 本技能在按需库；用 `node ~/.qoder/scripts/skill-load.cjs "五阶段"` 命中后读本页。阶段判定脚本见 `scripts/route-phase.js`（绝对路径 `~/.qoder/skills-library/vibe-coding-workflow/scripts/route-phase.js`）。
+
+## 何时用 / 何时不用
+
+用：
+
+- 新建完整项目、跨多模块改造、需求/验收口径不清、长周期多轮开发。
+
+不用：
+
+- 改一行文案、单点修复、纯查询 → 直接做。
+- 成套任务包/批次卡 → `vibecoding-doc`、`vibecoding-batch-append`、`vibecoding-batch-execution`。
+- 纯文档分层 → `vibecoding-doc`。
+- 多模块开工前并行判定 → `parallel-orchestration`；长任务目标化 → `goal-driven-execution`。
 
 ## 四层载体（与五阶段对应）
 
@@ -56,7 +71,7 @@ description: 大需求五阶段流程：需求、架构、模块、调试、迭�
 
 每模块先写清路径 / 职责 / 依赖与对外接口，然后**只在这个模块的上下文里写代码**。跨模块一起写正是长对话漂移的源头。
 
-首次业务工具操作或写入前，按 [skills-router 的项目约定入口](../skills-router/SKILL.md) 形成五维任务约定包；明确规范直接继承，冲突与未知项不自行补绿。配套语言资源、风格、工具、依赖和版本检查进入同一计划；本地、隔离、指定项目、现役范围与自动/分工/人工验证分别选择，不因一个阶段通过自动进入下一授权范围。
+首次业务工具操作或写入前，按 `skills-router` 的项目约定入口（先 `node ~/.qoder/scripts/skill-load.cjs "技能路由"` 命中后读）形成五维任务约定包；明确规范直接继承，冲突与未知项不自行补绿。配套语言资源、风格、工具、依赖和版本检查进入同一计划；本地、隔离、指定项目、现役范围与自动/分工/人工验证分别选择，不因一个阶段通过自动进入下一授权范围。
 
 **每模块配最小验证**，且要能跑："能 import + 关键函数能调"是底线，不是目标。验证跑不通就不要往下一模块走——那会把调试成本推到后面集中爆发。
 
@@ -88,8 +103,8 @@ description: 大需求五阶段流程：需求、架构、模块、调试、迭�
 判断不准时用脚本：
 
 ```bash
-node ~/.qoder/skills/vibe-coding-workflow/scripts/route-phase.js "改了登录接口后，页面点提交就白屏"
-node ~/.qoder/skills/vibe-coding-workflow/scripts/route-phase.js --selftest   # 自测路由表
+node ~/.qoder/skills-library/vibe-coding-workflow/scripts/route-phase.js "改了登录接口后，页面点提交就白屏"
+node ~/.qoder/skills-library/vibe-coding-workflow/scripts/route-phase.js --selftest   # 自测路由表
 ```
 
 ## 与别的技能衔接
@@ -97,6 +112,8 @@ node ~/.qoder/skills/vibe-coding-workflow/scripts/route-phase.js --selftest   # 
 - 需求还只有感觉词（"酷 / 极简 / 硬核"）⇒ 先用 `vibecoding-doc` 固化成四层产物（AGENTS / spec / plan / tasks），再进①。
 - 要出成套的批次文档（B00 + 批次卡 + 台账）⇒ 按 `rules/vibe-coding.md` 的格式生成，**不另造第二套**。
 - 仓库有 `.qoder/repowiki/` ⇒ **先查 wiki 再动手**（技能 `write-repowiki`），别从 grep 冷启动。
+- 多个模块/跨端可同时开工时 ⇒ 先走 `parallel-orchestration` 判定并行与写入隔离，别在五阶段里私自并发写。
+- 任务跨多回合、容易半途跑偏 ⇒ 用 `goal-driven-execution` 设可失败判据并逐格落盘。
 
 ## 边界
 

@@ -8,9 +8,11 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ### Changed
 - Restore the prompt-correction recommendation for ambiguous requests: the ambiguity note recognizes explicit `指令/需求不清` phrasing and offers a `/clarify` corrected prompt as an advisory option, while keeping the corrected prompt non-authorizing and the existing AskUserQuestion evidence checks. `clarify` is now routable as a relevant installed command and carries trigger words in its description.
+- Backfill `vibe-coding-workflow` with the newer local SKILL.md (use/avoid boundaries, parallel and goal handoffs, library-tier paths) and regenerate the catalog description and description-length counts; the upstream README and `_meta.json` stay in the package and are now installed alongside the skill.
 
 ### 中文摘要
 - 恢复「指令/需求不清 → 推荐 `/clarify` 提示词纠正」：含混初筛识别显式表述并给出保留原意的纠正稿选项，纠正稿只作建议、不构成执行授权；`clarify` 命令补触发词并接入能力路由。
+- `vibe-coding-workflow` 采用本地新版 SKILL.md（使用边界、并行/目标化衔接、按需库路径），并同步重建 catalog 描述与描述长度统计；上游 README 与 `_meta.json` 保留并补入现役技能目录。
 
 ## [0.1.1] - 2026-11-09
 
