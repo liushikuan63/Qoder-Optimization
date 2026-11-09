@@ -98,7 +98,8 @@ function defaultRoot() {
   return path.join(os.tmpdir(), 'qoder-work')
 }
 
-/** 默认 + 派生 + 配置里的额外根（去重、只留存在的目录）。 */
+/** 默认 + 派生 + 配置里的额外根（去重、只留存在的目录）。
+ * canonicalRoot（配置）是本机唯一约定的临时目录；默认根若仍存在则作为"历史遗留"兜底扫描。 */
 function resolveRoots(argv) {
   const explicit = []
   for (let i = 0; i < argv.length; i++) {
@@ -118,10 +119,11 @@ function resolveRoots(argv) {
   if (explicit.length) {
     explicit.forEach(add)
   } else {
+    const cfg = loadConfig()
+    if (typeof cfg.canonicalRoot === 'string' && path.isAbsolute(cfg.canonicalRoot)) add(cfg.canonicalRoot)
     add(defaultRoot())
     add(path.join(os.tmpdir(), 'qoder-cli'))
     if (process.env.LOCALAPPDATA) add(path.join(process.env.LOCALAPPDATA, 'Temp', 'qoder-work'))
-    const cfg = loadConfig()
     for (const r of Array.isArray(cfg.extraRoots) ? cfg.extraRoots : []) {
       if (typeof r === 'string' && path.isAbsolute(r)) add(r)
     }
@@ -333,4 +335,4 @@ if (require.main === module) {
 }
 
 module.exports = { main, walk, scan, scanRoot, pruneEmptyDirs, classify, isHostSessionDir, isForbidden,
-  loadConfig, resolveRoots, RULES, defaultRoot, CLIENT_ROOT, CONFIG_PATH }
+  isExcluded, buildExclude, loadConfig, resolveRoots, RULES, defaultRoot, CLIENT_ROOT, CONFIG_PATH }

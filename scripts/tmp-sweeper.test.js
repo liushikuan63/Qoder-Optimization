@@ -111,16 +111,18 @@ check('显式 --root 指到宿主会话目录也会被拒',
   const lad = path.join(sb, 'localappdata'); fs.mkdirSync(lad, { recursive: true })
   const excluded = path.join(sb, 'excluded-root'); fs.mkdirSync(excluded, { recursive: true })
   const extra = path.join(sb, 'extra-root'); fs.mkdirSync(extra, { recursive: true })
+  const canonical = path.join(sb, 'canonical-root'); fs.mkdirSync(canonical, { recursive: true })
   touch(path.join(tmp, 'qoder-work/default-old.png'), 5)
   touch(path.join(tmp, 'qoder-cli/ws/sess/tasks/old.output'), 5)
   ageDir(path.join(tmp, 'qoder-cli/ws'), 5)
   touch(path.join(lad, 'Temp/qoder-work/legacy-old.log'), 5)
+  touch(path.join(canonical, 'canonical-old.png'), 5)
   touch(path.join(excluded, 'excluded-old.json'), 5)
   touch(path.join(extra, 'extra-old.json'), 5)
   touch(path.join(extra, 'QO-REL-old/evidence.json'), 5)
   ageDir(path.join(extra, 'QO-REL-old'), 5)
   fs.writeFileSync(path.join(home, '.qoder', 'tmp-sweeper.json'), JSON.stringify({
-    extraRoots: [excluded, extra], excludePaths: [excluded], excludeTopPrefixes: ['QO-REL-'],
+    canonicalRoot: canonical, extraRoots: [excluded, extra], excludePaths: [excluded], excludeTopPrefixes: ['QO-REL-'],
   }))
   const r = spawnSync(process.execPath, [path.join(__dirname, 'tmp-sweeper.js'), '--json'], {
     encoding: 'utf8', timeout: 20000,
@@ -129,8 +131,9 @@ check('显式 --root 指到宿主会话目录也会被拒',
   })
   let out = null
   try { out = JSON.parse(r.stdout) } catch (e) {}
-  check('多根：默认 + qoder-cli + C 盘遗留 + 两个配置额外根都被解析', out ? out.roots.length : -1, 5)
-  check('多根：未排除根里的超期件都被找到', out ? out.stale.length : -1, 4)
+  check('多根：canonicalRoot + 遗留默认根 + qoder-cli + C 盘遗留 + 两个配置额外根都被解析', out ? out.roots.length : -1, 6)
+  check('多根：canonicalRoot 排在最前（唯一约定目录）', out && out.roots[0] === canonical, true)
+  check('多根：未排除根里的超期件都被找到', out ? out.stale.length : -1, 5)
   check('排除清单：excludePaths 的根整个不扫', out ? out.stale.some((f) => f.path.includes('excluded-root')) : true, false)
   check('排除清单：excludeTopPrefixes 命中的证据目录不扫', out ? out.stale.some((f) => f.path.includes('QO-REL-')) : true, false)
   fs.rmSync(sb, { recursive: true, force: true })

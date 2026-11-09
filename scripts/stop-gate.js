@@ -116,7 +116,7 @@ function toolFailed(value, depth = 0) {
 
 // transcript 只取尾部，解析出：最后一条助手文本 + 最后一条真实用户文本 + 最近一轮的工具调用
 function scanTranscript(file, tailBytes) {
-  const out = { lastUserText: '', lastAssistantText: '', turnTools: [], parsed: 0, exists: false };
+  const out = { lastUserText: '', lastAssistantText: '', turnTools: [], lastUserAt: null, parsed: 0, exists: false };
   try {
     const st = fs.statSync(file);
     out.exists = true;
@@ -156,6 +156,9 @@ function scanTranscript(file, tailBytes) {
           out.lastUserText = txt;
           out.lastAssistantText = '';
           out.turnTools = [];
+          const tsRaw = j.timestamp !== undefined ? j.timestamp : msg.timestamp;
+          const ts = typeof tsRaw === 'number' ? tsRaw : (typeof tsRaw === 'string' ? Date.parse(tsRaw) : NaN);
+          if (Number.isFinite(ts)) out.lastUserAt = ts;
         }
       } else if (role === 'assistant') {
         if (typeof c === 'string' && c.trim()) out.lastAssistantText = c;
@@ -720,6 +723,39 @@ function ambiguityResolved(session) {
   } catch { return null; }
 }
 
+// R13：任务结束时的"本任务临时文件"探测（2026-11-09）。
+// 唯一约定目录 = tmp-sweeper.json 的 canonicalRoot；没有配置时退回默认临时根。
+// 只列**本轮用户消息之后**新增/改动的顶层条目（文件或目录），不深挖；拿不到时间戳就放行。
+let lastTempProbe = null;
+function tempGateProbe(ctx) {
+  const since = ctx.lastUserAt;
+  if (!since) return [];
+  if (lastTempProbe && lastTempProbe.sessionId === ctx.sessionId && lastTempProbe.since === since) return lastTempProbe.entries;
+  const sweeper = require('./tmp-sweeper.js');
+  const cfg = json(path.join(CLIENT_ROOT, 'tmp-sweeper.json')) || {};
+  const ex = sweeper.buildExclude(cfg);
+  const roots = [];
+  if (typeof cfg.canonicalRoot === 'string' && path.isAbsolute(cfg.canonicalRoot)) roots.push(cfg.canonicalRoot);
+  else roots.push(sweeper.defaultRoot());
+  const entries = [];
+  const deadline = Date.now() + 600;
+  for (const root of roots) {
+    let list;
+    try { list = fs.readdirSync(root, { withFileTypes: true }); } catch (e) { continue; }
+    for (const e of list) {
+      if (Date.now() > deadline || entries.length >= 10) break;
+      const full = path.join(root, e.name);
+      if (sweeper.isForbidden(full) || sweeper.isExcluded(full, ex, e.name) || e.isSymbolicLink()) continue;
+      let st;
+      try { st = fs.statSync(full); } catch (err) { continue; }
+      if (st.mtimeMs < since) continue;
+      entries.push({ path: full, dir: e.isDirectory() });
+    }
+  }
+  lastTempProbe = { sessionId: ctx.sessionId, since, entries };
+  return entries;
+}
+
 const RULES = [
   {
     id: 'R6-open-work-queue',
@@ -956,6 +992,29 @@ const RULES = [
         + '判 clear/assumption 至少给 1 条证据，判 clarify 同时用 AskUserQuestion 给 2–4 个备选。纯讨论没有写入时不需要判别。';
     },
   },
+  {
+    id: 'R14-temp-artifacts-unhandled',
+    needsText: false,
+    // 任务收尾必须就"本任务临时文件"给出清理范围并询问；本轮已问过 / 已执行清理则放行。
+    test: (t, ctx) => {
+      if (ctx.scope.readOnly || ctx.scope.handoffOnly) return false;
+      const entries = tempGateProbe(ctx);
+      if (!entries.length) return false;
+      if (ctx.turnTools.some((x) => x.success && toolName(x) === 'AskUserQuestion'
+        && /临时|清理|clean/i.test(JSON.stringify(x.input || {})))) return false;
+      if (ctx.turnTools.some((x) => x.success && toolName(x) === 'Bash'
+        && /tmp-sweeper\.js[^\n]*--apply/.test(String((x.input || {}).command || '')))) return false;
+      return true;
+    },
+    reason: (ctx) => {
+      const entries = tempGateProbe(ctx) || [];
+      const shown = entries.slice(0, 6).map((e) => '`' + e.path + '`').join('、');
+      return '本任务在临时目录产生了 ' + entries.length + (entries.length >= 10 ? '+ 项（只列前 10）' : ' 项') + '：' + shown
+        + '。按 AGENTS.md「临时产物按用途处理」：收尾必须用 AskUserQuestion 给出**本任务临时文件清理范围**——'
+        + '推荐＝全部清理本任务产物（以上路径，精确删除）；备选＝仅清截图、仅清日志/脚本、全部保留（写明保留原因）。'
+        + '按答复执行并复验；本轮已问过或已跑 `tmp-sweeper.js --apply` 则放行。';
+    },
+  },
 ];
 
 function main() {
@@ -990,6 +1049,7 @@ function main() {
 
   const ctx = { turnTools: scan.turnTools, lastUserText: scan.lastUserText || '', lastAssistantText: text,
     cwd: input.cwd || process.cwd(), sessionId: session, taskId: input.task_id || null,
+    lastUserAt: scan.lastUserAt || null,
     scope: taskScope(scan.lastUserText), transcriptPath: input.transcript_path || null };
 
   const stateFile = path.join(STATE_DIR, session.replace(/[^A-Za-z0-9._-]/g, '_') + '.json');

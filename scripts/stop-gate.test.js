@@ -35,7 +35,11 @@ function run(payload, session, extraEnv = {}) {
     out = execFileSync(process.execPath, [GATE], {
       input: JSON.stringify(payload),
       encoding: 'utf8',
-      env: Object.assign({}, process.env, { HOME: ROOT, USERPROFILE: ROOT, HOOK_CRASH_LOG: path.join(ROOT, 'crash.log'), STOP_GATE_STATE_DIR: stateDir }, extraEnv),
+      env: Object.assign({}, process.env, {
+        HOME: ROOT, USERPROFILE: ROOT, HOOK_CRASH_LOG: path.join(ROOT, 'crash.log'), STOP_GATE_STATE_DIR: stateDir,
+        TEMP: path.join(ROOT, 'temp'), TMP: path.join(ROOT, 'temp'), TMPDIR: path.join(ROOT, 'temp'),
+        LOCALAPPDATA: path.join(ROOT, 'la'),
+      }, extraEnv),
     });
   } catch (e) {
     out = (e.stdout || '') + '';
@@ -717,6 +721,29 @@ r12Case('R12 中置信不拦', { level: 'medium', tools: [tool('Edit', { file_pa
 r12Case('R12 只读任务不拦', { prompt: '只读审阅，不修改任何文件', tools: [tool('Edit', { file_path: 'D:/x/a.ts' })], expected: 'allow' });
 r12Case('R12 clarify 未弹窗仍要拦', { tools: [tool('Edit', { file_path: 'D:/x/a.ts' })], resolved: 'clarify', expected: 'block' });
 r12Case('R12 clarify 已弹窗放行', { tools: [tool('AskUserQuestion', { questions: [] }), tool('Edit', { file_path: 'D:/x/a.ts' })], resolved: 'clarify', expected: 'allow' });
+
+// ---------- R14：任务结束必须就"本任务临时文件"给出清理范围并询问（2026-11-09）----------
+// 背景：临时清理器此前只能人工触发，超期件长期堆积；收尾必须主动列出本任务产物并弹窗确认。
+const TMPROOT = path.join(ROOT, 'temp', 'qoder-work');
+fs.mkdirSync(TMPROOT, { recursive: true });
+const tempShot = path.join(TMPROOT, 'task-shot.png');
+fs.writeFileSync(tempShot, 'x');
+const userAt = (text, ms) => JSON.stringify({ type: 'user', timestamp: new Date(ms).toISOString(), message: { role: 'user', content: text } });
+const turnStart = Date.now() - 60000;
+const r14 = (sess, tools, text = '任务处理完毕。') => run({ transcript_path: transcript([userAt('请处理这个任务', turnStart), ...tools, asst(text)]), session_id: sess }, sess);
+
+const r14a = r14('r14-a', []);
+check('R14 本任务产生临时文件未询问必须拦', r14a.decision, 'block');
+check('R14 拦截原因给出清理范围与文件', r14a.out.includes('R14-temp-artifacts-unhandled') && r14a.out.includes('清理范围') && r14a.out.includes('task-shot.png'), true);
+check('R14 已弹窗询问清理范围放行', r14('r14-b', [tool('AskUserQuestion', { questions: [{ question: '本任务临时文件清理范围？', options: ['全部清理', '保留'] }] })]).decision, 'allow');
+check('R14 已执行 tmp-sweeper --apply 放行', r14('r14-c', [tool('Bash', { command: 'node ~/.qoder/scripts/tmp-sweeper.js --apply' }, 'deleted 1')]).decision, 'allow');
+
+const oldT = new Date(turnStart - 3600000);
+fs.utimesSync(tempShot, oldT, oldT);
+check('R14 文件早于本轮开始不拦', r14('r14-d', []).decision, 'allow');
+fs.writeFileSync(tempShot, 'x');
+check('R14 只读任务不拦', run({ transcript_path: transcript([userAt('只读审阅，不修改任何文件', turnStart), asst('审阅完毕。')]), session_id: 'r14-e' }, 'r14-e').decision, 'allow');
+check('R14 无时间戳（判不了）不拦', run({ transcript_path: transcript([user('请处理这个任务'), asst('任务处理完毕。')]), session_id: 'r14-f' }, 'r14-f').decision, 'allow');
 
 console.log(results.join('\n'));
 

@@ -6,12 +6,13 @@ description: 清理我方临时产物（截图 / 探针脚本 / 日志）——�
 
 显式 /clean-temp 或跨任务批量清理先列清单、弹窗确认；普通任务收尾不自动调用本流程，只清理本会话明确可丢弃且无引用的中间件。
 
-**触发**：除显式调用外，`session-budget.js` 在 SessionStart 会扫一次默认临时根——有超期件且距上次提醒 >7 天时注入「清理提醒」（含数量），再按本流程弹窗确认后才删。只提醒不删；节流状态在 `~/.qoder/tmp/tmp-sweeper/last-reminded.json`。
+**触发**：① `session-budget.js` 在 SessionStart 扫一次多根临时目录——有超期件且距上次提醒 >7 天时注入「清理提醒」（含数量）；② **任务结束**时 stop-gate 的 `R14-temp-artifacts-unhandled` 会检查本任务在 `canonicalRoot` 下新产生的顶层条目，若未询问就把 Stop 拦下，要求用 AskUserQuestion 给出**本任务临时文件清理范围**（推荐＝全部清理本任务产物；备选＝仅清截图 / 仅清日志与脚本 / 全部保留）。两处都只提醒不删，删除仍走弹窗确认；节流状态在 `~/.qoder/tmp/tmp-sweeper/last-reminded.json`。
 
 ## 步骤
 
 1. **扫描（只列不删）**：跑 `node ~/.qoder/scripts/tmp-sweeper.js --json`
-   （默认只扫 `%TEMP%/qoder-work`）。阈值：图片 / 文本 >3 天、脚本 >15 天。
+   根＝`canonicalRoot`（本机 `D:/tmp`）+ 历史遗留 `%TEMP%/qoder-work` + 客户端 `%TEMP%/qoder-cli` +
+   C 盘遗留 `%LOCALAPPDATA%/Temp/qoder-work`（若存在）。阈值：图片 / 文本 >3 天、脚本 >15 天。
 2. **合并本轮产物**：把**本次会话**新产生的临时文件（截图、`*.log`、一次性 `.cjs` / `.mjs`、
    导出的中间 `.json` / `.md`）一并列进清单——它们多半还没满 3 天，扫描器不会报，
    但"用完即删"针对的正是这一批。
@@ -37,7 +38,8 @@ description: 清理我方临时产物（截图 / 探针脚本 / 日志）——�
 
 - **保留意图优先**：用户明确保留或被证据/文档引用的产物不得因会话ID命名而删除。
   名称不清晰时可在获准范围内改名，但不把改名或写记忆作为保留文件的前置。
-- **扫描根（2026-11-09 多根）**：默认 `%TEMP%/qoder-work`；自动附带 `%TEMP%/qoder-cli`（会话任务输出，`.output` 按文本类）与 `%LOCALAPPDATA%/Temp/qoder-work`（TEMP 迁盘前遗留，若存在）；额外根只能由 `~/.qoder/tmp-sweeper.json` 的 `extraRoots`（本机含 `D:/tmp`）或显式 `--root` 给出，**脚本不接受通配或相对路径**。
+- **唯一临时目录（2026-11-09 起）**：本机所有新临时产物统一写 `D:/tmp`（`tmp-sweeper.json` 的 `canonicalRoot`，与 AGENTS.md「不往 C 盘写、临时文件全部走 D 盘」一致）；**不再新建** `%TEMP%/qoder-work`。其余目录均为兜底对象：`%TEMP%/qoder-work`（历史遗留）、`%TEMP%/qoder-cli`（Qoder CLI 会话任务输出）、`%LOCALAPPDATA%/Temp/qoder-work`（C 盘遗留，可能被客户端进程直接寻址）；`~/.qoder/tmp` 是机制状态（台账/心跳），不是产物目录，不纳入清理。
+- **扫描根**：额外根只能由 `~/.qoder/tmp-sweeper.json` 的 `extraRoots` 或显式 `--root` 给出，**脚本不接受通配或相对路径**。
 - **活跃保护**：任一顶层条目 24h 内有改动 ⇒ 视为活跃会话产物、整棵跳过（`--include-fresh` 可解除）；删除后回收本次扫描过的空目录。
 - **证据排除**：`tmp-sweeper.json` 的 `excludePaths` / `excludeTopPrefixes` 列出被记忆或交付文档引用的取证目录（本机含 `D:/tmp/context-continuity-924e5d4b`、`D:/tmp/qo-deploy-*`、`D:/tmp/QO-REL-*` 等），一律不扫不删；新增证据目录时同步登记。
 - **本机临时目录约定**：`D:\tmp` 是临时文件专用目录（AGENTS.md「不往 C 盘写」）；放在未登记位置的产物**扫不到**，需补 `extraRoots` 或按精确路径处理。
