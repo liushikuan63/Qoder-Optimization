@@ -6,6 +6,8 @@ description: 清理我方临时产物（截图 / 探针脚本 / 日志）——�
 
 显式 /clean-temp 或跨任务批量清理先列清单、弹窗确认；普通任务收尾不自动调用本流程，只清理本会话明确可丢弃且无引用的中间件。
 
+**触发**：除显式调用外，`session-budget.js` 在 SessionStart 会扫一次默认临时根——有超期件且距上次提醒 >7 天时注入「清理提醒」（含数量），再按本流程弹窗确认后才删。只提醒不删；节流状态在 `~/.qoder/tmp/tmp-sweeper/last-reminded.json`。
+
 ## 步骤
 
 1. **扫描（只列不删）**：跑 `node ~/.qoder/scripts/tmp-sweeper.js --json`

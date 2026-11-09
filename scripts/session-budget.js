@@ -473,6 +473,37 @@ function watchdogNote() {
     `可能 cron 失效或机器在计划时间关机。手工跑一次确认：\`node ~/.qoder/scripts/rules-weekly-audit.js\`。`;
 }
 
+// SessionStart 之四：**超期临时产物提醒**（2026-11-09）。
+// /clean-temp 默认只列不删、删除必须弹窗确认——没有提醒就没人触发（实测：127 个超期件
+// 11 天无一次 APPLY，周检只出 INFO）。这里只提醒、不删除；7 天节流，避免每次开台都刷。
+const SWEEPER_SCRIPT = path.join(CLIENT_ROOT, 'scripts', 'tmp-sweeper.js');
+const TMP_REMIND_STATE = path.join(CLIENT_ROOT, 'tmp', 'tmp-sweeper', 'last-reminded.json');
+const TMP_REMIND_DAYS = Number(process.env.SB_TMP_REMIND_DAYS || 7);
+
+function tmpOverdueNote() {
+  if (!fs.existsSync(SWEEPER_SCRIPT)) return null;        // 清理器没装，不是它能管的事
+  let sweeper;
+  try { sweeper = require(SWEEPER_SCRIPT); } catch (e) { return null; }
+  if (typeof sweeper.walk !== 'function' || typeof sweeper.defaultRoot !== 'function') return null;
+  const root = sweeper.defaultRoot();
+  if (!fs.existsSync(root)) return null;
+  const found = [];
+  try { sweeper.walk(root, found); } catch (e) { return null; }
+  if (!found.length) return null;
+  try {
+    const st = JSON.parse(fs.readFileSync(TMP_REMIND_STATE, 'utf8'));
+    const days = (Date.now() - Date.parse(st.at)) / 86400000;
+    if (Number.isFinite(days) && days <= TMP_REMIND_DAYS) return null;
+  } catch (e) { /* 没有状态文件 ⇒ 第一次提醒 */ }
+  try {
+    fs.mkdirSync(path.dirname(TMP_REMIND_STATE), { recursive: true });
+    fs.writeFileSync(TMP_REMIND_STATE, JSON.stringify({ at: new Date().toISOString(), stale: found.length }));
+  } catch (e) { /* 状态写不进去最多重复提醒，不影响清理本身 */ }
+  return `【清理提醒 · 超期临时产物】\`${root}\` 有 **${found.length} 个**超期件（图/文 >3 天、脚本 >15 天），` +
+    `其中可能有已用完的截图 / 探针 / 日志。按 /clean-temp 流程：先 \`node ~/.qoder/scripts/tmp-sweeper.js --json\` 列清单，` +
+    `再用 AskUserQuestion 一次问全（推荐清理），确认后才 \`--apply\`，最后复验清单为空。默认只列不删。`;
+}
+
 function main() {
   let payload;
   try { payload = JSON.parse(readStdin()); } catch (e) { return; }
@@ -491,11 +522,13 @@ function main() {
   } catch (e) {}
 
   if (event === 'SessionStart') {
-    const parts = [resumeQueue(cwd), vibePackNote(cwd), watchdogNote(), diskNote()].filter(Boolean);
+    // tmpOverdueNote 有副作用（写节流状态），只算一次；算两次第二次会被自己节流掉
+    const tmpNote = tmpOverdueNote();
+    const parts = [resumeQueue(cwd), vibePackNote(cwd), watchdogNote(), diskNote(), tmpNote].filter(Boolean);
     if (parts.length) {
       // 台账记"注入了哪几路"，而不是只记条数：几路里少一路时必须能看出来少的是哪路
       const tags = [resumeQueue(cwd) ? 'resume-queue' : null, vibePackNote(cwd) ? 'vibe-pack' : null,
-        watchdogNote() ? 'watchdog' : null, diskNote() ? 'disk' : null].filter(Boolean).join('+');
+        watchdogNote() ? 'watchdog' : null, diskNote() ? 'disk' : null, tmpNote ? 'tmp-overdue' : null].filter(Boolean).join('+');
       ledger(['SessionStart', tags, String(cwd).slice(0, 60)]);
       emit('SessionStart', parts.join('\n\n'));
     }

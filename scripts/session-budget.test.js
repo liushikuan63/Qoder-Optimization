@@ -37,6 +37,8 @@ function run(payload, extraEnv) {
       SB_STATE_DIR: path.join(SB, 'state'),
       // 事件流默认指向一个不存在的夹具根：不让用例去读真实 %APPDATA% 的宿主日志
       SB_APPLOG_ROOT: path.join(SB, 'applog-none'),
+      // 临时根也沙箱化：否则"超期临时产物"提醒会去扫真实 %TEMP%/qoder-work，把静默用例判红
+      TEMP: path.join(SB, 'temp-none'), TMP: path.join(SB, 'temp-none'), TMPDIR: path.join(SB, 'temp-none'),
       ...(extraEnv || {}),
     },
   });
@@ -175,6 +177,55 @@ for (const c of cases) {
   fs.writeFileSync(path.join(wh, 'tmp', 'rules-audit', 'history.log'), old + '|warn=1|fixed=0|info=0\n');
   const r3 = ctxOf(runWd());
   check('看门狗：台账过期 15 天 → 报"已 X 天没跑"', /已 \*\*1[45]\.\d 天\*\*没成功跑过/.test(r3), r3.slice(0, 46));
+}
+
+// ── 超期临时产物提醒：有超期件 → 提醒；7 天节流；新鲜 / 无根 → 静默 ──
+{
+  const trHome = path.join(SB, 'tr-home');
+  const trRoot = path.join(trHome, '.qoder');
+  const trTemp = path.join(SB, 'tr-temp');
+  const trWork = path.join(trTemp, 'qoder-work');
+  const trState = path.join(SB, 'tr-state');
+  const env = { HOME: trHome, USERPROFILE: trHome, SB_STATE_DIR: trState, TEMP: trTemp, TMP: trTemp, TMPDIR: trTemp };
+  const runTr = () => spawnSync(NODE, [SCRIPT], {
+    input: JSON.stringify({ hook_event_name: 'SessionStart', cwd: path.join(SB, 'empty-proj') }),
+    encoding: 'utf8', timeout: 20000,
+    env: { ...process.env, ...env },
+  });
+  const ctxOf = (r) => { try { return JSON.parse(r.stdout).hookSpecificOutput.additionalContext; } catch (e) { return ''; } };
+  const remindState = path.join(trRoot, 'tmp', 'tmp-sweeper', 'last-reminded.json');
+
+  fs.rmSync(trHome, { recursive: true, force: true });
+  fs.mkdirSync(path.join(trRoot, 'scripts'), { recursive: true });
+  fs.mkdirSync(trWork, { recursive: true });
+  const stale = path.join(trWork, 'old-shot.png');
+  fs.writeFileSync(stale, 'x');
+  const fiveDaysAgo = new Date(Date.now() - 5 * 86400000);
+  fs.utimesSync(stale, fiveDaysAgo, fiveDaysAgo);
+
+  let r = runTr();
+  check('超期提醒：清理器缺失 → 静默', !ctxOf(r).includes('清理提醒'), JSON.stringify((r.stdout || '').slice(0, 40)));
+
+  fs.copyFileSync(path.join(__dirname, 'tmp-sweeper.js'), path.join(trRoot, 'scripts', 'tmp-sweeper.js'));
+  fs.copyFileSync(path.join(__dirname, 'client-root.js'), path.join(trRoot, 'scripts', 'client-root.js'));
+  r = runTr();
+  const ctx1 = ctxOf(r);
+  check('超期提醒：有超期件 → 注入清理提醒（含数量）', ctx1.includes('清理提醒') && ctx1.includes('1 个'), ctx1.slice(0, 46));
+  check('超期提醒：提醒后写节流状态', fs.existsSync(remindState));
+
+  r = runTr();
+  check('超期提醒：7 天内重复开台 → 静默（节流）', !ctxOf(r).includes('清理提醒'), JSON.stringify((r.stdout || '').slice(0, 40)));
+
+  fs.rmSync(remindState, { force: true });
+  fs.rmSync(stale, { force: true });
+  fs.writeFileSync(path.join(trWork, 'new-shot.png'), 'x');
+  r = runTr();
+  check('超期提醒：只有新鲜文件 → 静默', !ctxOf(r).includes('清理提醒'), JSON.stringify((r.stdout || '').slice(0, 40)));
+
+  fs.rmSync(trWork, { recursive: true, force: true });
+  fs.rmSync(remindState, { force: true });
+  r = runTr();
+  check('超期提醒：临时根不存在 → 静默', !ctxOf(r).includes('清理提醒'), JSON.stringify((r.stdout || '').slice(0, 40)));
 }
 
 // ── 返回侧入账：回合间增量（体积小到不触发分档，也要能单独报出来）──
