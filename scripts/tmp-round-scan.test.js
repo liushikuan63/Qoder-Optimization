@@ -56,6 +56,7 @@ check('早于 since 的条目不在本轮清单', names.includes('old.log'), fal
 check('证据前缀被标记保留', r.entries.find((e) => e.name === 'QO-REL-keep')?.excluded, true);
 check('证据目录不在推荐清理清单', r.recommended.clean.some((p) => p.includes('QO-REL-keep')), false);
 check('超期件被带上', r.stale.some((f) => f.path.endsWith('stale.txt')), true);
+check('超期件只作参考且不混入推荐清理清单', r.staleNote.includes('reference-only') && r.recommended.clean.some((p) => p.endsWith('stale.txt')), false);
 check('目录体积被统计', (r.entries.find((e) => e.name === 'pkg-round')?.bytes || 0) >= 100, true);
 
 const empty = path.join(ROOT, 'empty');

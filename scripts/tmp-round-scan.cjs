@@ -82,6 +82,7 @@ function main() {
 
   if (opts.json) {
     console.log(JSON.stringify({ root, since: new Date(opts.since).toISOString(), entries, stale,
+      staleNote: 'reference-only: the overdue list may come from another machine or package config; verify existence, ownership and references locally before cleanup',
       recommended: { clean: candidates.map((e) => e.path), preserve: preserved.map((e) => e.path) } }))
     return
   }
@@ -95,8 +96,8 @@ function main() {
         + (e.excluded ? '[已登记证据，保留] ' : '') + e.path)
     }
   }
-  console.log('超期件：' + (stale.length ? stale.length + ' 项（' + stale.slice(0, 5).map((f) => f.path).join('、') + '）' : '无'))
-  console.log('建议清理范围（推荐）：本轮可清条目 ' + candidates.length + ' 项 + 超期件 ' + stale.length + ' 项；保留证据目录 ' + preserved.length + ' 项。')
+  console.log('超期件（仅供参考，可能与本机现状不一致）：' + (stale.length ? stale.length + ' 项（' + stale.slice(0, 5).map((f) => f.path).join('、') + '）' : '无'))
+  console.log('建议清理范围（推荐）：仅本轮可清条目 ' + candidates.length + ' 项（需弹窗确认）；超期件 ' + stale.length + ' 项只作参考，如要清理须逐条核对本机存在性、归属与证据引用。保留证据目录 ' + preserved.length + ' 项。')
   console.log('删除前必须用 AskUserQuestion 征得确认；执行时只用精确路径，不删已登记证据与回滚点。')
 }
 

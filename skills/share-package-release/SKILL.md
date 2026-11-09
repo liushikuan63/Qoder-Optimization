@@ -90,7 +90,7 @@ description: 分享包/配置包从组装、改名、发版门禁到发布后远
 - [ ] 远端每个附件与本地产物 SHA-256 相同；解压逐字节 diff 为空；成员数对账成立。
 - [ ] 隔离消费者从发行包走通关键路径。
 - [ ] 已用 AskUserQuestion 询问并记录部署决定（部署 / 部分 / 暂不），drift 命中的按需技能已并入询问并记录更新决定；汇报分开写包内已发、现役已部署、按需技能已更新与现役较新未覆盖项。
-- [ ] 使用/部署分享包后已跑 `tmp-round-scan.cjs --since <本轮开始>`（或 `tmp-sweeper.js --json`）并用 AskUserQuestion 确认清理范围；发布归档与已登记证据目录保留。
+- [ ] 使用/部署分享包后已跑 `tmp-round-scan.cjs --since <本轮开始>`（或 `tmp-sweeper.js --json`）并用 AskUserQuestion 确认清理范围（超期清单只作参考，可能与本机不一致）；发布归档与已登记证据目录保留。
 - [ ] 已对 DIFFER 文本文件运行 `pkg-diff review`，`BOTH-CHANGED` / `NO-BASELINE` 逐条询问并记录合并方式；只问“是否部署”不算。
 - [ ] 汇报中「已落地并验证」与「未验证/外部阻塞」分开写。
 
