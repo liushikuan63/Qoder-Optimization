@@ -6,6 +6,8 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-09
+
 ### Changed
 - Restore the prompt-correction recommendation for ambiguous requests: the ambiguity note recognizes explicit `指令/需求不清` phrasing and offers a `/clarify` corrected prompt as an advisory option, while keeping the corrected prompt non-authorizing and the existing AskUserQuestion evidence checks. `clarify` is now routable as a relevant installed command and carries trigger words in its description.
 - Backfill `vibe-coding-workflow` with the newer local SKILL.md (use/avoid boundaries, parallel and goal handoffs, library-tier paths) and regenerate the catalog description and description-length counts; the upstream README and `_meta.json` stay in the package and are now installed alongside the skill.
@@ -713,7 +715,10 @@ During the 0.x line, minor versions may contain breaking changes.
 ### Contributors / 贡献者
 - @liushikuan63
 
-[Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.0.8...HEAD
+[Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.2
+[0.1.1]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.1
+[0.1.0]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.0
 [0.0.8]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.8
 [0.0.7]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.7
 [0.0.6]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.0.6

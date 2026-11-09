@@ -2,7 +2,7 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.1.1"
+  "version": "0.1.2"
  },
  "generated": "2026-11-09",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
