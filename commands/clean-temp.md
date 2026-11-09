@@ -6,7 +6,7 @@ description: 清理我方临时产物（截图 / 探针脚本 / 日志）——�
 
 显式 /clean-temp 或跨任务批量清理先列清单、弹窗确认；普通任务收尾不自动调用本流程，只清理本会话明确可丢弃且无引用的中间件。
 
-**触发**：① `session-budget.js` 在 SessionStart 扫一次多根临时目录——有超期件且距上次提醒 >7 天时注入「清理提醒」（含数量）；② **任务结束**时 stop-gate 的 `R14-temp-artifacts-unhandled` 会检查本任务在 `canonicalRoot` 下新产生的顶层条目，若未询问就把 Stop 拦下，要求用 AskUserQuestion 给出**本任务临时文件清理范围**（推荐＝全部清理本任务产物；备选＝仅清截图 / 仅清日志与脚本 / 全部保留）。两处都只提醒不删，删除仍走弹窗确认；节流状态在 `~/.qoder/tmp/tmp-sweeper/last-reminded.json`。
+**触发**：① `session-budget.js` 在 SessionStart 扫一次多根临时目录——有超期件且距上次提醒 >7 天时注入「清理提醒」（含数量）；② **任务结束**时 stop-gate 的 `R14-temp-artifacts-unhandled` 会检查本任务在 `canonicalRoot` 下新产生的顶层条目，若未询问就把 Stop 拦下，要求用 AskUserQuestion 给出**本任务临时文件清理范围**（推荐＝全部清理本任务产物；备选＝仅清截图 / 仅清日志与脚本 / 全部保留）；③ **使用分享包（安装/合并/发布构建）后**必须跑一次扫描并用 AskUserQuestion 确认清理范围（`tmp-round-scan.cjs --since <本轮开始>` 列本轮包产物、`tmp-sweeper.js --json` 列超期件），stop-gate `R15-share-package-temp-scan-missing` 兜底。以上机制只提醒/拦截，不自动删除；删除仍走弹窗确认；节流状态在 `~/.qoder/tmp/tmp-sweeper/last-reminded.json`。
 
 ## 步骤
 

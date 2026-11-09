@@ -745,6 +745,17 @@ fs.writeFileSync(tempShot, 'x');
 check('R14 只读任务不拦', run({ transcript_path: transcript([userAt('只读审阅，不修改任何文件', turnStart), asst('审阅完毕。')]), session_id: 'r14-e' }, 'r14-e').decision, 'allow');
 check('R14 无时间戳（判不了）不拦', run({ transcript_path: transcript([user('请处理这个任务'), asst('任务处理完毕。')]), session_id: 'r14-f' }, 'r14-f').decision, 'allow');
 
+// ---------- R15：使用分享包后必须做临时扫描并询问清理范围（2026-11-09）----------
+const r15 = (sess, tools) => run({ transcript_path: transcript([user('应用这个分享包'), ...tools, asst('分享包处理完毕。')]), session_id: sess }, sess);
+const pkgOp = tool('Bash', { command: 'node scripts/install-package.cjs --yes' }, 'ok');
+const pkgScan = tool('Bash', { command: 'node ~/.qoder/scripts/tmp-round-scan.cjs --json' }, '{}');
+const pkgAsk = tool('AskUserQuestion', { questions: [{ question: '本轮包产物的临时文件清理范围？', options: ['全部清理', '保留'] }] });
+check('R15 分享包操作后未扫描未询问必须拦', r15('r15-a', [pkgOp]).decision, 'block');
+check('R15 只扫描未询问仍拦', r15('r15-b', [pkgOp, pkgScan]).decision, 'block');
+check('R15 只询问未扫描仍拦', r15('r15-c', [pkgOp, pkgAsk]).decision, 'block');
+check('R15 已扫描并询问清理范围放行', r15('r15-d', [pkgOp, pkgScan, pkgAsk]).decision, 'allow');
+check('R15 未用分享包不拦', r15('r15-e', [tool('Bash', { command: 'ls scripts' }, 'ok')]).decision, 'allow');
+
 console.log(results.join('\n'));
 
 const failed = results.filter((x) => x.startsWith('FAIL')).length;

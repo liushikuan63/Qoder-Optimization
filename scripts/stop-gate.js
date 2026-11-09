@@ -723,7 +723,7 @@ function ambiguityResolved(session) {
   } catch { return null; }
 }
 
-// R13：任务结束时的"本任务临时文件"探测（2026-11-09）。
+// R14：任务结束时的"本任务临时文件"探测（2026-11-09）。
 // 唯一约定目录 = tmp-sweeper.json 的 canonicalRoot；没有配置时退回默认临时根。
 // 只列**本轮用户消息之后**新增/改动的顶层条目（文件或目录），不深挖；拿不到时间戳就放行。
 let lastTempProbe = null;
@@ -754,6 +754,21 @@ function tempGateProbe(ctx) {
   }
   lastTempProbe = { sessionId: ctx.sessionId, since, entries };
   return entries;
+}
+
+// R15：使用分享包（安装/合并/发布构建）后必须做一次临时扫描并询问清理范围（2026-11-09）。
+const SHARE_PKG_OP = /install-package\.cjs|(?:unzip|tar\s+(?:-?x|--extract))[^\n]*Qoder-Optimization|Qoder-Optimization[^\n]*\.zip/i;
+function sharePackageOp(ctx) {
+  return ctx.turnTools.some((x) => x.success && toolName(x) === 'Bash'
+    && SHARE_PKG_OP.test(String((x.input || {}).command || '')));
+}
+function shareTempScanRan(ctx) {
+  return ctx.turnTools.some((x) => x.success && toolName(x) === 'Bash'
+    && /tmp-round-scan\.cjs|tmp-sweeper\.js/.test(String((x.input || {}).command || '')));
+}
+function shareCleanupAsked(ctx) {
+  return ctx.turnTools.some((x) => x.success && toolName(x) === 'AskUserQuestion'
+    && /临时|清理|clean|包产物/i.test(JSON.stringify(x.input || {})));
 }
 
 const RULES = [
@@ -1014,6 +1029,21 @@ const RULES = [
         + '推荐＝全部清理本任务产物（以上路径，精确删除）；备选＝仅清截图、仅清日志/脚本、全部保留（写明保留原因）。'
         + '按答复执行并复验；本轮已问过或已跑 `tmp-sweeper.js --apply` 则放行。';
     },
+  },
+  {
+    id: 'R15-share-package-temp-scan-missing',
+    needsText: false,
+    // 使用分享包（安装/合并/发布构建）后必须做一次临时扫描并询问清理范围；只提醒不自动删。
+    test: (t, ctx) => {
+      if (ctx.scope.readOnly || ctx.scope.handoffOnly) return false;
+      if (!sharePackageOp(ctx)) return false;
+      return !(shareTempScanRan(ctx) && shareCleanupAsked(ctx));
+    },
+    reason: () => '本轮执行了分享包操作（安装/合并/发布构建）。按 AGENTS.md：使用分享包后必须先做临时文件扫描并提示清理——'
+      + '跑 `node ~/.qoder/scripts/tmp-round-scan.cjs --since <本轮开始>`（再跑 `tmp-sweeper.js --json` 看超期件），'
+      + '把本轮包产物（下载 zip、解压/暂存目录、旧版本副本、日志）连同超期件用 AskUserQuestion 给清理范围：'
+      + '推荐＝全部清理本轮包产物+超期件；备选＝仅超期件 / 保留回滚点与已登记证据目录 / 全部保留。'
+      + '确认后只用精确路径删除并复扫；扫描与询问都留痕才放行。',
   },
 ];
 
