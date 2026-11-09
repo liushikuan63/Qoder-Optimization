@@ -733,10 +733,13 @@ const turnStart = Date.now() - 60000;
 const r14 = (sess, tools, text = '任务处理完毕。') => run({ transcript_path: transcript([userAt('请处理这个任务', turnStart), ...tools, asst(text)]), session_id: sess }, sess);
 
 const r14a = r14('r14-a', []);
-check('R14 本任务产生临时文件未询问必须拦', r14a.decision, 'block');
+check('R14 本任务产生临时文件未处理必须拦', r14a.decision, 'block');
 check('R14 拦截原因给出清理范围与文件', r14a.out.includes('R14-temp-artifacts-unhandled') && r14a.out.includes('清理范围') && r14a.out.includes('task-shot.png'), true);
-check('R14 已弹窗询问清理范围放行', r14('r14-b', [tool('AskUserQuestion', { questions: [{ question: '本任务临时文件清理范围？', options: ['全部清理', '保留'] }] })]).decision, 'allow');
-check('R14 已执行 tmp-sweeper --apply 放行', r14('r14-c', [tool('Bash', { command: 'node ~/.qoder/scripts/tmp-sweeper.js --apply' }, 'deleted 1')]).decision, 'allow');
+check('R14 已弹窗询问清理范围并反馈放行', r14('r14-b', [tool('AskUserQuestion', { questions: [{ question: '本任务临时文件清理范围？', options: ['全部清理', '保留'] }] })], '已清理本轮临时产物 1 项。').decision, 'allow');
+check('R14 已执行 tmp-sweeper --apply 并反馈放行', r14('r14-c', [tool('Bash', { command: 'node ~/.qoder/scripts/tmp-sweeper.js --apply' }, 'deleted 1')], '已清理本轮临时产物 1 项。').decision, 'allow');
+const roundApplyTool = tool('Bash', { command: 'node ~/.qoder/scripts/tmp-round-scan.cjs --since ' + turnStart + ' --apply' }, 'deleted 1');
+check('R14 已执行 tmp-round-scan --apply 并反馈放行', r14('r14-c2', [roundApplyTool], '已清理本轮临时产物 1 项。').decision, 'allow');
+check('R14 清理后未反馈必须拦', r14('r14-c3', [roundApplyTool], '任务处理完毕。').decision, 'block');
 
 const oldT = new Date(turnStart - 3600000);
 fs.utimesSync(tempShot, oldT, oldT);
@@ -745,15 +748,37 @@ fs.writeFileSync(tempShot, 'x');
 check('R14 只读任务不拦', run({ transcript_path: transcript([userAt('只读审阅，不修改任何文件', turnStart), asst('审阅完毕。')]), session_id: 'r14-e' }, 'r14-e').decision, 'allow');
 check('R14 无时间戳（判不了）不拦', run({ transcript_path: transcript([user('请处理这个任务'), asst('任务处理完毕。')]), session_id: 'r14-f' }, 'r14-f').decision, 'allow');
 
-// ---------- R15：使用分享包后必须做临时扫描并询问清理范围（2026-11-09）----------
-const r15 = (sess, tools) => run({ transcript_path: transcript([user('应用这个分享包'), ...tools, asst('分享包处理完毕。')]), session_id: sess }, sess);
+// 本地授权自动清理：autoClean.enabled=true（本机配置）
+const autoCfgPath = path.join(ROOT, '.qoder', 'tmp-sweeper.json');
+fs.mkdirSync(path.dirname(autoCfgPath), { recursive: true });
+fs.writeFileSync(autoCfgPath, JSON.stringify({ canonicalRoot: TMPROOT, autoClean: { enabled: true, sharePackage: false } }));
+const autoBlock = r14('r14-g', []);
+check('R14 自动清理未执行必须拦', autoBlock.decision, 'block');
+check('R14 拦截原因指向自动清理', autoBlock.out.includes('自动清理') && autoBlock.out.includes('--apply'), true);
+check('R14 自动清理执行并反馈放行', r14('r14-h', [roundApplyTool], '已清理本轮临时产物 1 项。').decision, 'allow');
+check('R14 自动清理后未反馈必须拦', r14('r14-i', [roundApplyTool], '任务处理完毕。').decision, 'block');
+const r14Share = r14('r14-j', [tool('Bash', { command: 'node scripts/install-package.cjs --yes' }, 'ok')]);
+check('R14 分享包轮次交给 R15', r14Share.out.includes('R15-share-package-temp-scan-missing') && !r14Share.out.includes('R14-temp-artifacts-unhandled'), true);
+
+// ---------- R15：使用分享包后默认每轮询问；授权时可自动清理，但都必须反馈（2026-11-09）----------
+const r15 = (sess, tools, text = '分享包处理完毕。', prompt = '应用这个分享包') => run({ transcript_path: transcript([user(prompt), ...tools, asst(text)]), session_id: sess }, sess);
 const pkgOp = tool('Bash', { command: 'node scripts/install-package.cjs --yes' }, 'ok');
 const pkgScan = tool('Bash', { command: 'node ~/.qoder/scripts/tmp-round-scan.cjs --json' }, '{}');
 const pkgAsk = tool('AskUserQuestion', { questions: [{ question: '本轮包产物的临时文件清理范围？', options: ['全部清理', '保留'] }] });
+const pkgApply = tool('Bash', { command: 'node ~/.qoder/scripts/tmp-round-scan.cjs --since 1 --apply' }, 'deleted 1');
+const pkgApplyShare = tool('Bash', { command: 'node ~/.qoder/scripts/tmp-round-scan.cjs --since 1 --apply --include-share-package' }, 'deleted 2');
+const pkgApplyShareNoSince = tool('Bash', { command: 'node ~/.qoder/scripts/tmp-round-scan.cjs --apply --include-share-package' }, 'deleted 2');
+const shareReport = '已清理本轮包产物 2 项，保留回滚点 1 项。';
 check('R15 分享包操作后未扫描未询问必须拦', r15('r15-a', [pkgOp]).decision, 'block');
 check('R15 只扫描未询问仍拦', r15('r15-b', [pkgOp, pkgScan]).decision, 'block');
 check('R15 只询问未扫描仍拦', r15('r15-c', [pkgOp, pkgAsk]).decision, 'block');
-check('R15 已扫描并询问清理范围放行', r15('r15-d', [pkgOp, pkgScan, pkgAsk]).decision, 'allow');
+check('R15 已扫描并询问且反馈放行', r15('r15-d', [pkgOp, pkgScan, pkgAsk], shareReport).decision, 'allow');
+check('R15 已询问但未反馈清理结果仍拦', r15('r15-f', [pkgOp, pkgScan, pkgAsk]).decision, 'block');
+check('R15 未授权时自动清理不能代替询问', r15('r15-g', [pkgOp, pkgApplyShare], shareReport).decision, 'block');
+check('R15 明确授权后自动清理并反馈放行', r15('r15-h', [pkgOp, pkgApplyShare], shareReport, '应用这个分享包，本轮授权自动清理，不用询问').decision, 'allow');
+check('R15 授权模式必须清理包产物', r15('r15-i', [pkgOp, pkgApply], shareReport, '应用这个分享包，本轮授权自动清理，不用询问').decision, 'block');
+check('R15 授权模式不能拆分两条命令凑条件', r15('r15-l', [pkgOp, pkgApplyShareNoSince, pkgApply], shareReport, '应用这个分享包，本轮授权自动清理，不用询问').decision, 'block');
+check('R15 授权自动清理后未反馈仍拦', r15('r15-j', [pkgOp, pkgApplyShare], '分享包处理完毕。', '应用这个分享包，本轮授权自动清理，不用询问').decision, 'block');
 check('R15 未用分享包不拦', r15('r15-e', [tool('Bash', { command: 'ls scripts' }, 'ok')]).decision, 'allow');
 
 console.log(results.join('\n'));

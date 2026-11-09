@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// tmp-round-scan 离线用例：本轮条目要能列出、旧条目/证据目录要排除。
+// tmp-round-scan 离线用例：本轮条目列出、证据/分享包保护、自动清理范围与显式 since。
 'use strict';
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { execFileSync } = require('child_process');
+const { execFileSync, spawnSync } = require('child_process');
 
 const SCAN = path.join(__dirname, 'tmp-round-scan.cjs');
 const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'round-scan-test-'));
@@ -12,7 +12,8 @@ const HOME = path.join(ROOT, 'home');
 const TMPROOT = path.join(ROOT, 'tmp');
 fs.mkdirSync(path.join(HOME, '.qoder'), { recursive: true });
 fs.writeFileSync(path.join(HOME, '.qoder', 'tmp-sweeper.json'),
-  JSON.stringify({ canonicalRoot: TMPROOT, excludeTopPrefixes: ['QO-REL-', 'evidence-'] }));
+  JSON.stringify({ canonicalRoot: TMPROOT, excludeTopPrefixes: ['QO-REL-', 'evidence-'],
+    autoClean: { enabled: true, sharePackage: false, protectTopPatterns: ['^keep-me-'] } }));
 fs.mkdirSync(TMPROOT, { recursive: true });
 
 let n = 0;
@@ -24,20 +25,36 @@ function check(name, got, want) {
   return ok;
 }
 
+const env = Object.assign({}, process.env, { HOME, USERPROFILE: HOME });
 function scan(extra = []) {
-  const out = execFileSync(process.execPath, [SCAN, '--json', ...extra], {
-    encoding: 'utf8',
-    env: Object.assign({}, process.env, { HOME, USERPROFILE: HOME }),
-  });
+  const out = execFileSync(process.execPath, [SCAN, '--json', ...extra], { encoding: 'utf8', env });
   return JSON.parse(out);
 }
 
 const since = Date.now() - 60000;
-const freshDir = path.join(TMPROOT, 'pkg-round');
+const freshDir = path.join(TMPROOT, 'round-dir');
 fs.mkdirSync(freshDir, { recursive: true });
 fs.writeFileSync(path.join(freshDir, 'a.json'), 'x'.repeat(100));
-const freshFile = path.join(TMPROOT, 'pkg.zip');
+const freshFile = path.join(TMPROOT, 'round.zip');
 fs.writeFileSync(freshFile, 'z');
+const qoLog = path.join(TMPROOT, 'qo-task.log');
+fs.writeFileSync(qoLog, 'q');
+const onlyFile = path.join(TMPROOT, 'qo-only.log');
+fs.writeFileSync(onlyFile, 'o');
+const otherFile = path.join(TMPROOT, 'keep-other.log');
+fs.writeFileSync(otherFile, 'k');
+const qoPkg = path.join(TMPROOT, 'qo-0024-pkg');
+fs.mkdirSync(qoPkg, { recursive: true });
+fs.writeFileSync(path.join(qoPkg, 'pkg.tgz'), 'q');
+const shareDir = path.join(TMPROOT, 'Qoder-Optimization-0.1.0');
+fs.mkdirSync(shareDir, { recursive: true });
+fs.writeFileSync(path.join(shareDir, 'pkg.tgz'), 'p');
+const pkgStage = path.join(TMPROOT, 'pkg-stage');
+fs.mkdirSync(pkgStage, { recursive: true });
+fs.writeFileSync(path.join(pkgStage, 'stage.log'), 's');
+const keepMe = path.join(TMPROOT, 'keep-me-dir');
+fs.mkdirSync(keepMe, { recursive: true });
+fs.writeFileSync(path.join(keepMe, 'keep.log'), 'k');
 const excludedDir = path.join(TMPROOT, 'QO-REL-keep');
 fs.mkdirSync(excludedDir, { recursive: true });
 fs.writeFileSync(path.join(excludedDir, 'evidence.log'), 'y');
@@ -51,13 +68,56 @@ fs.utimesSync(staleText, new Date(Date.now() - 5 * 86400000), new Date(Date.now(
 
 const r = scan(['--since', String(since)]);
 const names = r.entries.map((e) => e.name).sort();
-check('本轮新增条目被发现', names.includes('pkg-round') && names.includes('pkg.zip'), true);
+check('本轮新增条目被发现', names.includes('round-dir') && names.includes('round.zip'), true);
 check('早于 since 的条目不在本轮清单', names.includes('old.log'), false);
 check('证据前缀被标记保留', r.entries.find((e) => e.name === 'QO-REL-keep')?.excluded, true);
 check('证据目录不在推荐清理清单', r.recommended.clean.some((p) => p.includes('QO-REL-keep')), false);
+check('分享包产物默认受保护', r.entries.find((e) => e.name === 'Qoder-Optimization-0.1.0')?.protected, true);
+check('分享包暂存目录默认受保护', r.entries.find((e) => e.name === 'pkg-stage')?.protected, true);
+check('分享包产物不在默认推荐清理清单', r.recommended.clean.some((p) => p.includes('Qoder-Optimization') || p.includes('pkg-stage')), false);
+check('普通 qo- 日志不被误保护', r.entries.find((e) => e.name === 'qo-task.log')?.protected, false);
+check('qo 包目录默认受保护', r.entries.find((e) => e.name === 'qo-0024-pkg')?.protected, true);
+check('自定义保护前缀生效', r.entries.find((e) => e.name === 'keep-me-dir')?.protected, true);
 check('超期件被带上', r.stale.some((f) => f.path.endsWith('stale.txt')), true);
 check('超期件只作参考且不混入推荐清理清单', r.staleNote.includes('reference-only') && r.recommended.clean.some((p) => p.endsWith('stale.txt')), false);
-check('目录体积被统计', (r.entries.find((e) => e.name === 'pkg-round')?.bytes || 0) >= 100, true);
+check('目录体积被统计', (r.entries.find((e) => e.name === 'round-dir')?.bytes || 0) >= 100, true);
+
+const noSince = spawnSync(process.execPath, [SCAN, '--apply', '--json'], { encoding: 'utf8', env });
+check('自动清理必须显式给 since', noSince.status, 2);
+
+const onlyApplied = scan(['--since', String(since), '--apply', '--only', onlyFile]);
+check('--only 只删指定路径', fs.existsSync(onlyFile), false);
+check('--only 保留其他可清条目', fs.existsSync(otherFile), true);
+check('--only 结果标记 only', onlyApplied.only.length, 1);
+const badOnly = spawnSync(process.execPath, [SCAN, '--apply', '--since', String(since), '--only', path.join(ROOT, 'outside')], { encoding: 'utf8', env });
+check('--only 必须是临时根直接子条目', badOnly.status, 2);
+
+const applied = scan(['--since', String(since), '--apply']);
+check('自动清理标记 apply', applied.apply, true);
+check('自动清理删除本轮可清目录', fs.existsSync(freshDir), false);
+check('自动清理删除本轮可清文件', fs.existsSync(freshFile), false);
+check('自动清理删除普通 qo- 日志', fs.existsSync(qoLog), false);
+check('自动清理删除其他可清条目', fs.existsSync(otherFile), false);
+check('自动清理保留分享包产物', fs.existsSync(shareDir), true);
+check('自动清理保留分享包暂存目录', fs.existsSync(pkgStage), true);
+check('自动清理保留 qo 包目录', fs.existsSync(qoPkg), true);
+check('自动清理保留证据目录', fs.existsSync(excludedDir), true);
+check('自动清理保留自定义保护项', fs.existsSync(keepMe), true);
+check('自动清理不删超期件', fs.existsSync(staleText), true);
+check('自动清理结果包含删除清单', applied.deleted.some((p) => p.endsWith('round-dir')) && applied.deleted.some((p) => p.endsWith('round.zip')), true);
+check('自动清理结果包含保护清单', applied.protected.some((p) => p.includes('Qoder-Optimization')), true);
+
+const includeApplied = scan(['--since', String(since), '--apply', '--include-share-package']);
+check('授权模式可清理分享包产物', fs.existsSync(shareDir), false);
+check('授权模式可清理分享包暂存目录', fs.existsSync(pkgStage), false);
+check('授权模式可清理 qo 包目录', fs.existsSync(qoPkg), false);
+check('授权模式仍保留回滚点/证据', fs.existsSync(excludedDir), true);
+check('授权模式仍保留自定义保护项', fs.existsSync(keepMe), true);
+check('授权模式仍不删超期件', fs.existsSync(staleText), true);
+check('授权模式标记 includeSharePackage', includeApplied.includeSharePackage, true);
+
+const after = scan(['--since', String(since)]);
+check('复扫无默认可清条目', after.recommended.clean.length, 0);
 
 const empty = path.join(ROOT, 'empty');
 fs.mkdirSync(empty);

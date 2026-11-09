@@ -764,11 +764,43 @@ function sharePackageOp(ctx) {
 }
 function shareTempScanRan(ctx) {
   return ctx.turnTools.some((x) => x.success && toolName(x) === 'Bash'
-    && /tmp-round-scan\.cjs|tmp-sweeper\.js/.test(String((x.input || {}).command || '')));
+    && /tmp-round-scan\.cjs/.test(String((x.input || {}).command || '')));
 }
 function shareCleanupAsked(ctx) {
   return ctx.turnTools.some((x) => x.success && toolName(x) === 'AskUserQuestion'
     && /临时|清理|clean|包产物/i.test(JSON.stringify(x.input || {})));
+}
+function tmpAutoCleanCfg() {
+  const cfg = json(path.join(CLIENT_ROOT, 'tmp-sweeper.json')) || {};
+  return cfg && cfg.autoClean && typeof cfg.autoClean === 'object' ? cfg.autoClean : {};
+}
+function autoCleanEnabled() {
+  return tmpAutoCleanCfg().enabled === true;
+}
+// 分享包默认必须询问；只有配置授权或本轮用户明确授权时才可跳过询问自动清理。
+function shareAutoCleanAuthorized(ctx) {
+  if (tmpAutoCleanCfg().sharePackage === true) return true;
+  return /(授权|允许|直接|不用问|无需询问|自动)[^\n]{0,10}清理|清理[^\n]{0,10}(不用问|无需询问|自动)/.test(ctx.lastUserText || '');
+}
+function roundScanApply(ctx) {
+  return ctx.turnTools.some((x) => x.success && toolName(x) === 'Bash'
+    && /tmp-round-scan\.cjs[^\n]*(?:--apply[^\n]*--since|--since[^\n]*--apply)/.test(String((x.input || {}).command || '')));
+}
+function shareRoundScanApply(ctx) {
+  return ctx.turnTools.some((x) => {
+    if (!(x.success && toolName(x) === 'Bash')) return false;
+    const c = String((x.input || {}).command || '');
+    return /tmp-round-scan\.cjs/.test(c) && /--apply/.test(c)
+      && /--include-share-package/.test(c) && /--since/.test(c);
+  });
+}
+function tempSweeperApply(ctx) {
+  return ctx.turnTools.some((x) => x.success && toolName(x) === 'Bash'
+    && /tmp-sweeper\.js[^\n]*--apply/.test(String((x.input || {}).command || '')));
+}
+function cleanupReported(text) {
+  return /(临时产物|清理|删除|保留|cleanup)/i.test(text || '')
+    && /(\d|无|没有|零|全部|已|完毕|保留|none|no)/i.test(text || '');
 }
 
 const RULES = [
@@ -1010,41 +1042,65 @@ const RULES = [
   {
     id: 'R14-temp-artifacts-unhandled',
     needsText: false,
-    // 任务收尾必须就"本任务临时文件"给出清理范围并询问；本轮已问过 / 已执行清理则放行。
+    // 每轮结束必须清理并反馈；本机 autoClean.enabled=true 时按推荐范围自动清理，否则弹窗确认。
+    // 分享包轮次交给 R15 的"每轮必问"（或显式授权自动清理），R14 不重复要求。
     test: (t, ctx) => {
       if (ctx.scope.readOnly || ctx.scope.handoffOnly) return false;
+      if (sharePackageOp(ctx)) return false;
       const entries = tempGateProbe(ctx);
       if (!entries.length) return false;
-      if (ctx.turnTools.some((x) => x.success && toolName(x) === 'AskUserQuestion'
-        && /临时|清理|clean/i.test(JSON.stringify(x.input || {})))) return false;
-      if (ctx.turnTools.some((x) => x.success && toolName(x) === 'Bash'
-        && /tmp-sweeper\.js[^\n]*--apply/.test(String((x.input || {}).command || '')))) return false;
-      return true;
+      const asked = ctx.turnTools.some((x) => x.success && toolName(x) === 'AskUserQuestion'
+        && /临时|清理|clean/i.test(JSON.stringify(x.input || {})));
+      const closed = autoCleanEnabled()
+        ? (roundScanApply(ctx) || asked)
+        : (roundScanApply(ctx) || tempSweeperApply(ctx) || asked);
+      if (!closed) return true;
+      return !cleanupReported(t);
     },
     reason: (ctx) => {
       const entries = tempGateProbe(ctx) || [];
       const shown = entries.slice(0, 6).map((e) => '`' + e.path + '`').join('、');
-      return '本任务在临时目录产生了 ' + entries.length + (entries.length >= 10 ? '+ 项（只列前 10）' : ' 项') + '：' + shown
-        + '。按 AGENTS.md「临时产物按用途处理」：收尾必须用 AskUserQuestion 给出**本任务临时文件清理范围**——'
+      const head = '本任务在临时目录产生了 ' + entries.length + (entries.length >= 10 ? '+ 项（只列前 10）' : ' 项') + '：' + shown + '。';
+      if (autoCleanEnabled()) {
+        return head + '本机已授权按推荐范围自动清理：跑 `node ~/.qoder/scripts/tmp-round-scan.cjs --since <本轮开始> --apply`'
+          + '（只删本轮可清条目；已登记证据、分享包回滚点与受保护项保留），复扫后必须在最终回复里**反馈删除/保留结果**。'
+          + '本轮涉及分享包时不要用这条路径，交给 R15 的每轮询问（或用户明确授权的自动清理）。';
+      }
+      return head + '按 AGENTS.md「临时产物按用途处理」：用 AskUserQuestion 给出**本任务临时文件清理范围**——'
         + '推荐＝全部清理本任务产物（以上路径，精确删除）；备选＝仅清截图、仅清日志/脚本、全部保留（写明保留原因）。'
-        + '按答复执行并复验；本轮已问过或已跑 `tmp-sweeper.js --apply` 则放行。';
+        + '按答复执行并复验，最终回复必须**反馈删除/保留结果**。';
     },
   },
   {
     id: 'R15-share-package-temp-scan-missing',
     needsText: false,
-    // 使用分享包（安装/合并/发布构建）后必须做一次临时扫描并询问清理范围；只提醒不自动删。
+    // 分享包使用后默认每轮结束询问；本轮明确授权（或 autoClean.sharePackage=true）时才可自动清理，
+    // 但清理完毕仍必须在最终回复反馈结果。自动清理必须带 --include-share-package。
     test: (t, ctx) => {
       if (ctx.scope.readOnly || ctx.scope.handoffOnly) return false;
       if (!sharePackageOp(ctx)) return false;
-      return !(shareTempScanRan(ctx) && shareCleanupAsked(ctx));
+      const scanned = shareTempScanRan(ctx);
+      if (shareAutoCleanAuthorized(ctx)) {
+        if (!scanned || !shareRoundScanApply(ctx)) return true;
+        return !cleanupReported(t);
+      }
+      if (!(scanned && shareCleanupAsked(ctx))) return true;
+      return !cleanupReported(t);
     },
-    reason: () => '本轮执行了分享包操作（安装/合并/发布构建）。按 AGENTS.md：使用分享包后必须先做临时文件扫描并提示清理——'
-      + '跑 `node ~/.qoder/scripts/tmp-round-scan.cjs --since <本轮开始>`（再跑 `tmp-sweeper.js --json` 看超期件），'
-      + '把本轮包产物（下载 zip、解压/暂存目录、旧版本副本、日志）用 AskUserQuestion 给清理范围：'
-      + '推荐＝全部清理本轮包产物；备选＝保留回滚点与已登记证据目录 / 全部保留。'
-      + '超期清单只作参考（可能来自其他机器或包内配置，与本机不一定一致），如要清理须逐条核对本机存在性、归属与证据引用。'
-      + '确认后只用精确路径删除并复扫；扫描与询问都留痕才放行。',
+    reason: (ctx) => {
+      if (shareAutoCleanAuthorized(ctx)) {
+        return '本轮分享包操作已获自动清理授权。跑 `node ~/.qoder/scripts/tmp-round-scan.cjs --since <本轮开始> --apply --include-share-package`'
+          + '（回滚点、已登记证据与受保护项仍保留），复扫后必须在最终回复里**反馈删除/保留结果**。'
+          + '未获授权时不要用 `--include-share-package`，必须走 AskUserQuestion。';
+      }
+      return '本轮执行了分享包操作（安装/合并/发布构建）。分享包默认**每轮结束询问**：先跑 '
+        + '`node ~/.qoder/scripts/tmp-round-scan.cjs --since <本轮开始>`（再跑 `tmp-sweeper.js --json` 看超期件），'
+        + '把本轮包产物（下载 zip、解压/暂存目录、旧版本副本、日志）用 AskUserQuestion 给清理范围：'
+        + '推荐＝全部清理本轮包产物；备选＝保留回滚点与已登记证据目录 / 全部保留。'
+        + '按答复执行并复扫，最终回复必须**反馈删除/保留结果**。'
+        + '超期清单只作参考（可能来自其他机器或包内配置，与本机不一定一致），如要清理须逐条核对本机存在性、归属与证据引用。'
+        + '只有用户本轮明确授权自动清理（或配置 `autoClean.sharePackage=true`）才可跳过询问，改用带 `--include-share-package` 的自动清理。';
+    },
   },
 ];
 
