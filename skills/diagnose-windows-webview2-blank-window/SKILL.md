@@ -30,7 +30,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<本技能目录>/<本机�
 | `-UdfHint` | `%LOCALAPPDATA%\Microsoft\Olk` | 期望的 WebView2 UDF 根目录，用于归属与读日志 |
 | `-LogPattern` | `olk_*.log` | 日志文件名模式；**别用 `*.log`**，会选中推送后台任务的日志而看不到登录链路 |
 | `-BypassHosts` | 微软认证域清单 | 用于核对 `ProxyOverride` 缺了哪几个域，换应用时按需替换 |
-| `-Capture` | 关 | 截图主窗口。**会还原最小化窗口**，PNG 可能含隐私内容，默认写到 `%TEMP%\qoder-work\`，看完即删 |
+| `-Capture` | 关 | 截图主窗口。**会还原最小化窗口**，PNG 可能含隐私内容，默认写到 `D:\tmp\`，看完即删 |
 
 只读——不改注册表、不重启进程。每段打印 `>> OK` / `>> INFO` / `>> RED` / `>> NORUN`，末尾给 `ok/no-run/red` 计数。
 **判读纪律**：`NORUN` 是"这一节没取到证据"，不得当成正常；应用没在跑时第 3、4 节必然 RED——那是"没得看"，不是"渲染坏了"。

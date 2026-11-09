@@ -21,7 +21,7 @@ description: C 盘空间不足时清理早期任务记录 / 缓存——看水�
 1. **看水位 + 列清单（只列不删）**
    `node ~/.qoder/scripts/disk-sweeper.js --verbose`
    输出三档：
-   - **一档**＝我方产物（`%TEMP%/qoder-work`、`~/.qoder{,-cn}/tmp`、`logs`），`--apply` 可清；
+   - **一档**＝我方产物（唯一临时根 `D:/tmp` 由 `tmp-sweeper.js` 负责；`disk-sweeper` 侧兜底 `%TEMP%/qoder-work` 历史根、`~/.qoder{,-cn}/tmp`、`logs`），`--apply` 可清；
    - **三档**＝C 盘其余无用缓存 / 过期内容（npm / pip / 系统网络缓存 / 崩溃转储 / WER / Gradle /
      `%TEMP%` 残留 / 宿主 cache），**按 id 逐条点名**才可清；
    - **二档**＝会话记录 `~/.qoder{,-cn}/projects`，**本工具永不删**，只报体积。

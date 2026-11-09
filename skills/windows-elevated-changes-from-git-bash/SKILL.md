@@ -52,7 +52,7 @@ when_to_use: "需要管理员权限写 Windows（HKLM 注册表值 / 服务 Imag
 
 ```powershell
 $ErrorActionPreference = 'Continue'
-$work = 'C:\Users\<user>\AppData\Local\Temp\qoder-work\<task>-<stamp>'
+$work = 'D:\tmp\<task>-<stamp>'
 New-Item -ItemType Directory -Path $work -Force | Out-Null
 $log = Join-Path $work 'fix.log'
 function Say($m) { $line = ('{0}  {1}' -f (Get-Date -Format 'HH:mm:ss'), $m); Add-Content -Path $log -Value $line }
@@ -104,7 +104,7 @@ Say 'END'
 
 ```powershell
 $ErrorActionPreference = 'Continue'
-$dir = 'C:\Users\<user>\AppData\Local\Temp\qoder-work\<task>'
+$dir = 'D:\tmp\<task>'
 $log = Join-Path $dir 'fix.log'
 Remove-Item $log -ErrorAction SilentlyContinue
 try {

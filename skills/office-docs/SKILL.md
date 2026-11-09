@@ -155,7 +155,7 @@ node $S --selftest                   # 11 条（含跨 run 替换正例与三条
 
 1. **解包**：`node $S unpack 模板.docx ./tmpl_unzip`
 2. **抄骨架**：在 `tmpl_unzip/word/document.xml` 里挑一张结构最接近的既有表当「样式基准」，把这些行级值抄成生成脚本的常量——`tblPr`（tblW / tblInd / 边框 / tblLayout）、`tblGrid` 列宽、`trHeight`、`tcW`、`gridSpan`、`shd fill`（表头 / 分组分隔行底色）、`vAlign`。
-3. **程序化生成**：写一次性生成脚本（放 `%TEMP%/qoder-work/`）：`esc/run/para/cell/row` 小助手 + 每种「行型」一个构造函数（标题行 / 说明行 / 表头行 / 分组分隔行 / 数据行）；单元格段落可按列带格式（如长文本列用 `<w:jc w:val="left"/>` 左对齐）。
+3. **程序化生成**：写一次性生成脚本（放 `D:/tmp/`）：`esc/run/para/cell/row` 小助手 + 每种「行型」一个构造函数（标题行 / 说明行 / 表头行 / 分组分隔行 / 数据行）；单元格段落可按列带格式（如长文本列用 `<w:jc w:val="left"/>` 左对齐）。
 4. **拼接**：在 document.xml 里定位**最后一个 `</w:tbl>`**，其后插入「空段落 + 新表」。两个硬要求：
    - 相邻两个 `<w:tbl>` 会被 Word 并成一张表，**必须夹一个空段落**分隔；
    - 空段落写成 `<w:p><w:pPr><w:rPr><w:rFonts w:hint="eastAsia"/></w:rPr></w:pPr></w:p>`，**不要写裸 `<w:p/>`**（原因见「已知边界」）。

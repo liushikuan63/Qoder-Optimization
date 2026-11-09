@@ -31,7 +31,7 @@ description: "对清单/表格/队列/台账/多站点源码做批量机械改�
 
 - 结构化行（清单行 / 表格行 / 队列台账行）**禁 sed 批改**：BRE 里 `\|` 是"或"、空分支会吞掉行尾结构，跨结构边界的替换点写完后"命令成功、文件已坏"。
 - 写 Node 脚本读→替换→写，dry-run 先跑；断言在脚本里做成**退出码**（FAIL 即非零），不要靠肉眼看输出。
-- 脚本落 `%TEMP%\qoder-work\*.js` 再 `node <file>`；报 `Cannot find module '<项目依赖>'` 是解析不到项目 `node_modules`——改放项目内或补 `NODE_PATH`。
+- 脚本落 `D:\tmp\*.js` 再 `node <file>`；报 `Cannot find module '<项目依赖>'` 是解析不到项目 `node_modules`——改放项目内或补 `NODE_PATH`。
 - 路径参数化（argv），别把含反斜杠的路径写进 `node -e` 的字符串（转义 + MSYS 不转换，实测 `/tmp/...` 被 Node 解析成盘根 `D:\tmp\...`）。
 - 替换文本用函数式写法（JS `s.replace(a, () => text)`），防 `$&` / `$1` 在替换串里被当特殊模式。
 

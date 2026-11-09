@@ -97,7 +97,7 @@ RegisterAlterDev(VID, DONGLE_PID)  // 备用：2.4G 接收器 0x5130
 
 ## Windows 执行注意
 
-探针脚本一律落 `.ps1` 文件跑，**正文不写中文**（PS 5.1 按 GBK 读无 BOM 脚本会把中文字面量炸成「字符串缺少终止符」）；其余 Git Bash 驱动 PowerShell 的转义坑见技能 `windows-powershell-from-gitbash`。产物集中放 `%TEMP%/qoder-work/` 或项目 `.diag/`，解包的大文件不要留在盘上。
+探针脚本一律落 `.ps1` 文件跑，**正文不写中文**（PS 5.1 按 GBK 读无 BOM 脚本会把中文字面量炸成「字符串缺少终止符」）；其余 Git Bash 驱动 PowerShell 的转义坑见技能 `windows-powershell-from-gitbash`。产物集中放 `D:/tmp/` 或项目 `.diag/`，解包的大文件不要留在盘上。
 
 ## Resources
 

@@ -58,7 +58,7 @@ description: "用 PowerShell Add-Type P-Invoke 读或改 Windows 显示栈——
 ## 6. 清理安全（最容易造成不可逆损失的一步）
 
 - **scratch 命名不得与交付文件同前缀**。实测 `rm -rf hdr-apply-*` 把交付的 `hdr-apply-admin.ps1` 一起删了——而此前 `ls -1d hdr-apply-*` 已经把它列出来了：**glob 一旦命中就不再区分临时物和交付物**。
-- 规约：临时产物用不同前缀（`probe1.ps1` / `test-dryrun.ps1`）或放 `%TEMP%/qoder-work/`；删除**只逐个点名**，删前看一眼 `ls -1d` 清单；`rm -rf` 之后立刻 `wc -l <交付文件>` 作为「交付物还在」的可失败判据。
+- 规约：临时产物用不同前缀（`probe1.ps1` / `test-dryrun.ps1`）或放 `D:/tmp/`；删除**只逐个点名**，删前看一眼 `ls -1d` 清单；`rm -rf` 之后立刻 `wc -l <交付文件>` 作为「交付物还在」的可失败判据。
 - 交付脚本要写第二版之前，先 `cp` 一份再改。
 
 ## 7. 可复制骨架

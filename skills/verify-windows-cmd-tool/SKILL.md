@@ -24,13 +24,13 @@ description: "改/验/发 Windows 纯批处理（.cmd/.bat）控制台工具的�
 
 ```bash
 # ① 从安装版还原出 UTF-8 工作副本（放临时根，别就地改）
-iconv -f GBK -t UTF-8 "<安装版>.cmd" > "$TEMP/qoder-work/tool-utf8.cmd"
+iconv -f GBK -t UTF-8 "<安装版>.cmd" > "D:/tmp/tool-utf8.cmd"
 # ② 用 Edit 工具改工作副本（此时是 UTF-8，Edit 才能正常处理中文）
 # ③ 转 CRLF —— 必须在 iconv 之前（to-crlf.js 读的是 utf8，对 GBK 文件用它会把中文读坏）
-node ~/.qoder/scripts/to-crlf.js "$TEMP/qoder-work/tool-utf8.cmd"
+node ~/.qoder/scripts/to-crlf.js "D:/tmp/tool-utf8.cmd"
 #    判据：输出 JSON 里 replacementChar=0 且 bareLFAfter=0
 # ④ 转 GBK 并安装到全部副本
-iconv -f UTF-8 -t GBK "$TEMP/qoder-work/tool-utf8.cmd" > "<副本路径>"
+iconv -f UTF-8 -t GBK "D:/tmp/tool-utf8.cmd" > "<副本路径>"
 ```
 
 `to-crlf.js <file>`：读 utf8 → LF 归一 → 全 CRLF → 写 utf8，输出 `{lines, bareLFBefore, crlfBefore, crlfAfter, bareLFAfter, replacementChar}`。**只对 UTF-8 文件用。**
@@ -89,7 +89,7 @@ start "" cmd /c "工具.cmd < in.txt"
 - 打补丁用**落盘的 .js / .cmd 脚本**，别用 `node -e`——引号会被 shell 吃掉（实测多次）。
 - 补丁副本放临时根，绝不改安装版。
 - **输出重定向法**：`工具.cmd --scan > out.txt 2>&1` 捕获完整文本再读文件定位（有 `cls` 或秒退时尤其有用）。
-- **沙箱法**：验证会改数据的分支时，在 `%TEMP%/qoder-work/sb-*/` 下造假结构 + `mklink /J` 假联接，用**覆盖环境变量**（USERPROFILE / APPDATA / LOCALAPPDATA）的窗口跑真工具，绝不碰真实数据。
+- **沙箱法**：验证会改数据的分支时，在 `D:/tmp/sb-*/` 下造假结构 + `mklink /J` 假联接，用**覆盖环境变量**（USERPROFILE / APPDATA / LOCALAPPDATA）的窗口跑真工具，绝不碰真实数据。
 
 ## 4. 驱动真实按键（兜底）
 
@@ -171,7 +171,7 @@ node ~/.qoder/scripts/pack-folder.js "<工具文件夹>" [输出.zip]   # 默认
 - 真机验收：给出可失败判据（窗口消失 / 清单文本 / 截图内容）；交互路径要覆盖正反用例——正常路径 + `Esc` 取消路径各走一遍；拿不到就显式标注「未验证 + 原因」
 - 打包 → 解压逐字节比对
 - 同批更新目标工具的 `README.md`「设计要点」与相关记忆
-- 临时产物（截图 / 调试副本 / 输入文件）统一放 `%TEMP%/qoder-work/`，用后即删，收尾检查误落目录
+- 临时产物（截图 / 调试副本 / 输入文件）统一放 `D:/tmp/`，用后即删，收尾检查误落目录
 - 需宿主程序退出的**停机类操作由用户手动执行**，不代做
 - 按归属提交：只提交明确路径，别 `git add -A`
 

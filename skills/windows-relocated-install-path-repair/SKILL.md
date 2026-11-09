@@ -72,14 +72,14 @@ New-Item -ItemType Junction -Path 'C:\Program Files\Tencent\WeType' -Target 'D:\
 
 ## 第 3 步：备份（不可跳，且必须校验）
 
-每个要改的键先 `reg export` 一份到 `%TEMP%\qoder-work\<app>-repoint-<时间戳>\`，然后**逐个校验 .reg 是真文件、字节数 ≥20**。回滚就是把对应 `.reg` 导入。下面这段是实测跑通的形态（4 个键 → 4 个文件，1462/444/468/1020 字节）：
+每个要改的键先 `reg export` 一份到 `D:\tmp\<app>-repoint-<时间戳>\`，然后**逐个校验 .reg 是真文件、字节数 ≥20**。回滚就是把对应 `.reg` 导入。下面这段是实测跑通的形态（4 个键 → 4 个文件，1462/444/468/1020 字节）：
 
 ```powershell
 $keys = @('HKLM\SYSTEM\CurrentControlSet\Services\WeType Management Service',
           'HKLM\SOFTWARE\Tencent\WeType',
           'HKLM\SOFTWARE\WOW6432Node\Tencent\WeType',
           'HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\WeType')
-$bk = Join-Path $env:TEMP ('qoder-work\wetype-repoint-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+$bk = Join-Path 'D:\tmp' ('wetype-repoint-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
 New-Item -ItemType Directory -Path $bk -Force | Out-Null
 $i = 0
 foreach ($k in $keys) {
