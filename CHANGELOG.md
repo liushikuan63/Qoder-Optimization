@@ -9,10 +9,12 @@ During the 0.x line, minor versions may contain breaking changes.
 ### Changed
 - Add `pkg-diff review`: per-file text/wording diffs with `KEEP-LOCAL` / `TAKE-INBOUND` / `BOTH-CHANGED` / `NO-BASELINE` / `WHITESPACE` verdicts and a mandatory `MERGE_DECISIONS` list. Merge, release-sync and install-update workflows now require per-file merge choices (keep local / take inbound / manual merge / skip) instead of a single deploy question.
 - Add a stop-gate check that blocks share-package updates or merges performed without a merge review and a per-file decision.
+- Match inbound `skills/<name>` against the client's `skills-library/<name>` tier during review, so library-tier skills reach a per-file decision instead of being reported as new.
 
 ### 中文摘要
 - 新增 `pkg-diff review`：逐文件文本/文案 diff、三路判定与 `MERGE_DECISIONS` 清单；合并、发布后同步现役与安装更新流程改为逐条询问（保留本地 / 采纳包内 / 手工合并 / 跳过），不再只问“是否部署”。
 - stop-gate 新增门禁：未做合并审阅与逐条决策就更新/合并分享包会被拦截。
+- 审阅时把包内 `skills/<name>` 自动映射到本机 `skills-library/<name>`，按需层技能不再被误报为新增。
 
 ## [0.1.0] - 2026-11-08
 
