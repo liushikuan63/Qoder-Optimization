@@ -122,10 +122,14 @@ test('a parent directory replaced during asset metadata checks cannot produce an
   const f = fixture(t), other = fixture(t);
   f.write('SKILL.md', '`assets/item.bin`'); f.write('assets/item.bin', 'owned'); other.write('item.bin', 'outside decoy');
   const assets = path.join(f.dir, 'assets'), original = fs.lstatSync;
+  const samePath = file => {
+    const left = path.resolve(String(file)), right = path.resolve(assets);
+    return process.platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right;
+  };
   let fired = 0;
   fs.lstatSync = function(file, options) {
     const result = original.call(fs, file, options);
-    if (path.resolve(String(file)) === assets && !fired) {
+    if (samePath(file) && !fired) {
       fired++; fs.renameSync(assets, assets + '-original');
       fs.symlinkSync(other.dir, assets, process.platform === 'win32' ? 'junction' : 'dir');
     }
