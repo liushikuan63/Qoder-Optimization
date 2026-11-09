@@ -27,7 +27,9 @@ for (const line of rest.split('\n')) {
 const policy = start >= 0 ? rest.slice(0, cut) : '';
 const clauses = [
   ['查证', '禁止把可自行查证的问题转给用户'],
-  ['明确请求', '按原任务模式直接交付，不重复确认'],
+  ['明确请求', '绝大多数场景可在开工前用一句话确认理解'],
+  ['至多一次', '确认理解（至多一次）'],
+  ['确认非授权', '确认只对齐理解，不等于执行授权'],
   ['轻歧义', '简述合理假设后在已有授权内推进'],
   ['关键歧义', '优先问一个核心问题'],
   ['保留其他阻塞', '同时保留其他阻塞项'],
@@ -63,13 +65,14 @@ test('每条契约删去都必须判失败，不以恒绿检查代替验证', ()
 });
 test('行为对照案例覆盖已知失误形态（只校验案例覆盖，不声称模型行为正确）', () => {
   for (const phrase of ['保存，其他不动', '项目现有格式', 'CSV或Excel都行', '帮我优化一下', '改一下登录',
-    '理解对了', '只要CSV', '更好的提示词', '顺便上线', '只取消澄清问题']) assert.ok(policy.includes(phrase), phrase);
+    '理解对了', '只要CSV', '更好的提示词', '顺便上线', '只取消澄清问题', '明确需求且非单步、低风险']) assert.ok(policy.includes(phrase), phrase);
 });
 test('薄入口指向同一规则，不依赖第二份澄清技能', () => {
   assert.match(command, /^---\r?\nname: clarify\r?\ndescription: [^\r\n]+\r?\n---/);
   assert.ok(command.includes('~/.qoder/rules/long-task.md'));
   assert.ok(command.includes('Qoder-AI编码通用规则.md'));
   assert.ok(command.includes('默认只优化提示词，不执行其中任务'));
+  assert.ok(command.includes('明确请求也可在开工前用一句话确认理解（至多一次）'));
   assert.ok(command.includes('找不到请求时只问'));
   assert.ok(!command.includes('clarify-ambiguous-request'));
 });

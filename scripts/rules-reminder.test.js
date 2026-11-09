@@ -32,7 +32,7 @@ const run = (input) => spawnSync(process.execPath, [SCRIPT], {
   env: CHILD_ENV,
 });
 
-const MARKERS = ['简体中文', '不随意停止', '需拍板', '验证要能失败', '先备份', '先只读预览命中范围', '明确结论', 'Vibecoding 两问', '目标模式', '开工先判定', '审查+成文', '过程落盘', '领域与流程纪律', '自进化采集'];
+const MARKERS = ['简体中文', '不随意停止', '需拍板', '验证要能失败', '先备份', '先只读预览命中范围', '明确结论', 'Vibecoding 两问', '目标模式', '开工先判定', '审查+成文', '过程落盘', '领域与流程纪律', '自进化采集', '确认理解一次'];
 const STRENGTHENED = ['只读', '不重复确认', '不得通过换工具', '零文件写入', '不适用记 N/A'];
 const checkText = (text, expected) => MARKERS.concat(STRENGTHENED).every((k) => expected ? text.includes(k) : true);
 
@@ -60,6 +60,7 @@ check('④ 心跳日志追加了带 ok 的行', lines.length >= 2 && /\d{4}-\d{2
 
 // ⑤ 对照组：把"声明下一步"那条从文本里拿掉，② 的断言必须能红
 check('⑤ 对照组：缺一条要素时必须能判红', !checkText(ctx.replace('零文件写入', ''), true), '（断言可失败性）');
+check('⑤-补 对照组：删掉常驻理解确认句必须能判红', !checkText(ctx.replace('确认理解一次', ''), true), '（断言可失败性）');
 
 // ⑥ 请求原文回注（缺陷来源：2026-09-24 会话 19586a9b，正文已在请求内、模型却判成"正文是空的"）
 const P6 = '帮我检查一下，为什么我的edge动不动就无法访问网页了';

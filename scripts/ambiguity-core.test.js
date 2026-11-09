@@ -72,6 +72,13 @@ test('含混提示推荐 /clarify 提示词纠正，但明确不构成执行授�
   const high = buildAmbiguityNote({ level: 'high', signals: ['显式指令不清'] });
   assert.ok(high.includes('不得借改写扩大范围'));
 });
+test('clear 路径允许开工前确认一次理解，确认后直接推进', () => {
+  for (const level of ['high', 'medium']) {
+    const note = buildAmbiguityNote({ level, signals: ['显式指令不清'] });
+    assert.ok(note.includes('确认理解（至多一次）'), level);
+    assert.ok(note.includes('直接推进') || note.includes('直接做'), level);
+  }
+});
 test('初筛必须声明不是结论，并要求模型三档判别与 clear 证据门槛', () => {
   for (const level of ['high', 'medium']) {
     const note = buildAmbiguityNote({ level, signals: ['泛化动作'] });
