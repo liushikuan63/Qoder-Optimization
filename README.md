@@ -3,13 +3,11 @@
 **An opt-in toolkit for making Qoder workflows more repeatable and verifiable.** It adds rules, on-demand skills, hooks, commands, scripts, and MCP templates through Qoder's extension points; it does not modify Qoder itself.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.1.2-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.1.3-blue.svg)](VERSION)
 [![Node](https://img.shields.io/badge/node-24-brightgreen.svg)](https://nodejs.org)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20(primary)-lightgrey.svg)](#requirements-and-limits)
 
 [English](#english) | [简体中文](#简体中文) · [Install guide](README-安装说明.md) · [Skill catalog](SKILLS-清单.md) · [Machine-readable index](catalog.json)
-
-[Codex capability map / Codex 能力承接图](skills/skills-router/references/codex-capabilities.md) records reusable methods, installed execution paths and host-specific prerequisites. 本包复用已有技能承接工程方法，不复制宿主、账户或私人状态。
 
 ---
 
@@ -24,6 +22,7 @@ No clone required — pick a version and download it. Every release carries a re
 
 | Version | Released | Highlights | Download |
 |---|---|---|---|
+| 0.1.3 | 2026-11-10 | Skill content backfill; description compliance; Qoder-native design principles | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.3/Qoder-Optimization-0.1.3.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.3) |
 | 0.1.2 | 2026-11-09 | Clarify prompt-correction restoration; vibe-coding-workflow sync; resident one-time understanding check | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.2/Qoder-Optimization-0.1.2.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.2) |
 | 0.1.1 | 2026-11-09 | Offline cua-driver 0.44.0; hook ask restoration; merge-review gates; temp auto-clean | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.1/Qoder-Optimization-0.1.1.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.1) |
 | 0.1.0 | 2026-11-08 | Script-identity hook audit; doctor two-level reference fix; ask-once goal mode; router command shells; rules 5.7.0 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.0/Qoder-Optimization-0.1.0.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.0) |
@@ -120,13 +119,20 @@ The first two checks should report a clean skill set and no trigger collisions. 
 
 ### Design principles
 
-The design aims to keep context focused, make mistakes recoverable, and tie completion claims to checkable evidence. These principles cover both implementation choices and working practices; not every practice is enforced automatically.
+The design aims to keep context focused, make mistakes recoverable, and tie completion claims to checkable evidence. These principles cover both implementation choices and working practices; not every practice is enforced automatically. They come from the author's own long-term practice and verification in Qoder and are distilled directly as Qoder capabilities, not ported from another host's configuration or tool list.
 
 #### Focused context and reuse
 
 - **Separate responsibilities.** Global rules hold lasting constraints, domain rules load when relevant, skills describe repeatable workflows, and scripts perform deterministic checks. Keep detail out of the always-loaded prompt.
 - **Reuse before expanding.** Follow the project's existing conventions and tools; search the catalog before adding another capability. Install only what is needed; the installer asks whether a selected skill should be resident, and local usage records suggest later promotion or demotion for user approval rather than hardcoding a resident count. Preserve routing cues and unique capabilities when slimming or merging skills.
 - **Keep one source for each fact or check.** Share guard decision logic between pre-call and post-call hooks; derive catalog and manifest data from public sources. Check for drift instead of maintaining competing hand-edited copies.
+- **Treat skill descriptions as a hard budget.** Each shipped description stays within 300 characters; rewrite to keep routing cues and unique boundaries instead of mechanically truncating, and let the user choose resident versus on-demand tiers.
+
+#### Capability layers and boundaries
+
+- **Layer the capabilities.** Keep local execution and engineering tools, orchestration and verification methods, personal domain skills, host tool categories, and session/permission mechanisms as distinct layers. The catalog and manifest map each layer to explicit skills, scripts and rules.
+- **Personal practice is the capability.** The personal skills for API contracts, browser E2E, database migrations, accessibility, performance evidence, Rust, Spring/MyBatis, parallel writes, skill maintenance, cross-shell work, continuity, self-evolution and delivery are distilled from the author's own Qoder practice. Reuse them through their skill entry points and keep their boundaries (migration approval, baselines and controls, project-locked toolchains) in the skill text.
+- **Use the target host's real mechanisms.** Session, approval, sandbox, memory and automation follow what Qoder actually supports. A declared tool or skill is not proof that an account is connected, a service is available or a call completed; never copy another host's configuration, remove locks, or run a foreign service to imitate continuity or authorization.
 
 #### Bounded execution and continuity
 
@@ -135,6 +141,9 @@ The design aims to keep context focused, make mistakes recoverable, and tie comp
 - **Coordinate parallel writes through explicit ownership.** Isolate each writer in a real worktree, order read/write dependencies, verify every commit against its owned paths and recorded baseline, and preview Git integration conflicts. Merge same-version context results as one validated batch; review and test the integrated code before delivery.
 - **Bound retries to the operation and target.** Count only recognized authentication and build/test/deployment operations against their target-scoped budgets; unknown results are not successes. A blocked authentication target requires explicit human clearance, not a tool switch or an expired timer.
 - **Resume from evidence, not a checkmark.** For authorized long tasks, record current state, next steps, blockers and entry points; reconcile them with actual artifacts before continuing. Keep temporary progress out of long-term memory, which is reserved for verified lasting preferences and facts not derivable from code.
+- **Clarify the target before acting.** When the object, scope or acceptance is unclear, state the understanding once, then ask one core question with real options; a corrected prompt is advisory and does not authorize execution. Clear, single-step, low-risk work proceeds directly.
+- **Enable parallelism, goals and workflow documents by need.** Multi-module work first checks dependencies and produces a plan; parallel writes require explicit opt-in. Goals and four-layer or batch documents are created only when explicitly needed or after one ask; small tasks do not prompt.
+- **Isolate optional modes.** A fast or express mode must be selected explicitly; paths that do not enable it behave exactly as before.
 
 #### Verification and guard health
 
@@ -149,12 +158,13 @@ The design aims to keep context focused, make mistakes recoverable, and tie comp
 - **Keep public packages separate from private state.** The public repository is the distribution source, not the maintainer's HOME. Private configuration is not exported by default; separately authorized exports are allowlisted and sanitized in copies, leaving originals untouched. Credentials and internal addresses do not belong in source, logs or shared documentation; MCP templates use placeholders.
 - **Isolate destructive and failure tests.** Use disposable HOME, client-state and temporary directories rather than live configuration or credentials. Tests must not erase real logs or let inherited environment overrides point them back to live data.
 - **Verify what recipients actually get.** Build approved public files from a fixed commit, keep version and catalog metadata aligned, and independently unpack and compare the output. Check downloaded ZIPs and checksums, then validate the receiving environment; an upload or a producer-side pass alone is not proof of delivery.
+- **Ask before installing, updating or deploying.** After a release, run drift and a per-file three-way review, present real deployment choices, and treat silence or cancellation as no authorization. Ask for share-package temp cleanup each round and preserve rollback points and evidence directories.
 
 Details: [installation and tiers](README-安装说明.md), [working rules](Qoder-AI编码通用规则.md), [verification evidence](skills/verify-before-claim/SKILL.md), [hook setup](hooks/README-hooks.md), and [guard mechanisms](scripts/README-rule-enforcement.md).
 
 ### Catalog snapshot
 
-In the catalog generated on 2026-11-09, 12 core skill descriptions total 2,728 characters; all 133 skill descriptions total 27,500 characters. The core descriptions are 9.9% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
+In the catalog generated on 2026-11-10, 12 core skill descriptions total 2,728 characters; all 133 skill descriptions total 27,500 characters. The core descriptions are 9.9% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
 
 ### Requirements and limits
 
@@ -201,6 +211,7 @@ MIT; see [LICENSE](LICENSE). This is an unofficial community project and is not 
 
 | 版本 | 发布日期 | 主要内容 | 下载 |
 |---|---|---|---|
+| 0.1.3 | 2026-11-10 | 技能内容回填；描述合规；设计原则改为 Qoder 原生能力 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.3/Qoder-Optimization-0.1.3.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.3) |
 | 0.1.2 | 2026-11-09 | 含混请求 → /clarify 提示词纠正；vibe-coding-workflow 同步；理解确认常驻 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.2/Qoder-Optimization-0.1.2.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.2) |
 | 0.1.1 | 2026-11-09 | 离线包 cua-driver 0.44.0；hook 显式询问恢复；合并审阅门禁；临时产物自动清理 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.1/Qoder-Optimization-0.1.1.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.1) |
 | 0.1.0 | 2026-11-08 | 脚本身份核 hook 接线；doctor 两级引用修复；目标模式开局问一次；命令薄壳归口路由；规则同步 5.7.0 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.0/Qoder-Optimization-0.1.0.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.0) |
@@ -299,13 +310,20 @@ node ~/.qoder/scripts/build-skills-index.cjs
 
 ### 设计原则
 
-设计重点是控制上下文开销、减少不可恢复的误操作，并让完成声明有可核对的证据。这些原则既指导工具实现，也约束使用方式；并非每条工作约定都有脚本自动强制执行。
+设计重点是控制上下文开销、减少不可恢复的误操作，并让完成声明有可核对的证据。这些原则既指导工具实现，也约束使用方式；并非每条工作约定都有脚本自动强制执行。它们来自本人在 Qoder 中的长期实践与验证，直接沉淀为 Qoder 能力，而不是按其他宿主的配置或工具清单移植。
 
 #### 上下文与复用
 
 - **职责分层**：全局规则保留长期约束，领域规则按场景加载，技能承载可复用流程，脚本执行确定性检查，不把所有细节塞进每轮提示词。
 - **先复用，再扩展**：沿用项目既有约定和工具，新增能力前先检索目录。只安装需要的内容，高频技能常驻；精简描述或合并技能时，保留触发线索和独有能力。
 - **同一事实或判据只维护一份**：工具调用前后的守卫共享判断逻辑，catalog 与 manifest 从公开源生成；通过漂移检查保持一致，不另养多份手工真源。
+- **技能描述有硬预算**：每个随包技能描述不超过 300 字符；改写要保留路由线索与独有边界，不做机械截断；常驻或按需由使用者选择，不写死常驻数量。
+
+#### 能力分层与边界
+
+- **按层组织能力**：本地执行与工程工具、编排与验证方法、个人专项技能、宿主工具类别、会话与权限机制分层记录；catalog 与 manifest 把每一层对应到明确的技能、脚本与规则。
+- **个人实践就是能力本体**：API 契约、浏览器 E2E、数据库迁移、无障碍、性能证据、Rust、Spring/MyBatis、并行写、技能维护、跨 Shell、接续、自进化、交付等个人专项技能来自本人在 Qoder 的长期实践；按其技能入口复用，并把迁移授权、基线与对照、项目锁定工具链等独有边界保留在技能正文。
+- **以目标宿主的真实机制为准**：会话、审批、沙箱、记忆与自动化使用 Qoder 实际支持的入口。工具或技能“已声明”不等于账号已连接、服务可用或调用已完成；不复制其他宿主的配置、不删除锁、不靠长期运行外部服务冒充接续或授权。
 
 #### 执行与接续
 
@@ -314,6 +332,9 @@ node ~/.qoder/scripts/build-skills-index.cjs
 - **并行写以归属和基线协调**：每个写者使用真实独立 worktree，明确读写依赖，逐提交核对 ownedPaths 和基线，并预演 Git 集成冲突；同版本上下文结果整批验证后一次合并，集成代码审查和测试通过后才交付。
 - **失败按目标计数，重试有上限**：认证及构建、测试、部署只对已识别的操作和目标计数，不把未知结果当作成功；已封锁的认证目标须人工明确解封，不能靠换工具或等待超时解除。
 - **接续看证据，不只看勾选**：获授权的长任务记录当前状态、下一步、阻塞点和关键入口，继续前对照实际产物。临时进度不混入长期记忆；后者只保留已核验的长期偏好与非代码可推导事实。
+- **对象不明先澄清**：对象、范围或验收不清时，先说明一次理解，再问一个核心问题并给真实选项；纠正稿只作建议、不构成执行授权。明确、单步、低风险的任务直接推进。
+- **并行、目标与文档按需启用**：多模块任务先判依赖并生成计划，并行写需显式 opt-in；目标与四层/批次文档只在明确需要或问过一次后创建，小任务不弹窗。
+- **可选模式隔离**：快速/极速等模式只能由显式开关选择；未启用该模式的路径必须与改动前完全一致。
 
 #### 验证与防护
 
@@ -328,12 +349,13 @@ node ~/.qoder/scripts/build-skills-index.cjs
 - **公开包与私有状态分开**：公开仓库是交付源，不是维护者的 HOME。默认不导出私有配置；单独获准的导出按白名单处理，只脱敏副本、不改原件。凭据和内网地址不进入源码、日志或共享文档，MCP 模板只保留占位符。
 - **失败与破坏性测试必须隔离**：使用可丢弃的 HOME、客户端状态和临时目录，不使用现役配置或凭据；测试不能删除真实日志，也不能因继承环境变量而误指向真实数据。
 - **交付验证面向接收者**：从固定提交构建获准的公开文件，同步版本和目录元数据，独立解包并比对内容；核对实际下载的 ZIP 与校验文件，再验证接收环境。上传成功或制作端通过，都不能单独证明交付成功。
+- **安装、更新与部署先询问**：发布后先跑 drift 与逐文件三路比对，给出真实部署选项；沉默或取消不构成授权。分享包临时产物每轮询问清理范围，保留回滚点与证据目录。
 
 详细说明见[安装与分层](README-安装说明.md)、[工作约定](Qoder-AI编码通用规则.md)、[验证证据](skills/verify-before-claim/SKILL.md)、[守卫接线](hooks/README-hooks.md)和[机制说明](scripts/README-rule-enforcement.md)。
 
 ### 目录快照
 
-截至 2026-11-09 生成的目录，12 个常驻技能的描述共 2,728 字符；133 个技能的描述共 27,500 字符。常驻描述占全部技能描述文本的 9.9%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
+截至 2026-11-10 生成的目录，12 个常驻技能的描述共 2,728 字符；133 个技能的描述共 27,500 字符。常驻描述占全部技能描述文本的 9.9%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
 
 ### 环境与限制
 
@@ -370,7 +392,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 <!-- offline-bundle:start -->
 ### Optional offline bundle / 可选离线附件
 
-The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.2/Qoder-Optimization-0.1.2-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
+The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.3/Qoder-Optimization-0.1.3-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
 
 核心包不含 MCP 离线二进制；需要时单独下载离线附件，核对各自的 .sha256 后解压到同一目录。无需离线组件时只取核心包；链接仅在对应版本发布后可用。
 <!-- offline-bundle:end -->

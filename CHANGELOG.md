@@ -6,6 +6,18 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-10
+
+### Changed
+- Backfill six on-demand skills with newer local content: `desktop-update-push-triage`, `large-sqlite-text-extraction` and `umi3-to-umi4-upgrade` regain their complete descriptions; `byok-model-retry` adds the newer payload-guard and config knobs; `local-reverse-proxy-triage` adopts the timeout-attribution and hardening playbook while restoring the manual live-stop safety boundary; `mysql` adopts the curated InnoDB workflow with its 18 reference files.
+- Keep every package description within the 300-character contract with complete rewrites instead of mechanical truncation, and regenerate the catalog description lengths and counts.
+- Drop the Codex capability-map file and framing: merge the capability layers and host boundaries into both design-principles sections as the author's own Qoder practice, and refresh the principles with recent mechanisms (one-time clarification, the 300-character description budget, opt-in parallelism/goals/documents, install/update/deploy asks, per-round temp cleanup, mode isolation). Add the "unclear target object" case to the clarification rules and command.
+
+### 中文摘要
+- 回填 6 个按需技能：`desktop-update-push-triage`、`large-sqlite-text-extraction`、`umi3-to-umi4-upgrade` 恢复完整描述；`byok-model-retry` 补入新的 payload-guard 与配置项；`local-reverse-proxy-triage` 采用超时归属与加固 playbook 并恢复“现役停启由用户本人执行”的安全边界；`mysql` 采用整理后的 InnoDB 流程并补齐 18 个 references。
+- 所有发布包描述以完整改写控制在 300 字符以内，不做机械截断；同步重建 catalog 的描述长度与计数。
+- 移除 Codex 能力承接图文件与措辞：把能力分层与宿主边界并入中英文设计原则，明确这些方法来自本人在 Qoder 的长期实践；同步补充近期机制（一次性澄清、300 字符描述预算、并行/目标/文档按需启用、安装/更新/部署询问、每轮临时清理、模式隔离），并把“作用对象不明”案例补入澄清规则与命令。
+
 ## [0.1.2] - 2026-11-09
 
 ### Changed
@@ -715,7 +727,8 @@ During the 0.x line, minor versions may contain breaking changes.
 ### Contributors / 贡献者
 - @liushikuan63
 
-[Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.3
 [0.1.2]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.2
 [0.1.1]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.1
 [0.1.0]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.0
