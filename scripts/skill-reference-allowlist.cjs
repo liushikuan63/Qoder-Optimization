@@ -14,5 +14,10 @@ module.exports = {
       ref: 'scripts/evolution.js',
       reason: 'cross-skill reference to skills/self-evolution/scripts/evolution.js',
     },
+    {
+      skill: 'share-package-release',
+      ref: 'scripts/pkg-diff.cjs',
+      reason: 'cross-skill reference to skills/merge-inbound-qoder-package/scripts/pkg-diff.cjs; pkg-diff lives in the merge skill and is not shipped under the package root scripts/',
+    },
   ],
 };
