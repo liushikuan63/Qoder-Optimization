@@ -682,6 +682,19 @@ replay('R11 publish-release 未询问必须拦', '发布新版本', '结论：�
 replay('R11 grep 源码发布字样不误拦', '检查发布脚本', '结论：已检查。', 'allow', [tool('Bash', { command: 'grep -n "gh release create" .github/publish-release.js' }, 'gh release create found')]);
 replay('R11 node -e 打印发布字样不误拦', '检查发布脚本', '结论：已检查。', 'allow', [tool('Bash', { command: 'node -e "console.log(\'release.yml\')"' }, 'release.yml')]);
 
+// R13 分享包更新/合并必须先做逐文件文案审阅并逐条询问
+const mergeReview = 'MERGE_REVIEW inbound=D:/pkg --local ~/.qoder --baseline D:/old\nMERGE_DECISIONS\n  - [BOTH-CHANGED] rules/a.md — 保留本地 / 采纳包内 / 手工合并 / 跳过\nNEXT_ACTION: ASK_MERGE_DECISION — 1 个文件需要逐条确认';
+const askedMerge = tool('AskUserQuestion', { questions: [{ question: 'rules/a.md 本地与包内都改了，如何合并？', options: ['保留本地', '采纳包内', '手工合并', '跳过'] }] });
+const reviewCmd = tool('Bash', { command: 'node skills/merge-inbound-qoder-package/scripts/pkg-diff.cjs review --inbound D:/pkg --local ~/.qoder --baseline D:/old' }, mergeReview);
+replay('R13 强制覆盖未审阅必须拦', '更新分享包技能', '结论：已更新。', 'block', [tool('Bash', { command: 'node pkg-catalog.cjs install skill:x --apply --force' }, 'applied')]);
+replay('R13 已逐文件审阅并逐条询问放行', '更新分享包技能', '结论：已按选择合并。', 'allow', [reviewCmd, tool('Bash', { command: 'node pkg-catalog.cjs install skill:x --apply --force' }, 'applied'), askedMerge]);
+replay('R13 只问是否更新不算', '更新分享包技能', '结论：已更新。', 'block', [tool('Bash', { command: 'node pkg-catalog.cjs install skill:x --apply --force' }, 'applied'), tool('AskUserQuestion', { questions: [{ question: '是否更新？', options: ['更新', '保持现状'] }] })]);
+replay('R13 新装无冲突不误拦', '安装新技能', '结论：已安装。', 'allow', [tool('Bash', { command: 'node pkg-catalog.cjs install skill:new --apply' }, 'installed')]);
+replay('R13 安装器有 REVIEW_UPDATE 未审阅必须拦', '更新分享包基础能力', '结论：已更新。', 'block', [tool('Bash', { command: 'node install-package.cjs --yes' }, 'REVIEW_UPDATE: 2')]);
+replay('R13 安装器有 UPDATE 未审阅必须拦', '更新分享包基础能力', '结论：已更新。', 'block', [tool('Bash', { command: 'node install-package.cjs --yes' }, 'UPDATE: 3')]);
+replay('R13 审阅命令本身不拦', '查看分享包差异', '结论：已给出差异。', 'allow', [reviewCmd]);
+replay('R13 用户明确直接更新放行', '直接更新，不用逐条对比', '结论：已更新。', 'allow', [tool('Bash', { command: 'node pkg-catalog.cjs install skill:x --apply --force' }, 'applied')]);
+
 // R12 含混判别门禁：高置信初筛 + 写入 + 无判别记录才拦
 const ambDir = path.join(ROOT, 'ambiguity');
 fs.mkdirSync(ambDir, { recursive: true });

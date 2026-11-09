@@ -6,6 +6,14 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Changed
+- Add `pkg-diff review`: per-file text/wording diffs with `KEEP-LOCAL` / `TAKE-INBOUND` / `BOTH-CHANGED` / `NO-BASELINE` / `WHITESPACE` verdicts and a mandatory `MERGE_DECISIONS` list. Merge, release-sync and install-update workflows now require per-file merge choices (keep local / take inbound / manual merge / skip) instead of a single deploy question.
+- Add a stop-gate check that blocks share-package updates or merges performed without a merge review and a per-file decision.
+
+### 中文摘要
+- 新增 `pkg-diff review`：逐文件文本/文案 diff、三路判定与 `MERGE_DECISIONS` 清单；合并、发布后同步现役与安装更新流程改为逐条询问（保留本地 / 采纳包内 / 手工合并 / 跳过），不再只问“是否部署”。
+- stop-gate 新增门禁：未做合并审阅与逐条决策就更新/合并分享包会被拦截。
+
 ## [0.1.0] - 2026-11-08
 
 ### Changed

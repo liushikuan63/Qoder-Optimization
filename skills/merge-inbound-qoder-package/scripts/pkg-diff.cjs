@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 'use strict';
 // pkg-diff.cjs — 外部回流分享包与本机全局配置的只读比对器。
-// 模式：classify（四类分桶）/ funcs（函数名 diff 判超集）/ scan（攻击面与敏感信息扫描）/ --selftest
+// 模式：classify（分桶）/ funcs（函数名 diff 判超集）/ diffjs（批量 JS 裁决）/
+//       review（逐文件文本/文案 diff + 三路合并判定）/ scan（攻击面与敏感信息扫描）/ --selftest
 // 只读：本脚本不写、不删、不覆盖任何配置。
 
 const fs = require('fs');
@@ -80,6 +81,78 @@ function md5(file) {
 function cap(list, limit) {
   if (list.length <= limit) return { shown: list, more: 0 };
   return { shown: list.slice(0, limit), more: list.length - limit };
+}
+
+const MAX_DIFF_CELLS = 5000000;
+
+function readText(file) {
+  let buf;
+  try { buf = fs.readFileSync(file); } catch { return null; }
+  if (buf.includes(0)) return null;
+  let text = buf.toString('utf8');
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+  return text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+}
+
+function looseText(text) {
+  return text.split('\n').map((line) => line.trim().replace(/\s+/g, ' ')).join('\n').trim();
+}
+
+function lineOps(a, b) {
+  const n = a.length, m = b.length;
+  if (!n) return b.map((line) => ({ t: '+', line }));
+  if (!m) return a.map((line) => ({ t: '-', line }));
+  if (n * m <= MAX_DIFF_CELLS) {
+    const w = m + 1;
+    const dp = new Uint32Array((n + 1) * w);
+    for (let i = n - 1; i >= 0; i--) {
+      for (let j = m - 1; j >= 0; j--) {
+        dp[i * w + j] = a[i] === b[j] ? dp[(i + 1) * w + j + 1] + 1
+          : Math.max(dp[(i + 1) * w + j], dp[i * w + j + 1]);
+      }
+    }
+    const ops = [];
+    let i = 0, j = 0;
+    while (i < n && j < m) {
+      if (a[i] === b[j]) { ops.push({ t: '=', line: a[i] }); i++; j++; }
+      else if (dp[(i + 1) * w + j] >= dp[i * w + j + 1]) ops.push({ t: '-', line: a[i++] });
+      else ops.push({ t: '+', line: b[j++] });
+    }
+    while (i < n) ops.push({ t: '-', line: a[i++] });
+    while (j < m) ops.push({ t: '+', line: b[j++] });
+    return ops;
+  }
+  // 超大文件不做二次方 DP：公共前后缀 + 中间差异块，仍能展示文案改动。
+  let p = 0;
+  while (p < n && p < m && a[p] === b[p]) p++;
+  let s = 0;
+  while (s < n - p && s < m - p && a[n - 1 - s] === b[m - 1 - s]) s++;
+  const ops = [];
+  for (let i = 0; i < p; i++) ops.push({ t: '=', line: a[i] });
+  for (let i = p; i < n - s; i++) ops.push({ t: '-', line: a[i] });
+  for (let i = p; i < m - s; i++) ops.push({ t: '+', line: b[i] });
+  for (let i = n - s; i < n; i++) ops.push({ t: '=', line: a[i] });
+  return ops;
+}
+
+function renderOps(ops, context, maxLines) {
+  const include = new Set();
+  for (let i = 0; i < ops.length; i++) {
+    if (ops[i].t === '=') continue;
+    const from = Math.max(0, i - context), to = Math.min(ops.length - 1, i + context);
+    for (let j = from; j <= to; j++) include.add(j);
+  }
+  const lines = [];
+  let last = -2;
+  for (let i = 0; i < ops.length && lines.length < maxLines; i++) {
+    if (!include.has(i)) continue;
+    if (last >= 0 && i > last + 1) lines.push('  ...');
+    const op = ops[i];
+    lines.push((op.t === '+' ? '+ ' : op.t === '-' ? '- ' : '  ') + maskSecret(op.line).slice(0, 240));
+    last = i;
+  }
+  if (lines.length >= maxLines) lines.push('  ...（差异过长，已截断；用 --max-lines 调整）');
+  return lines;
 }
 
 function classify(opts) {
@@ -246,6 +319,103 @@ function diffjs(opts) {
   lines.push('等符号数 ≠ 行为相同，仍要 diff 原文（本机 2026-09-23 的 EPIPE 修复就没有新增符号）。');
   process.stdout.write(lines.join('\n') + '\n');
   return { verdicts, pairs: pairs.length, differ: c.DIFFER.length };
+}
+
+function review(opts) {
+  const inbound = resolveRoot(opts.inbound, opts['no-autodetect'] !== true);
+  const local = resolveRoot(opts['local'] || path.join(process.env.HOME || process.env.USERPROFILE || '~', '.qoder'), false);
+  const baseline = opts.baseline ? resolveRoot(opts.baseline, opts['no-autodetect'] !== true) : null;
+  const scope = String(opts.scope || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const limit = Number(opts.limit || 40);
+  const context = Number(opts.context === undefined ? 2 : opts.context);
+  const maxLines = Number(opts['max-lines'] || 80);
+  const c = classify({ inbound, local, scope, limit: 9999, quiet: true, 'no-autodetect': true });
+  const recommend = {
+    'KEEP-LOCAL': '保留本地（推荐）',
+    'TAKE-INBOUND': '采纳包内（推荐）',
+    'BOTH-CHANGED': '手工合并',
+    'NO-BASELINE': '逐条确认（无共同基线）',
+    'WHITESPACE': '仅空白/换行差异，建议忽略',
+    'SAME': '归一化后一致，无需处理',
+    'BINARY': '非文本，人工确认',
+  };
+  const rows = [];
+  for (const item of c.DIFFER.slice(0, limit)) {
+    const rel = item.rel;
+    const localText = readText(path.join(local, rel));
+    const inboundText = readText(path.join(inbound, rel));
+    const baselineFile = baseline ? path.join(baseline, rel) : null;
+    const baselineText = baselineFile && fs.existsSync(baselineFile) ? readText(baselineFile) : null;
+    let verdict;
+    if (localText === null || inboundText === null) verdict = 'BINARY';
+    else if (localText === inboundText) verdict = 'SAME';
+    else if (looseText(localText) === looseText(inboundText)) verdict = 'WHITESPACE';
+    else if (baselineText === null) verdict = 'NO-BASELINE';
+    else {
+      const localFromBase = localText === baselineText;
+      const inboundFromBase = inboundText === baselineText;
+      if (localFromBase && !inboundFromBase) verdict = 'TAKE-INBOUND';
+      else if (!localFromBase && inboundFromBase) verdict = 'KEEP-LOCAL';
+      else verdict = 'BOTH-CHANGED';
+    }
+    const ops = localText !== null && inboundText !== null
+      ? lineOps(localText.split('\n'), inboundText.split('\n')) : [];
+    const kind = /\.(md|markdown)$/i.test(rel) ? '文案'
+      : /\.(js|cjs|mjs|ts)$/i.test(rel) ? '代码'
+      : /\.(json|ya?ml)$/i.test(rel) ? '配置' : '文本';
+    rows.push({
+      rel, verdict, kind,
+      added: ops.filter((o) => o.t === '+').length,
+      removed: ops.filter((o) => o.t === '-').length,
+      recommendation: recommend[verdict], ops,
+    });
+  }
+  const decisionRows = rows.filter((row) => row.verdict !== 'SAME');
+  const lines = [];
+  lines.push(`MERGE_REVIEW inbound=${inbound}`);
+  lines.push(`             local=${local}`);
+  lines.push(`             baseline=${baseline || '(未提供)'}`);
+  lines.push(`DIFFER ${c.DIFFER.length} / NEW ${c.NEW.length} / LOCAL-ONLY ${c.LOCAL_ONLY.length} / VETOED ${c.VETOED.length}`);
+  if (c.DIFFER.length > limit) lines.push(`（仅逐文件展示前 ${limit} 个 DIFFER；共 ${c.DIFFER.length} 个，用 --limit 调整）`);
+  if (c.NEW.length) {
+    lines.push(`NEW（本机没有；安装新增项前同样要询问）：${c.NEW.slice(0, 10).map((x) => x.rel).join(', ')}${c.NEW.length > 10 ? ' …' : ''}`);
+  }
+  lines.push('');
+  for (const row of rows) {
+    lines.push(`### ${row.rel}  [${row.verdict}]  ${row.kind}  (+${row.added}/-${row.removed})`);
+    lines.push(`建议：${row.recommendation}`);
+    if (row.verdict === 'BINARY') lines.push('  （二进制/非文本，未展示内容差异）');
+    else if (row.verdict === 'WHITESPACE') lines.push('  （归一化后仅空白或换行差异）');
+    else if (row.ops.length) lines.push(...renderOps(row.ops, context, maxLines));
+    lines.push('');
+  }
+  lines.push('MERGE_DECISIONS（必须逐条询问用户；未获明确选择不得写入）');
+  for (const row of decisionRows) {
+    const options = row.verdict === 'BOTH-CHANGED' || row.verdict === 'NO-BASELINE'
+      ? '保留本地 / 采纳包内 / 手工合并 / 跳过'
+      : row.verdict === 'KEEP-LOCAL' ? '保留本地（推荐） / 查看差异 / 采纳包内 / 手工合并'
+      : row.verdict === 'TAKE-INBOUND' ? '采纳包内（推荐） / 查看差异 / 跳过'
+      : row.verdict === 'WHITESPACE' ? '忽略空白差异（推荐） / 逐行确认'
+      : '人工确认 / 保留本地 / 采纳包内 / 跳过';
+    lines.push(`  - [${row.verdict}] ${row.rel} — ${options}`);
+  }
+  if (decisionRows.length) {
+    lines.push(`\nNEXT_ACTION: ASK_MERGE_DECISION — ${decisionRows.length} 个文件需要逐条确认；必须用 AskUserQuestion 逐条询问合并方式（保留本地 / 采纳包内 / 手工合并 / 跳过），未获明确选择不得写入。`);
+  } else {
+    lines.push('\nNEXT_ACTION: NONE — 没有需要合并决策的文本差异。');
+  }
+  const result = {
+    inbound, local, baseline,
+    counts: {
+      DIFFER: c.DIFFER.length, NEW: c.NEW.length, LOCAL_ONLY: c.LOCAL_ONLY.length,
+      VETOED: c.VETOED.length, decisions: decisionRows.length,
+    },
+    rows: rows.map(({ ops, ...row }) => row),
+    decisions: decisionRows.map(({ ops, ...row }) => row),
+  };
+  if (opts.json) process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+  else if (!opts.quiet) process.stdout.write(lines.join('\n') + '\n');
+  return result;
 }
 
 const RULES = [
@@ -419,6 +589,43 @@ function selftest() {
     && !/10\.18\.1\.2|192\.168\.1\.7|172\.20\.5\.6/.test(JSON.stringify(s.hits)),
     `ip 命中=${s.hits.filter((h) => h.rel === 'ip/x.md').map((h) => h.id).join(',')}`);
 
+  // review：逐文件文案 diff + 三路合并判定
+  const RL = P('review-local'), RI = P('review-inbound'), RB = P('review-base');
+  write('review-local/rules/wording.md', '# 规则\n\n本地文案：保留这句。\n共同行。\n');
+  write('review-inbound/rules/wording.md', '# 规则\n\n包内文案：改成这句。\n共同行。\n');
+  write('review-base/rules/wording.md', '# 规则\n\n本地文案：保留这句。\n共同行。\n');
+  write('review-local/rules/both.md', '# 规则\n\n本机独有改动。\n');
+  write('review-inbound/rules/both.md', '# 规则\n\n包内独有改动。\n');
+  write('review-base/rules/both.md', '# 规则\n\n基线文案。\n');
+  write('review-local/rules/ws.md', 'a\r\nb\r\n');
+  write('review-inbound/rules/ws.md', 'a\nb\n');
+  write('review-local/rules/secret.md', '# 配置\n\npassword: fake-secret-123456\n');
+  write('review-inbound/rules/secret.md', '# 配置\n\npassword: other-secret-654321\n');
+  const rvLog = log(() => review({ inbound: RI, local: RL, baseline: RB, 'no-autodetect': true, limit: 20 }));
+  const rv = rvLog.r;
+  const rowOf = (rel) => rv.rows.find((x) => x.rel === rel);
+  check('review 三路判定：仅包内改动 → TAKE-INBOUND',
+    rowOf('rules/wording.md')?.verdict === 'TAKE-INBOUND',
+    `verdict=${rowOf('rules/wording.md')?.verdict}`);
+  check('review 三路判定：双方都改 → BOTH-CHANGED 且展示增删行',
+    rowOf('rules/both.md')?.verdict === 'BOTH-CHANGED'
+    && rowOf('rules/both.md')?.added >= 1 && rowOf('rules/both.md')?.removed >= 1,
+    `verdict=${rowOf('rules/both.md')?.verdict} +${rowOf('rules/both.md')?.added}/-${rowOf('rules/both.md')?.removed}`);
+  check('review 归一化后仅换行差异不要求合并决策',
+    rowOf('rules/ws.md')?.verdict === 'SAME' && !rv.decisions.some((x) => x.rel === 'rules/ws.md'),
+    `verdict=${rowOf('rules/ws.md')?.verdict}`);
+  check('review 输出逐文件决策与 ASK_MERGE_DECISION',
+    /\[BOTH-CHANGED\] rules\/both\.md/.test(rvLog.out)
+    && /\[TAKE-INBOUND\] rules\/wording\.md/.test(rvLog.out)
+    && /NEXT_ACTION: ASK_MERGE_DECISION/.test(rvLog.out),
+    `decisions=${rv.decisions.length}`);
+  check('review 差异输出不含明文口令',
+    !/fake-secret-123456|other-secret-654321/.test(rvLog.out), '已掩码');
+  const rvSame = log(() => review({ inbound: RL, local: RL, baseline: RL, 'no-autodetect': true, limit: 20 })).r;
+  check('review 同源自比（负对照）零 DIFFER 与零决策',
+    rvSame.counts.DIFFER === 0 && rvSame.counts.decisions === 0,
+    `DIFFER=${rvSame.counts.DIFFER} decisions=${rvSame.counts.decisions}`);
+
   const bad = results.filter((x) => !x.pass);
   for (const r of results) process.stdout.write(`${r.pass ? 'PASS' : 'FAIL'}  ${r.name}  — ${r.detail}\n`);
   fs.rmSync(root, { recursive: true, force: true });
@@ -445,6 +652,10 @@ function main() {
     if (!opts.inbound) return usage();
     return diffjs(opts);
   }
+  if (mode === 'review') {
+    if (!opts.inbound) return usage();
+    return review(opts);
+  }
   if (mode === 'scan') {
     if (!opts.dir) return usage();
     return scan(opts);
@@ -462,6 +673,8 @@ function usage() {
     '      VETOED＝命中硬否决名单（memory、credentials、skills-disabled、settings.json、hooks-crash.log 等），一律不参与合并',
     '  funcs    --local <本机文件> --inbound <入站文件>',
     '  diffjs   --inbound <dir> [--local ~/.qoder] [--scope ...]   # 对所有 DIFFER 的 .js 逐个出裁决',
+    '  review   --inbound <dir> [--local ~/.qoder] [--baseline <旧包>] [--scope ...] [--context N] [--max-lines N]',
+    '           # 逐文件文本/文案 diff + 三路判定；输出 MERGE_DECISIONS 与 ASK_MERGE_DECISION',
     '  scan     --dir <入站目录> [--limit N] [--strict]',
     '  --selftest',
     '',
@@ -470,4 +683,4 @@ function usage() {
 }
 
 if (require.main === module) main();
-module.exports = { classify, funcs, scan, declNames };
+module.exports = { classify, funcs, review, scan, declNames };

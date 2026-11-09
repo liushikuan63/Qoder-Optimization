@@ -27,6 +27,12 @@ description: 审阅或按本轮批准范围合并 Qoder 分享包、回流包和
 
 先列清单，再决定获准落点；禁止 `cp -r`、整目录覆盖和按 mtime 选赢家。
 
+**2b. 文案级对比（必做，不能被文件级分桶替代）**：对每个 DIFFER 的文本文件（尤其 `AGENTS.md`、`rules/*.md`、`skills/*/SKILL.md`、`commands/*.md`）运行技能内比对器：
+
+`node <技能目录>/scripts/pkg-diff.cjs review --inbound <入站包> --local <目标根> [--baseline <上次共同基线>] [--scope rules,skills,commands]`
+
+它会输出逐行 `-`/`+` 文案差异、`KEEP-LOCAL` / `TAKE-INBOUND` / `BOTH-CHANGED` / `NO-BASELINE` / `WHITESPACE` 判定和 `MERGE_DECISIONS` 清单。**只报文件哈希、字节数或“内容不同”不算完成对比**；`BOTH-CHANGED` / `NO-BASELINE` 必须读差异原文。
+
 ## 3. 卫生预检
 
 逐文件检查：占位符、对方机器绝对路径、用户名、凭据、内网地址、调试日志、备份文件、零字节、CRLF/LF 约束、会外发数据的代码。命中敏感项只报告位置与类型，不回显内容；来源和许可不明的材料不直接复制进公开包。
@@ -38,6 +44,7 @@ description: 审阅或按本轮批准范围合并 Qoder 分享包、回流包和
 ## 5. Dry-run 与落地
 
 1. 生成逐文件计划：来源、目标、动作、是否已有、备份路径、验证命令和回滚方式；计划不代替写入批准。
+1b. **逐条合并决策**：把 `MERGE_DECISIONS` 里的每个文件转成 `AskUserQuestion`（保留本地 / 采纳包内 / 手工合并 / 跳过；可按同一判定分组，但 `BOTH-CHANGED` / `NO-BASELINE` 必须逐条附上原文差异）。未获明确选择的文件保持现状，不写入。
 2. 写入范围已获授权后，对每个既有目标运行 `backup-file.js`；新文件先确认父目录、许可与分层。
 3. 单文件定点合并：保留目标侧独有约束，只吸收对方独有且仍有效的内容。
 4. 长文档按标题、锚点和行数做结构断言，防段落粘连或远锚点吞段。
@@ -47,6 +54,7 @@ description: 审阅或按本轮批准范围合并 Qoder 分享包、回流包和
 
 - 共同基线 → 目标侧独有 → 对方独有，三者逐段比较。
 - 两侧都改同一语义时以当前现场和更高层规则为准，不用时间戳裁决。
+- 文案冲突以 `pkg-diff review` 的逐行差异为准：两侧语义都在时手工合并，保留目标侧独有约束；文件大小、mtime、哈希都不能证明哪边更新。
 - 对方包缺少目标能力不代表删除授权；先保留并在报告中列为“未回流”。
 
 ## 7. 收口
@@ -90,4 +98,4 @@ description: 审阅或按本轮批准范围合并 Qoder 分享包、回流包和
 
 ## Resources
 
-`scripts/pkg-diff.cjs` — 只读比对器，四模式：`classify` / `funcs` / `diffjs` / `scan`，另有 `--selftest`（15 条断言，含同源自比、相同文件、正常文档、脱敏与 semver 负对照；改判据后必跑）。`scan --strict` 有命中时退出码 2，可做门禁。绝不写文件、绝不删除。
+`scripts/pkg-diff.cjs` — 只读比对器，五模式：`classify` / `funcs` / `diffjs` / `review` / `scan`，另有 `--selftest`（21 条断言，含 review 三路判定、空白归一化、逐条决策、脱敏与同源负对照；改判据后必跑）。`review` 是合并前必做：输出逐行文案差异、`KEEP-LOCAL` / `TAKE-INBOUND` / `BOTH-CHANGED` / `NO-BASELINE` / `WHITESPACE` 判定和 `MERGE_DECISIONS`。`scan --strict` 有命中时退出码 2，可做门禁。绝不写文件、绝不删除。

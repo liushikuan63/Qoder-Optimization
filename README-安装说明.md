@@ -143,8 +143,8 @@ node scripts/install-continuity.cjs --yes --no-auto-bind # 只接线，仍按会
 - 登记位置（一次）：`node ~/.qoder/scripts/pkg-catalog.cjs register <分享包目录>`
 - 检索：`node ~/.qoder/scripts/pkg-catalog.cjs search "<关键词>"`，或 `/pkg-find "<关键词>"`；结果标「本地未发现 / 与包内一致 / 内容与包内不同」，出现 `NEXT_ACTION` 时必须先用 `AskUserQuestion` 询问（安装/更新（推荐） / 查看差异 / 保持现状），未获明确选择不得写盘
 - 安装：`install <id>` 先预演依赖闭包，确认后加 `--apply`；技能默认按按需库落点，交互 `--apply` 会询问是否常驻，非交互用 `--tier core|library` 指定。另一层已有同名技能时拒绝写入，迁移请使用 tier-skills；索引先暂存再以归属/内容核对和独占创建提交。失败只回滚本批仍属本事务且未变化的文件；检测到并发修改时保留目标与备份目录、明确报告未完整回滚，先裁决再重试。
-- 更新：`内容与包内不同` 表示可更新；先三路比对并备份，保留本地较新内容，确认后 `install <id> --apply --force`，再重建索引并跑 `skills-doctor`
-- 批量漂移：`node ~/.qoder/scripts/pkg-catalog.cjs drift` 核对全部已安装副本，列出与包内不同的条目；升版部署询问必须带上这份清单。已安装条目的包源缺失或不可比对时输出 `DRIFT_UNVERIFIED` 并退出 2，不能当作一致。额外本地文件与备份仍不纳入包内文件比对。
+- 更新：`内容与包内不同` 表示可更新；先运行 `merge-inbound-qoder-package/scripts/pkg-diff.cjs review --inbound <包目录> --local <客户端目录> [--baseline <旧包>]` 逐文件看文案差异，再用 `AskUserQuestion` 逐条确认（保留本地 / 采纳包内 / 手工合并 / 跳过），备份后 `install <id> --apply --force`，再重建索引并跑 `skills-doctor`。只报“内容不同”或只看哈希不算对比。
+- 批量漂移：`node ~/.qoder/scripts/pkg-catalog.cjs drift` 核对全部已安装副本，列出与包内不同的条目；升版部署询问必须带上这份清单和 `pkg-diff review` 的逐文件决策，不能只问“是否部署”。已安装条目的包源缺失或不可比对时输出 `DRIFT_UNVERIFIED` 并退出 2，不能当作一致。额外本地文件与备份仍不纳入包内文件比对。
 - 参数缺值、重复或未知选项会在写盘前拒绝；含空格的目录需整体引用，`--catalog` / `--tier` 不能留空。
 - 插件 / 社区技能 / MCP：只给官方安装命令与合并说明，不代装、不转发源码
 - 兜底：`skill-load` 查不到时，会自动到已登记的包内索引里找，并给出加装命令

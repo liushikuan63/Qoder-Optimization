@@ -653,6 +653,38 @@ function releaseCommandRan(ctx) {
   });
 }
 
+function mergeCommandRan(ctx) {
+  let ran = false, force = false;
+  for (const tool of ctx.turnTools) {
+    if (!tool.success || toolName(tool) !== 'Bash') continue;
+    for (const raw of shellSegments(tool.input.command)) {
+      const segment = stripLeadingAssignments(raw);
+      if (nodeScriptEntry(segment, /^install-package\.cjs$/i) && /(?:^|\s)--yes\b/.test(segment)) ran = true;
+      if (nodeScriptEntry(segment, /^pkg-catalog\.cjs$/i) && /\binstall\b/.test(segment) && /(?:^|\s)--apply\b/.test(segment)) {
+        ran = true;
+        if (/(?:^|\s)--force\b/.test(segment)) force = true;
+      }
+      if (/^git(?:\.exe)?\s+merge-file\b/i.test(segment)) { ran = true; force = true; }
+    }
+  }
+  return { ran, force };
+}
+
+function mergeSignal(ctx) {
+  return ctx.turnTools.some((tool) => {
+    const text = JSON.stringify(tool.result || '');
+    return /REVIEW_UPDATE|\bUPDATE:\s*[1-9]\d*|\bDRIFT\s+\d+|DRIFT_UNVERIFIED|内容与包内不同|NEXT_ACTION:\s*ASK_UPDATE/.test(text);
+  });
+}
+
+function mergeReviewMarker(ctx) {
+  return ctx.turnTools.some((tool) => /MERGE_REVIEW|ASK_MERGE_DECISION/.test(JSON.stringify(tool.result || '')));
+}
+
+function mergeDecisionAsked(ctx) {
+  return askedAbout(ctx, /保留本地|采纳包内|手工合并|跳过|逐条.{0,8}(?:合并|决策)|合并方式/);
+}
+
 // R6 的兜底：项目没有队列文件时，本轮创建却没关掉的 TaskList 条目同样算"还有能做的格子"。
 // 只认**本轮**的创建/关闭计数（跨轮的任务状态不在 transcript 尾部可判，跨轮靠队列）。
 function inTurnOpenTasks(ctx) {
@@ -773,6 +805,23 @@ const RULES = [
     reason:
       '本轮执行了发布动作，但没有用 AskUserQuestion 询问是否部署到现役。'
       + '按分享包发布纪律：发布/下载复验通过后必须询问（全量三路合并 / 仅本次缺口 / 暂不部署），并先跑 `pkg-catalog.cjs drift` 把已安装但与包内不同的按需条目一并列出。',
+  },
+  {
+    id: 'R13-merge-without-review',
+    tailOnly: false,
+    needsText: false,
+    test: (t, ctx) => {
+      const { ran, force } = mergeCommandRan(ctx);
+      if (!ran) return false;
+      if (/(?:不用|无需|不必)(?:逐条|审阅|对比)|直接(?:更新|合并|覆盖)|全部采纳|按推荐/.test(ctx.lastUserText)) return false;
+      if (!force && !mergeSignal(ctx)) return false;
+      return !mergeReviewMarker(ctx) || !mergeDecisionAsked(ctx);
+    },
+    reason:
+      '本轮执行了分享包更新/合并，但没有先逐文件对比文案差异并逐条询问合并方式。'
+      + '先运行 `pkg-diff review --inbound <新包> --local <现役> --baseline <旧包>`（merge-inbound-qoder-package 技能内），'
+      + '把 `MERGE_DECISIONS` 里的文件用 AskUserQuestion 逐条确认（保留本地 / 采纳包内 / 手工合并 / 跳过）；'
+      + '只问“是否部署/是否更新”不算，未获明确选择不得写入。',
   },
   {
     id: 'R2-decision-without-popup',

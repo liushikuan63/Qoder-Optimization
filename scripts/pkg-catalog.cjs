@@ -306,6 +306,7 @@ function cmdDrift() {
   console.log(`DRIFT ${rows.length} 条已安装但与包内不同（可更新或本地已改）：`);
   for (const { e, presence } of rows) console.log(`- ${e.id}  ${e.name}\n  ${presence.label}`);
   console.log('\nNEXT_ACTION: ASK_UPDATE — 必须用 AskUserQuestion 逐条询问是否更新；更新前三路比对并备份，未获明确选择不得 --force 覆盖。');
+  console.log('文案对比：先用 merge-inbound-qoder-package 的 pkg-diff review --inbound <包目录> --local <客户端目录> [--baseline <旧包>] 逐文件看差异，再逐条询问（保留本地 / 采纳包内 / 手工合并 / 跳过）。');
 }
 
 function within(root, p) {
