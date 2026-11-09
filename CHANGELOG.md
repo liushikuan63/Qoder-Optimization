@@ -12,6 +12,8 @@ During the 0.x line, minor versions may contain breaking changes.
 - Match inbound `skills/<name>` against the client's `skills-library/<name>` tier during review, so library-tier skills reach a per-file decision instead of being reported as new.
 - Make the context-governor hook snapshot incremental: cache the transcript offset, sentinel and last usage in hook state, scan only appended bytes, and fall back to a full scan when the file shrinks or is rewritten. Enable pre-compaction usage hints with `{"inject":true}` in `<data-dir>/config.json` (env wins). Steady-state scans of a 22 MB transcript drop from ~2.0 s to ~0.13 s.
 
+- Encode the parallel and documentation prompt thresholds in the model workflow contract: parallel asks for explicit opt-in only after a plan; Vibecoding documents ask once for medium/large, handoff or review+documentation work, and small tasks stay quiet.
+
 ### Fixed
 - Replace the compaction recovery pointer's nonexistent fold-handle instruction with the continuity archive and raw transcript routes, and state explicitly that no fold handle exists.
 - Restore the explicit B05 verification-tier ask, goal candidate note and capability use/install/update questions in `--workflow-mode model`: `rules-reminder.js` no longer suppresses `verificationNote`/`goalCandidateNote` or downgrades capability candidates to recall-only, and the workflow contract now requires AskUserQuestion before executable work when a tier is assessed.
@@ -23,6 +25,7 @@ During the 0.x line, minor versions may contain breaking changes.
 - context-governor hook 快照改为增量（缓存偏移 / 哨兵 / 上次 usage，截断或重写回退全量），压缩前使用率提示用 `<data-dir>/config.json` 的 `{"inject":true}` 开启（env 优先）；22MB 会话稳态扫描由约 2.0 秒降至约 0.13 秒。
 - 压缩恢复指针不再指向不存在的 fold 句柄，改为 continuity 档案与原始 transcript，并明说没有 fold 句柄。
 - 恢复 `--workflow-mode model` 下的 B05 验证选档、目标候选与能力使用/安装/更新询问：不再短路 `verificationNote`/`goalCandidateNote`，能力候选恢复 AskUserQuestion；工作流契约明确要求业务写入前先询问四档。
+- model 工作流契约补并行/文档提示阈值：并行先生成计划再问 opt-in；中大型/交接/审查+成文时 Vibecoding 文档问一次，小任务不问。
 
 ## [0.1.0] - 2026-11-08
 

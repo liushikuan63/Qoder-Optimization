@@ -60,6 +60,8 @@ test('model mode injects a bound decision contract and keeps the explicit verifi
   assert.match(text, /用 AskUserQuestion 原样提问/);
   assert.match(text, /【目标候选 · 需弹窗确认】/);
   assert.match(text, /用 AskUserQuestion 同轮询问两项/);
+  assert.match(text, /先生成计划，再用 AskUserQuestion 询问是否启用/);
+  assert.match(text, /Vibecoding 四层\/批次文档/);
   const reminder = text.split('【工作方式 · 模型判断】')[0];
   assert.match(reminder, /关键词不强制出计划或追问/);
   assert.doesNotMatch(reminder, /全项目\/多模块\/多端\/多文件\/多版本任务先按 parallel-orchestration|中大型、多阶段或审查\+成文任务先用 AskUserQuestion/);
