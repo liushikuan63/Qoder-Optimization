@@ -18,6 +18,7 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ### Fixed
 - Replace the compaction recovery pointer's nonexistent fold-handle instruction with the continuity archive and raw transcript routes, and state explicitly that no fold handle exists.
+- Record zero or missing token counts as `null` and tag governor hook state with `usageBasis` (`tokens` / `ratio-only` / `unknown`), so models that only report `context_usage_ratio` no longer look like a real 0-token measurement.
 - Restore the explicit B05 verification-tier ask, goal candidate note and capability use/install/update questions in `--workflow-mode model`: `rules-reminder.js` no longer suppresses `verificationNote`/`goalCandidateNote` or downgrades capability candidates to recall-only, and the workflow contract now requires AskUserQuestion before executable work when a tier is assessed.
 - Treat overdue temp lists as reference-only and skip evidence, rollback and symlinked entries during cleanup.
 - Compare replacement asset paths case-insensitively on Windows in the reference-integrity contract test.
@@ -28,6 +29,7 @@ During the 0.x line, minor versions may contain breaking changes.
 - 审阅时把包内 `skills/<name>` 自动映射到本机 `skills-library/<name>`，按需层技能不再被误报为新增。
 - context-governor hook 快照改为增量（缓存偏移 / 哨兵 / 上次 usage，截断或重写回退全量），压缩前使用率提示用 `<data-dir>/config.json` 的 `{"inject":true}` 开启（env 优先）；22MB 会话稳态扫描由约 2.0 秒降至约 0.13 秒。
 - 压缩恢复指针不再指向不存在的 fold 句柄，改为 continuity 档案与原始 transcript，并明说没有 fold 句柄。
+- hook 状态把 0 或缺失的 token 记为 `null` 并标注 `usageBasis`（`tokens` / `ratio-only` / `unknown`），只上报 ratio 的模型不再显示为“真实 0 token”。
 - 恢复 `--workflow-mode model` 下的 B05 验证选档、目标候选与能力使用/安装/更新询问：不再短路 `verificationNote`/`goalCandidateNote`，能力候选恢复 AskUserQuestion；工作流契约明确要求业务写入前先询问四档。
 - 离线包 cua-driver 资产由 0.38.0 更新到 0.44.0，`SHA256SUMS` 与 Sigstore sidecar 同步。
 - 开启自动清理时按本轮清理临时产物；分享包产物仍默认逐轮询问；扫描器新增 `--apply` / `--include-share-package` / `--only`。

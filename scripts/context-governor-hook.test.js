@@ -77,6 +77,9 @@ test('context-governor hook', async (t) => {
     assert.equal(post.stdout.trim(), '');
     const state = JSON.parse(fs.readFileSync(path.join(dataDir, 'hook-state', 'hook-session.json'), 'utf8'));
     assert.equal(state.pendingRestore, true);
+    assert.equal(state.lastKnownInputTokens, 70000);
+    assert.equal(state.lastKnownRatio, 0.7);
+    assert.equal(state.usageBasis, 'tokens');
   });
 
   await t.test('SessionStart emits a bounded pointer only after PostCompact', () => {
@@ -257,6 +260,48 @@ test('context-governor hook', async (t) => {
     assert.ok(JSON.parse(second.stdout).hookSpecificOutput.additionalContext.includes('70%'));
     const state = JSON.parse(fs.readFileSync(path.join(dataDir, 'hook-state', 'hook-rewrite.json'), 'utf8'));
     assert.equal(state.lastScanFull, true);
+  });
+
+  await t.test('zero input tokens are recorded as null with ratio-only basis', () => {
+    const dir = path.join(ROOT, 'ratio-only');
+    const dataDir = path.join(dir, 'data');
+    fs.mkdirSync(dir, { recursive: true });
+    const transcript = path.join(dir, 'transcript-zero.jsonl');
+    fs.writeFileSync(transcript, usageLine('hook-ratio-only', 0.7, 0) + '\n', 'utf8');
+    const pre = run({
+      hook_event_name: 'PreCompact',
+      session_id: 'hook-ratio-only',
+      transcript_path: transcript,
+    }, dataDir);
+    assert.equal(pre.status, 0);
+    const state = JSON.parse(fs.readFileSync(path.join(dataDir, 'hook-state', 'hook-ratio-only.json'), 'utf8'));
+    assert.equal(state.lastKnownInputTokens, null);
+    assert.equal(state.lastKnownRatio, 0.7);
+    assert.equal(state.usageBasis, 'ratio-only');
+    assert.equal(state.snapshotCache.usageBasis, 'ratio-only');
+  });
+
+  await t.test('missing usage records report unknown basis', () => {
+    const dir = path.join(ROOT, 'unknown-basis');
+    const dataDir = path.join(dir, 'data');
+    fs.mkdirSync(dir, { recursive: true });
+    const transcript = path.join(dir, 'transcript-no-usage.jsonl');
+    fs.writeFileSync(transcript, JSON.stringify({
+      type: 'assistant',
+      uuid: 'a-1',
+      sessionId: 'hook-unknown',
+      message: { role: 'assistant', content: 'no usage' },
+    }) + '\n', 'utf8');
+    const pre = run({
+      hook_event_name: 'PreCompact',
+      session_id: 'hook-unknown',
+      transcript_path: transcript,
+    }, dataDir);
+    assert.equal(pre.status, 0);
+    const state = JSON.parse(fs.readFileSync(path.join(dataDir, 'hook-state', 'hook-unknown.json'), 'utf8'));
+    assert.equal(state.lastKnownInputTokens, null);
+    assert.equal(state.lastKnownRatio, null);
+    assert.equal(state.usageBasis, 'unknown');
   });
 
   await t.test('config.json inject flag enables injection and env 0 overrides', () => {

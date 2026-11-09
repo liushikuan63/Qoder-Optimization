@@ -166,24 +166,29 @@ function snapshotFor(event, state) {
       if (scanned.usages.length) lastUsage = scanned.usages[scanned.usages.length - 1];
       nextOffset = scanned.nextOffset;
     }
+    const hasTokens = Boolean(lastUsage) && Number.isFinite(lastUsage.inputTokens) && lastUsage.inputTokens > 0;
+    const hasRatio = Boolean(lastUsage) && Number.isFinite(lastUsage.ratio);
+    const usageBasis = !lastUsage ? 'unknown' : (hasTokens ? 'tokens' : (hasRatio ? 'ratio-only' : 'unknown'));
+    const U = lastUsage
+      ? (hasRatio
+        ? lastUsage.ratio
+        : (hasTokens
+          ? lastUsage.inputTokens / (Number.isFinite(lastUsage.window) && lastUsage.window > 0 ? lastUsage.window : FALLBACK_WINDOW)
+          : null))
+      : null;
+    const P = hasTokens ? lastUsage.inputTokens : null;
     state.snapshotCache = {
       path: abs,
       size: stat.size,
       offset: nextOffset,
       sentinel: sentinelAt(fd, nextOffset, SENTINEL_BYTES),
       lastUsage: lastUsage || null,
+      usageBasis,
       updatedAt: new Date().toISOString(),
     };
     state.lastScanBytes = scanBytes;
     state.lastScanFull = fullScan;
-    const U = lastUsage
-      ? (Number.isFinite(lastUsage.ratio)
-        ? lastUsage.ratio
-        : (lastUsage.inputTokens > 0
-          ? lastUsage.inputTokens / (Number.isFinite(lastUsage.window) && lastUsage.window > 0 ? lastUsage.window : FALLBACK_WINDOW)
-          : null))
-      : null;
-    return { U, P: lastUsage ? lastUsage.inputTokens : null };
+    return { U, P, usageBasis };
   } finally {
     if (fd !== undefined) {
       try {
@@ -211,6 +216,7 @@ function decideUserPrompt(event) {
   const state = readState(sessionId);
   state.turnsSinceInject = Number.isFinite(state.turnsSinceInject) ? state.turnsSinceInject + 1 : 1;
   const snapshot = snapshotFor(event, state);
+  if (snapshot) state.usageBasis = snapshot.usageBasis;
   if (!snapshot || snapshot.U === null || snapshot.U < SOFT_RATIO) {
     writeState(sessionId, state);
     return { status: 'below-threshold' };
@@ -248,6 +254,7 @@ function main(argv = process.argv.slice(2)) {
       state.lastPreCompactAt = new Date().toISOString();
       state.lastKnownInputTokens = snapshot ? snapshot.P : null;
       state.lastKnownRatio = snapshot ? snapshot.U : null;
+      if (snapshot) state.usageBasis = snapshot.usageBasis;
       writeState(sessionId, state);
       return 0;
     }
