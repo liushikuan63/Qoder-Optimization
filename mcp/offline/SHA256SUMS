@@ -1,7 +1,7 @@
 ## SHA256 Checksums
 ```
-997f20114ad3db227a854e1e5a886234f76405b155f4af70605d4b7ca4a436a1  cua-driver-rs-0.38.0-windows-x86_64.zip
-6f5ce5569a19bd54acc43877ae7e5d73d58ef40c60cf6092f5a4fe5a15a55e96  cua-driver-rs-0.38.0-windows-x86_64.zip.sigstore.json
+776b8288f2fa2755016db2d2f3e1edc6e6b0fabcfdfd43a190c361811bb5431f  cua-driver-rs-0.44.0-windows-x86_64.zip
+98387f846d3554ee44dae979d32425a43395cc75255507e38fa31e15a14e6345  cua-driver-rs-0.44.0-windows-x86_64.zip.sigstore.json
 c469bc5993c3c39d547ea94ce075f933f1307b95cab15c64c046ccb59bb6e17f  bytebase-dbhub-1.2.5.tgz
 c0779290c1d4783169aa3dbfb55feb505e563ef8a004bbf55298ceffcfbda8d9  LICENSE-cua-driver.txt
 ```

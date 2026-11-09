@@ -2,8 +2,8 @@
 
 | 文件 | 说明 |
 |---|---|
-| `cua-driver-rs-0.38.0-windows-x86_64.zip` | 官方 release 资产（Windows x86_64），MIT 许可，许可见 `LICENSE-cua-driver.txt` |
-| `cua-driver-rs-0.38.0-windows-x86_64.zip.sigstore.json` | 官方 Sigstore sidecar（包内同时按 SHA256SUMS 校验） |
+| `cua-driver-rs-0.44.0-windows-x86_64.zip` | 官方 release 资产（Windows x86_64），MIT 许可，许可见 `LICENSE-cua-driver.txt` |
+| `cua-driver-rs-0.44.0-windows-x86_64.zip.sigstore.json` | 官方 Sigstore sidecar（包内同时按 SHA256SUMS 校验） |
 | `SHA256SUMS` | 官方资产校验和；`install-mcp.cmd` 选「离线」时会先校验再释放 |
 | `bytebase-dbhub-1.2.5.tgz` | dbhub 的 npm 包本体；**依赖仍需联网解析**，完全离线请另带 npm 缓存 |
 

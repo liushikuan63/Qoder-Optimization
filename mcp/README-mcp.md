@@ -36,7 +36,7 @@ install-mcp.cmd --wire-guard   :: 同时接线鼠标抢占守卫（需先把 scr
 - npm 由当前 Node 直接调用 `npm-cli.js`，参数不经过 shell；安装失败或入口文件缺失时退出非零，不写入 MCP 配置。
 - **cua-driver 安装**必须显式给 `--install-dir` 指定**非系统盘**本地空目录；不再默认回退到 `%LOCALAPPDATA%`。已有安装或非空目录不覆盖，缺目录、系统盘、网络盘路径、校验失败、归档缺可执行文件或版本不一致都会失败退出，且不写 `settings.json`。
 - 随包与官方 `cua-driver` 资产仅支持 **Windows x64**；其他平台会前置拒绝，不下载也不注册。
-- 核心 ZIP 不携带离线二进制。需要离线安装时，另取同版本 `Qoder-Optimization-<版本>-offline.zip` 及其 `.sha256`，校验后与核心包解压到同一目录；资产会落在 `mcp/offline/`。包含 cua-driver 0.38.0（MIT，含 `SHA256SUMS` 与许可证）和 dbhub tgz，安装前仍会校验组件 SHA256。
+- 核心 ZIP 不携带离线二进制。需要离线安装时，另取同版本 `Qoder-Optimization-<版本>-offline.zip` 及其 `.sha256`，校验后与核心包解压到同一目录；资产会落在 `mcp/offline/`。包含 cua-driver 0.44.0（MIT，含 `SHA256SUMS` 与许可证）和 dbhub tgz，安装前仍会校验组件 SHA256。
 - 联网安装走 GitHub release（`trycua/cua`），下载后同样校验 SHA256；GitHub 不通时直接选离线。联网失败不再静默跳过。
 - 无控制台 / 自动化示例：`install-mcp.cmd --yes --cua register --dbhub skip`（仅注册已装版本）；离线安装：`--yes --cua offline --install-dir D:\Program Files\Cua\cua-driver\bin --dbhub skip`。
 - 离线版装完会问「是否设置开机自启（启动文件夹 VBS）」；不自启就每次手动 `cua-driver serve`。

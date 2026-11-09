@@ -6,15 +6,21 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-09
+
 ### Changed
 - Add `pkg-diff review`: per-file text/wording diffs with `KEEP-LOCAL` / `TAKE-INBOUND` / `BOTH-CHANGED` / `NO-BASELINE` / `WHITESPACE` verdicts and a mandatory `MERGE_DECISIONS` list. Merge, release-sync and install-update workflows now require per-file merge choices (keep local / take inbound / manual merge / skip) instead of a single deploy question.
 - Add a stop-gate check that blocks share-package updates or merges performed without a merge review and a per-file decision.
 - Match inbound `skills/<name>` against the client's `skills-library/<name>` tier during review, so library-tier skills reach a per-file decision instead of being reported as new.
 - Make the context-governor hook snapshot incremental: cache the transcript offset, sentinel and last usage in hook state, scan only appended bytes, and fall back to a full scan when the file shrinks or is rewritten. Enable pre-compaction usage hints with `{"inject":true}` in `<data-dir>/config.json` (env wins). Steady-state scans of a 22 MB transcript drop from ~2.0 s to ~0.13 s.
+- Update the offline bundle's cua-driver asset from 0.38.0 to 0.44.0 (official Windows x86_64 release, `SHA256SUMS` and Sigstore sidecar refreshed).
+- Auto-clean this round's temp artifacts when `autoClean.enabled` is on while keeping share-package artifacts behind an explicit ask; `tmp-round-scan` gains `--apply`, `--include-share-package` and `--only`.
 
 ### Fixed
 - Replace the compaction recovery pointer's nonexistent fold-handle instruction with the continuity archive and raw transcript routes, and state explicitly that no fold handle exists.
 - Restore the explicit B05 verification-tier ask, goal candidate note and capability use/install/update questions in `--workflow-mode model`: `rules-reminder.js` no longer suppresses `verificationNote`/`goalCandidateNote` or downgrades capability candidates to recall-only, and the workflow contract now requires AskUserQuestion before executable work when a tier is assessed.
+- Treat overdue temp lists as reference-only and skip evidence, rollback and symlinked entries during cleanup.
+- Compare replacement asset paths case-insensitively on Windows in the reference-integrity contract test.
 
 ### 中文摘要
 - 新增 `pkg-diff review`：逐文件文本/文案 diff、三路判定与 `MERGE_DECISIONS` 清单；合并、发布后同步现役与安装更新流程改为逐条询问（保留本地 / 采纳包内 / 手工合并 / 跳过），不再只问“是否部署”。
@@ -23,6 +29,9 @@ During the 0.x line, minor versions may contain breaking changes.
 - context-governor hook 快照改为增量（缓存偏移 / 哨兵 / 上次 usage，截断或重写回退全量），压缩前使用率提示用 `<data-dir>/config.json` 的 `{"inject":true}` 开启（env 优先）；22MB 会话稳态扫描由约 2.0 秒降至约 0.13 秒。
 - 压缩恢复指针不再指向不存在的 fold 句柄，改为 continuity 档案与原始 transcript，并明说没有 fold 句柄。
 - 恢复 `--workflow-mode model` 下的 B05 验证选档、目标候选与能力使用/安装/更新询问：不再短路 `verificationNote`/`goalCandidateNote`，能力候选恢复 AskUserQuestion；工作流契约明确要求业务写入前先询问四档。
+- 离线包 cua-driver 资产由 0.38.0 更新到 0.44.0，`SHA256SUMS` 与 Sigstore sidecar 同步。
+- 开启自动清理时按本轮清理临时产物；分享包产物仍默认逐轮询问；扫描器新增 `--apply` / `--include-share-package` / `--only`。
+- 超期清单只作参考，证据、回滚点与符号链接不参与清理；reference-integrity 契约测试在 Windows 上按大小写不敏感比较路径。
 
 ## [0.1.0] - 2026-11-08
 

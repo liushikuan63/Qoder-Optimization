@@ -2,13 +2,13 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.1.0"
+  "version": "0.1.1"
  },
- "generated": "2026-11-08",
+ "generated": "2026-11-09",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 133,
-  "script": 150,
+  "script": 152,
   "command": 11,
   "agent": 2
  },
@@ -3293,7 +3293,10 @@
     "mode": "copy-file"
    },
    "source": "scripts/session-budget.test.js",
-   "dependencies": []
+   "dependencies": [
+    "script:client-root.js",
+    "script:tmp-sweeper.js"
+   ]
   },
   {
    "id": "script:share-package-verify.cjs",
@@ -3492,6 +3495,7 @@
     "script:client-root.js",
     "script:hook-crash-guard.js",
     "script:stop-gate-text.js",
+    "script:tmp-sweeper.js",
     "script:work-queue-check.js"
    ]
   },
@@ -3587,6 +3591,32 @@
     "script:build-skills-index.cjs",
     "script:capability-roots.cjs",
     "script:client-root.js"
+   ]
+  },
+  {
+   "id": "script:tmp-round-scan.cjs",
+   "category": "script",
+   "name": "tmp-round-scan.cjs",
+   "status": "shipped",
+   "source": "scripts/tmp-round-scan.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:tmp-sweeper.js"
+   ]
+  },
+  {
+   "id": "script:tmp-round-scan.test.js",
+   "category": "script",
+   "name": "tmp-round-scan.test.js",
+   "status": "shipped",
+   "source": "scripts/tmp-round-scan.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:tmp-round-scan.cjs"
    ]
   },
   {
