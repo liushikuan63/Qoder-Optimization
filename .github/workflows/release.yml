@@ -81,7 +81,14 @@ jobs:
         run: node -e "const cp=require('node:child_process');const actual=cp.execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();if(actual!==process.env.EXPECTED_COMMIT)throw new Error('checkout differs from frozen source commit');"
 
       - name: Install locked test dependencies
+        shell: bash
+        env:
+          npm_config_registry: https://registry.npmjs.org
+          npm_config_fetch_retries: '5'
+          npm_config_fetch_retry_mintimeout: '20000'
+          npm_config_fetch_retry_maxtimeout: '120000'
         run: |
+          set -euo pipefail
           npm ci --prefix skills/office-docs --ignore-scripts --no-audit --no-fund
           npm ci --prefix scripts/convention-runtime --ignore-scripts --no-audit --no-fund
 
@@ -156,7 +163,14 @@ jobs:
         run: node -e "const cp=require('node:child_process');const actual=cp.execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();if(actual!==process.env.EXPECTED_COMMIT)throw new Error('checkout differs from frozen source commit');"
 
       - name: Install locked test dependencies
+        shell: bash
+        env:
+          npm_config_registry: https://registry.npmjs.org
+          npm_config_fetch_retries: '5'
+          npm_config_fetch_retry_mintimeout: '20000'
+          npm_config_fetch_retry_maxtimeout: '120000'
         run: |
+          set -euo pipefail
           npm ci --prefix skills/office-docs --ignore-scripts --no-audit --no-fund
           npm ci --prefix scripts/convention-runtime --ignore-scripts --no-audit --no-fund
 
