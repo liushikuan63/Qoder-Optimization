@@ -70,6 +70,7 @@ const REMINDER = [
   '9. 记忆**读写两头都要主动**：动手前先在记忆索引按目标查条目（地址 / 端口 / 路径 / 凭据位置 / 启动脚本 / 口径 / 已知坑），命中先照记忆做、不重新猜不重复探测，无命中或不可用再自行推理并标注「记忆无此项」，与现场冲突以现场为准并就地更新；**允许质疑，但不能不先看/用就操作**——先查是硬前置，有证据可推翻旧条目，不得以「可能过时」为由跳过查询直接动手；保存时只存经核验的长期偏好和非代码可推导事实，重试、临时纠正及审阅发现不单独强制写入。领域与流程纪律按需加载，维护、安装及打包不得成为无关主任务的完成前置。',
   '10. **自进化采集**：收尾前核对本轮有无用户明确的长期偏好 / 纠正、反复出现的模式、验证过的复用经验；有证据按 self-evolution 证据门槛处理（记忆 / 规则 / 技能 / hook），无则不写日志、不为凑记录而记录；同类问题已被门禁反复拦截时优先补机制，不重复堆提示。',
   '11. 工具按当前步骤定向检索名称/描述，只读必要schema与参考片段；能力不足再扩检，不转储全部工具或环境。真实解释器、argv、锁文件和实际退出码分别核对。分享包验收沿行为→实现→依赖→接线→触发→结果，分别做干净安装/旧环境增量及独立实装，不以文件存在替代效果。',
+  '12. **开工自检（模型判断，不等关键词）**：① **含混自检**：主动判断请求是否存在多种合理解读、对象/范围/验收是否明确；误判会导致返工时，先用 AskUserQuestion 给 2–4 个真实备选（推荐项在前、写清代价）确认后开工；② **能力自检**：对照当前任务判断是否需要已安装的专项能力，hook 建议与关键词只是召回线索——命中也要核对适用边界，未命中不代表没有适用能力，可用 skills-router / skill-load 按任务关键词检索技能索引后再决定；两项都不得为明确单步请求制造确认门。',
 ].join('\n');
 
 function heartbeat() {
@@ -303,7 +304,7 @@ function capabilityEntry(item, catalogFile, installed) {
   return '';
 }
 
-function capabilityClaim(item) {
+function capabilityClaim(item, promptDigest) {
   let session;
   try { session = JSON.parse(raw).session_id; } catch {}
   // A missing/malformed identity must not become a shared permanent refusal.
@@ -317,9 +318,11 @@ function capabilityClaim(item) {
       const stat = fs.lstatSync(dir);
       if (!stat.isDirectory() || stat.isSymbolicLink()) return true;
     }
-    const key = crypto.createHash('sha256').update(item.id + '\0' + item.action).digest('hex');
+    // 去重粒度=同一请求（prompt 指纹），不是整个会话：同一能力在新请求里仍可再次推荐，
+    // 只有重试/重放同一请求才不重复打扰。只存指纹，不落请求原文。
+    const key = crypto.createHash('sha256').update(item.id + '\0' + item.action + '\0' + promptDigest).digest('hex');
     const file = path.join(dir, key + '.json'), lock = path.join(dir, key + '.pending');
-    const identity = { schema: 1, sessionHash, capabilityId: item.id, action: item.action };
+    const identity = { schema: 1, sessionHash, capabilityId: item.id, action: item.action, promptDigest };
     const matches = value => value && Object.keys(identity).every(key => value[key] === identity[key]);
     const ordinaryJson = target => {
       const stat = fs.lstatSync(target);
@@ -372,6 +375,7 @@ function capabilityNote(promptText) {
     } catch {}
     const result = capabilityAdvisor.planCapabilities({ catalogFile, clientRoot: CLIENT_ROOT, prompt: promptText, phase: 'task' });
     if (result?.schema !== 1 || !Array.isArray(result.items)) return '';
+    const promptDigest = crypto.createHash('sha256').update(promptText.trim()).digest('hex');
     const lines = [];
     for (const item of result.items.slice(0, 3)) {
       if (!item || typeof item.id !== 'string' || !item.id.trim() || item.id.length > 256 || /[\x00-\x1f]/.test(item.id) || typeof item.name !== 'string') continue;
@@ -393,7 +397,7 @@ function capabilityNote(promptText) {
         lines.push(`- ${name}（AUTO_LOAD）：已按需发现本地技能，只读加载；现在读取入口 ${reference}，按其适用步骤执行；不得据此安装、更新、发布或扩大操作授权；投递不等于已读取。`);
         continue;
       }
-      if (!capabilityClaim(item)) continue;
+      if (!capabilityClaim(item, promptDigest)) continue;
       if (item.action === 'AUTO_USE') {
         lines.push(`- ${name}（AUTO_USE）：已自动触发；现在读取入口 ${reference}，按其判定流程执行。可并行也须先展示计划并取得确认，未确认按顺序执行；不得自动派发 worker。`);
         continue;
@@ -401,10 +405,11 @@ function capabilityNote(promptText) {
       const verb = item.action === 'ASK_USE' ? '使用' : item.action === 'ASK_INSTALL' ? '安装' : '更新';
       const question = item.action === 'ASK_USE' ? `是否使用 ${name} 来完成当前任务？` : `是否${verb} ${name} 用于当前任务？`;
       const qualifier = item.action === 'REVIEW_UPDATE' ? '本地已有差异，先展示并审查差异，不覆盖本地内容。' : '';
-      lines.push(`- ${name}（${item.action}）：可核对入口 ${reference}。${qualifier}用 AskUserQuestion 提问：${JSON.stringify(question)}，给出“${verb} / 本次不用”选项；用户未明确选择前保留原状态。`);
+      const localDiff = item.localDiff ? '本地版本与注册包有差异：使用本地版本，更新另行确认，不作为当前任务前置。' : '';
+      lines.push(`- ${name}（${item.action}）：可核对入口 ${reference}。${qualifier}${localDiff}用 AskUserQuestion 提问：${JSON.stringify(question)}，给出“${verb} / 本次不用”选项；用户未明确选择前保留原状态。`);
     }
     return lines.length ? '\n【当前任务能力建议】\n' + lines.join('\n')
-      + '\n以上是能力建议或本轮明确指名路由；自动触发只自动加载与判定，不等于派发授权；投递记录不等于用户批准。已有适用授权不重复询问，能力使用也不扩大安装、发布或生产操作权限。' : '';
+      + '\n以上是能力建议或本轮明确指名路由，只作召回线索：模型须自检是否适用当前任务，未命中也可用 skills-router / skill-load 主动检索；自动触发只自动加载与判定，不等于派发授权；投递记录不等于用户批准。已有适用授权不重复询问，能力使用也不扩大安装、发布或生产操作权限。' : '';
   } catch (error) {
     process.stderr.write('CAPABILITY_NOTE_ERROR: ' + (error && error.message ? error.message : 'unknown') + '\n');
     return '';

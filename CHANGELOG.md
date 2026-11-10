@@ -6,6 +6,18 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Changed
+- Make capability routing quieter and more stable: generic trigger words (验证/测试/性能/排查 and similar) can no longer pull a skill into the suggestion list on their own; curated spoken-language routes cover variants such as "实现一个登录功能" and "表结构要迁移"; weighing questions stay silent; and task-time advice for locally modified skills stays a use suggestion (with a local-diff note) instead of an update review. Use actions now outrank maintenance actions inside the three-item cap, and speaker samples are pinned in `.github/capability-routing-samples.test.js`.
+- Scope capability dedupe to the request instead of the session: the same capability can be suggested again for a new request, while retries of the same request stay quiet (the ledger stores only a prompt fingerprint).
+- Add resident rule 12 "开工自检" for the model: a clarity self-check before acting (ask with 2–4 real alternatives when ambiguity would cause rework) and a capability self-check (hook suggestions and keywords are recall clues only; verify applicability, and search `skills-router` / `skill-load` when nothing matched). Explicit "指令/需求/意图/表述不清" now always triggers the ask-first path even when the request also names a concrete object.
+- Align the ambiguity note, workflow note and capability advice with the self-check rule; advice explicitly states it is a recall clue, not an authorization.
+
+### 中文摘要
+- 能力推荐更稳更安静：泛化触发词（验证/测试/性能/排查等）不再单独把技能拉进建议；补充“实现一个登录功能”“表结构要迁移”等口语路由；权衡型提问保持静默；任务阶段本地有差异的技能仍给使用建议并附注“使用本地版本、更新另行确认”，不再被更新审查挤掉；使用类动作在 3 条上限内优先于维护类动作；新增口语样本回归 `.github/capability-routing-samples.test.js`。
+- 去重粒度从“整个会话”改为“同一请求”：同一能力在新请求里可再次推荐，同一请求重试才静默（台账只存请求指纹）。
+- 每轮常驻第 12 条“开工自检”：含混自检（存在多种合理解读且误判会返工时，先给 2–4 个真实备选反问）+ 能力自检（建议与关键词只是召回线索，命中要核对适用边界，未命中可用 skills-router / skill-load 检索）。显式“指令/需求/意图/表述不清”即使带具体对象也强制先提问。
+- 含混提示、工作方式提示与能力建议同步；建议明确声明为召回线索而非授权。
+
 ## [0.1.3] - 2026-11-10
 
 ### Changed

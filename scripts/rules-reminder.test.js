@@ -32,7 +32,7 @@ const run = (input) => spawnSync(process.execPath, [SCRIPT], {
   env: CHILD_ENV,
 });
 
-const MARKERS = ['简体中文', '不随意停止', '需拍板', '验证要能失败', '先备份', '先只读预览命中范围', '明确结论', 'Vibecoding 两问', '目标模式', '开工先判定', '审查+成文', '过程落盘', '领域与流程纪律', '自进化采集', '确认理解一次'];
+const MARKERS = ['简体中文', '不随意停止', '需拍板', '验证要能失败', '先备份', '先只读预览命中范围', '明确结论', 'Vibecoding 两问', '目标模式', '开工先判定', '含混自检', '能力自检', '审查+成文', '过程落盘', '领域与流程纪律', '自进化采集', '确认理解一次'];
 const STRENGTHENED = ['只读', '不重复确认', '不得通过换工具', '零文件写入', '不适用记 N/A'];
 const checkText = (text, expected) => MARKERS.concat(STRENGTHENED).every((k) => expected ? text.includes(k) : true);
 

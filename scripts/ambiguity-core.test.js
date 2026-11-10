@@ -21,6 +21,12 @@ const HIGH = [
   '你看怎么弄',
   '帮我看看怎么弄',
   '恢复用户指令不清，提示词纠正提示推荐能力',
+  '指令不清，帮我看看',
+  '需求不清，先做哪个',
+  '意图不明，你猜一下',
+  '表述不清，改一下',
+  '需求含糊，先出一版',
+  '表述含糊，你决定',
 ];
 const MEDIUM = ['看看这个', '看下这个'];
 const CLEAR = [
@@ -72,12 +78,24 @@ test('含混提示推荐 /clarify 提示词纠正，但明确不构成执行授�
   const high = buildAmbiguityNote({ level: 'high', signals: ['显式指令不清'] });
   assert.ok(high.includes('不得借改写扩大范围'));
 });
-test('clear 路径允许开工前确认一次理解，确认后直接推进', () => {
-  for (const level of ['high', 'medium']) {
-    const note = buildAmbiguityNote({ level, signals: ['显式指令不清'] });
-    assert.ok(note.includes('确认理解（至多一次）'), level);
-    assert.ok(note.includes('直接推进') || note.includes('直接做'), level);
+test('显式指令不清必须主动提问：即使带对象也不得自行判 clear', () => {
+  for (const text of ['指令不清，把 src/auth.ts 的 login 改成 401', '需求不清，按你说的改', '意图不明，先做这个']) {
+    const result = classifyAmbiguity(text);
+    assert.equal(result.level, 'high', text);
+    assert.ok(result.signals.includes('显式指令不清'), text);
   }
+  const note = buildAmbiguityNote({ level: 'high', signals: ['显式指令不清'] });
+  for (const phrase of ['必须先提问', '不得自行选择一种理解直接开工', '2–4 个真实备选', '用户回答前只做只读调查']) {
+    assert.ok(note.includes(phrase), phrase);
+  }
+});
+test('clear 路径允许开工前确认一次理解，确认后直接推进', () => {
+  const note = buildAmbiguityNote({ level: 'high', signals: ['光杆动作'] });
+  assert.ok(note.includes('确认理解（至多一次）'));
+  assert.ok(note.includes('直接推进') || note.includes('直接做'));
+  const explicit = buildAmbiguityNote({ level: 'high', signals: ['显式指令不清'] });
+  assert.ok(!explicit.includes('直接推进'), '显式不清不得直接推进');
+  assert.ok(explicit.includes('必须先提问'));
 });
 test('初筛必须声明不是结论，并要求模型三档判别与 clear 证据门槛', () => {
   for (const level of ['high', 'medium']) {

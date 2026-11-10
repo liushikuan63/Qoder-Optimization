@@ -30,6 +30,9 @@ function classifyAmbiguity(prompt) {
   const text = normalize(prompt);
   if (!text || text.length > 200) return { level: null, signals: [], text };
   if (/^[/!]/.test(text)) return { level: null, signals: [], text };
+  // 用户自己说"指令/需求/意图/表述不清"时，即便带了对象也存在多种可能：必须先提问确认，
+  // 不能被"有具体对象"提前判 clear。其余对象明确的请求仍走下面的排除。
+  if (SELF_UNCLEAR.test(text)) return { level: 'high', signals: ['显式指令不清'], text };
   if (CONCRETE.test(text) || NAMED_DEMONSTRATIVE.test(text) || GENERAL_NOUN.test(text) || META.test(text)) {
     return { level: null, signals: [], text };
   }
@@ -48,15 +51,22 @@ function classifyAmbiguity(prompt) {
 function buildAmbiguityNote(result, context) {
   if (!result || !result.level) return '';
   const signal = result.signals[0] || '泛化请求';
+  const explicitUnclear = result.signals.includes('显式指令不清');
   const base = result.level === 'high'
-    ? '\n【需求含混 · 规则初筛命中（高）】信号：' + signal + '。初筛只负责高召回，不是结论：请结合完整请求与会话上下文做模型判别。'
-      + '\n- clear：能指出具体对象、范围与验收依据 → 可直接做；绝大多数场景可在开工前用一句话确认理解（至多一次），确认后直接推进；'
-      + '\n- assumption：对象明确但实现细节未定 → 说明可逆假设后推进；'
-      + '\n- clarify：目标、对象或验收仍无法确定 → 只问一个核心问题，并用 AskUserQuestion 给 2–4 个真实备选（推荐项在前、写清各自代价与影响），不得凭猜测直接开工。'
-      + '\n- 提示词纠正：请求本身缺对象、范围或验收时，可先按 /clarify 给 1 条保留原意的纠正稿（补全对象、范围、验收与禁止项），用 AskUserQuestion 让用户在「按纠正稿执行 / 继续澄清 / 取消」中选择；纠正稿只是建议，不构成执行授权，不得借改写扩大范围。'
-      + '\n判为 clear 时须在回复中写明对象与验收依据；判为 clarify 时不得先猜着执行再补问；与答案无关且已获授权的部分可继续。'
+    ? (explicitUnclear
+      ? '\n【需求含混 · 规则初筛命中（高）】信号：显式指令不清。用户已明确表示指令/需求/意图/表述不清：存在多种可能，必须先提问，不得自行选择一种理解直接开工。'
+        + '\n- 用 AskUserQuestion 只问一个核心问题：给出 2–4 个真实备选（推荐项在前、写清各自的对象、范围、验收与代价），选项取「按理解 A 执行 / 按理解 B 执行 / 继续澄清 / 取消」中适用的 2–4 个；不得凭猜测直接开工，不用开放问答代替选项，不隐藏低置信备选。'
+        + '\n- 用户回答前只做只读调查：不写入、不改文件、不产出成品；回答后按其选择执行，并复述对象与验收依据。'
+        + '\n- 提示词纠正：可按 /clarify 给 1 条保留原意的纠正稿（补全对象、范围、验收与禁止项）作为备选之一；纠正稿只是建议，不构成执行授权，不得借改写扩大范围。'
+      : '\n【需求含混 · 规则初筛命中（高）】信号：' + signal + '。初筛只负责高召回，不是结论：请结合完整请求与会话上下文做模型判别。'
+        + '\n- clear：能指出具体对象、范围与验收依据 → 可直接做；绝大多数场景可在开工前用一句话确认理解（至多一次），确认后直接推进；'
+        + '\n- assumption：对象明确但实现细节未定 → 说明可逆假设后推进；'
+        + '\n- clarify：目标、对象或验收仍无法确定 → 只问一个核心问题，并用 AskUserQuestion 给 2–4 个真实备选（推荐项在前、写清各自代价与影响），不得凭猜测直接开工。'
+        + '\n- 提示词纠正：请求本身缺对象、范围或验收时，可先按 /clarify 给 1 条保留原意的纠正稿（补全对象、范围、验收与禁止项），用 AskUserQuestion 让用户在「按纠正稿执行 / 继续澄清 / 取消」中选择；纠正稿只是建议，不构成执行授权，不得借改写扩大范围。'
+        + '\n判为 clear 时须在回复中写明对象与验收依据；判为 clarify 时不得先猜着执行再补问；与答案无关且已获授权的部分可继续。')
     : '\n【需求含混 · 规则初筛命中（中）】信号：' + signal + '。初筛不是结论：先做模型判别。'
       + '\n对象或目标能从上下文定位 → 按 clear 直接做，可在开工前用一句话确认理解（至多一次）；只需定实现细节 → 按 assumption 说明假设后推进（可逆默认值）；仍无法定位对象或验收 → 按 clarify 问一个核心问题并给真实备选。不要为内部命名或参数增加确认门。'
+      + '\n同时主动检查规则未覆盖的歧义（多种合理解读、验收口径不明）；若误判会导致返工，按 clarify 反问并给 2–4 个真实备选。'
       + '\n表述不全时可给 1 条保留原意的提示词纠正稿供用户选择（/clarify）；纠正稿只是建议，不构成执行授权。';
   const protocol = context && context.binding
     ? '\n【判别记录 · 可审计】开工前运行（纯讨论可跳过）：node ~/.qoder/scripts/ambiguity-core.cjs --decision - --binding ' + context.binding

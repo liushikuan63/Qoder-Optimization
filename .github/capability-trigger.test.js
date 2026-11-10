@@ -62,7 +62,12 @@ test('model mode injects a bound decision contract and keeps the explicit verifi
   assert.match(text, /用 AskUserQuestion 同轮询问两项/);
   assert.match(text, /先生成计划，再用 AskUserQuestion 询问是否启用/);
   assert.match(text, /Vibecoding 四层\/批次文档/);
+  assert.match(text, /含混自检/);
+  assert.match(text, /能力自检/);
+  assert.match(text, /多种合理解读/);
   const reminder = text.split('【工作方式 · 模型判断】')[0];
+  assert.match(reminder, /含混自检/);
+  assert.match(reminder, /能力自检/);
   assert.match(reminder, /关键词不强制出计划或追问/);
   assert.doesNotMatch(reminder, /全项目\/多模块\/多端\/多文件\/多版本任务先按 parallel-orchestration|中大型、多阶段或审查\+成文任务先用 AskUserQuestion/);
   const context = JSON.parse(text.match(/^WORKFLOW_CONTEXT (.+)$/m)[1]);
@@ -187,7 +192,7 @@ test('an existing verification opt-out remains a veto in model mode', t => {
   assert.doesNotMatch(text, /【B05 自动选档 · 已触发】/);
 });
 
-test('registered installed capability becomes a concrete use question once per session', t => {
+test('registered installed capability becomes a concrete use question once per request', t => {
   const f = fixture(t), item = f.skill(); f.setItems([item]); f.register();
   const prompt = '修复浏览器页面，保留 PRIVATE_PROMPT_SENTINEL 不写台账';
   const first = f.run(prompt);
@@ -195,6 +200,8 @@ test('registered installed capability becomes a concrete use question once per s
   assert.ok(first.includes(item.entryPath.replace(/\\/g, '/')));
   assert.match(first, /AskUserQuestion/);
   assert.equal(f.run(prompt).includes(marker), false);
+  // 同一会话的新请求仍要能重新推荐；只有同一请求重试才去重。
+  assert.equal(f.run('修复浏览器页面并补充截图', 'session-a').includes(marker), true);
   assert.equal(f.run(prompt, 'session-b').includes(marker), true);
   const runtime = path.join(f.client, 'tmp/capability-advisor');
   const files = [];
@@ -207,7 +214,7 @@ test('registered installed capability becomes a concrete use question once per s
   assert.equal(ledger.includes('session-a'), false);
 });
 
-test('AUTO_USE injects an auto-load directive without a use question and dedupes per session', t => {
+test('AUTO_USE injects an auto-load directive without a use question and dedupes per request', t => {
   const f = fixture(t), item = f.skill('parallel-orchestration', 'AUTO_USE'); f.setItems([item]); f.register();
   const text = f.run('把订单、用户、报表三个模块拆分开发', 'auto-a');
   const capabilityLine = text.split('\n').find(line => line.includes('parallel-orchestration（AUTO_USE）')) || '';
@@ -216,6 +223,7 @@ test('AUTO_USE injects an auto-load directive without a use question and dedupes
   assert.match(capabilityLine, /计划.*确认/);
   assert.doesNotMatch(capabilityLine, /是否使用|AskUserQuestion/);
   assert.equal(f.run('把订单、用户、报表三个模块拆分开发', 'auto-a').includes(marker), false);
+  assert.equal(f.run('订单、用户、报表三个模块要并行拆分', 'auto-a').includes(marker), true);
   assert.equal(f.run('把订单、用户、报表三个模块拆分开发', 'auto-b').includes(marker), true);
 });
 

@@ -9,6 +9,8 @@ const { collectSkills } = require('./build-skills-index.cjs');
 const { clientRoot: resolveClientRoot } = require('./client-root.js');
 
 const ACTIONS = ['UPDATE', 'REVIEW_UPDATE', 'ASK_INSTALL', 'ASK_USE', 'AUTO_USE', 'AUTO_LOAD', 'KEEP', 'SKIP'];
+// 使用类动作先占位，维护类（更新/审查差异）只在名额有余时补充，不能把任务建议挤掉。
+const ACTION_RANK = { AUTO_USE: 5, ASK_USE: 4, AUTO_LOAD: 4, KEEP: 3, ASK_INSTALL: 2, UPDATE: 1, REVIEW_UPDATE: 1, SKIP: 0 };
 const skillDescriptionCache = new Map();
 const GENERIC = new Set([
   'skill:parallel-orchestration', 'skill:office-docs', 'skill:write-repowiki',
@@ -29,11 +31,11 @@ const ROUTES = {
   'continuation-state-audit': [['接续'], ['继续任务'], ['恢复进度'], ['压缩'], ['continuation'], ['上次', '做完'], ['上次', '完成'], ['交付', '复核']],
   'concurrent-edit-attribution-check': [['同一文件'], ['多人编辑'], ['并发编辑'], ['并行会话'], ['共享工作区'], ['concurrent']],
   'parallel-orchestration': [['并行'], ['多 agent'], ['多agent'], ['parallel'], ['worktree'], ['多模块'], ['多个模块'], ['跨模块'], ['多文件'], ['多个文件'], ['任务拆分'], ['模块拆分'], ['独立模块'], ['依赖图'], ['拆分', '模块'], ['同时', '处理'], ['同时', '做'], ['一起', '做'], ['分工'], ['并发'], ['子代理'], ['subagent'], ['前后端'], ['全项目'], ['整个项目'], ['全仓'], ['全仓库'], ['多个项目'], ['多项目'], ['多个版本'], ['多版本'], ['多个代码库'], ['多代码库'], ['多个服务'], ['多服务'], ['跨服务'], ['多个端'], ['多端'], ['三端'], ['多套'], ['三套'], ['审查', '项目'], ['审阅', '项目'], ['分析', '项目'], ['介绍', '项目'], ['评估', '项目'], ['梳理', '项目'], ['整体', '分析'], ['整体', '审查'], ['项目', '架构'], ['审查', '完整版'], ['审查', 'lite'], ['完整版', 'lite'], ['完整版', 'svn'], ['全部代码']],
-  'vibe-coding-workflow': [['实现功能'], ['开发功能'], ['vibecoding'], ['vibe coding']],
+  'vibe-coding-workflow': [['实现功能'], ['开发功能'], ['实现', '功能'], ['开发', '功能'], ['vibecoding'], ['vibe coding']],
   'vibecoding-doc': [['需求文档'], ['任务文档'], ['开发方案'], ['spec']],
   'goal-driven-execution': [['目标模式'], ['goal mode'], ['长任务'], ['多步骤'], ['完成判据'], ['持续推进'], ['盯到完成'], ['直到完成']],
   'self-evolution': [['记住'], ['长期偏好'], ['经验沉淀'], ['自进化']],
-  'clarify': [['指令不清'], ['需求不清'], ['意图不清'], ['表述不清'], ['需求含糊'], ['表述含糊'], ['提示词纠正'], ['纠正提示词'], ['澄清需求'], ['帮我理一下'], ['clarify']],
+  'clarify': [['指令不清'], ['需求不清'], ['意图不清'], ['表述不清'], ['需求含糊'], ['表述含糊'], ['提示词纠正'], ['纠正提示词'], ['澄清需求'], ['澄清'], ['说不清'], ['帮我理一下'], ['clarify']],
   'skills-router': [['技能'], ['skill'], ['能力目录']],
   'office-docs': [['word'], ['excel'], ['ppt'], ['docx'], ['xlsx'], ['表格'], ['文档排版']],
   'write-repowiki': [['wiki'], ['仓库文档']],
@@ -52,10 +54,21 @@ const ROUTES = {
   'vue-expert': [['vue']], 'typescript-pro': [['typescript']],
   'frontend-development': [['前端'], ['frontend']], 'local-browser-e2e': [['e2e'], ['playwright']],
   'local-api-contracts': [['api', '契约'], ['rest', '分页']],
-  'local-db-migrations': [['数据库迁移'], ['schema', 'migration']],
+  'local-db-migrations': [['数据库迁移'], ['表结构'], ['加字段'], ['加一个字段'], ['迁移'], ['schema', 'migration']],
+  'architecture-designer': [['架构']],
   'local-performance-evidence': [['性能优化'], ['性能', '基线']],
   'share-package-release': [['分享包', '发布'], ['release', 'package']],
 };
+// 触发词里的泛化动词/名词不能单独把任何技能拉进建议：领域词（技能名、专有名词）才成立。
+// 精确路由 ROUTES 仍可用这些词，因为路由是人工逐技能维护的，不跨领域漂移。
+const GENERIC_TRIGGER_WORDS = new Set([
+  '验证', '测试', '验收', '检查', '排查', '优化', '性能', '性能优化', '页面', '界面', '浏览器', '文档',
+  '代码', '文件', '修改', '编辑', '提交', '推送', '审查', '评审', '截图', '配置', '日志', '报错', '异常',
+  '问题', '功能', '需求', '任务', '项目', '开发', '实现', '设计', '迁移', '表', '字段', '接口', '服务',
+  '模块', '组件', '流程', '规则', '技能', '命令', '工具', '脚本', '方案', '报告', '数据', '数据库', '缓存',
+  '连接', '慢查询', '延迟', '超时', '部署', '发布', '上线', '安装', '更新', '对比', '分析', '梳理', '整理',
+  '清理', '生成', '运行', '调试', '修复', '重构', '读取', '写入', '操作', '使用',
+]);
 
 function fail(code, message) { throw Object.assign(new Error(message), { code }); }
 function text(value) { return typeof value === 'string' ? value.normalize('NFKC').toLowerCase() : ''; }
@@ -111,8 +124,12 @@ function taskRouteText(prompt) {
 }
 function discussionOnly(prompt) {
   const value = prompt.trim();
-  return /^(?:请\s*)?(?:解释|介绍|什么是|如何|怎么|请问)|^(?:what|how|explain|describe|is|are|was|were|has|have)\b/i.test(value)
-    || /(?:是什么|什么意思|是否合适|是否应该|是否已经|是否已安装|安装了?吗|启用了?吗|怎么样)[？?\s]*$/.test(value);
+  if (/^(?:请\s*)?(?:解释|介绍|什么是|如何|怎么|请问)|^(?:what|how|explain|describe|is|are|was|were|has|have)\b/i.test(value)) return true;
+  if (/(?:是什么|什么意思|是否合适|是否应该|是否已经|是否已安装|安装了?吗|启用了?吗|怎么样)[？?\s]*$/.test(value)) return true;
+  // 权衡/求解释型但没有任何执行动作时才静默；"要不要……帮我接一下"仍是执行请求。
+  const weighing = /(?:要不要|该不该|是否应该|值不值得|先讲|先介绍|讲一下|说说|原理|区别|优缺点|利弊|在考虑|考虑用)/;
+  const acting = /(?:帮我|替我|给我|请你|现在|直接|马上|开始|接入|装一下|用起来|跑一下|执行|实现|改成|修复|部署|提交|发布|安装|清理|生成)/;
+  return weighing.test(value) && !acting.test(value);
 }
 
 function commandDescription(entry, clientDir, bindings) {
@@ -149,17 +166,19 @@ function descriptionTriggerScore(entry, prompt, clientDir, bindings) {
   const local = entry.category === 'command' ? commandDescription(entry, clientDir, bindings)
     : entry.category === 'skill' ? localSkillDescription(entry, clientDir, bindings) : '';
   const words = new Set([...triggerWords(entry.description), ...triggerWords(local)]);
-  let score = 0;
+  let strong = false;
   for (const word of words) {
-    if (termMatches(prompt, word)) score = Math.max(score, entry.category === 'command' ? 25 : 20);
+    if (!termMatches(prompt, word) || GENERIC_TRIGGER_WORDS.has(text(word).trim())) continue;
+    strong = true;
+    break;
   }
-  return score;
+  return strong ? (entry.category === 'command' ? 25 : 20) : 0;
 }
 
 function routeScore(entry, prompt, clientDir, bindings) {
   if (termMatches(prompt, entry.id) || termMatches(prompt, entry.name)) return 100;
   let score = descriptionTriggerScore(entry, prompt, clientDir, bindings);
-  for (const words of ROUTES[entry.name] || []) if (words.every(word => termMatches(prompt, word))) score = Math.max(score, 10 + words.length * 5 + words.reduce((sum, word) => sum + word.length, 0));
+  for (const words of ROUTES[entry.name] || []) if (words.every(word => termMatches(prompt, word))) score = Math.max(score, 40 + words.length * 5 + words.reduce((sum, word) => sum + word.length, 0));
   return score;
 }
 
@@ -210,8 +229,10 @@ function localSkillScore(entry, prompt) {
   let score = 0;
   const first = String(entry.name).split('-')[0];
   if (first.length >= 4 && termMatches(prompt, first)) score = 100;
+  for (const words of ROUTES[entry.name] || []) if (words.every(word => termMatches(prompt, word))) score = Math.max(score, 40 + words.length * 5 + words.reduce((sum, word) => sum + word.length, 0));
   for (const word of triggerWords(entry.description)) {
-    if (termMatches(prompt, word)) score = Math.max(score, 20);
+    if (!termMatches(prompt, word) || GENERIC_TRIGGER_WORDS.has(text(word).trim())) continue;
+    score = Math.max(score, 20);
   }
   return score;
 }
@@ -322,7 +343,10 @@ function planCapabilities(options = {}) {
       else if (phase === 'task' && intent === 'use' && ordinaryWithin(clientDir, output.entryPath, false, options.bindings)) { decide('KEEP', 'EXPLICIT_USE_REQUEST'); output.authorized = true; }
       else if (presence.differs !== false) {
         output.baseline = baselineFor(entry, installedPaths, previous, clientDir, options.bindings);
-        if (presence.differs === true && output.baseline.verified) { decide('UPDATE', 'PRISTINE_PREVIOUS_SOURCE'); output.autoUpdate = true; }
+        // 任务请求优先回答"用哪个能力"；本地有差异不等于不能使用，维护检查只在安装阶段做。
+        const localTask = phase === 'task' && intent !== 'install';
+        if (presence.differs === true && output.baseline.verified && !localTask) { decide('UPDATE', 'PRISTINE_PREVIOUS_SOURCE'); output.autoUpdate = true; }
+        else if (localTask) { decide('ASK_USE', 'RELEVANT_INSTALLED_CAPABILITY_LOCAL_DIFF'); output.localDiff = true; }
         else decide('REVIEW_UPDATE', output.baseline.reason);
       } else if (phase === 'task' && intent === 'use') decide('REVIEW_UPDATE', 'LOCAL_ENTRY_UNVERIFIABLE');
       else if (phase === 'task' && intent !== 'install') decide(AUTO_USE_IDS.has(entry.id) ? 'AUTO_USE' : 'ASK_USE', AUTO_USE_IDS.has(entry.id) ? 'AUTO_TRIGGERED_INSTALLED_CAPABILITY' : 'RELEVANT_INSTALLED_CAPABILITY');
@@ -390,7 +414,8 @@ function planCapabilities(options = {}) {
       });
     }
   }
-  if (phase === 'task') planned.sort((a, b) => (a.output.action === 'SKIP') - (b.output.action === 'SKIP') || b.score - a.score || a.index - b.index);
+  if (phase === 'task') planned.sort((a, b) => (a.output.action === 'SKIP') - (b.output.action === 'SKIP')
+    || ACTION_RANK[b.output.action] - ACTION_RANK[a.output.action] || b.score - a.score || a.index - b.index);
   const items = (phase === 'task' ? planned.slice(0, 3) : planned).map(item => item.output);
   return { schema: 1, items, summary: { phase, reason: hasCatalog ? 'OK' : 'LOCAL_DISCOVERY_ONLY', total: items.length, considered: catalog.entries.length, omitted: planned.length - items.length, counts: Object.fromEntries(ACTIONS.map(action => [action, items.filter(item => item.action === action).length])), requiresConfirmation: items.filter(item => item.requiresConfirmation).length } };
 }
@@ -455,6 +480,7 @@ function buildWorkflowNote(context, script) {
     + '\nWORKFLOW_SHELL_COMMAND ' + JSON.stringify(shellCommand)
     + '\n结构化输入：{schema:1,context:<上方原样对象>,model:{schema:1,bindingDigest:<上方绑定值>,taskId:<当前任务ID>,intent:question|read-only|execute|continuation|unclear,confidence:low|medium|high,sourceRefs:[<真实来源>],reason:<简短判断>,parallel:assess|skip,goal:recommend|skip,verification:assess|skip,documentation:recommend|skip},parallelPlan?:<parallel-plan 的完整输入>,verificationRequest?:<verification-policy 的完整输入>}。不能编造事实或授权；confidence 是自评，不是正确性证明。'
     + '\n在业务写入或启用额外流程前，按 WORKFLOW_COMMAND 的 executable 和 args 原样调用，结构化输入经 stdin 传入；WORKFLOW_SHELL_COMMAND 是本机 ' + (process.platform === 'win32' ? 'PowerShell' : 'POSIX shell') + ' 的等价命令。只读任务不写请求文件。没有当前身份、结果无效或 NEEDS_FACTS 时不回退成关键词自动启用；保留串行/任务清单及必需验证，补足最小证据后再判断。'
+    + '\n开工自检（模型判断，不等关键词）：① 含混自检：主动判断请求是否存在多种合理解读、对象/范围/验收是否明确；误判会导致返工时，先用 AskUserQuestion 给 2–4 个真实备选（推荐项在前、写清代价）确认后开工；② 能力自检：对照当前任务判断是否需要已安装的专项能力，建议与关键词只是召回线索——命中也要核对适用边界，未命中不代表没有适用能力（可用 skills-router / skill-load 检索）；两项都不得为明确单步请求制造确认门。'
     + '\n并行：模型先判断依赖与资源；可并行时先生成计划，再用 AskUserQuestion 询问是否启用（推荐按计划并行 / 串行执行），未确认按串行执行；只读任务只展示计划，不写文件、不派发。目标只检查活动目标/原始授权，缺明确请求才询问，不依据模型建议调用 CreateGoal。成文：中大型、跨会话、需要交接或审查+成文时，检查现有文档并与目标询问同轮合并，用 AskUserQuestion 问一次是否创建或更新 Vibecoding 四层/批次文档（推荐创建或更新 / 本轮不成文）；小任务与明确不需要成文的不问，已有文档只更新，不重复新建。'
     + '\n验证选档须给真实 facts/checks/baseline，taskId 绑定当前任务，sessionId/workspaceKey/requestMessageId 与本轮 context 一致；当本请求属于业务写入/执行类且未 veto 选档时，必须在开工前用 AskUserQuestion 展示推荐档与四个选项并取得明确选择，facts/checks/baseline 不足时先补最小只读证据，未答复/取消不默认档，同任务不重复询问；没有 resolveAuthority 仍为咨询模式，不调用 applyChoice/beginVerification。skip 只跳过可选选档，不能删除必需验证或降低发布检查。'
     + '\n继续同一任务先核对既有计划、目标和明确答复；已有适用选择不重复询问，拒绝/取消不催问，范围或事实改变重新判断。所有裁决只是建议，不发放创建目标、派发、写入、安装、发布或生产操作权限。';
