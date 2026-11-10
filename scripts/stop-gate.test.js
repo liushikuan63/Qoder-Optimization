@@ -795,6 +795,16 @@ r17Case('R17 纯问答不误拦', 'kickoff-n', '什么是闭包？', [], 'allow'
 r17Case('R17 上一轮 pending 不误伤新请求', 'kickoff-o', '把 README 的版本号改成 0.1.6', [], 'allow', () => kickoff.writePending(kickoffContext('kickoff-o', r17Prompt)));
 r17Case('R17 文本收尾也要先出卡', 'kickoff-p', r17Prompt, [], 'block', () => kickoff.writePending(kickoffContext('kickoff-p', r17Prompt)), '现状已核实，需要你先定口径。');
 
+// 安装时选择"不常驻"：开工提示卡不注入，R16/R17 一并停用；其他规则不受影响
+const kickoffDisabledPref = path.join(ROOT, 'kickoff-disabled.json');
+fs.writeFileSync(kickoffDisabledPref, JSON.stringify({ schema: 1, resident: false }));
+kickoff.writePending(kickoffContext('kickoff-q', r16Prompt));
+const disabledWrite = run({ transcript_path: transcript([user(r16Prompt), r16Write, asst('处理完毕。')]), session_id: 'kickoff-q' }, 'kickoff-q', { KICKOFF_STATE_DIR: kickoffDir, KICKOFF_PREFERENCE_FILE: kickoffDisabledPref });
+check('安装选择不常驻后 R16 不拦写入', disabledWrite.decision, 'allow');
+kickoff.writePending(kickoffContext('kickoff-r', r17Prompt));
+const disabledEnd = run({ transcript_path: transcript([user(r17Prompt), tool('Bash', { command: 'ls src' }), asst('处理完毕。')]), session_id: 'kickoff-r' }, 'kickoff-r', { KICKOFF_STATE_DIR: kickoffDir, KICKOFF_PREFERENCE_FILE: kickoffDisabledPref });
+check('安装选择不常驻后 R17 不拦收尾', disabledEnd.decision, 'allow');
+
 // ---------- R14：任务结束必须就"本任务临时文件"给出清理范围并询问（2026-11-09）----------
 // 背景：临时清理器此前只能人工触发，超期件长期堆积；收尾必须主动列出本任务产物并弹窗确认。
 const TMPROOT = path.join(ROOT, 'temp', 'qoder-work');

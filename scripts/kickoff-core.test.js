@@ -126,6 +126,41 @@ check('复杂卡返回计划/文档/目标/并行 4 问', () => {
   assert.ok(result.questions[2].options[0].label.includes('推荐'));
   assert.ok(result.questions[3].options[0].label.includes('推荐'));
 });
+check('复杂串行卡只问计划/文档/目标 3 问，不再单独问并行', () => {
+  const context = contextFor('跨模块重构权限校验并发布', 'sess-c2s');
+  core.writePending(context);
+  const card = { ...complexCard(context), parallel: { mode: 'serial', reason: '顺序依赖' } };
+  const result = core.composeCard({ schema: 1, context, card }, context.binding);
+  assert.strictEqual(result.questions.length, 3);
+  assert.deepStrictEqual(result.questions.slice(1).map(item => item.header), ['文档', '目标']);
+});
+check('多种理解时列出 2–4 种供选择', () => {
+  const context = contextFor('优化导出功能', 'sess-c2i');
+  core.writePending(context);
+  const card = {
+    ...complexCard(context),
+    parallel: { mode: 'serial', reason: '单会话' },
+    interpretations: [
+      { label: '只调整筛选项', description: '保留现有导出格式，只改筛选条件。' },
+      { label: '重做导出页', description: '重新设计导出页布局与交互。' },
+    ],
+  };
+  const result = core.composeCard({ schema: 1, context, card }, context.binding);
+  const plan = result.questions[0];
+  assert.strictEqual(plan.question, '按哪种理解开工？');
+  assert.strictEqual(plan.options.length, 3);
+  assert.ok(plan.options[0].label.includes('推荐'));
+  assert.strictEqual(plan.options[2].label, '都不对，我来补充');
+});
+check('理解数量越界拒绝', () => {
+  const context = contextFor('优化导出功能', 'sess-c2j');
+  core.writePending(context);
+  const card = {
+    ...complexCard(context),
+    interpretations: [{ label: '只有一种', description: '不满足 2–4 种。' }],
+  };
+  throwsCode(() => core.composeCard({ schema: 1, context, card }, context.binding), 'INVALID_KICKOFF_CARD');
+});
 check('绑定不符拒绝', () => {
   const context = contextFor('修复登录按钮的文案', 'sess-c3');
   core.writePending(context);
@@ -255,6 +290,27 @@ check('compose CLI 从 stdin 读取并返回载荷', () => {
   assert.strictEqual(parsed.action, 'ASK_CONFIRMATION');
   assert.strictEqual(parsed.questions.length, 1);
 });
+
+console.log('# preference');
+const prefFile = path.join(STATE, 'kickoff-preference.json');
+process.env.KICKOFF_PREFERENCE_FILE = prefFile;
+check('无配置时开工提示卡默认常驻', () => assert.strictEqual(core.kickoffResidentEnabled(), true));
+check('安装选择关闭后不再建卡', () => {
+  fs.writeFileSync(prefFile, JSON.stringify({ schema: 1, resident: false }));
+  assert.strictEqual(core.kickoffResidentEnabled(), false);
+  const result = core.prepareKickoff({ sessionId: 'sess-pref', prompt: '修复登录按钮的文案', cwd: process.cwd() });
+  assert.strictEqual(result.reason, 'USER_DISABLED');
+  assert.strictEqual(fs.existsSync(path.join(STATE, 'pending-sess-pref.json')), false);
+});
+check('配置损坏时按默认常驻处理（不静默关闭）', () => {
+  fs.writeFileSync(prefFile, '{not-json');
+  assert.strictEqual(core.kickoffResidentEnabled(), true);
+});
+check('显式恢复常驻后重新建卡', () => {
+  fs.writeFileSync(prefFile, JSON.stringify({ schema: 1, resident: true }));
+  assert.strictEqual(core.prepareKickoff({ sessionId: 'sess-pref2', prompt: '修复登录按钮的文案', cwd: process.cwd() }).skip, false);
+});
+delete process.env.KICKOFF_PREFERENCE_FILE;
 
 fs.rmSync(STATE, { recursive: true, force: true });
 if (n) {

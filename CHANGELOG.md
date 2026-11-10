@@ -6,14 +6,22 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-11-10
+
 ### Changed
-- Add a mandatory kickoff confirmation loop for every task except simple Q&A: read-only checks may come first, but the same turn must end with the restated goal/object/scope/acceptance, 2–7 verifiable steps, serial vs parallel decision and explicit AskUserQuestion confirmation before any write or side-effect command. Medium/large tasks ask documentation, goal and parallel in the same round (the verification tier stays a separate B05 choice). `scripts/kickoff-core.cjs` binds the card to the request and stores only hashes and selections; stop-gate R16 blocks unconfirmed writes or side-effect commands, and R17 blocks ending the turn without a composed, confirmed and recorded card. Pure questions, an explicit "不用确认", and continuations of an already confirmed task are exempt. Question detection now looks at the final clause so business names containing action words (for example "诱导发布") do not force a complex card.
+- Reading a shared package now installs every shipped skill declared by its catalog instead of a fixed subset; package activation keeps the catalog as the source of shipped skills and updates the router guidance accordingly.
+- Tiering can lift the default core floor for an explicit, audited demote list (`--override-core`), while `skills-router` stays protected; index publication now refuses an empty scan instead of overwriting a populated skills index.
+- Add a mandatory kickoff confirmation loop for every task except simple Q&A: read-only checks may come first, but the same turn must end with the restated goal/object/scope/acceptance, 2–7 verifiable steps, serial vs parallel decision and explicit AskUserQuestion confirmation before any write or side-effect command. Medium/large tasks ask documentation, goal and parallel in the same round (the verification tier stays a separate B05 choice). `scripts/kickoff-core.cjs` binds the card to the request and stores only hashes and selections; stop-gate R16 blocks unconfirmed writes or side-effect commands, and R17 blocks ending the turn without a composed, confirmed and recorded card. Pure questions, an explicit "不用确认", and continuations of an already confirmed task are exempt. Read-only checks may run in parallel without asking; parallel writes still require explicit confirmation in the card. Question detection now looks at the final clause so business names containing action words (for example "诱导发布") do not force a complex card.
 - Replace the old "明确、单步、低风险可直接交付" wording across the rules, clarify command, README files and ambiguity note with the kickoff-card contract.
+- Ask once during package installation whether the kickoff card stays resident (interactive prompt, or `--kickoff-resident yes|no` for non-interactive runs). Choosing `no` writes `<client>/kickoff-preference.json` with `resident: false`; `rules-reminder` then skips the kickoff block and stop-gate R16/R17 stay off, while the rest of the reminder is unchanged. Non-interactive runs without the flag preserve the existing choice.
 
 ### 中文摘要
+- 读取分享包时按 catalog 安装全部随包技能，不再只装固定子集；路由说明与安装器同批更新。
+- 分层支持显式、可审计的 `--override-core` 降层名单，`skills-router` 仍受保护；索引发布拒绝用空扫描覆盖已有索引。
 - 新增“开工确认”必要闭环：除简单纯问答外可先做只读检查，但同一轮结束前必须复述目标/对象/范围/验收、列 2–7 步计划、判断并行/串行，再用 AskUserQuestion 确认后执行；中大型/多阶段/审查+成文任务在同一张卡内加问文档、目标、并行（验证档仍按 B05 单独选）。
-- 新增 `scripts/kickoff-core.cjs`：卡片与当前请求绑定，台账只存哈希与选择；stop-gate R16 拦“未确认就写入/执行副作用命令”，R17 拦“未出卡、未确认或未落账就收尾”。纯问答、用户明确说不用确认、同一任务已确认的继续执行豁免；问答识别改为看末句，业务名词含动作词（如“诱导发布”）不再误判为复杂任务。
+- 新增 `scripts/kickoff-core.cjs`：卡片与当前请求绑定，台账只存哈希与选择；stop-gate R16 拦“未确认就写入/执行副作用命令”，R17 拦“未出卡、未确认或未落账就收尾”。纯问答、用户明确说不用确认、同一任务已确认的继续执行豁免；只读检查可并行、无需征求，正式开工的并行写入仍要在卡内加问确认；问答识别改为看末句，业务名词含动作词（如“诱导发布”）不再误判为复杂任务。
 - 规则文档、clarify 命令、README 与含混提示同步移除“单步低风险可直接交付”的旧口径。
+- 分享包安装时问一次是否常驻开工提示卡（交互提问；非交互用 `--kickoff-resident yes|no`）。选“否”写入 `<客户端>/kickoff-preference.json` 的 `resident: false`，`rules-reminder` 不再注入开工确认，stop-gate R16/R17 停用，其他提醒保持原样；非交互未给 flag 时保留既有选择。
 
 ## [0.1.4] - 2026-11-10
 

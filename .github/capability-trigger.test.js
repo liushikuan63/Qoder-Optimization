@@ -60,8 +60,8 @@ test('model mode injects a bound decision contract and keeps the explicit verifi
   assert.match(text, /用 AskUserQuestion 原样提问/);
   assert.match(text, /【目标候选 · 需弹窗确认】/);
   assert.match(text, /用 AskUserQuestion 同轮询问两项/);
-  assert.match(text, /并行可先出计划/);
-  assert.match(text, /文档、目标与并行统一并入开工确认卡/);
+  assert.match(text, /只读检查可并行、无需征求/);
+  assert.match(text, /文档、目标并入开工确认卡/);
   assert.match(text, /含混自检/);
   assert.match(text, /能力自检/);
   assert.match(text, /多种合理解读/);

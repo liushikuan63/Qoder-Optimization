@@ -1,4 +1,4 @@
-# Qoder-Optimization-0.1.4 安装说明
+# Qoder-Optimization-0.1.5 安装说明
 
 ## 包内容与落点
 
@@ -25,11 +25,13 @@ Windows 从包根 `install.cmd` 开始；跨平台可运行 `node scripts/instal
 ```bash
 node scripts/install-package.cjs --dry-run
 node scripts/install-package.cjs --yes
+node scripts/install-package.cjs --yes --kickoff-resident no
 node scripts/install-package.cjs --yes --install skill:parallel-orchestration
 node scripts/install-package.cjs --yes --install skill:parallel-orchestration --resident skill:parallel-orchestration
 ```
 
 - 常驻选择：所选技能默认进按需库；交互运行会询问是否设为常驻，非交互用 `--resident <exact-id>`（需与 `--install` 同时给出）。已安装技能换层用 `tier-skills --promote/--demote`，不重复安装。常驻数量按你的实际使用频率决定，包内默认值不是强制值。
+- 开工提示卡：交互安装会再问一次是否常驻开工提示卡（默认沿用现状），非交互用 `--kickoff-resident yes|no` 显式写入；选 `no` 后 `rules-reminder.js` 不再自动注入开工确认，R16/R17 门禁也停用，其他提醒保持原样。配置在 `<客户端>/kickoff-preference.json`，之后可随时用 `--kickoff-resident yes` 恢复。
 - 已有能力：与新包比较，只有本地完整匹配旧登记包的条目才自动更新；本地自改、额外文件或旧基线不明时列为 `REVIEW_UPDATE`，先核对，不覆盖。
 - 缺失能力：通用或符合明确偏好的才询问是否安装，专业不匹配的跳过。`--yes` 不代表同意全部可选条目，`--install <exact-id>` 才选择对应能力。
 - `routing`：安装规则提醒、能力规划与检索依赖，合并唯一 `UserPromptSubmit` 接线（新装默认 `--workflow-mode model`；已有接线保留原 route/model，不强制切换），登记当前包并维护完整技能索引；冲突保留现场，不能把半套安装报成功。
@@ -156,7 +158,7 @@ node scripts/install-continuity.cjs --yes --no-auto-bind # 只接线，仍按会
 ## 需求澄清与提示词优化
 
 按个人习惯启用：将《Qoder-AI编码通用规则.md》中「分级澄清与提示词优化」并入已有 rules/long-task.md（保留原内容），或按同章直接使用；commands/clarify.md 是薄入口，不要求另装澄清技能。
-明确需求按原任务模式交付，绝大多数场景也可在开工前用一句话确认理解（至多一次）；除简单纯问答外可先做只读检查，但同一轮结束前还要按开工确认卡复述理解、列步骤并判断并行（复杂任务同轮确认文档、目标、并行），经用户确认后执行；纯问答可直接答，用户明确不用确认或同一任务已确认的继续执行可豁免；轻微歧义说明假设，关键歧义优先核心问题并保留其他阻塞项，回答后复核剩余条件；理解确认不等于执行授权，本次仅优化提示词时不沿用历史执行授权。只有本次明确要求执行或接续有效的同范围任务时才实施。含混请求会由 `rules-reminder.js` 的 `ambiguity-core.cjs` 初筛并推荐 `/clarify` 纠正稿；纠正稿只作建议、不构成执行授权。契约检查：node scripts/clarify-contract.test.js（静态覆盖，不保证所有模型场景行为）。
+明确需求按原任务模式交付，绝大多数场景也可在开工前用一句话确认理解（至多一次）；除简单纯问答外先做只读检查，但同一轮结束前还要按开工确认卡复述理解、列步骤并判断并行（复杂任务同轮确认文档、目标；只读检查可并行、无需征求，并行写入仍要加问），经用户确认后执行；纯问答可直接答，用户明确不用确认或同一任务已确认的继续执行可豁免；轻微歧义说明假设，关键歧义优先核心问题并保留其他阻塞项，回答后复核剩余条件；理解确认不等于执行授权，本次仅优化提示词时不沿用历史执行授权。只有本次明确要求执行或接续有效的同范围任务时才实施。含混请求会由 `rules-reminder.js` 的 `ambiguity-core.cjs` 初筛并推荐 `/clarify` 纠正稿；纠正稿只作建议、不构成执行授权。契约检查：node scripts/clarify-contract.test.js（静态覆盖，不保证所有模型场景行为）。
 
 ## 项目约定与验证选档
 

@@ -107,12 +107,32 @@ function createKickoffContext({ sessionId, prompt, cwd, requestMessageId, profil
   return context;
 }
 
+function clientDirectory() {
+  try { return require('./client-root.js').clientRoot(); }
+  catch { return path.join(process.env.HOME || process.env.USERPROFILE || '.', '.qoder'); }
+}
+
 function stateDir() {
   if (process.env.KICKOFF_STATE_DIR) return path.resolve(process.env.KICKOFF_STATE_DIR);
-  let root;
-  try { root = require('./client-root.js').clientRoot(); }
-  catch { root = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.qoder'); }
-  return path.join(root, 'tmp', 'kickoff');
+  return path.join(clientDirectory(), 'tmp', 'kickoff');
+}
+
+// 分享包安装时问一次"是否常驻开工提示卡"；选否就只关闭这一块的自动注入与
+// R16/R17 门禁，提醒、能力自检等其他注入保持原样。
+function preferenceFile() {
+  if (process.env.KICKOFF_PREFERENCE_FILE) return path.resolve(process.env.KICKOFF_PREFERENCE_FILE);
+  return path.join(clientDirectory(), 'kickoff-preference.json');
+}
+
+function readPreference() {
+  const file = preferenceFile();
+  const data = readJson(file);
+  if (!data || data.schema !== 1 || typeof data.resident !== 'boolean') return { schema: 1, resident: true, file, configured: false };
+  return { schema: 1, resident: data.resident, file, configured: true };
+}
+
+function kickoffResidentEnabled() {
+  return readPreference().resident !== false;
 }
 
 function sessionSlug(sessionId) {
@@ -225,6 +245,19 @@ function normalizeCard(card, context) {
     mode: p.mode,
     reason: textValue(p.reason, 'INVALID_KICKOFF_CARD', MAX_REASON),
   };
+  let interpretations;
+  if (card.interpretations !== undefined) {
+    if (!Array.isArray(card.interpretations) || card.interpretations.length < 2 || card.interpretations.length > 4) {
+      throw fail('INVALID_KICKOFF_CARD', 'interpretations must contain 2 to 4 items');
+    }
+    interpretations = card.interpretations.map(item => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) throw fail('INVALID_KICKOFF_CARD', 'interpretation is invalid');
+      return {
+        label: textValue(item.label, 'INVALID_KICKOFF_CARD', 60),
+        description: textValue(item.description, 'INVALID_KICKOFF_CARD', 240),
+      };
+    });
+  }
   let documentation;
   if (card.documentation !== undefined) {
     const d = card.documentation;
@@ -263,6 +296,7 @@ function normalizeCard(card, context) {
     taskId: card.taskId,
     profile: card.profile,
     understanding,
+    interpretations,
     steps,
     parallel,
     documentation,
@@ -276,6 +310,7 @@ function cardDigest(card) {
     taskId: card.taskId,
     profile: card.profile,
     understanding: card.understanding,
+    interpretations: card.interpretations || null,
     steps: card.steps,
     parallel: card.parallel,
     documentation: card.documentation || null,
@@ -288,16 +323,27 @@ function option(label, description) {
 }
 
 function buildQuestions(card) {
-  const questions = [{
-    question: '是否按此理解与步骤开工？',
-    header: '开工确认',
-    multiSelect: false,
-    options: [
-      option('按此计划执行（推荐）', '按复述的目标/范围/验收、步骤和并行判断推进；对象、范围或验收变化时重新确认。'),
-      option('调整理解或步骤', '先不执行；请指出要修正的对象、范围、步骤或验收，我修订后重新确认。'),
-      option('取消本轮', '本轮不执行写入或副作用命令，只保留讨论。'),
-    ],
-  }];
+  const plan = card.interpretations
+    ? {
+      question: '按哪种理解开工？',
+      header: '开工确认',
+      multiSelect: false,
+      options: [
+        ...card.interpretations.map((item, index) => option(index === 0 ? item.label + '（推荐）' : item.label, item.description)),
+        ...(card.interpretations.length < 4 ? [option('都不对，我来补充', '先不执行；请补充或修正理解，我修订后重新确认。')] : []),
+      ],
+    }
+    : {
+      question: '是否按此理解与步骤开工？',
+      header: '开工确认',
+      multiSelect: false,
+      options: [
+        option('按此计划执行（推荐）', '按复述的目标/范围/验收、步骤和并行判断推进；对象、范围或验收变化时重新确认。'),
+        option('调整理解或步骤', '先不执行；请指出要修正的对象、范围、步骤或验收，我修订后重新确认。'),
+        option('取消本轮', '本轮不执行写入或副作用命令，只保留讨论。'),
+      ],
+    };
+  const questions = [plan];
   if (card.profile !== 'complex') return questions;
   const d = card.documentation;
   questions.push({
@@ -329,21 +375,18 @@ function buildQuestions(card) {
         option('创建目标', '创建“' + (g.title || '本轮任务') + '”的目标，适合跨多回合推进。'),
       ],
   });
-  const parallelQuestion = {
-    question: '是否启用并行？',
-    header: '并行',
-    multiSelect: false,
-    options: card.parallel.mode === 'parallel'
-      ? [
-        option('按计划并行（推荐）', '先给出完整并行计划与互斥 ownedPaths；写入仍收敛为单会话顺序执行。'),
-        option('串行执行', '本轮单会话顺序执行，不派发并行。'),
-      ]
-      : [
-        option('串行执行（推荐）', '写入任务默认单会话顺序执行，避免共享状态冲突。'),
-        option('按计划并行', '需要先补并行计划与互斥 ownedPaths，再单独 opt-in。'),
+  // 只读检查可并行、无需询问；正式开工的并行（尤其并行写入）仍要在卡内确认。
+  if (card.parallel.mode === 'parallel') {
+    questions.push({
+      question: '是否按计划并行执行？',
+      header: '并行',
+      multiSelect: false,
+      options: [
+        option('按计划并行（推荐）', '按卡片给出的互斥 ownedPaths 并行；写入仍收敛为单会话顺序执行。'),
+        option('改为串行', '本轮单会话顺序执行，不派发并行。'),
       ],
-  };
-  questions.push(parallelQuestion);
+    });
+  }
   return questions;
 }
 
@@ -468,23 +511,25 @@ function buildKickoffNote(result) {
   const record = commandFor('record', context.binding);
   const complex = profile === 'complex';
   return '\n【开工确认 · 必要项｜' + profile + '】' + signals + '。除简单纯问答外，先完成确认再写入/执行；纯问答、用户明确说“不用确认”、同一任务已确认的继续执行可豁免。'
-    + '\n允许先做只读检查；但必须在**本轮结束前**在回复正文写确认卡并完成确认：理解（目标/对象/范围/验收/禁止项）、步骤（2–7 步，每步可验证）、并行（串行/可并行+理由）、影响与回滚。未出卡不得直接收尾，未确认不得写入/执行。'
+    + '\n先做只读检查（含并行可行性；只读并行无需询问）；但必须在**本轮结束前**在回复正文写确认卡并完成确认：理解（目标/对象/范围/验收/禁止项）、步骤（2–7 步，每步可验证）、并行（串行/可并行+理由）、影响与回滚。未出卡不得直接收尾，未确认不得写入/执行。'
+    + '\n若存在多种合理解读，在 card.interpretations 列 2–4 种（首个为推荐）供用户在卡内选择；单一理解用标准计划确认。'
     + (complex
-      ? '\n复杂任务同轮另问：文档（创建/更新/不成文）、目标（创建/不创建）、并行（按计划/串行）；验证档沿用现有 B05 必问。'
-      : '\n简单任务只问计划确认；并行判断写进卡片，写入任务默认串行。')
+      ? '\n复杂任务同轮另问：文档（创建/更新/不成文）、目标（创建/不创建）；计划并行写入时再加问并行，验证档沿用现有 B05 必问。'
+      : '\n简单任务只问计划确认；只读检查可并行、无需询问；并行写入仍在卡内加问确认，写入收敛单会话。')
     + '\nKICKOFF_CONTEXT ' + JSON.stringify(context)
     + '\nKICKOFF_BINDING ' + context.binding
     + '\nKICKOFF_COMPOSE_COMMAND ' + JSON.stringify(compose.command)
     + '\nKICKOFF_COMPOSE_SHELL ' + JSON.stringify(compose.shell)
     + '\nKICKOFF_RECORD_COMMAND ' + JSON.stringify(record.command)
     + '\nKICKOFF_RECORD_SHELL ' + JSON.stringify(record.shell)
-    + '\n结构化输入（compose）：{schema:1,context:<上方 KICKOFF_CONTEXT 原样>,card:{schema:1,bindingDigest:"' + context.binding + '",taskId:"<当前任务ID>",profile:"simple|complex",understanding:{goal:"…",object:"…",scope:"…",acceptance:"…",prohibitions:["…"]},steps:["…","…"],parallel:{mode:"serial|parallel",reason:"…"}'
+    + '\n结构化输入（compose）：{schema:1,context:<上方 KICKOFF_CONTEXT 原样>,card:{schema:1,bindingDigest:"' + context.binding + '",taskId:"<当前任务ID>",profile:"simple|complex",understanding:{goal:"…",object:"…",scope:"…",acceptance:"…",prohibitions:["…"]},interpretations?:[{label:"…",description:"…"}],steps:["…","…"],parallel:{mode:"serial|parallel",reason:"…"}'
     + (complex ? ',documentation:{mode:"create|update|none",target:"…",recommend:true|false,reason:"…"},goal:{mode:"create|none",title:"…",recommend:true|false,reason:"…"}' : '')
     + '}}。'
-    + '\n流程：① 运行 compose 校验卡片并取得 AskUserQuestion 载荷与 cardDigest；② 用 AskUserQuestion 确认（简单 1 问；复杂计划/文档/目标/并行 4 问，一次问全）；③ 用 cardDigest 运行 record（choice=proceed|adjust|cancel）；④ 确认 proceed 后再写入/执行。未确认前只做只读检查，并在本轮结束前完成 ①–③；未出卡就收尾会被 R17 拦下，已写入但未确认会被 R16 拦下。用户选调整则修订后重问，选取消则停手。台账只存哈希与选择，不存原文。';
+    + '\n流程：① 运行 compose 校验卡片并取得 AskUserQuestion 载荷与 cardDigest；② 用 AskUserQuestion 确认（简单 1 问；复杂计划/文档/目标 3 问；计划并行写入时加问并行，一次问全）；③ 用 cardDigest 运行 record（choice=proceed|adjust|cancel）；④ 确认 proceed 后再写入/执行。只读检查可并行、无需询问；未确认前只做只读检查，并在本轮结束前完成 ①–③；未出卡就收尾会被 R17 拦下，已写入但未确认会被 R16 拦下。用户选调整则修订后重问，选取消则停手。台账只存哈希与选择，不存原文。';
 }
 
 function prepareKickoff({ sessionId, prompt, cwd, requestMessageId }) {
+  if (!kickoffResidentEnabled()) return { skip: true, reason: 'USER_DISABLED' };
   if (!validSession(sessionId)) return { skip: true, reason: 'NO_SESSION' };
   const classification = classifyKickoffTask(prompt);
   if (classification.explicitSkip) return { skip: true, reason: 'USER_SKIP' };
@@ -559,5 +604,6 @@ module.exports = {
   classifyKickoffTask, isContinuation, createKickoffContext, contextBinding,
   prepareKickoff, buildKickoffNote, buildContinuationNote, composeCard, recordConfirmation,
   readPending, readConfirmed, clearPending, writePending, stateDir, cardDigest,
+  preferenceFile, readPreference, kickoffResidentEnabled,
 };
 if (require.main === module) main(process.argv.slice(2));

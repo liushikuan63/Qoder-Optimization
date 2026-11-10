@@ -727,6 +727,8 @@ let kickoffCore = null;
 try { kickoffCore = require('./kickoff-core.cjs'); } catch {}
 const KICKOFF_MUTATION = /(?:\bgit(?:\s+-C\s+\S+)?\s+(?:commit|push|merge|rebase|reset|clean|tag|rm|restore|stash\s+(?:push|pop|drop)|checkout\s+--)\b|\b(?:npm|pnpm|yarn)\s+(?:install|i|ci|add|remove|uninstall|publish)\b|\bgh\s+(?:release\s+(?:create|edit|delete)|pr\s+(?:create|merge|close|edit)|issue\s+(?:create|close|edit)|api\b[^\n]*--method\s+(?:POST|PATCH|PUT|DELETE))\b|\bcurl\b[^\n]*(?:-X\s*(?:POST|PUT|PATCH|DELETE)|--data|--form|-d\s)|\bnode\s+[^\n]*--(?:apply|write|fix|deploy|publish)\b|(?:^|[;&|]\s*)(?:rm|rmdir|del|erase|mv|move|cp|copy|ren|mkdir|touch|chmod|chown|ln|tee)\b|(?:^|[;&|]\s*)(?:Set-Content|Add-Content|Out-File|New-Item|Remove-Item|Move-Item|Copy-Item|Rename-Item)\b|(^|[^0-9=<>-])>{1,2}(?!&)\s*[^\s|&])/i;
 function promptDigest(text) { return crypto.createHash('sha256').update(String(text || '').trim()).digest('hex'); }
+// 安装时选择不常驻开工提示卡：只关闭 R16/R17，不拦截其他规则。
+function kickoffEnabled() { try { return !kickoffCore || kickoffCore.kickoffResidentEnabled(); } catch { return true; } }
 function kickoffPending(session) { try { return kickoffCore && kickoffCore.readPending(session); } catch { return null; } }
 function kickoffConfirmed(session) { try { return kickoffCore && kickoffCore.readConfirmed(session); } catch { return null; } }
 function kickoffMutation(ctx) {
@@ -1061,7 +1063,7 @@ const RULES = [
     needsText: false,
     // 除简单纯问答外的任务先确认再写入；当前请求的台账不匹配不拦，避免上一轮 pending 误伤新任务。
     test: (t, ctx) => {
-      if (!kickoffMutation(ctx)) return false;
+      if (!kickoffEnabled() || !kickoffMutation(ctx)) return false;
       const digest = promptDigest(ctx.lastUserText);
       const confirmed = kickoffConfirmed(ctx.sessionId);
       const current = confirmed && confirmed.context && confirmed.context.requestDigest === digest ? confirmed : null;
@@ -1097,6 +1099,7 @@ const RULES = [
     needsText: false,
     // 允许先只读检查，但同一轮结束前必须出卡并经 AskUserQuestion 确认 + record；未出卡/未落账都不许收尾。
     test: (t, ctx) => {
+      if (!kickoffEnabled()) return false;
       const digest = promptDigest(ctx.lastUserText);
       if (!digest) return false;
       const pending = kickoffPending(ctx.sessionId);

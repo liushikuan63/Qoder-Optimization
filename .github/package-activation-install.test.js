@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const root = path.resolve(__dirname, '..');
 const installer = path.join(root, 'scripts/install-package.cjs');
 const { BASE_IDS } = require(installer);
@@ -208,6 +208,58 @@ test('--resident installs the selected skill into the resident tier and refuses 
   const second = f.run(['--yes', '--install', 'skill:fixture-specialized', '--resident', 'skill:fixture-specialized', '--json']);
   assert.notEqual(second.status, 0);
   assert.match(second.stdout + second.stderr, /tier-skills --promote/);
+});
+
+test('installer writes the kickoff preference only when explicitly chosen and keeps it on later runs', t => {
+  const f = fixture(t);
+  const file = path.join(f.client, 'kickoff-preference.json');
+  const first = f.run(['--yes', '--json']);
+  assert.equal(first.status, 0, first.stdout + first.stderr);
+  assert.equal(fs.existsSync(file), false, 'non-interactive install without the flag must preserve the default');
+
+  const dry = f.run(['--yes', '--dry-run', '--kickoff-resident', 'no', '--json']);
+  assert.equal(dry.status, 0, dry.stdout + dry.stderr);
+  assert.equal(fs.existsSync(file), false, 'dry-run must not write the preference');
+
+  const off = f.run(['--yes', '--kickoff-resident', 'no', '--json']);
+  assert.equal(off.status, 0, off.stdout + off.stderr);
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { schema: 1, resident: false });
+
+  const kept = f.run(['--yes', '--json']);
+  assert.equal(kept.status, 0, kept.stdout + kept.stderr);
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).resident, false);
+
+  const on = f.run(['--yes', '--kickoff-resident', 'yes', '--json']);
+  assert.equal(on.status, 0, on.stdout + on.stderr);
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { schema: 1, resident: true });
+
+  const bad = f.run(['--yes', '--kickoff-resident', 'maybe']);
+  assert.notEqual(bad.status, 0);
+  assert.match(bad.stdout + bad.stderr, /--kickoff-resident/);
+});
+
+test('interactive install asks once whether the kickoff card stays resident', async t => {
+  const f = fixture(t);
+  const preload = path.join(f.home, 'fake-tty.cjs');
+  fs.writeFileSync(preload, "process.stdin.isTTY = true;\nprocess.stdout.isTTY = true;\nprocess.stdin.setRawMode = () => {};\n");
+  // 第一问是安装确认；随后应询问开工提示卡，答 n 即关闭自动触发。逐问喂入，
+  // 避免一次写入两行被 readline 合并读走、第二问拿不到答案。
+  const child = spawn(process.execPath, ['--require', preload, installer, '--profile', 'routing', '--client-root', f.client, '--catalog', f.next.catalog], { env: f.env });
+  let out = '', sentInstall = false, sentKickoff = false;
+  child.stdout.setEncoding('utf8');
+  child.stdout.on('data', chunk => {
+    out += chunk;
+    if (!sentInstall && out.includes('？[y/N]')) { sentInstall = true; child.stdin.write('y\n'); }
+    if (!sentKickoff && out.includes('门禁）？[Y/n]')) { sentKickoff = true; child.stdin.write('n\n'); }
+  });
+  const code = await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { child.kill(); reject(new Error('interactive install timed out')); }, 120000);
+    child.on('exit', value => { clearTimeout(timer); resolve(value); });
+    child.on('error', error => { clearTimeout(timer); reject(error); });
+  });
+  assert.equal(code, 0, out);
+  assert.match(out, /常驻开工提示卡/);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(f.client, 'kickoff-preference.json'), 'utf8')), { schema: 1, resident: false });
 });
 
 test('an activated client treats the complete explicit install closure as selected despite disabled suggestions', t => {

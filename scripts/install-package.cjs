@@ -41,7 +41,7 @@ function parseArgs(argv) {
   const result = { install: [], resident: [], yes: false, dryRun: false };
   const seen = new Set();
   const flags = new Map([['--yes', 'yes'], ['--dry-run', 'dryRun'], ['--json', 'json'], ['--continuity', 'continuity'], ['--no-auto-bind', 'noAutoBind'], ['--help', 'help'], ['-h', 'help'], ['--no', 'skip'], ['--skip', 'skip'], ['--non-interactive', 'nonInteractive']]);
-  const values = new Map([['--client-root', 'client'], ['--catalog', 'catalogFile'], ['--previous-catalog', 'previousCatalogFile'], ['--bind-library', 'bindLibrary'], ['--profile', 'profile'], ['--preferences', 'preferencesFile'], ['--install', 'install'], ['--resident', 'resident'], ['--workflow-mode', 'workflowMode'], ['--skills-scope', 'skillsScope']]);
+  const values = new Map([['--client-root', 'client'], ['--catalog', 'catalogFile'], ['--previous-catalog', 'previousCatalogFile'], ['--bind-library', 'bindLibrary'], ['--profile', 'profile'], ['--preferences', 'preferencesFile'], ['--install', 'install'], ['--resident', 'resident'], ['--workflow-mode', 'workflowMode'], ['--skills-scope', 'skillsScope'], ['--kickoff-resident', 'kickoffResident']]);
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (!['--install', '--resident'].includes(arg) && seen.has(arg)) throw new Error('重复参数：' + arg);
@@ -59,6 +59,9 @@ function parseArgs(argv) {
       } else if (arg === '--skills-scope') {
         if (!['all', 'base'].includes(value)) throw new Error('--skills-scope 只接受 all 或 base');
         result.skillsScope = value;
+      } else if (arg === '--kickoff-resident') {
+        if (!['yes', 'no'].includes(value)) throw new Error('--kickoff-resident 只接受 yes 或 no');
+        result.kickoffResident = value === 'yes';
       } else if (arg === '--install' || arg === '--resident') {
         if (!/^(?:skill|script|command|agent):[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value)) throw new Error(arg + ' 需要完整的精确条目 id');
         const list = result[values.get(arg)];
@@ -262,6 +265,21 @@ function prepare(options = {}) {
   plan.residentBefore = snapshot(residentFile);
   plan.residentNames = [...new Set([...previousResident, ...[...resident].map(id => entries.get(id).name)])].sort();
   plan.residentChanged = plan.residentNames.join('\u0000') !== previousResident.join('\u0000');
+  // 开工提示卡常驻偏好：安装时问一次。未显式选择（非交互且无 flag）时保留
+  // 既有文件；没有文件即默认开启，不因升级静默改写用户选择。
+  plan.kickoffFile = path.join(client, 'kickoff-preference.json');
+  assertPath(plan, plan.kickoffFile);
+  plan.kickoffBefore = snapshot(plan.kickoffFile);
+  let existingKickoff = true;
+  try {
+    const data = JSON.parse(fs.readFileSync(plan.kickoffFile, 'utf8'));
+    if (data && data.schema === 1 && typeof data.resident === 'boolean') existingKickoff = data.resident;
+  } catch {}
+  plan.kickoffResident = options.kickoffResident === undefined ? existingKickoff : options.kickoffResident;
+  if (options.kickoffResident !== undefined) {
+    const bytes = Buffer.from(JSON.stringify({ schema: 1, resident: options.kickoffResident }, null, 2) + '\n');
+    plan.kickoffBytes = fs.existsSync(plan.kickoffFile) && fs.readFileSync(plan.kickoffFile).equals(bytes) ? null : bytes;
+  }
   const closure = ids => {
     const order = [], visiting = new Set(), visited = new Set();
     const visit = id => {
@@ -597,6 +615,11 @@ function apply(plan, options = {}) {
       fs.writeFileSync(file, JSON.stringify({ schema: 1, skills: plan.residentNames }, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
       publish({ id: 'metadata:skills-resident', target: path.join(plan.client, 'skills-resident.json'), before: plan.residentBefore, staged: file });
     }
+    if (plan.kickoffBytes) {
+      const file = path.join(stage, 'kickoff-preference.json');
+      fs.writeFileSync(file, plan.kickoffBytes, { flag: 'wx', mode: 0o600 });
+      publish({ id: 'metadata:kickoff-preference', target: plan.kickoffFile, before: plan.kickoffBefore, staged: file });
+    }
     const receipt = { schema: 1, installedAt: new Date().toISOString(), catalog: plan.catalogFile, catalogSha256: plan.catalogHash, ready: plan.baseReady, hook: plan.baseReady ? plan.hook.state : 'BLOCKED', ...(plan.baseReady ? { profile: plan.profile, managedRules: Object.fromEntries(plan.rules.map(rule => [rule.rel, rule.hash])), requiredFiles: [...plan.changes, ...plan.verifyTargets].filter(item => plan.requiredIds.includes(item.id)).map(item => path.relative(plan.client, path.join(item.target, item.entry?.category === 'skill' || item.id.startsWith('skill:') ? 'SKILL.md' : '')).split(path.sep).join('/')) } : plan.previousActivation), baseBlocked: plan.baseBlocked, installedIds: plan.changes.map(item => item.id), recoveryDirectory: stage, externalRecoveryDirectories: externalStages };
     const receiptFile = path.join(stage, 'package-activation.json'); fs.writeFileSync(receiptFile, JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
     publish({ id: 'metadata:activation', target: path.join(plan.client, 'package-activation.json'), before: plan.receiptBefore, staged: receiptFile });
@@ -652,6 +675,7 @@ function printSummary(result) {
     ? 'all（包内全部随包技能都安装；未装项进按需库，由 skills-router/skill-load 按需引用，脚本/命令/agent/hook 仍需明确选择）'
     : 'base（只装工作流基础能力与 --install 明确选择，其余保持逐条询问）'));
   if (plan.bindings) console.log('按需库真实目录：' + plan.bindings.library.real + '；绑定：' + (plan.bindingBytes ? '本次明确登记' : '保留已有登记'));
+  console.log('开工提示卡：' + (plan.kickoffResident ? '常驻（自动注入开工确认并启用 R16/R17）' : '已关闭（不自动触发；--kickoff-resident yes 可恢复）') + '；配置：' + plan.kickoffFile);
   for (const diagnostic of plan.diagnostics) console.log('NOTE: ' + diagnostic);
   if (plan.profileUpgradeAvailable) console.log('完整工作流尚未启用；--profile complete 可安装公开通用规则、12个核心技能与16条hook，不含账号/私有BYOK守护。');
   if (result.receipt?.installedIds?.length) console.log('APPLIED: ' + result.receipt.installedIds.join(', '));
@@ -675,7 +699,7 @@ function printSummary(result) {
 async function main(argv) {
   const options = parseArgs(argv);
   if (options.help) {
-    console.log('用法：node scripts/install-package.cjs [--yes] [--dry-run] [--client-root <目录>] [--catalog <catalog.json>] [--install <exact-id>] [--resident <exact-id>] [--skills-scope all|base] [--preferences <json>] [--workflow-mode route|model] [--bind-library <已有真实目录>] [--continuity] [--no-auto-bind] [--json]\n默认只核对；新装默认 complete（12公开核心技能/规则/16条exec hook），已有登记保留 routing；--profile complete|routing 明确选择，--previous-catalog <可信旧catalog> 指定可追溯旧源。--yes 安装所选工作流基础能力并更新与旧包一致的已安装条目。技能默认按 --skills-scope all 全量安装：包内每个随包技能都装入按需库，由 skills-router/skill-load 按需引用，不再逐条挑选；--skills-scope base 回到只装基础能力与 --install 明确选择的旧路径。脚本、命令、agent 与 hook 属代码/接线，任何范围下都只装基础能力与明确选择项；本地有差异（REVIEW_UPDATE）只报告，不覆盖。所选技能默认进按需库；交互运行会询问是否常驻，非交互用 --resident 选择常驻（需与 --install 同时给出）。已安装技能换层请用 tier-skills --promote。--workflow-mode 显式切换已有 rules-reminder 接线；省略时新装默认 model、已有选择保留。接续存储仅在 --continuity 单独同意时调用旧安装器。');
+    console.log('用法：node scripts/install-package.cjs [--yes] [--dry-run] [--client-root <目录>] [--catalog <catalog.json>] [--install <exact-id>] [--resident <exact-id>] [--skills-scope all|base] [--kickoff-resident yes|no] [--preferences <json>] [--workflow-mode route|model] [--bind-library <已有真实目录>] [--continuity] [--no-auto-bind] [--json]\n默认只核对；新装默认 complete（12公开核心技能/规则/16条exec hook），已有登记保留 routing；--profile complete|routing 明确选择，--previous-catalog <可信旧catalog> 指定可追溯旧源。--yes 安装所选工作流基础能力并更新与旧包一致的已安装条目。技能默认按 --skills-scope all 全量安装：包内每个随包技能都装入按需库，由 skills-router/skill-load 按需引用，不再逐条挑选；--skills-scope base 回到只装基础能力与 --install 明确选择的旧路径。脚本、命令、agent 与 hook 属代码/接线，任何范围下都只装基础能力与明确选择项；本地有差异（REVIEW_UPDATE）只报告，不覆盖。所选技能默认进按需库；交互运行会询问是否常驻，非交互用 --resident 选择常驻（需与 --install 同时给出）。已安装技能换层请用 tier-skills --promote。--workflow-mode 显式切换已有 rules-reminder 接线；省略时新装默认 model、已有选择保留。--kickoff-resident 决定是否常驻开工提示卡：交互安装会问一次（默认沿用现状），非交互用 yes/no 显式写入；选 no 后不再自动注入开工确认，也不启用 R16/R17。接续存储仅在 --continuity 单独同意时调用旧安装器。');
     return 0;
   }
   if (options.skip) { console.log('已跳过，未修改任何文件。'); return 0; }
@@ -689,11 +713,20 @@ async function main(argv) {
       const question = '安装 ' + plan.profile + ' 工作流基础能力、更新有安全旧包基线的已有能力'
         + (scopeSkills ? '，并全量安装 ' + scopeSkills + ' 项随包技能到按需库' : '') + '？[y/N] ';
       options.yes = /^(?:y|yes|是|同意)$/i.test((await rl.question(question)).trim());
+      let reprepare = false;
       const installSkills = (options.install || []).filter(id => id.startsWith('skill:') && plan.items.find(item => (item.id || item.entry?.id) === id)?.action !== 'KEEP');
       if (options.yes && installSkills.length && !(options.resident || []).length) {
         options.resident = /^(?:y|yes|是|同意)$/i.test((await rl.question('本次选择的技能（' + installSkills.join(', ') + '）是否设为常驻？常驻描述每轮注入。[y/N] ')).trim()) ? installSkills : [];
-        plan = prepare(options);
+        reprepare = true;
       }
+      if (options.yes) {
+        const hint = plan.kickoffResident ? '[Y/n]' : '[y/N]';
+        const answer = (await rl.question('是否常驻开工提示卡（自动注入开工确认并启用 R16/R17 门禁）？' + hint + ' ')).trim();
+        if (/^(?:y|yes|是|同意)$/i.test(answer)) options.kickoffResident = true;
+        else if (/^(?:n|no|否|不|不用)$/i.test(answer)) options.kickoffResident = false;
+        reprepare = true;
+      }
+      if (reprepare) plan = prepare(options);
     } finally { rl.close(); }
   }
   const result = apply(plan, options);
@@ -708,7 +741,7 @@ async function main(argv) {
   if (options.json) {
     // Existing settings may contain credentials; never serialize the private
     // snapshots or merged settings bytes held by the transaction plan.
-    const publicPlan = { catalogFile: plan.catalogFile, client: plan.client, profile: plan.profile, skillsScope: plan.skillsScope, profileUpgradeAvailable: plan.profileUpgradeAvailable, libraryBinding: plan.bindings ? { realDirectory: plan.bindings.library.real, changes: Boolean(plan.bindingBytes) } : null, baseReady: plan.baseReady, baseBlocked: plan.baseBlocked, diagnostics: plan.diagnostics, changes: plan.changes.map(item => ({ id: item.id, target: item.target, update: Boolean(item.before) })), items: plan.items.map(({ id, action, reason, present, installedPaths }) => ({ id, action, reason, present, installedPaths })) };
+    const publicPlan = { catalogFile: plan.catalogFile, client: plan.client, profile: plan.profile, skillsScope: plan.skillsScope, kickoffResident: plan.kickoffResident, kickoffPreferenceChanged: Boolean(plan.kickoffBytes), profileUpgradeAvailable: plan.profileUpgradeAvailable, libraryBinding: plan.bindings ? { realDirectory: plan.bindings.library.real, changes: Boolean(plan.bindingBytes) } : null, baseReady: plan.baseReady, baseBlocked: plan.baseBlocked, diagnostics: plan.diagnostics, changes: plan.changes.map(item => ({ id: item.id, target: item.target, update: Boolean(item.before) })), items: plan.items.map(({ id, action, reason, present, installedPaths }) => ({ id, action, reason, present, installedPaths })) };
     console.log(JSON.stringify({ ...result, nextAction: result.pendingItems.length ? 'ASK_INSTALL_OR_UPDATE' : null, plan: publicPlan }));
   } else printSummary(result);
   if (continuityExit !== 0) { if (!options.json) console.error('基础包结果已保留；可选 continuity 未完成。'); return continuityExit; }

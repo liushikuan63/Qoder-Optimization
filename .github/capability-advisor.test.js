@@ -344,8 +344,8 @@ test('workflow note is bound to the full prompt rather than its clipped summary'
   assert.ok(note.includes('不另调模型'));
   assert.ok(note.includes('AskUserQuestion'));
   assert.ok(note.includes('四个选项'));
-  assert.ok(note.includes('并行可先出计划'));
-  assert.ok(note.includes('文档、目标与并行统一并入开工确认卡'));
+  assert.ok(note.includes('只读检查可并行、无需征求'));
+  assert.ok(note.includes('文档、目标并入开工确认卡'));
   assert.ok(note.includes('不依据模型建议调用 CreateGoal'));
   assert.ok(!note.includes(prompt));
 });

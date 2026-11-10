@@ -3,7 +3,7 @@
 **An opt-in toolkit for making Qoder workflows more repeatable and verifiable.** It adds rules, on-demand skills, hooks, commands, scripts, and MCP templates through Qoder's extension points; it does not modify Qoder itself.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.1.4-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.1.5-blue.svg)](VERSION)
 [![Node](https://img.shields.io/badge/node-24-brightgreen.svg)](https://nodejs.org)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20(primary)-lightgrey.svg)](#requirements-and-limits)
 
@@ -22,6 +22,7 @@ No clone required — pick a version and download it. Every release carries a re
 
 | Version | Released | Highlights | Download |
 |---|---|---|---|
+| 0.1.5 | 2026-11-10 | Kickoff confirmation gate; optional kickoff card at install; package installs all shipped skills; audited tier override | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.5/Qoder-Optimization-0.1.5.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.5) |
 | 0.1.4 | 2026-11-10 | Capability routing stability; clarity and capability self-checks; request-scoped advice dedupe | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.4/Qoder-Optimization-0.1.4.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.4) |
 | 0.1.3 | 2026-11-10 | Skill content backfill; description compliance; Qoder-native design principles | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.3/Qoder-Optimization-0.1.3.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.3) |
 | 0.1.2 | 2026-11-09 | Clarify prompt-correction restoration; vibe-coding-workflow sync; resident one-time understanding check | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.2/Qoder-Optimization-0.1.2.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.2) |
@@ -212,6 +213,7 @@ MIT; see [LICENSE](LICENSE). This is an unofficial community project and is not 
 
 | 版本 | 发布日期 | 主要内容 | 下载 |
 |---|---|---|---|
+| 0.1.5 | 2026-11-10 | 开工确认门禁；安装时可选常驻开工提示卡；读取包安装全部随包技能；可审计的分层覆盖 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.5/Qoder-Optimization-0.1.5.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.5) |
 | 0.1.4 | 2026-11-10 | 能力推荐稳定性；含混与能力自检；按请求去重 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.4/Qoder-Optimization-0.1.4.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.4) |
 | 0.1.3 | 2026-11-10 | 技能内容回填；描述合规；设计原则改为 Qoder 原生能力 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.3/Qoder-Optimization-0.1.3.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.3) |
 | 0.1.2 | 2026-11-09 | 含混请求 → /clarify 提示词纠正；vibe-coding-workflow 同步；理解确认常驻 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.2/Qoder-Optimization-0.1.2.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.2) |
@@ -334,7 +336,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 - **并行写以归属和基线协调**：每个写者使用真实独立 worktree，明确读写依赖，逐提交核对 ownedPaths 和基线，并预演 Git 集成冲突；同版本上下文结果整批验证后一次合并，集成代码审查和测试通过后才交付。
 - **失败按目标计数，重试有上限**：认证及构建、测试、部署只对已识别的操作和目标计数，不把未知结果当作成功；已封锁的认证目标须人工明确解封，不能靠换工具或等待超时解除。
 - **接续看证据，不只看勾选**：获授权的长任务记录当前状态、下一步、阻塞点和关键入口，继续前对照实际产物。临时进度不混入长期记忆；后者只保留已核验的长期偏好与非代码可推导事实。
-- **对象不明先澄清**：对象、范围或验收不清时，先说明一次理解，再问一个核心问题并给真实选项；纠正稿只作建议、不构成执行授权。除简单纯问答外，可先只读检查，但同一轮结束前按开工确认卡复述理解、列步骤并判断并行，经用户确认后执行。
+- **对象不明先澄清**：对象、范围或验收不清时，先说明一次理解，再问一个核心问题并给真实选项；纠正稿只作建议、不构成执行授权。除简单纯问答外，可先只读检查，但同一轮结束前按开工确认卡复述理解、列步骤并判断并行，经用户确认后执行。安装时可选择是否常驻开工提示卡；选否则不自动注入，也不启用对应门禁（`--kickoff-resident no`）。
 - **并行、目标与文档按需启用**：多模块任务先判依赖并生成计划，并行写需显式 opt-in；目标与四层/批次文档只在明确需要或问过一次后创建，小任务不弹窗。
 - **可选模式隔离**：快速/极速等模式只能由显式开关选择；未启用该模式的路径必须与改动前完全一致。
 
@@ -394,7 +396,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 <!-- offline-bundle:start -->
 ### Optional offline bundle / 可选离线附件
 
-The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.4/Qoder-Optimization-0.1.4-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
+The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.5/Qoder-Optimization-0.1.5-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
 
 核心包不含 MCP 离线二进制；需要时单独下载离线附件，核对各自的 .sha256 后解压到同一目录。无需离线组件时只取核心包；链接仅在对应版本发布后可用。
 <!-- offline-bundle:end -->

@@ -292,6 +292,16 @@ check('㊳ 纯问答不注入开工确认块', !kickoffQuestionCtx.includes('KIC
 const kickoffSkip = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'kickoff-skip', cwd: process.cwd(), prompt: '直接做，不用确认，改个文案' }));
 const kickoffSkipCtx = JSON.parse(kickoffSkip.stdout).hookSpecificOutput.additionalContext;
 check('㊴ 用户显式跳过确认不注入绑定', !kickoffSkipCtx.includes('KICKOFF_BINDING'), '');
+// 分享包安装时选择"不常驻"：自动注入停用，但提醒本体保持原样
+const kickoffPref = path.join(HOME, '.qoder', 'kickoff-preference.json');
+fs.writeFileSync(kickoffPref, JSON.stringify({ schema: 1, resident: false }));
+const kickoffDisabled = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'kickoff-disabled', cwd: process.cwd(), prompt: kickoffPrompt }));
+let kickoffDisabledCtx = '';
+try { kickoffDisabledCtx = JSON.parse(kickoffDisabled.stdout).hookSpecificOutput.additionalContext || ''; } catch {}
+check('㊵ 安装选择不常驻后不再自动注入开工确认',
+  kickoffDisabled.status === 0 && !kickoffDisabledCtx.includes('KICKOFF_BINDING') && kickoffDisabledCtx.includes('简体中文'),
+  `exit=${kickoffDisabled.status}`);
+fs.unlinkSync(kickoffPref);
 
 const toolingCase = (label, prompt, expected) => {
   const result = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt }));
