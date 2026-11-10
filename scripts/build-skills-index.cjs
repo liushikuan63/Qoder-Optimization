@@ -99,6 +99,15 @@ if (require.main === module) {
         console.log('CATALOG_OK ' + CATALOG);
       }
     } else {
+      // A linked or unbound tier scans empty. Publishing that over a populated
+      // index would strand every route, so refuse instead of silently shrinking.
+      let previousCount = 0;
+      try { previousCount = JSON.parse(fs.readFileSync(OUT, 'utf8')).count || 0; } catch { previousCount = 0; }
+      if (!entries.length && previousCount) {
+        console.error('INDEX_EMPTY_REJECTED: 本次扫描 0 条，现有索引 ' + previousCount + ' 条（层级目录为链接或未绑定）；未写入，请先核对真实目录或用 --bind-library 登记');
+        process.exitCode = 2;
+        return;
+      }
       fs.writeFileSync(OUT, JSON.stringify({ generated_at: new Date().toISOString(), count: entries.length, entries, diagnostics: entries.diagnostics }, null, 1));
       fs.writeFileSync(CATALOG, renderCatalog(entries));
       console.log('index=' + entries.length + ' core=' + entries.filter((e) => e.tier === 'core').length + ' library=' + entries.filter((e) => e.tier === 'library').length);

@@ -36,7 +36,7 @@ const FIX =
   + '  · 脚本落盘再跑：用 Write 工具写 `.cjs`，路径写 `path.join(process.env.APPDATA, "Microsoft", ...)` 或正斜杠 `C:/proj/...`，再 `node <文件>`；\n'
   + '  · 必须在 `node -e` 里用路径时：一律用正斜杠（`C:/proj/x`）——Node 在 Windows 上认正斜杠；\n'
   + '  · 要生成 VBS/JS/PS 文本（含 `"""`）：同样用 Write 落盘，别经 shell。\n'
-  + '验证：写完后回读文件确认反斜杠还在（`node ~/.qoder/skills/safe-text-editing/scripts/text-check.js <文件> --has "<片段>"`）。';
+  + '验证：写完后回读文件确认反斜杠还在（先 `node ~/.qoder/scripts/skill-load.cjs 转义` 定位 safe-text-editing 的 SKILL.md 目录，再跑其 `scripts/text-check.js <文件> --has "<片段>"`）。';
 
 const EVAL = /\bnode(?:js)?(?:\.exe)?\b[^|;&\n]*?\s(?:-e|--eval|-p|--print)\b/;
 // 盘符必须出现在**词边界**上：`description:\s` 里的 `n:\` 是正则转义，不是路径。

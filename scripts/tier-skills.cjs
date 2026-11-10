@@ -11,6 +11,8 @@ const CORE = [
   'ship-clean-pr', 'self-evolution', 'safe-text-editing', 'structured-edit-safety',
   'continuation-state-audit', 'concurrent-edit-attribution-check', 'vibecoding-doc', 'vibe-coding-workflow',
 ];
+// 分层检索入口本身不能被降层，否则"按需技能仍可被找出"的前提失效。
+const LOADER_ENTRY = 'skills-router';
 const RESIDENT_FILE = 'skills-resident.json';
 
 function readResident(file) {
@@ -94,7 +96,7 @@ function rememberResident(file, names) {
 }
 
 function main(argv) {
-  let apply = false, restoreAll = false, keep = [], restore = [], only = [];
+  let apply = false, restoreAll = false, keep = [], restore = [], only = [], overrideCore = false;
   const names = value => {
     const result = value.split(',').map(name => name.trim()).filter(Boolean);
     if (!result.length || result.some(name => !/^[a-z0-9][a-z0-9-]*$/.test(name))) throw new Error('技能名必须为小写字母、数字或连字符');
@@ -103,17 +105,19 @@ function main(argv) {
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--apply') apply = true;
     else if (argv[i] === '--restore-all') restoreAll = true;
+    else if (argv[i] === '--override-core') overrideCore = true;
     else if (['--keep', '--restore', '--promote', '--only', '--demote'].includes(argv[i]) && argv[i + 1] && !argv[i + 1].startsWith('--')) {
       const option = argv[i++];
       if (option === '--keep') keep = names(argv[i]);
       else if (option === '--only' || option === '--demote') only = [...new Set([...only, ...names(argv[i])])];
       else restore = [...new Set([...restore, ...names(argv[i])])];
     } else if (argv[i] === '--help') {
-      console.log('tier-skills.cjs [--apply] [--keep a,b] [--demote a,b | --only a,b] | [--apply] (--promote a,b | --restore a,b | --restore-all)\n--promote/--demote 会写入 <客户端>/skills-resident.json；--keep 与 --restore-all 只影响本次。');
+      console.log('tier-skills.cjs [--apply] [--keep a,b] [--demote a,b | --only a,b [--override-core]] | [--apply] (--promote a,b | --restore a,b | --restore-all)\n--promote/--demote 会写入 <客户端>/skills-resident.json；--keep 与 --restore-all 只影响本次。\n--override-core 默认不启用，仅配合显式 --demote/--only 名单解除默认地板；检索入口技能不能降层。');
       return 0;
     } else throw new Error('未知或缺值参数：' + argv[i]);
   }
   if ((restoreAll && restore.length) || ((restoreAll || restore.length) && (keep.length || only.length))) throw new Error('迁移与恢复参数不能混用');
+  if (overrideCore && (!only.length || restoreAll || restore.length)) throw new Error('--override-core 只配合显式 --demote/--only 名单使用，且不能用于恢复');
   const root = clientRoot();
   const resident = path.join(root, 'skills');
   const library = path.join(root, 'skills-library');
@@ -138,7 +142,10 @@ function main(argv) {
   const movable = list(resident).filter(name => !kept.has(name));
   // Explicit demote must also reach skills the user previously promoted; the
   // extras list only protects them from the default whole-tier migration.
-  const demotable = list(resident).filter(name => !CORE.includes(name) && !keep.includes(name));
+  // --override-core lifts the default floor only for the named demote list, and
+  // never for the on-demand loader entry itself.
+  const floor = overrideCore ? [LOADER_ENTRY] : CORE;
+  const demotable = list(resident).filter(name => !floor.includes(name) && !keep.includes(name));
   if (only.some(name => !demotable.includes(name))) throw new Error('--only 含不存在或应保留的技能');
   const selected = restoring ? (restoreAll ? list(library) : restore) : (only.length ? only : movable);
   const plan = selected.map(name => ({ name, from: path.join(restoring ? library : resident, name), to: path.join(restoring ? resident : library, name) }));
@@ -147,6 +154,7 @@ function main(argv) {
     if (fs.lstatSync(item.from).isSymbolicLink()) throw new Error('不自动迁移链接目录：' + item.name);
     if (fs.existsSync(item.to)) throw new Error('目标已有同名技能，未执行任何迁移：' + item.name);
   }
+  if (overrideCore) console.log('OVERRIDE_CORE floor_lifted=' + plan.map(item => item.name).filter(name => CORE.includes(name)).join(','));
   console.log(`${apply ? 'APPLY' : 'DRY-RUN'} ${restoring ? 'restore' : 'library'}=${plan.length}`);
   for (const item of plan) console.log(`${item.name} -> ${restoring ? 'core' : 'library'}`);
   if (!apply || !plan.length) return 0;
@@ -194,7 +202,7 @@ function main(argv) {
   } finally { if (!preserve) fs.rmSync(stage, { recursive: true, force: true }); }
 }
 
-module.exports = { CORE, RESIDENT_FILE, readResident, writeResident, rememberResident };
+module.exports = { CORE, LOADER_ENTRY, RESIDENT_FILE, readResident, writeResident, rememberResident };
 if (require.main === module) {
   try { process.exitCode = main(process.argv.slice(2)); }
   catch (error) { console.error('TIER_ERROR: ' + error.message); process.exitCode = 2; }

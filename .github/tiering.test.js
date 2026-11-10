@@ -71,6 +71,58 @@ test('promote and demote follow actual usage without a fixed resident count', ()
   assert.equal(f.run('tier-skills.cjs', ['--demote', 'skills-router']).status, 2);
 }));
 
+test('override-core lifts the floor only for an explicit demote list', () => fixture(f => {
+  f.put('skills/verify-before-claim/SKILL.md', '---\nname: verify-before-claim\ndescription: floor fixture skill\n---\n');
+  // 默认路径与改动前一致：不带开关时，地板技能既不能预演也不能落盘。
+  assert.equal(f.run('tier-skills.cjs', ['--demote', 'verify-before-claim']).status, 2);
+  assert.equal(fs.existsSync(path.join(f.root, 'skills-library')), false);
+  assert.equal(f.run('tier-skills.cjs', ['--apply']).status, 0);
+  assert.equal(fs.existsSync(path.join(f.root, 'skills/verify-before-claim/SKILL.md')), true);
+  // 开关不能单独触发整层盲迁。
+  assert.equal(f.run('tier-skills.cjs', ['--override-core', '--apply']).status, 2);
+  // 按需检索入口即使在开关下也受保护。
+  assert.equal(f.run('tier-skills.cjs', ['--demote', 'skills-router', '--override-core']).status, 2);
+  assert.equal(fs.existsSync(path.join(f.root, 'skills/skills-router/SKILL.md')), true);
+  const preview = f.run('tier-skills.cjs', ['--demote', 'verify-before-claim', '--override-core']);
+  assert.equal(preview.status, 0, preview.stderr);
+  assert.match(preview.stdout, /OVERRIDE_CORE floor_lifted=verify-before-claim/);
+  assert.match(preview.stdout, /DRY-RUN library=1/);
+  assert.equal(fs.existsSync(path.join(f.root, 'skills-library/verify-before-claim')), false);
+  const applied = f.run('tier-skills.cjs', ['--demote', 'verify-before-claim', '--override-core', '--apply']);
+  assert.equal(applied.status, 0, applied.stderr);
+  assert.equal(fs.existsSync(path.join(f.root, 'skills-library/verify-before-claim/SKILL.md')), true);
+  assert.equal(fs.existsSync(path.join(f.root, 'skills/verify-before-claim')), false);
+  const query = f.run('skill-load.cjs', ['verify-before-claim']);
+  assert.equal(query.status, 0, query.stdout + query.stderr);
+  assert.match(query.stdout, /\[library\]/);
+  assert.equal(f.run('tier-skills.cjs', ['--restore', 'verify-before-claim', '--apply']).status, 0);
+  assert.equal(fs.existsSync(path.join(f.root, 'skills/verify-before-claim/SKILL.md')), true);
+}));
+
+test('an empty scan never overwrites a populated index', () => fixture(f => {
+  for (const tier of ['skills', 'skills-library']) {
+    const real = path.join(f.base, 'outside', tier);
+    fs.mkdirSync(path.join(real, 'resident-skill'), { recursive: true });
+    fs.writeFileSync(path.join(real, 'resident-skill', 'SKILL.md'), '---\nname: resident-skill\ndescription: outside tier\n---\n');
+    fs.rmSync(path.join(f.root, tier), { recursive: true, force: true });
+    fs.symlinkSync(real, path.join(f.root, tier), process.platform === 'win32' ? 'junction' : 'dir');
+  }
+  const index = path.join(f.root, 'skills-index.json');
+  const populated = JSON.stringify({ generated_at: 'x', count: 2, entries: [] });
+  fs.writeFileSync(index, populated);
+  const result = f.run('build-skills-index.cjs', []);
+  assert.equal(result.status, 2, result.stdout + result.stderr);
+  assert.match(result.stderr, /INDEX_EMPTY_REJECTED/);
+  assert.equal(fs.readFileSync(index, 'utf8'), populated);
+  // 负对照：层级为普通目录并扫描到条目时照常发布。
+  fs.rmSync(path.join(f.root, 'skills'), { recursive: true, force: true });
+  fs.mkdirSync(path.join(f.root, 'skills', 'plain'), { recursive: true });
+  fs.writeFileSync(path.join(f.root, 'skills', 'plain', 'SKILL.md'), '---\nname: plain\ndescription: plain tier\n---\n');
+  const rebuilt = f.run('build-skills-index.cjs', []);
+  assert.equal(rebuilt.status, 0, rebuilt.stdout + rebuilt.stderr);
+  assert.equal(JSON.parse(fs.readFileSync(index, 'utf8')).count, 1);
+}));
+
 test('an invalid resident list stops before moving anything', () => fixture(f => {
   f.put('skills-resident.json', '{"schema":1,"skills":["../outside"]}');
   assert.equal(f.run('tier-skills.cjs', ['--apply']).status, 2);
