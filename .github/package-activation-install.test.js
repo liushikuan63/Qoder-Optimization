@@ -44,13 +44,13 @@ function fixture(t) {
   return { home, client, env, old, next, run, put };
 }
 
-test('installed skill catalog follows fresh install, direct install and tier changes', t => {
+test('installed skill catalog follows base-scope install, direct install and tier changes', t => {
   const f = fixture(t);
   const check = () => {
     const r = spawnSync(process.execPath, [path.join(f.client, 'scripts/build-skills-index.cjs'), '--check'], { env: f.env, encoding: 'utf8' });
     assert.equal(r.status, 0, r.stdout + r.stderr);
   };
-  const installed = f.run(['--yes', '--json']);
+  const installed = f.run(['--yes', '--skills-scope', 'base', '--json']);
   assert.equal(installed.status, 0, installed.stdout + installed.stderr);
   check();
   const selected = spawnSync(process.execPath, [path.join(root, 'scripts/pkg-catalog.cjs'), 'install', 'skill:fixture-specialized', '--catalog', f.next.catalog, '--apply'], { env: f.env, encoding: 'utf8', timeout: 60000 });
@@ -143,10 +143,10 @@ test('default and explicit dry-run are read-only, even without SQLite', t => {
   }
 });
 
-test('--yes activates routing without SQLite and leaves new optional capabilities pending', t => {
+test('--yes activates routing without SQLite and base scope leaves new optional capabilities pending', t => {
   const f = fixture(t), preload = path.join(f.home, 'no-sqlite.cjs');
   fs.writeFileSync(preload, `const Module=require('node:module'),load=Module._load;Module._load=function(request,...args){if(request==='node:sqlite')throw new Error('SQLite must remain optional');return load.call(this,request,...args);};`);
-  const r = f.run(['--yes', '--json'], { env: { ...f.env, NODE_OPTIONS: '--require ' + preload } });
+  const r = f.run(['--yes', '--skills-scope', 'base', '--json'], { env: { ...f.env, NODE_OPTIONS: '--require ' + preload } });
   assert.equal(r.status, 0, r.stdout + r.stderr);
   const result = JSON.parse(r.stdout);
   assert.equal(result.ready, true);
@@ -186,7 +186,7 @@ test('an exact current install selection can override a prior profile exclusion 
   const f = fixture(t);
   const profile = JSON.stringify({ schema: 1, enabled: false, excludedIds: ['skill:fixture-specialized'] });
   f.put('capability-preferences.json', profile);
-  const r = f.run(['--yes', '--install', 'skill:fixture-specialized', '--json']);
+  const r = f.run(['--yes', '--skills-scope', 'base', '--install', 'skill:fixture-specialized', '--json']);
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.equal(fs.existsSync(path.join(f.client, 'skills-library/fixture-specialized/SKILL.md')), true);
   assert.equal(fs.readFileSync(path.join(f.client, 'capability-preferences.json'), 'utf8'), profile);
@@ -211,11 +211,11 @@ test('--resident installs the selected skill into the resident tier and refuses 
 });
 
 test('an activated client treats the complete explicit install closure as selected despite disabled suggestions', t => {
-  const f = fixture(t), initial = f.run(['--yes', '--json']);
+  const f = fixture(t), initial = f.run(['--yes', '--skills-scope', 'base', '--json']);
   assert.equal(initial.status, 0, initial.stdout + initial.stderr);
   const profile = JSON.stringify({ schema: 1, enabled: false, excludedIds: ['skill:fixture-specialized', 'script:client-root.js'], excludedKeywords: ['script'] });
   f.put('capability-preferences.json', profile);
-  const r = f.run(['--yes', '--install', 'skill:fixture-specialized', '--json']);
+  const r = f.run(['--yes', '--skills-scope', 'base', '--install', 'skill:fixture-specialized', '--json']);
   assert.equal(r.status, 0, r.stdout + r.stderr);
   const result = JSON.parse(r.stdout);
   assert.equal(result.ready, true);
@@ -449,14 +449,14 @@ test('ignored source backups are outside the approved public copy proof', t => {
 });
 
 test('completed exact/base choices leave only unselected generic candidates pending', t => {
-  const f = fixture(t);
-  const dry = f.run(['--yes', '--dry-run', '--install', 'skill:office-docs', '--json']);
+  const f = fixture(t), scope = ['--skills-scope', 'base'];
+  const dry = f.run(['--yes', '--dry-run', ...scope, '--install', 'skill:office-docs', '--json']);
   assert.equal(dry.status, 0, dry.stdout + dry.stderr);
   const preview = JSON.parse(dry.stdout);
   assert.equal(preview.status, 'DRY_RUN');
   assert.equal(preview.pendingItems.some(item => item.id === 'skill:office-docs'), true);
   assert.deepEqual(fs.readdirSync(f.client), []);
-  const r = f.run(['--yes', '--install', 'skill:office-docs', '--json']);
+  const r = f.run(['--yes', ...scope, '--install', 'skill:office-docs', '--json']);
   assert.equal(r.status, 0, r.stdout + r.stderr);
   const result = JSON.parse(r.stdout), pending = result.pendingItems.map(item => item.id);
   assert.equal(pending.includes('skill:office-docs'), false);
@@ -464,7 +464,7 @@ test('completed exact/base choices leave only unselected generic candidates pend
   assert.equal(pending.includes('skill:write-repowiki'), true);
   assert.equal(result.nextActions.includes('ASK_INSTALL'), true);
   assert.equal(result.nextAction, 'ASK_INSTALL_OR_UPDATE');
-  const text = f.run(['--yes']); assert.equal(text.status, 0, text.stdout + text.stderr);
+  const text = f.run(['--yes', ...scope]); assert.equal(text.status, 0, text.stdout + text.stderr);
   const asks = text.stdout.split('ASK_INSTALL:')[1].split('REVIEW_UPDATE:')[0];
   assert.match(asks, /skill:write-repowiki/);
   assert.doesNotMatch(asks, /skill:office-docs|rules-reminder|skills-router/);
@@ -474,13 +474,56 @@ test('completed exact/base choices leave only unselected generic candidates pend
 test('authorized but blocked base installation is reported as blocked, never requested again', t => {
   const f = fixture(t);
   f.put('scripts/rules-reminder.js', 'user-owned existing reminder');
-  const r = f.run(['--yes', '--json']); assert.equal(r.status, 3, r.stdout + r.stderr);
+  const r = f.run(['--yes', '--skills-scope', 'base', '--json']); assert.equal(r.status, 3, r.stdout + r.stderr);
   const result = JSON.parse(r.stdout);
   assert.equal(result.status, 'ACTIVATION_BLOCKED');
   assert.equal(result.pendingItems.some(item => item.id === 'script:rules-reminder.js' && item.action === 'REVIEW_UPDATE'), true);
   for (const id of BASE_IDS) assert.equal(result.pendingItems.some(item => item.id === id && item.action === 'ASK_INSTALL'), false, id);
   assert.equal(result.blockedItems.some(item => item.id === 'script:skill-load.cjs' && item.requiresConfirmation === false), true);
   assert.equal(result.pendingItems.some(item => item.id === 'skill:office-docs' && item.action === 'ASK_INSTALL'), true);
+});
+
+test('package reads install every shipped skill into the on-demand library by default', t => {
+  const f = fixture(t);
+  const r = f.run(['--yes', '--json']); assert.equal(r.status, 0, r.stdout + r.stderr);
+  const result = JSON.parse(r.stdout);
+  assert.equal(result.plan.skillsScope, 'all');
+  const catalog = JSON.parse(fs.readFileSync(f.next.catalog, 'utf8'));
+  const skills = catalog.entries.filter(entry => entry.category === 'skill' && entry.status === 'shipped' && entry.install?.mode === 'copy-skill');
+  assert.ok(skills.length >= 3, 'fixture must carry optional skills beyond the routing base');
+  for (const entry of skills) {
+    assert.equal(result.receipt.installedIds.includes(entry.id), true, entry.id);
+    const tier = (entry.install?.tier || entry.tier) === 'core' ? 'skills' : 'skills-library';
+    assert.equal(fs.existsSync(path.join(f.client, tier, entry.name, 'SKILL.md')), true, entry.name);
+  }
+  assert.equal(fs.existsSync(path.join(f.client, 'skills-library/office-docs/SKILL.md')), true);
+  assert.equal(fs.existsSync(path.join(f.client, 'skills/office-docs')), false);
+  // 全量范围只覆盖技能：随包脚本不是"技能"，未经明确选择仍不得落盘。
+  assert.equal(fs.existsSync(path.join(f.client, 'scripts/fixture-update.js')), false);
+  assert.equal(result.receipt.installedIds.includes('script:fixture-update.js'), false);
+});
+
+test('--skills-scope base keeps the curated install path unchanged', t => {
+  const f = fixture(t);
+  const r = f.run(['--yes', '--skills-scope', 'base', '--json']); assert.equal(r.status, 0, r.stdout + r.stderr);
+  const result = JSON.parse(r.stdout);
+  assert.equal(result.plan.skillsScope, 'base');
+  assert.equal(fs.existsSync(path.join(f.client, 'skills', 'skills-router/SKILL.md')), true);
+  for (const name of ['office-docs', 'write-repowiki', 'fixture-specialized']) assert.equal(fs.existsSync(path.join(f.client, 'skills-library', name)), false, name);
+  assert.equal(result.pendingItems.some(item => item.id === 'skill:office-docs' && item.action === 'ASK_INSTALL'), true);
+});
+
+test('full skill scope preserves a locally edited installed skill', t => {
+  const f = fixture(t), first = f.run(['--yes', '--json']);
+  assert.equal(first.status, 0, first.stdout + first.stderr);
+  const target = path.join(f.client, 'skills-library/office-docs/SKILL.md'), edited = fs.readFileSync(target, 'utf8') + '\n// user-local fixture change\n';
+  fs.writeFileSync(target, edited);
+  const second = f.run(['--yes', '--previous-catalog', f.old.catalog, '--json']);
+  assert.equal(second.status, 0, second.stdout + second.stderr);
+  const result = JSON.parse(second.stdout);
+  assert.equal(result.pendingItems.some(item => item.id === 'skill:office-docs' && item.action === 'REVIEW_UPDATE'), true);
+  assert.equal(fs.readFileSync(target, 'utf8'), edited);
+  assert.equal(fs.readFileSync(path.join(f.client, 'skills-library/write-repowiki/SKILL.md'), 'utf8').includes('user-local fixture change'), false);
 });
 
 test('reinstallation through a client directory alias keeps the same physical hook scope', t => {

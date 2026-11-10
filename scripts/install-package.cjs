@@ -41,7 +41,7 @@ function parseArgs(argv) {
   const result = { install: [], resident: [], yes: false, dryRun: false };
   const seen = new Set();
   const flags = new Map([['--yes', 'yes'], ['--dry-run', 'dryRun'], ['--json', 'json'], ['--continuity', 'continuity'], ['--no-auto-bind', 'noAutoBind'], ['--help', 'help'], ['-h', 'help'], ['--no', 'skip'], ['--skip', 'skip'], ['--non-interactive', 'nonInteractive']]);
-  const values = new Map([['--client-root', 'client'], ['--catalog', 'catalogFile'], ['--previous-catalog', 'previousCatalogFile'], ['--bind-library', 'bindLibrary'], ['--profile', 'profile'], ['--preferences', 'preferencesFile'], ['--install', 'install'], ['--resident', 'resident'], ['--workflow-mode', 'workflowMode']]);
+  const values = new Map([['--client-root', 'client'], ['--catalog', 'catalogFile'], ['--previous-catalog', 'previousCatalogFile'], ['--bind-library', 'bindLibrary'], ['--profile', 'profile'], ['--preferences', 'preferencesFile'], ['--install', 'install'], ['--resident', 'resident'], ['--workflow-mode', 'workflowMode'], ['--skills-scope', 'skillsScope']]);
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (!['--install', '--resident'].includes(arg) && seen.has(arg)) throw new Error('重复参数：' + arg);
@@ -56,6 +56,9 @@ function parseArgs(argv) {
       } else if (arg === '--workflow-mode') {
         if (!['route', 'model'].includes(value)) throw new Error('--workflow-mode 只接受 route 或 model');
         result.workflowMode = value;
+      } else if (arg === '--skills-scope') {
+        if (!['all', 'base'].includes(value)) throw new Error('--skills-scope 只接受 all 或 base');
+        result.skillsScope = value;
       } else if (arg === '--install' || arg === '--resident') {
         if (!/^(?:skill|script|command|agent):[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value)) throw new Error(arg + ' 需要完整的精确条目 id');
         const list = result[values.get(arg)];
@@ -278,7 +281,17 @@ function prepare(options = {}) {
   };
   const baseClosure = closure(plan.baseIds);
   plan.requiredIds = baseClosure;
-  const explicitClosure = closure([...plan.baseIds, ...(options.install || [])]);
+  // 分享包读取默认全量安装技能：安装范围只看包内是否随包发布，不再按本轮相关性
+  // 逐条挑选；未装项落按需库，由 skills-router/skill-load 按需检索。脚本、命令、
+  // agent 与 hook 是代码或接线，仍需 --install 明确选择。
+  plan.skillsScope = options.skillsScope || 'all';
+  let fullSkillIds = [], strandedSkills = [];
+  if (plan.skillsScope === 'all') {
+    const candidates = catalog.entries.filter(entry => entry.category === 'skill' && entry.status === 'shipped' && entry.install?.mode === 'copy-skill');
+    fullSkillIds = candidates.filter(entry => fs.existsSync(path.join(root, entry.source))).map(entry => entry.id);
+    strandedSkills = candidates.filter(entry => !fs.existsSync(path.join(root, entry.source))).map(entry => entry.id);
+  }
+  const explicitClosure = closure([...plan.baseIds, ...(options.install || []), ...fullSkillIds]);
   // An exact install choice includes its necessary technical dependencies.
   // Preferences control suggestions, never veto that current choice; local
   // differences still go through the advisor's pristine-baseline checks.
@@ -288,9 +301,9 @@ function prepare(options = {}) {
   plan.items = advice.items || [];
   plan.diagnostics = advice.diagnostics || advice.warnings || [];
   try { if (!plan.bindings && fs.lstatSync(path.join(client, 'skills-library')).isSymbolicLink()) plan.diagnostics.push('BIND_LIBRARY_REQUIRED：按需库为未核验链接；先确认真实目标，再用 --bind-library <真实目录> 登记，不将未知当缺失。'); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  if (strandedSkills.length) plan.diagnostics.push('FULL_SKILLS_SOURCE_MISSING：' + strandedSkills.length + ' 项随包技能在包内缺少目录，未纳入全量安装：' + strandedSkills.join(', '));
   const items = new Map(plan.items.map(item => [item.id || item.entry?.id, item]));
   for (const id of resident) if (items.get(id)?.action === 'KEEP' || items.get(id)?.installedPaths?.length) throw new Error('已安装技能不能通过 --resident 换层，请用 tier-skills --promote：' + id);
-  plan.acceptedInstallIds = [...new Set([...explicitClosure, ...plan.items.filter(item => item.action === 'UPDATE').map(item => item.id)])];
   const blocked = id => items.get(id)?.action === 'REVIEW_UPDATE' || items.get(id)?.present === null || (items.get(id)?.installedPaths?.length || 0) > 1;
   plan.baseBlocked = baseClosure.filter(blocked);
   plan.baseReady = plan.baseBlocked.length === 0;
@@ -302,13 +315,26 @@ function prepare(options = {}) {
   }
   for (const item of plan.items) if (item.action === 'UPDATE' && (plan.baseReady || !baseClosure.includes(item.id || item.entry.id))) requested.add(item.id || item.entry.id);
   if (plan.baseReady) plan.baseIds.forEach(id => requested.add(id));
+  if (plan.skillsScope === 'all') fullSkillIds.forEach(id => requested.add(id));
   const selected = new Set();
+  const scopeHeld = [];
+  const explicitChoice = id => plan.baseIds.includes(id) || (options.install || []).includes(id);
   for (const id of requested) {
     const needed = closure([id]);
     const conflicts = needed.filter(blocked);
-    if (conflicts.length) { plan.diagnostics.push(id + ' 的依赖需要审阅：' + conflicts.join(', ')); continue; }
+    if (conflicts.length) {
+      // 全量范围内被本地差异挡下的技能只是本轮没装成，不能伪装成用户选择；
+      // 明确选择与基础能力仍逐条报告，避免把审阅责任推给一次批量安装。
+      if (!explicitChoice(id)) scopeHeld.push(id);
+      else plan.diagnostics.push(id + ' 的依赖需要审阅：' + conflicts.join(', '));
+      continue;
+    }
     for (const dependency of needed) selected.add(dependency);
   }
+  if (scopeHeld.length) plan.diagnostics.push('FULL_SKILLS_HELD：' + scopeHeld.length + ' 项技能因本地差异、多层同名或状态不可核验而未纳入本次全量安装，保留在待审清单：' + scopeHeld.join(', '));
+  // 全量范围本身即"本轮已授权安装"的口径：挡在依赖上的技能记为已授权但受阻，
+  // 不再逐条追问，但仍出现在 blockedItems 与 FULL_SKILLS_HELD 里。
+  plan.acceptedInstallIds = [...new Set([...explicitClosure, ...plan.items.filter(item => item.action === 'UPDATE').map(item => item.id)])];
   plan.verifyTargets = [];
   for (const id of closure([...selected])) {
     if (!selected.has(id)) continue;
@@ -622,6 +648,9 @@ function printSummary(result) {
   const pendingItems = result.pendingItems || withPending(result).pendingItems;
   console.log('Qoder-Optimization 包能力核对：' + plan.catalogFile);
   console.log('客户端：' + plan.client + '；工作流：' + plan.profile + '；状态：' + result.status);
+  console.log('技能安装范围：' + (plan.skillsScope === 'all'
+    ? 'all（包内全部随包技能都安装；未装项进按需库，由 skills-router/skill-load 按需引用，脚本/命令/agent/hook 仍需明确选择）'
+    : 'base（只装工作流基础能力与 --install 明确选择，其余保持逐条询问）'));
   if (plan.bindings) console.log('按需库真实目录：' + plan.bindings.library.real + '；绑定：' + (plan.bindingBytes ? '本次明确登记' : '保留已有登记'));
   for (const diagnostic of plan.diagnostics) console.log('NOTE: ' + diagnostic);
   if (plan.profileUpgradeAvailable) console.log('完整工作流尚未启用；--profile complete 可安装公开通用规则、12个核心技能与16条hook，不含账号/私有BYOK守护。');
@@ -629,9 +658,15 @@ function printSummary(result) {
   for (const action of ['UPDATE', 'ASK_INSTALL', 'REVIEW_UPDATE', 'KEEP', 'SKIP']) {
     const items = (action === 'KEEP' || action === 'SKIP' ? plan.items : pendingItems).filter(item => item.action === action);
     console.log(action + ': ' + items.length);
-    if (action !== 'KEEP' && action !== 'SKIP') for (const item of items) console.log('  ' + (item.id || item.entry.id) + ' — ' + (item.reason || item.reasonCode || action));
+    // 全量范围下的 ASK_INSTALL 就是"本轮已授权要装"的清单，逐行铺开只会淹没需要
+    // 裁决的差异项；计数保留、明细限量，完整清单在 --json 的 items 里。
+    const listed = action === 'ASK_INSTALL' && plan.skillsScope === 'all' ? items.slice(0, 10) : items;
+    if (action !== 'KEEP' && action !== 'SKIP') for (const item of listed) console.log('  ' + (item.id || item.entry.id) + ' — ' + (item.reason || item.reasonCode || action));
+    if (listed.length < items.length) console.log('  …另 ' + (items.length - listed.length) + ' 项同范围（明细见 --json 的 items）');
   }
-  if (result.status === 'DRY_RUN') console.log('未写盘；--yes 接受上述工作流基础能力与有旧包基线的 UPDATE。新可选能力只在 --install <exact-id> 明确选择后安装。');
+  if (result.status === 'DRY_RUN') console.log(plan.skillsScope === 'all'
+    ? '未写盘；--yes 安装上述工作流基础能力、更新有旧包基线的已有能力，并全量安装包内随包技能到按需库（脚本/命令/agent/hook 仍需 --install <exact-id> 明确选择）。'
+    : '未写盘；--yes 接受上述工作流基础能力与有旧包基线的 UPDATE。新可选能力只在 --install <exact-id> 明确选择后安装。');
   if (!plan.baseReady) console.log('基础路由因本地差异未接线：' + plan.baseBlocked.join(', '));
   if (result.recoveryDirectory) console.log('备份/事务记录：' + result.recoveryDirectory);
   if (pendingItems.length) console.log('NEXT_ACTION: ASK_INSTALL_OR_UPDATE — 仅询问上述未完成的候选/差异；已完成的基础安装、更新与精确选择无需重复批准。');
@@ -640,7 +675,7 @@ function printSummary(result) {
 async function main(argv) {
   const options = parseArgs(argv);
   if (options.help) {
-    console.log('用法：node scripts/install-package.cjs [--yes] [--dry-run] [--client-root <目录>] [--catalog <catalog.json>] [--install <exact-id>] [--resident <exact-id>] [--preferences <json>] [--workflow-mode route|model] [--bind-library <已有真实目录>] [--continuity] [--no-auto-bind] [--json]\n默认只核对；新装默认 complete（12公开核心技能/规则/16条exec hook），已有登记保留 routing；--profile complete|routing 明确选择，--previous-catalog <可信旧catalog> 指定可追溯旧源。--yes 安装所选工作流基础能力并更新与旧包一致的已安装条目。缺失可选项另用 --install 明确选择，个人修改只报告。所选技能默认进按需库；交互运行会询问是否常驻，非交互用 --resident 选择常驻（需与 --install 同时给出）。已安装技能换层请用 tier-skills --promote。--workflow-mode 显式切换已有 rules-reminder 接线；省略时新装默认 model、已有选择保留。接续存储仅在 --continuity 单独同意时调用旧安装器。');
+    console.log('用法：node scripts/install-package.cjs [--yes] [--dry-run] [--client-root <目录>] [--catalog <catalog.json>] [--install <exact-id>] [--resident <exact-id>] [--skills-scope all|base] [--preferences <json>] [--workflow-mode route|model] [--bind-library <已有真实目录>] [--continuity] [--no-auto-bind] [--json]\n默认只核对；新装默认 complete（12公开核心技能/规则/16条exec hook），已有登记保留 routing；--profile complete|routing 明确选择，--previous-catalog <可信旧catalog> 指定可追溯旧源。--yes 安装所选工作流基础能力并更新与旧包一致的已安装条目。技能默认按 --skills-scope all 全量安装：包内每个随包技能都装入按需库，由 skills-router/skill-load 按需引用，不再逐条挑选；--skills-scope base 回到只装基础能力与 --install 明确选择的旧路径。脚本、命令、agent 与 hook 属代码/接线，任何范围下都只装基础能力与明确选择项；本地有差异（REVIEW_UPDATE）只报告，不覆盖。所选技能默认进按需库；交互运行会询问是否常驻，非交互用 --resident 选择常驻（需与 --install 同时给出）。已安装技能换层请用 tier-skills --promote。--workflow-mode 显式切换已有 rules-reminder 接线；省略时新装默认 model、已有选择保留。接续存储仅在 --continuity 单独同意时调用旧安装器。');
     return 0;
   }
   if (options.skip) { console.log('已跳过，未修改任何文件。'); return 0; }
@@ -650,7 +685,10 @@ async function main(argv) {
     printSummary({ status: 'DRY_RUN', plan });
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
     try {
-      options.yes = /^(?:y|yes|是|同意)$/i.test((await rl.question('安装 ' + plan.profile + ' 工作流基础能力并更新有安全旧包基线的已有能力？[y/N] ')).trim());
+      const scopeSkills = plan.skillsScope === 'all' ? plan.changes.filter(item => item.entry.category === 'skill').length : 0;
+      const question = '安装 ' + plan.profile + ' 工作流基础能力、更新有安全旧包基线的已有能力'
+        + (scopeSkills ? '，并全量安装 ' + scopeSkills + ' 项随包技能到按需库' : '') + '？[y/N] ';
+      options.yes = /^(?:y|yes|是|同意)$/i.test((await rl.question(question)).trim());
       const installSkills = (options.install || []).filter(id => id.startsWith('skill:') && plan.items.find(item => (item.id || item.entry?.id) === id)?.action !== 'KEEP');
       if (options.yes && installSkills.length && !(options.resident || []).length) {
         options.resident = /^(?:y|yes|是|同意)$/i.test((await rl.question('本次选择的技能（' + installSkills.join(', ') + '）是否设为常驻？常驻描述每轮注入。[y/N] ')).trim()) ? installSkills : [];
@@ -670,7 +708,7 @@ async function main(argv) {
   if (options.json) {
     // Existing settings may contain credentials; never serialize the private
     // snapshots or merged settings bytes held by the transaction plan.
-    const publicPlan = { catalogFile: plan.catalogFile, client: plan.client, profile: plan.profile, profileUpgradeAvailable: plan.profileUpgradeAvailable, libraryBinding: plan.bindings ? { realDirectory: plan.bindings.library.real, changes: Boolean(plan.bindingBytes) } : null, baseReady: plan.baseReady, baseBlocked: plan.baseBlocked, diagnostics: plan.diagnostics, changes: plan.changes.map(item => ({ id: item.id, target: item.target, update: Boolean(item.before) })), items: plan.items.map(({ id, action, reason, present, installedPaths }) => ({ id, action, reason, present, installedPaths })) };
+    const publicPlan = { catalogFile: plan.catalogFile, client: plan.client, profile: plan.profile, skillsScope: plan.skillsScope, profileUpgradeAvailable: plan.profileUpgradeAvailable, libraryBinding: plan.bindings ? { realDirectory: plan.bindings.library.real, changes: Boolean(plan.bindingBytes) } : null, baseReady: plan.baseReady, baseBlocked: plan.baseBlocked, diagnostics: plan.diagnostics, changes: plan.changes.map(item => ({ id: item.id, target: item.target, update: Boolean(item.before) })), items: plan.items.map(({ id, action, reason, present, installedPaths }) => ({ id, action, reason, present, installedPaths })) };
     console.log(JSON.stringify({ ...result, nextAction: result.pendingItems.length ? 'ASK_INSTALL_OR_UPDATE' : null, plan: publicPlan }));
   } else printSummary(result);
   if (continuityExit !== 0) { if (!options.json) console.error('基础包结果已保留；可选 continuity 未完成。'); return continuityExit; }

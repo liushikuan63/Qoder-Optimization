@@ -13,7 +13,8 @@ function fixture(t) {
   const client = path.join(home, "client ' dollar$ 中文");
   const env = { ...process.env, HOME: home, USERPROFILE: home, QODER_HOME: path.join(home, 'decoy') };
   t.after(() => fs.rmSync(home, { recursive: true, force: true }));
-  const install = (extra = {}) => installer.apply(installer.prepare({ client, catalogFile: path.join(root, 'catalog.json'), ...extra }), { yes: true });
+  // 本文件验规则块与 hook 接线，与安装范围无关：固定 base，避免整包技能进临时客户端。
+  const install = (extra = {}) => installer.apply(installer.prepare({ client, skillsScope: 'base', catalogFile: path.join(root, 'catalog.json'), ...extra }), { yes: true });
   const hooks = () => Object.entries(JSON.parse(fs.readFileSync(path.join(client, 'settings.json'))).hooks).flatMap(([event, groups]) => groups.flatMap(group => group.hooks.map(hook => ({ event, group, hook }))));
   const run = (script, payload) => {
     const selected = hooks().find(item => item.event === payload.hook_event_name && (item.hook.args?.[0].endsWith('/' + script) || item.hook.args?.[0].endsWith('\\' + script) || (item.hook.args?.[1] && Buffer.from(item.hook.args[1], 'base64url').toString().includes('"script":"' + script + '"'))));
@@ -125,7 +126,8 @@ test('settings publication failure rolls back complete rules and newly installed
   fs.writeFileSync(settings, '{"personal":"PRESERVE"}'); fs.writeFileSync(agents, '# Personal\nPRESERVE_RULE\n');
   const preload = path.join(f.home, 'fail-settings.cjs');
   fs.writeFileSync(preload, `const fs=require('node:fs'),open=fs.openSync;fs.openSync=function(file,flags,...args){if(file===${JSON.stringify(settings)}&&flags==='wx')throw new Error('fixture profile publication failure');return open.call(this,file,flags,...args);};`);
-  const result = spawnSync(process.execPath, [path.join(root, 'scripts/install-package.cjs'), '--yes', '--client-root', f.client], { env: { ...f.env, NODE_OPTIONS: '--require ' + JSON.stringify(preload) }, input: '', encoding: 'utf8', timeout: 90000, windowsHide: true });
+  // 本文件验规则块与 hook 接线，与安装范围无关：固定 base，避免整包技能进临时客户端。
+  const result = spawnSync(process.execPath, [path.join(root, 'scripts/install-package.cjs'), '--yes', '--skills-scope', 'base', '--client-root', f.client], { env: { ...f.env, NODE_OPTIONS: '--require ' + JSON.stringify(preload) }, input: '', encoding: 'utf8', timeout: 90000, windowsHide: true });
   assert.notEqual(result.status, 0); assert.match(result.stderr, /本事务变更已回滚/);
   assert.equal(fs.readFileSync(settings, 'utf8'), '{"personal":"PRESERVE"}');
   assert.equal(fs.readFileSync(agents, 'utf8'), '# Personal\nPRESERVE_RULE\n');
@@ -135,7 +137,8 @@ test('concurrent managed rule edits after publication refuse ready and retain th
   const f = fixture(t), settings = path.join(f.client, 'settings.json'), agents = path.join(f.client, 'AGENTS.md');
   const preload = path.join(f.home, 'concurrent-rule.cjs');
   fs.writeFileSync(preload, `const fs=require('node:fs'),open=fs.openSync;let fired=false;fs.openSync=function(file,flags,...args){if(!fired&&file===${JSON.stringify(settings)}&&flags==='wx'){fired=true;fs.writeFileSync(${JSON.stringify(agents)},'CONCURRENT_WRITER_RULE');}return open.call(this,file,flags,...args);};`);
-  const result = spawnSync(process.execPath, [path.join(root, 'scripts/install-package.cjs'), '--yes', '--client-root', f.client], { env: { ...f.env, NODE_OPTIONS: '--require ' + JSON.stringify(preload) }, input: '', encoding: 'utf8', timeout: 90000, windowsHide: true });
+  // 本文件验规则块与 hook 接线，与安装范围无关：固定 base，避免整包技能进临时客户端。
+  const result = spawnSync(process.execPath, [path.join(root, 'scripts/install-package.cjs'), '--yes', '--skills-scope', 'base', '--client-root', f.client], { env: { ...f.env, NODE_OPTIONS: '--require ' + JSON.stringify(preload) }, input: '', encoding: 'utf8', timeout: 90000, windowsHide: true });
   assert.notEqual(result.status, 0); assert.match(result.stderr, /已发布内容在事务期间改变/);
   assert.equal(fs.readFileSync(agents, 'utf8'), 'CONCURRENT_WRITER_RULE');
   assert.equal(fs.existsSync(path.join(f.client, 'package-activation.json')), false);

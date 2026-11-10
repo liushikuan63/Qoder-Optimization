@@ -24,7 +24,8 @@ function fixture(t, cross = false) {
   const put = (file, bytes) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, bytes); };
   const skill = (tier, name, text = 'owned fixture') => put(path.join(tier === 'core' ? path.join(client, 'skills') : library, name, 'SKILL.md'), '---\nname: ' + name + '\ndescription: ' + text + '\n---\n' + text + '\n');
   const bind = () => { const value = roots.bindLibrary(client, library); put(path.join(client, roots.FILE), JSON.stringify(value)); return value; };
-  const install = (options = {}) => installer.apply(installer.prepare({ client, profile: 'routing', catalogFile: path.join(root, 'catalog.json'), ...options }), { yes: true });
+  // 本文件只验目录绑定与事务回滚，与安装范围无关：固定 base，避免把整包技能复制进临时客户端。
+  const install = (options = {}) => installer.apply(installer.prepare({ client, profile: 'routing', skillsScope: 'base', catalogFile: path.join(root, 'catalog.json'), ...options }), { yes: true });
   t.after(() => { if (!client.startsWith(base + path.sep)) { assert.match(path.basename(client), /^qo-bound-client-/); fs.rmSync(client, { recursive: true, force: true }); } assert.match(path.basename(base), /^qo-bound-library-/); fs.rmSync(base, { recursive: true, force: true }); });
   return { base, client, library, link, put, skill, bind, install };
 }
@@ -75,7 +76,7 @@ test('approved optional parallel install includes its runtime and remains in the
 });
 test('binding config changed after planning is rejected before publication', t => {
   const f = fixture(t); f.bind();
-  const plan = installer.prepare({ client: f.client, profile: 'routing', catalogFile: path.join(root, 'catalog.json') });
+  const plan = installer.prepare({ client: f.client, profile: 'routing', skillsScope: 'base', catalogFile: path.join(root, 'catalog.json') });
   f.put(path.join(f.client, roots.FILE), '{}');
   assert.throws(() => installer.apply(plan, { yes: true }), /绑定|身份/);
   assert.equal(fs.existsSync(path.join(f.client, 'scripts/rules-reminder.js')), false);
@@ -99,7 +100,7 @@ test('cross-volume library update uses same-volume backup and restores old bytes
   f.put(path.join(f.library, 'parallel-orchestration/SKILL.md'), oldBody);
   f.put(path.join(oldPackage, 'catalog.json'), JSON.stringify({ schema: 1, entries: [oldEntry] }));
   f.put(path.join(f.client, 'share-package.json'), JSON.stringify({ catalog: path.join(oldPackage, 'catalog.json') }));
-  const options = { client: f.client, profile: 'routing', catalogFile: path.join(root, 'catalog.json'), install: ['skill:parallel-orchestration'], workflowMode: 'model' };
+  const options = { client: f.client, profile: 'routing', skillsScope: 'base', catalogFile: path.join(root, 'catalog.json'), install: ['skill:parallel-orchestration'], workflowMode: 'model' };
   const plan = installer.prepare(options), open = fs.openSync;
   fs.openSync = function(file, flags, ...args) { if (file === path.join(f.client, 'settings.json') && flags === 'wx') throw new Error('fixture late failure'); return open.call(this, file, flags, ...args); };
   try { assert.throws(() => installer.apply(plan, { yes: true }), /已回滚/); } finally { fs.openSync = open; }
@@ -112,7 +113,7 @@ test('cross-volume library update uses same-volume backup and restores old bytes
 for (const existing of [false, true]) test('partial binding write is owned and rolled back: existing=' + existing, t => {
   const f = fixture(t); if (existing) f.bind();
   const binding = path.join(f.client, roots.FILE), before = fs.existsSync(binding) ? fs.readFileSync(binding) : null;
-  const plan = installer.prepare({ client: f.client, profile: 'routing', bindLibrary: f.library, catalogFile: path.join(root, 'catalog.json') });
+  const plan = installer.prepare({ client: f.client, profile: 'routing', skillsScope: 'base', bindLibrary: f.library, catalogFile: path.join(root, 'catalog.json') });
   const open = fs.openSync, write = fs.writeSync; let targetFd, first = false, fired = false;
   fs.openSync = function(file, flags, ...args) { const fd = open.call(this, file, flags, ...args); if (file === binding && flags === 'wx') targetFd = fd; return fd; };
   fs.writeSync = function(fd, buffer, offset, length, position) { if (!fired && fd === targetFd) { if (!first) { first = true; return write.call(this, fd, buffer, offset, Math.min(length, 5), position); } fired = true; const e = new Error('fixture disk full'); e.code = 'ENOSPC'; throw e; } return write.apply(this, arguments); };
