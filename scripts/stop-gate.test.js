@@ -722,6 +722,53 @@ r12Case('R12 只读任务不拦', { prompt: '只读审阅，不修改任何文�
 r12Case('R12 clarify 未弹窗仍要拦', { tools: [tool('Edit', { file_path: 'D:/x/a.ts' })], resolved: 'clarify', expected: 'block' });
 r12Case('R12 clarify 已弹窗放行', { tools: [tool('AskUserQuestion', { questions: [] }), tool('Edit', { file_path: 'D:/x/a.ts' })], resolved: 'clarify', expected: 'allow' });
 
+// R16 开工确认：除简单纯问答外的任务，写入/副作用命令前必须有绑定到本轮请求的确认台账
+const kickoffDir = path.join(ROOT, 'kickoff');
+fs.mkdirSync(kickoffDir, { recursive: true });
+process.env.KICKOFF_STATE_DIR = kickoffDir;
+const kickoff = require('./kickoff-core.cjs');
+function kickoffContext(session, prompt) {
+  return kickoff.createKickoffContext({ sessionId: session, prompt, cwd: ROOT, requestMessageId: 'm-' + session });
+}
+function kickoffCard(context) {
+  return {
+    schema: 1,
+    bindingDigest: context.binding,
+    taskId: 'task-' + context.sessionId,
+    profile: 'simple',
+    understanding: { goal: '修复按钮文案', object: '登录页按钮', scope: '只改文案', acceptance: '页面显示正确', prohibitions: ['不改样式'] },
+    steps: ['定位文案', '修改文案', '复跑测试'],
+    parallel: { mode: 'serial', reason: '单文件小改动' },
+  };
+}
+function kickoffConfirm(context, choice = 'proceed') {
+  const composed = kickoff.composeCard({ schema: 1, context, card: kickoffCard(context) }, context.binding);
+  return kickoff.recordConfirmation({ schema: 1, context, cardDigest: composed.cardDigest, choice }, context.binding);
+}
+function r16Case(label, session, prompt, tools, expected, setup) {
+  if (setup) setup();
+  const result = run({ transcript_path: transcript([user(prompt), ...tools, asst('处理完毕。')]), session_id: session }, session, { KICKOFF_STATE_DIR: kickoffDir });
+  check(label, result.decision, expected);
+  if (expected === 'block') check(label + '（原因确为 R16）', result.out.includes('R16-kickoff-confirmation-missing'), true);
+  return result;
+}
+const r16Prompt = '修复登录按钮的文案';
+const r16Write = tool('Write', { file_path: 'D:/x/a.ts' });
+const r16Ask = tool('AskUserQuestion', { questions: [{ question: '是否按此计划开工？', options: ['按此执行', '调整'] }] });
+r16Case('R16 未确认就写入必须拦', 'kickoff-a', r16Prompt, [r16Write], 'block', () => kickoff.writePending(kickoffContext('kickoff-a', r16Prompt)));
+r16Case('R16 只读命令不误拦', 'kickoff-b', r16Prompt, [tool('Bash', { command: 'git status --short' })], 'allow', () => kickoff.writePending(kickoffContext('kickoff-b', r16Prompt)));
+r16Case('R16 副作用命令未确认必须拦', 'kickoff-c', r16Prompt, [tool('Bash', { command: 'git commit -m "fix"' })], 'block', () => kickoff.writePending(kickoffContext('kickoff-c', r16Prompt)));
+r16Case('R16 已弹窗但未记录确认仍要拦', 'kickoff-d', r16Prompt, [r16Ask, r16Write], 'block', () => kickoff.writePending(kickoffContext('kickoff-d', r16Prompt)));
+const r16ProceedContext = kickoffContext('kickoff-e', r16Prompt);
+r16Case('R16 已弹窗并 record proceed 放行', 'kickoff-e', r16Prompt, [r16Ask, r16Write], 'allow', () => { kickoff.writePending(r16ProceedContext); kickoffConfirm(r16ProceedContext, 'proceed'); });
+const r16NoAskContext = kickoffContext('kickoff-f', r16Prompt);
+const r16NoAsk = r16Case('R16 有 proceed 但无弹窗证据必须拦', 'kickoff-f', r16Prompt, [r16Write], 'block', () => { kickoff.writePending(r16NoAskContext); kickoffConfirm(r16NoAskContext, 'proceed'); });
+check('R16 无弹窗证据的拦截原因可读', r16NoAsk.out.includes('没有 AskUserQuestion 弹窗证据'), true);
+const r16CancelContext = kickoffContext('kickoff-g', r16Prompt);
+const r16Cancel = r16Case('R16 用户取消后仍写入必须拦', 'kickoff-g', r16Prompt, [r16Write], 'block', () => { kickoff.writePending(r16CancelContext); kickoffConfirm(r16CancelContext, 'cancel'); });
+check('R16 取消后的拦截原因可读', r16Cancel.out.includes('用户已取消本轮开工确认'), true);
+r16Case('R16 上一轮 pending 不误伤新请求', 'kickoff-h', '把 README 的版本号改成 0.1.6', [r16Write], 'allow', () => kickoff.writePending(kickoffContext('kickoff-h', r16Prompt)));
+
 // ---------- R14：任务结束必须就"本任务临时文件"给出清理范围并询问（2026-11-09）----------
 // 背景：临时清理器此前只能人工触发，超期件长期堆积；收尾必须主动列出本任务产物并弹窗确认。
 const TMPROOT = path.join(ROOT, 'temp', 'qoder-work');

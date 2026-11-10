@@ -723,6 +723,23 @@ function ambiguityResolved(session) {
   } catch { return null; }
 }
 
+let kickoffCore = null;
+try { kickoffCore = require('./kickoff-core.cjs'); } catch {}
+const KICKOFF_MUTATION = /(?:\bgit(?:\s+-C\s+\S+)?\s+(?:commit|push|merge|rebase|reset|clean|tag|rm|restore|stash\s+(?:push|pop|drop)|checkout\s+--)\b|\b(?:npm|pnpm|yarn)\s+(?:install|i|ci|add|remove|uninstall|publish)\b|\bgh\s+(?:release\s+(?:create|edit|delete)|pr\s+(?:create|merge|close|edit)|issue\s+(?:create|close|edit)|api\b[^\n]*--method\s+(?:POST|PATCH|PUT|DELETE))\b|\bcurl\b[^\n]*(?:-X\s*(?:POST|PUT|PATCH|DELETE)|--data|--form|-d\s)|\bnode\s+[^\n]*--(?:apply|write|fix|deploy|publish)\b|(?:^|[;&|]\s*)(?:rm|rmdir|del|erase|mv|move|cp|copy|ren|mkdir|touch|chmod|chown|ln|tee)\b|(?:^|[;&|]\s*)(?:Set-Content|Add-Content|Out-File|New-Item|Remove-Item|Move-Item|Copy-Item|Rename-Item)\b|(^|[^0-9=<>-])>{1,2}(?!&)\s*[^\s|&])/i;
+function promptDigest(text) { return crypto.createHash('sha256').update(String(text || '').trim()).digest('hex'); }
+function kickoffPending(session) { try { return kickoffCore && kickoffCore.readPending(session); } catch { return null; } }
+function kickoffConfirmed(session) { try { return kickoffCore && kickoffCore.readConfirmed(session); } catch { return null; } }
+function kickoffMutation(ctx) {
+  return ctx.turnTools.some((tool) => {
+    if (!tool.success) return false;
+    const name = toolName(tool);
+    if (['Write', 'Edit', 'NotebookEdit', 'CreateGoal'].includes(name)) return true;
+    if (name !== 'Bash') return false;
+    const command = String((tool.input && tool.input.command) || '');
+    return command ? KICKOFF_MUTATION.test(command) : false;
+  });
+}
+
 // R14：任务结束时的"本任务临时文件"探测（2026-11-09）。
 // 唯一约定目录 = tmp-sweeper.json 的 canonicalRoot；没有配置时退回默认临时根。
 // 只列**本轮用户消息之后**新增/改动的顶层条目（文件或目录），不深挖；拿不到时间戳就放行。
@@ -1037,6 +1054,42 @@ const RULES = [
         + 'node ~/.qoder/scripts/ambiguity-core.cjs --decision - --binding ' + binding + ' --json，'
         + 'stdin 传 {"schema":1,"sessionId":"…","decisionId":"…","verdict":"clear|assumption|clarify","reason":"…","sourceRefs":["对象/验收证据"]}；'
         + '判 clear/assumption 至少给 1 条证据，判 clarify 同时用 AskUserQuestion 给 2–4 个备选。纯讨论没有写入时不需要判别。';
+    },
+  },
+  {
+    id: 'R16-kickoff-confirmation-missing',
+    needsText: false,
+    // 除简单纯问答外的任务先确认再写入；当前请求的台账不匹配不拦，避免上一轮 pending 误伤新任务。
+    test: (t, ctx) => {
+      if (!kickoffMutation(ctx)) return false;
+      const digest = promptDigest(ctx.lastUserText);
+      const confirmed = kickoffConfirmed(ctx.sessionId);
+      const current = confirmed && confirmed.context && confirmed.context.requestDigest === digest ? confirmed : null;
+      if (current) {
+        if (current.choice === 'cancel') return true;
+        if (current.choice === 'proceed') {
+          return !ctx.turnTools.some((x) => x.success && toolName(x) === 'AskUserQuestion');
+        }
+      }
+      const pending = kickoffPending(ctx.sessionId);
+      if (!pending || !pending.context || pending.context.requestDigest !== digest) return false;
+      return true;
+    },
+    reason: (ctx) => {
+      const digest = promptDigest(ctx.lastUserText);
+      const confirmed = kickoffConfirmed(ctx.sessionId);
+      const current = confirmed && confirmed.context && confirmed.context.requestDigest === digest ? confirmed : null;
+      if (current && current.choice === 'cancel') {
+        return '用户已取消本轮开工确认，不能再写入或执行副作用命令；若用户改主意，重新走开工确认。';
+      }
+      if (current && current.choice === 'proceed') {
+        return '已有 proceed 记录，但本轮没有 AskUserQuestion 弹窗证据；先弹窗让用户确认，再重新 record，才能继续写入/执行。';
+      }
+      const pending = kickoffPending(ctx.sessionId);
+      const binding = pending && pending.context ? pending.context.binding : '<见注入块 KICKOFF_BINDING>';
+      return '本轮属于开工确认覆盖的任务，已出现写入/执行动作但没有有效的用户确认。先运行 node ~/.qoder/scripts/kickoff-core.cjs --compose - --binding ' + binding
+        + '（stdin 传 {schema:1,context:<KICKOFF_CONTEXT>,card:{...}}），用 AskUserQuestion 确认（简单 1 问；复杂计划/文档/目标/并行 4 问），'
+        + '再运行 --record（choice=proceed）落台账后继续。用户选调整则修订重问，选取消则停手；未确认前只做只读调查。';
     },
   },
   {

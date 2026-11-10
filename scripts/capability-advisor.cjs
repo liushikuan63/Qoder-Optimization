@@ -473,7 +473,7 @@ function buildWorkflowNote(context, script) {
     ? value => "'" + value.replace(/'/g, "''") + "'"
     : value => "'" + value.replace(/'/g, "'\\''") + "'";
   const shellCommand = (process.platform === 'win32' ? '& ' : '') + [command.executable, ...command.args].map(quote).join(' ');
-  return '\n【工作方式 · 模型判断】由当前主会话模型依据完整用户消息、当前授权和最小只读现场证据，判断并行、目标、验证选档、成文是否值得采用；关键词仅召回候选，不决定启用。hook 不另调模型、不联网。'
+  return '\n【工作方式 · 模型判断】由当前主会话模型依据完整用户消息、当前授权和最小只读现场证据，判断并行、目标、验证选档、成文是否值得采用，并把文档/目标/并行结论写入开工确认卡；关键词仅召回候选，不决定启用。hook 不另调模型、不联网。'
     + '\nWORKFLOW_CONTEXT ' + JSON.stringify(context)
     + '\nWORKFLOW_BINDING ' + binding
     + '\nWORKFLOW_COMMAND ' + JSON.stringify(command)
@@ -481,7 +481,7 @@ function buildWorkflowNote(context, script) {
     + '\n结构化输入：{schema:1,context:<上方原样对象>,model:{schema:1,bindingDigest:<上方绑定值>,taskId:<当前任务ID>,intent:question|read-only|execute|continuation|unclear,confidence:low|medium|high,sourceRefs:[<真实来源>],reason:<简短判断>,parallel:assess|skip,goal:recommend|skip,verification:assess|skip,documentation:recommend|skip},parallelPlan?:<parallel-plan 的完整输入>,verificationRequest?:<verification-policy 的完整输入>}。不能编造事实或授权；confidence 是自评，不是正确性证明。'
     + '\n在业务写入或启用额外流程前，按 WORKFLOW_COMMAND 的 executable 和 args 原样调用，结构化输入经 stdin 传入；WORKFLOW_SHELL_COMMAND 是本机 ' + (process.platform === 'win32' ? 'PowerShell' : 'POSIX shell') + ' 的等价命令。只读任务不写请求文件。没有当前身份、结果无效或 NEEDS_FACTS 时不回退成关键词自动启用；保留串行/任务清单及必需验证，补足最小证据后再判断。'
     + '\n开工自检（模型判断，不等关键词）：① 含混自检：主动判断请求是否存在多种合理解读、对象/范围/验收是否明确；误判会导致返工时，先用 AskUserQuestion 给 2–4 个真实备选（推荐项在前、写清代价）确认后开工；② 能力自检：对照当前任务判断是否需要已安装的专项能力，建议与关键词只是召回线索——命中也要核对适用边界，未命中不代表没有适用能力（可用 skills-router / skill-load 检索）；两项都不得为明确单步请求制造确认门。'
-    + '\n并行：模型先判断依赖与资源；可并行时先生成计划，再用 AskUserQuestion 询问是否启用（推荐按计划并行 / 串行执行），未确认按串行执行；只读任务只展示计划，不写文件、不派发。目标只检查活动目标/原始授权，缺明确请求才询问，不依据模型建议调用 CreateGoal。成文：中大型、跨会话、需要交接或审查+成文时，检查现有文档并与目标询问同轮合并，用 AskUserQuestion 问一次是否创建或更新 Vibecoding 四层/批次文档（推荐创建或更新 / 本轮不成文）；小任务与明确不需要成文的不问，已有文档只更新，不重复新建。'
+    + '\n文档、目标与并行统一并入开工确认卡（见 KICKOFF 注入块），不重复弹窗：卡内一次问全；未确认按串行、不建目标、不成文处理，不依据模型建议调用 CreateGoal。并行可先出计划（parallel-plan）；只读任务只展示计划，不写文件、不派发。'
     + '\n验证选档须给真实 facts/checks/baseline，taskId 绑定当前任务，sessionId/workspaceKey/requestMessageId 与本轮 context 一致；当本请求属于业务写入/执行类且未 veto 选档时，必须在开工前用 AskUserQuestion 展示推荐档与四个选项并取得明确选择，facts/checks/baseline 不足时先补最小只读证据，未答复/取消不默认档，同任务不重复询问；没有 resolveAuthority 仍为咨询模式，不调用 applyChoice/beginVerification。skip 只跳过可选选档，不能删除必需验证或降低发布检查。'
     + '\n继续同一任务先核对既有计划、目标和明确答复；已有适用选择不重复询问，拒绝/取消不催问，范围或事实改变重新判断。所有裁决只是建议，不发放创建目标、派发、写入、安装、发布或生产操作权限。';
 }

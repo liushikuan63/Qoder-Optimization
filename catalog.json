@@ -8,7 +8,7 @@
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 133,
-  "script": 152,
+  "script": 154,
   "command": 11,
   "agent": 2
  },
@@ -2863,6 +2863,32 @@
    ]
   },
   {
+   "id": "script:kickoff-core.cjs",
+   "category": "script",
+   "name": "kickoff-core.cjs",
+   "status": "shipped",
+   "source": "scripts/kickoff-core.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:client-root.js"
+   ]
+  },
+  {
+   "id": "script:kickoff-core.test.js",
+   "category": "script",
+   "name": "kickoff-core.test.js",
+   "status": "shipped",
+   "source": "scripts/kickoff-core.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:kickoff-core.cjs"
+   ]
+  },
+  {
    "id": "script:link-cn-dirs.ps1",
    "category": "script",
    "name": "link-cn-dirs.ps1",
@@ -3206,6 +3232,7 @@
     "script:client-root.js",
     "script:goal-candidate-core.js",
     "script:hook-crash-guard.js",
+    "script:kickoff-core.cjs",
     "script:recheck-protocol.cjs",
     "script:verification-trigger-core.js"
    ]
@@ -3494,6 +3521,7 @@
    "dependencies": [
     "script:client-root.js",
     "script:hook-crash-guard.js",
+    "script:kickoff-core.cjs",
     "script:stop-gate-text.js",
     "script:tmp-sweeper.js",
     "script:work-queue-check.js"
@@ -3509,6 +3537,7 @@
    },
    "source": "scripts/stop-gate.test.js",
    "dependencies": [
+    "script:kickoff-core.cjs",
     "script:stop-gate.js"
    ]
   },

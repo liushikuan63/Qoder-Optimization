@@ -89,10 +89,10 @@ test('显式指令不清必须主动提问：即使带对象也不得自行判 c
     assert.ok(note.includes(phrase), phrase);
   }
 });
-test('clear 路径允许开工前确认一次理解，确认后直接推进', () => {
+test('clear 路径按开工确认卡确认后推进', () => {
   const note = buildAmbiguityNote({ level: 'high', signals: ['光杆动作'] });
-  assert.ok(note.includes('确认理解（至多一次）'));
-  assert.ok(note.includes('直接推进') || note.includes('直接做'));
+  assert.ok(note.includes('开工确认卡'));
+  assert.ok(!note.includes('可直接做'));
   const explicit = buildAmbiguityNote({ level: 'high', signals: ['显式指令不清'] });
   assert.ok(!explicit.includes('直接推进'), '显式不清不得直接推进');
   assert.ok(explicit.includes('必须先提问'));
@@ -108,10 +108,11 @@ test('初筛必须声明不是结论，并要求模型三档判别与 clear 证�
   assert.ok(high.includes('写明对象与验收依据'));
   assert.ok(high.includes('不得先猜着执行再补问'));
 });
-test('中置信提示允许可逆默认值推进，但不得制造确认门', () => {
+test('中置信提示按开工确认卡确认，但不得制造第二道确认门', () => {
   const note = buildAmbiguityNote({ level: 'medium', signals: ['空指代短句'] });
-  assert.ok(note.includes('说明假设后推进'));
-  assert.ok(note.includes('不要为内部命名或参数增加确认门'));
+  assert.ok(note.includes('开工确认卡'));
+  assert.ok(note.includes('说明假设后按卡确认'));
+  assert.ok(note.includes('不要为内部命名或参数增加第二道确认门'));
 });
 test('无信号时不注入', () => {
   assert.equal(buildAmbiguityNote({ level: null, signals: [] }), '');

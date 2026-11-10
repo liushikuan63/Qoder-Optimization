@@ -60,15 +60,15 @@ test('model mode injects a bound decision contract and keeps the explicit verifi
   assert.match(text, /用 AskUserQuestion 原样提问/);
   assert.match(text, /【目标候选 · 需弹窗确认】/);
   assert.match(text, /用 AskUserQuestion 同轮询问两项/);
-  assert.match(text, /先生成计划，再用 AskUserQuestion 询问是否启用/);
-  assert.match(text, /Vibecoding 四层\/批次文档/);
+  assert.match(text, /并行可先出计划/);
+  assert.match(text, /文档、目标与并行统一并入开工确认卡/);
   assert.match(text, /含混自检/);
   assert.match(text, /能力自检/);
   assert.match(text, /多种合理解读/);
   const reminder = text.split('【工作方式 · 模型判断】')[0];
   assert.match(reminder, /含混自检/);
   assert.match(reminder, /能力自检/);
-  assert.match(reminder, /关键词不强制出计划或追问/);
+  assert.match(reminder, /除简单纯问答外/);
   assert.doesNotMatch(reminder, /全项目\/多模块\/多端\/多文件\/多版本任务先按 parallel-orchestration|中大型、多阶段或审查\+成文任务先用 AskUserQuestion/);
   const context = JSON.parse(text.match(/^WORKFLOW_CONTEXT (.+)$/m)[1]);
   const binding = text.match(/^WORKFLOW_BINDING ([a-f0-9]{64})$/m)[1];

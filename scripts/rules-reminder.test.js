@@ -32,7 +32,7 @@ const run = (input) => spawnSync(process.execPath, [SCRIPT], {
   env: CHILD_ENV,
 });
 
-const MARKERS = ['简体中文', '不随意停止', '需拍板', '验证要能失败', '先备份', '先只读预览命中范围', '明确结论', 'Vibecoding 两问', '目标模式', '开工先判定', '含混自检', '能力自检', '审查+成文', '过程落盘', '领域与流程纪律', '自进化采集', '确认理解一次'];
+const MARKERS = ['简体中文', '不随意停止', '需拍板', '验证要能失败', '先备份', '先只读预览命中范围', '明确结论', 'Vibecoding 两问', '目标模式', '开工先判定', '含混自检', '能力自检', '开工确认', '审查+成文', '过程落盘', '领域与流程纪律', '自进化采集', '确认理解一次'];
 const STRENGTHENED = ['只读', '不重复确认', '不得通过换工具', '零文件写入', '不适用记 N/A'];
 const checkText = (text, expected) => MARKERS.concat(STRENGTHENED).every((k) => expected ? text.includes(k) : true);
 
@@ -272,6 +272,24 @@ check('㊳ 模式隔离：B05 负例在原件与变异体逐字节一致', b05Or
 
 const TOOL_RESEARCH_MARK = '【主动联网查证】';
 const TOOL_ACQUIRE_MARK = '【工具获取 · 安装先询问】';
+// ㊱–㊳ 开工确认：执行任务注入绑定与台账；纯问答/显式跳过不注入
+const kickoffPrompt = '修复登录按钮的文案';
+const kickoffRun = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'kickoff-sid', cwd: process.cwd(), prompt: kickoffPrompt }));
+const kickoffCtx = JSON.parse(kickoffRun.stdout).hookSpecificOutput.additionalContext;
+check('㊱ 执行任务注入开工确认块与台账绑定',
+  kickoffCtx.includes('KICKOFF_BINDING') && kickoffCtx.includes('KICKOFF_COMPOSE_COMMAND') && kickoffCtx.includes('开工确认'),
+  '');
+const kickoffFile = path.join(HOME, '.qoder', 'tmp', 'kickoff', 'pending-kickoff-sid.json');
+check('㊲ 开工确认台账已创建且不存原文',
+  fs.existsSync(kickoffFile) && !fs.readFileSync(kickoffFile, 'utf8').includes(kickoffPrompt),
+  '');
+const kickoffQuestion = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'kickoff-q', cwd: process.cwd(), prompt: '这个函数是做什么的？' }));
+const kickoffQuestionCtx = JSON.parse(kickoffQuestion.stdout).hookSpecificOutput.additionalContext;
+check('㊳ 纯问答不注入开工确认块', !kickoffQuestionCtx.includes('KICKOFF_BINDING'), '');
+const kickoffSkip = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'kickoff-skip', cwd: process.cwd(), prompt: '直接做，不用确认，改个文案' }));
+const kickoffSkipCtx = JSON.parse(kickoffSkip.stdout).hookSpecificOutput.additionalContext;
+check('㊴ 用户显式跳过确认不注入绑定', !kickoffSkipCtx.includes('KICKOFF_BINDING'), '');
+
 const toolingCase = (label, prompt, expected) => {
   const result = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt }));
   let context = '';
