@@ -3,7 +3,7 @@
 **An opt-in toolkit for making Qoder workflows more repeatable and verifiable.** It adds rules, on-demand skills, hooks, commands, scripts, and MCP templates through Qoder's extension points; it does not modify Qoder itself.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.1.3-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.1.4-blue.svg)](VERSION)
 [![Node](https://img.shields.io/badge/node-24-brightgreen.svg)](https://nodejs.org)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20(primary)-lightgrey.svg)](#requirements-and-limits)
 
@@ -22,6 +22,7 @@ No clone required — pick a version and download it. Every release carries a re
 
 | Version | Released | Highlights | Download |
 |---|---|---|---|
+| 0.1.4 | 2026-11-10 | Capability routing stability; clarity and capability self-checks; request-scoped advice dedupe | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.4/Qoder-Optimization-0.1.4.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.4) |
 | 0.1.3 | 2026-11-10 | Skill content backfill; description compliance; Qoder-native design principles | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.3/Qoder-Optimization-0.1.3.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.3) |
 | 0.1.2 | 2026-11-09 | Clarify prompt-correction restoration; vibe-coding-workflow sync; resident one-time understanding check | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.2/Qoder-Optimization-0.1.2.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.2) |
 | 0.1.1 | 2026-11-09 | Offline cua-driver 0.44.0; hook ask restoration; merge-review gates; temp auto-clean | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.1/Qoder-Optimization-0.1.1.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.1) |
@@ -211,6 +212,7 @@ MIT; see [LICENSE](LICENSE). This is an unofficial community project and is not 
 
 | 版本 | 发布日期 | 主要内容 | 下载 |
 |---|---|---|---|
+| 0.1.4 | 2026-11-10 | 能力推荐稳定性；含混与能力自检；按请求去重 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.4/Qoder-Optimization-0.1.4.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.4) |
 | 0.1.3 | 2026-11-10 | 技能内容回填；描述合规；设计原则改为 Qoder 原生能力 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.3/Qoder-Optimization-0.1.3.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.3) |
 | 0.1.2 | 2026-11-09 | 含混请求 → /clarify 提示词纠正；vibe-coding-workflow 同步；理解确认常驻 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.2/Qoder-Optimization-0.1.2.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.2) |
 | 0.1.1 | 2026-11-09 | 离线包 cua-driver 0.44.0；hook 显式询问恢复；合并审阅门禁；临时产物自动清理 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.1/Qoder-Optimization-0.1.1.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.1) |
@@ -392,7 +394,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 <!-- offline-bundle:start -->
 ### Optional offline bundle / 可选离线附件
 
-The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.3/Qoder-Optimization-0.1.3-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
+The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.4/Qoder-Optimization-0.1.4-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
 
 核心包不含 MCP 离线二进制；需要时单独下载离线附件，核对各自的 .sha256 后解压到同一目录。无需离线组件时只取核心包；链接仅在对应版本发布后可用。
 <!-- offline-bundle:end -->

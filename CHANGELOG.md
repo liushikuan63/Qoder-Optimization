@@ -6,6 +6,8 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-11-10
+
 ### Changed
 - Make capability routing quieter and more stable: generic trigger words (验证/测试/性能/排查 and similar) can no longer pull a skill into the suggestion list on their own; curated spoken-language routes cover variants such as "实现一个登录功能" and "表结构要迁移"; weighing questions stay silent; and task-time advice for locally modified skills stays a use suggestion (with a local-diff note) instead of an update review. Use actions now outrank maintenance actions inside the three-item cap, and speaker samples are pinned in `.github/capability-routing-samples.test.js`.
 - Scope capability dedupe to the request instead of the session: the same capability can be suggested again for a new request, while retries of the same request stay quiet (the ledger stores only a prompt fingerprint).
@@ -739,7 +741,8 @@ During the 0.x line, minor versions may contain breaking changes.
 ### Contributors / 贡献者
 - @liushikuan63
 
-[Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.4
 [0.1.3]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.3
 [0.1.2]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.2
 [0.1.1]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.1
