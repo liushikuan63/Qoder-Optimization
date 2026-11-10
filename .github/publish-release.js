@@ -98,7 +98,9 @@ function publishRelease({ repo, tag, dest, gh = officialGh, root = process.cwd()
     // gh release create returns no id, and a fresh draft is not reliably visible by tag
     // (no tag lookup for drafts, GITHUB_TOKEN viewerPermission is null). Create through the
     // REST API so the response carries the id every later step can read back.
-    const args = ['api', '--method', 'POST', `repos/${repo}/releases`, '-f', `tag_name=${tag}`, '-f', `target_commitish=${evidence.commit}`, '-f', `name=Qoder-Optimization ${tag.slice(1)}`, '-F', 'draft=true', '-f', 'make_latest=false'];
+    // The tag already exists and was checked against evidence.commit above.
+    // Sending target_commitish as a 40-char SHA makes the releases API answer 404.
+    const args = ['api', '--method', 'POST', `repos/${repo}/releases`, '-f', `tag_name=${tag}`, '-f', `name=Qoder-Optimization ${tag.slice(1)}`, '-F', 'draft=true', '-f', 'make_latest=false'];
     const notes = changelogNotes(root, tag.slice(1));
     let dir = null;
     try {

@@ -55,6 +55,8 @@ jobs:
     needs: [source, windows]
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      contents: write
     concurrency:
       group: release-publish-${{ (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') && github.repository || github.run_id }}
       cancel-in-progress: false
