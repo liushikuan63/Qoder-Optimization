@@ -12,7 +12,8 @@ const PENDING_MS = 2 * 60 * 60 * 1000;
 const CONFIRMED_MS = 24 * 60 * 60 * 1000;
 
 const ACTION_WORDS = /(?:帮我|请帮我|麻烦|给我|把|改|修|做|实现|写|删|加|新增|去掉|替换|优化|调整|重构|迁移|部署|发布|安装|升级|提交|推送|执行|检查|分析|审查|审阅|调研|对比|测试|验证|生成|创建|整理|清理|同步|合并|拆分|设计|搭建|接入|联调|打包|构建|启动|停止|修复|排查|定位|诊断|看下|看看|查一下|查查|列一下|列出|给出|输出|补|完善|简化|收敛|瘦身|对接|切换|回滚|备份|恢复|删除|移动|复制|重命名|更新|修改|引入|移除|启用|关闭|处理|推进|落地)/;
-const QUESTION_START = /^(?:请问|请解释|请说明|什么是|为什么|怎么|如何|是否|能否|能不能|可不可以|有没有|多少|哪|谁|何时|哪里)/;
+const QUESTION_START = /^(?:请问|请解释|请说明|什么是|为什么|怎么|如何|是否|能否|能不能|可不可以|有没有|多少|哪|谁|何时|哪里|在哪个|哪些|在哪里|在哪儿|有哪些)/;
+const ACTION_START = /^(?:帮我|请帮我|麻烦|给我|把|改|修|做|实现|写|删|加|新增|去掉|替换|优化|调整|重构|迁移|部署|发布|安装|升级|提交|推送|执行|检查|分析|审查|审阅|调研|对比|测试|验证|生成|创建|整理|清理|同步|合并|拆分|设计|搭建|接入|联调|打包|构建|启动|停止|修复|排查|定位|诊断|看下|看看|查一下|查查|列一下|列出|给出|输出|补|完善|简化|收敛|瘦身|对接|切换|回滚|备份|恢复|删除|移动|复制|重命名|更新|修改|引入|移除|启用|关闭|处理|推进|落地)/;
 const QUESTION_PHRASE = /(?:做什么|干什么|是什么|怎么写|怎么做|怎么改|怎么修|怎么用|怎么选|怎么弄|怎么处理|如何实现|如何配置|如何设置|为什么|是否|能否|能不能|可不可以|有没有|有什么|什么是|多少|哪里|哪个)/;
 const IMPERATIVE_PREFIX = /^(?:帮我|请帮我|麻烦|给我|把)/;
 const EXPLICIT_SKIP = /(?:不用|无需|不必|免)(?:再)?(?:确认|问|问我)|直接(?:做|执行|开工|改|处理)|别(?:问|确认)|先(?:做|执行)再说/;
@@ -44,7 +45,14 @@ function classifyKickoffTask(prompt) {
   if (/^[/!]/.test(text)) return { profile: 'question', signals: ['命令入口'], explicitSkip: false, text };
   if (EXPLICIT_SKIP.test(text)) return { profile: 'simple', signals: ['用户显式跳过'], explicitSkip: true, text };
   const imperative = ACTION_WORDS.test(text);
-  const questionForm = QUESTION_START.test(text) || (/[?？]\s*$/.test(text) && QUESTION_PHRASE.test(text));
+  const clauses = text.split(/[，,。；;！!？?\n]/).map((part) => part.trim()).filter(Boolean);
+  const tail = clauses[clauses.length - 1] || text;
+  // 业务名词常含动作词（如“诱导发布”），整句含“发布”不等于要执行发布；末句是疑问且不是动作开头时按问答处理。
+  const tailQuestion = /(?:如何(?:设置|配置|实现|使用|操作|查看)|怎么(?:设置|配置|实现|使用|操作|查看)|在?哪(?:个|些|里|儿)|有哪些|有什么|是什么|是多少|为什么|是否)/.test(tail)
+    && !ACTION_START.test(text);
+  const questionForm = QUESTION_START.test(text)
+    || (/[?？]\s*$/.test(text) && QUESTION_PHRASE.test(text))
+    || (tailQuestion && !IMPERATIVE_PREFIX.test(text));
   if (!imperative) return { profile: 'question', signals: ['纯问答'], explicitSkip: false, text };
   if (questionForm && !IMPERATIVE_PREFIX.test(text)) {
     return { profile: 'question', signals: ['问答式请求'], explicitSkip: false, text };
@@ -460,7 +468,7 @@ function buildKickoffNote(result) {
   const record = commandFor('record', context.binding);
   const complex = profile === 'complex';
   return '\n【开工确认 · 必要项｜' + profile + '】' + signals + '。除简单纯问答外，先完成确认再写入/执行；纯问答、用户明确说“不用确认”、同一任务已确认的继续执行可豁免。'
-    + '\n先在只读范围内辨认任务，再在回复正文写确认卡：理解（目标/对象/范围/验收/禁止项）、步骤（2–7 步，每步可验证）、并行（串行/可并行+理由）、影响与回滚。'
+    + '\n允许先做只读检查；但必须在**本轮结束前**在回复正文写确认卡并完成确认：理解（目标/对象/范围/验收/禁止项）、步骤（2–7 步，每步可验证）、并行（串行/可并行+理由）、影响与回滚。未出卡不得直接收尾，未确认不得写入/执行。'
     + (complex
       ? '\n复杂任务同轮另问：文档（创建/更新/不成文）、目标（创建/不创建）、并行（按计划/串行）；验证档沿用现有 B05 必问。'
       : '\n简单任务只问计划确认；并行判断写进卡片，写入任务默认串行。')
@@ -473,7 +481,7 @@ function buildKickoffNote(result) {
     + '\n结构化输入（compose）：{schema:1,context:<上方 KICKOFF_CONTEXT 原样>,card:{schema:1,bindingDigest:"' + context.binding + '",taskId:"<当前任务ID>",profile:"simple|complex",understanding:{goal:"…",object:"…",scope:"…",acceptance:"…",prohibitions:["…"]},steps:["…","…"],parallel:{mode:"serial|parallel",reason:"…"}'
     + (complex ? ',documentation:{mode:"create|update|none",target:"…",recommend:true|false,reason:"…"},goal:{mode:"create|none",title:"…",recommend:true|false,reason:"…"}' : '')
     + '}}。'
-    + '\n流程：① 运行 compose 校验卡片并取得 AskUserQuestion 载荷与 cardDigest；② 用 AskUserQuestion 确认（简单 1 问；复杂计划/文档/目标/并行 4 问，一次问全）；③ 用 cardDigest 运行 record（choice=proceed|adjust|cancel）；④ 确认 proceed 后再写入/执行。未确认前只做只读调查；用户选调整则修订后重问，选取消则停手。台账只存哈希与选择，不存原文；已写入但未确认会被收尾门禁拦下。';
+    + '\n流程：① 运行 compose 校验卡片并取得 AskUserQuestion 载荷与 cardDigest；② 用 AskUserQuestion 确认（简单 1 问；复杂计划/文档/目标/并行 4 问，一次问全）；③ 用 cardDigest 运行 record（choice=proceed|adjust|cancel）；④ 确认 proceed 后再写入/执行。未确认前只做只读检查，并在本轮结束前完成 ①–③；未出卡就收尾会被 R17 拦下，已写入但未确认会被 R16 拦下。用户选调整则修订后重问，选取消则停手。台账只存哈希与选择，不存原文。';
 }
 
 function prepareKickoff({ sessionId, prompt, cwd, requestMessageId }) {

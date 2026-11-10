@@ -756,7 +756,10 @@ const r16Prompt = '修复登录按钮的文案';
 const r16Write = tool('Write', { file_path: 'D:/x/a.ts' });
 const r16Ask = tool('AskUserQuestion', { questions: [{ question: '是否按此计划开工？', options: ['按此执行', '调整'] }] });
 r16Case('R16 未确认就写入必须拦', 'kickoff-a', r16Prompt, [r16Write], 'block', () => kickoff.writePending(kickoffContext('kickoff-a', r16Prompt)));
-r16Case('R16 只读命令不误拦', 'kickoff-b', r16Prompt, [tool('Bash', { command: 'git status --short' })], 'allow', () => kickoff.writePending(kickoffContext('kickoff-b', r16Prompt)));
+kickoff.writePending(kickoffContext('kickoff-b', r16Prompt));
+const r17ReadOnly = run({ transcript_path: transcript([user(r16Prompt), tool('Bash', { command: 'git status --short' }), asst('处理完毕。')]), session_id: 'kickoff-b' }, 'kickoff-b', { KICKOFF_STATE_DIR: kickoffDir });
+check('R17 只读检查但未出卡不许收尾', r17ReadOnly.decision, 'block');
+check('R17 只读检查的拦截原因指向未出卡', r17ReadOnly.out.includes('R17-kickoff-card-not-confirmed') && r17ReadOnly.out.includes('不能不出卡就结束'), true);
 r16Case('R16 副作用命令未确认必须拦', 'kickoff-c', r16Prompt, [tool('Bash', { command: 'git commit -m "fix"' })], 'block', () => kickoff.writePending(kickoffContext('kickoff-c', r16Prompt)));
 r16Case('R16 已弹窗但未记录确认仍要拦', 'kickoff-d', r16Prompt, [r16Ask, r16Write], 'block', () => kickoff.writePending(kickoffContext('kickoff-d', r16Prompt)));
 const r16ProceedContext = kickoffContext('kickoff-e', r16Prompt);
@@ -768,6 +771,29 @@ const r16CancelContext = kickoffContext('kickoff-g', r16Prompt);
 const r16Cancel = r16Case('R16 用户取消后仍写入必须拦', 'kickoff-g', r16Prompt, [r16Write], 'block', () => { kickoff.writePending(r16CancelContext); kickoffConfirm(r16CancelContext, 'cancel'); });
 check('R16 取消后的拦截原因可读', r16Cancel.out.includes('用户已取消本轮开工确认'), true);
 r16Case('R16 上一轮 pending 不误伤新请求', 'kickoff-h', '把 README 的版本号改成 0.1.6', [r16Write], 'allow', () => kickoff.writePending(kickoffContext('kickoff-h', r16Prompt)));
+
+// R17 收尾门禁：允许先只读检查，但本轮结束前必须出卡 + AskUserQuestion + record
+function r17Case(label, session, prompt, tools, expected, setup, text = '处理完毕。') {
+  if (setup) setup();
+  const result = run({ transcript_path: transcript([user(prompt), ...tools, asst(text)]), session_id: session }, session, { KICKOFF_STATE_DIR: kickoffDir });
+  check(label, result.decision, expected);
+  if (expected === 'block') check(label + '（原因确为 R17）', result.out.includes('R17-kickoff-card-not-confirmed'), true);
+  return result;
+}
+const r17Prompt = '优化导出功能的筛选条件';
+r17Case('R17 只读检查后直接收尾必须拦', 'kickoff-i', r17Prompt, [tool('Bash', { command: 'ls src' }), tool('Read', { file_path: 'D:/x/a.ts' })], 'block', () => kickoff.writePending(kickoffContext('kickoff-i', r17Prompt)));
+const r17AskedOnlyContext = kickoffContext('kickoff-j', r17Prompt);
+r17Case('R17 已弹窗但未 record 不许收尾', 'kickoff-j', r17Prompt, [r16Ask], 'block', () => kickoff.writePending(r17AskedOnlyContext));
+const r17ProceedContext = kickoffContext('kickoff-k', r17Prompt);
+r17Case('R17 弹窗并 record proceed 放行', 'kickoff-k', r17Prompt, [r16Ask, tool('Bash', { command: 'git status --short' })], 'allow', () => { kickoff.writePending(r17ProceedContext); kickoffConfirm(r17ProceedContext, 'proceed'); });
+const r17CancelContext = kickoffContext('kickoff-l', r17Prompt);
+r17Case('R17 用户取消后允许收尾', 'kickoff-l', r17Prompt, [], 'allow', () => { kickoff.writePending(r17CancelContext); kickoffConfirm(r17CancelContext, 'cancel'); });
+const r17AdjustContext = kickoffContext('kickoff-m', r17Prompt);
+const r17Adjust = r17Case('R17 用户选调整后必须重新出卡', 'kickoff-m', r17Prompt, [r16Ask], 'block', () => { kickoff.writePending(r17AdjustContext); kickoffConfirm(r17AdjustContext, 'adjust'); });
+check('R17 调整后的拦截原因可读', r17Adjust.out.includes('调整'), true);
+r17Case('R17 纯问答不误拦', 'kickoff-n', '什么是闭包？', [], 'allow');
+r17Case('R17 上一轮 pending 不误伤新请求', 'kickoff-o', '把 README 的版本号改成 0.1.6', [], 'allow', () => kickoff.writePending(kickoffContext('kickoff-o', r17Prompt)));
+r17Case('R17 文本收尾也要先出卡', 'kickoff-p', r17Prompt, [], 'block', () => kickoff.writePending(kickoffContext('kickoff-p', r17Prompt)), '现状已核实，需要你先定口径。');
 
 // ---------- R14：任务结束必须就"本任务临时文件"给出清理范围并询问（2026-11-09）----------
 // 背景：临时清理器此前只能人工触发，超期件长期堆积；收尾必须主动列出本任务产物并弹窗确认。

@@ -70,6 +70,10 @@ check('简单任务：单文件改文案', () => assert.strictEqual(core.classif
 check('复杂任务：跨模块+发布', () => assert.strictEqual(core.classifyKickoffTask('跨模块重构权限校验，改 hook、测试并发布 0.1.5').profile, 'complex'));
 check('复杂任务：长请求', () => assert.strictEqual(core.classifyKickoffTask('修复登录按钮文案。' + '补充上下文。'.repeat(30)).profile, 'complex'));
 check('命令入口不建卡', () => assert.strictEqual(core.classifyKickoffTask('/clarify 帮我理一下').profile, 'question'));
+// 业务名词里含动作词（“诱导发布”）：末句是问句时按问答处理，不因“发布”两字进入复杂任务
+check('问答：业务名词含“发布”不误判为复杂', () => assert.strictEqual(core.classifyKickoffTask('诱导发布优先级如何设置，在哪个界面').profile, 'question'));
+check('问答：有哪些界面', () => assert.strictEqual(core.classifyKickoffTask('诱导发布有哪些界面').profile, 'question'));
+check('任务：新增需求仍是执行任务', () => assert.strictEqual(core.classifyKickoffTask('新增需求，可查看单个诱导屏信息，可在其他界面通过iframe调用相关诱导屏信息进行查看，要求做好响应式').profile, 'simple'));
 check('用户显式跳过确认', () => assert.strictEqual(core.classifyKickoffTask('直接做，不用确认，改个文案').explicitSkip, true));
 check('继续指令识别', () => assert.strictEqual(core.isContinuation('继续'), true));
 check('带范围变化的继续不算', () => assert.strictEqual(core.isContinuation('继续，但把范围改成跨模块'), false));

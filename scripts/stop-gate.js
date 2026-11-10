@@ -1093,6 +1093,39 @@ const RULES = [
     },
   },
   {
+    id: 'R17-kickoff-card-not-confirmed',
+    needsText: false,
+    // 允许先只读检查，但同一轮结束前必须出卡并经 AskUserQuestion 确认 + record；未出卡/未落账都不许收尾。
+    test: (t, ctx) => {
+      const digest = promptDigest(ctx.lastUserText);
+      if (!digest) return false;
+      const pending = kickoffPending(ctx.sessionId);
+      if (!pending || !pending.context || pending.context.requestDigest !== digest) return false;
+      const confirmed = kickoffConfirmed(ctx.sessionId);
+      const current = confirmed && confirmed.context && confirmed.context.requestDigest === digest ? confirmed : null;
+      if (current && current.choice === 'cancel') return false;
+      const asked = ctx.turnTools.some((x) => x.success && toolName(x) === 'AskUserQuestion');
+      if (current && current.choice === 'proceed' && asked) return false;
+      return true;
+    },
+    reason: (ctx) => {
+      const digest = promptDigest(ctx.lastUserText);
+      const confirmed = kickoffConfirmed(ctx.sessionId);
+      const current = confirmed && confirmed.context && confirmed.context.requestDigest === digest ? confirmed : null;
+      const pending = kickoffPending(ctx.sessionId);
+      const binding = pending && pending.context ? pending.context.binding : '<见注入块 KICKOFF_BINDING>';
+      if (current && current.choice === 'proceed') {
+        return '已有 proceed 记录，但本轮没有 AskUserQuestion 弹窗证据；先弹窗确认，再重新 record，才能结束本轮。';
+      }
+      if (current && current.choice === 'adjust') {
+        return '上一轮用户选择了“调整”，本轮必须按调整意见修订卡片后重新 compose + AskUserQuestion + record（proceed 或 cancel），不能直接收尾。';
+      }
+      return '本轮属于开工确认覆盖的任务，但结束前没有完成确认闭环。先运行 node ~/.qoder/scripts/kickoff-core.cjs --compose - --binding ' + binding
+        + '（stdin 传 {schema:1,context:<KICKOFF_CONTEXT>,card:{...}}），用 AskUserQuestion 确认（简单 1 问；复杂计划/文档/目标/并行 4 问），'
+        + '再运行 --record（choice=proceed|adjust|cancel）落台账后收尾。允许先只读检查，但不能不出卡就结束；未确认不得写入/执行。';
+    },
+  },
+  {
     id: 'R14-temp-artifacts-unhandled',
     needsText: false,
     // 每轮结束必须清理并反馈；本机 autoClean.enabled=true 时按推荐范围自动清理，否则弹窗确认。

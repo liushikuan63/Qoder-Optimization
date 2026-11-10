@@ -7,12 +7,12 @@ During the 0.x line, minor versions may contain breaking changes.
 ## [Unreleased]
 
 ### Changed
-- Add a mandatory kickoff confirmation loop for every task except simple Q&A: the model restates the goal/object/scope/acceptance, lists 2–7 verifiable steps, decides serial vs parallel, and gets explicit user confirmation before writing or running side-effect commands. Medium/large tasks ask documentation, goal and parallel in the same AskUserQuestion round (the verification tier stays a separate B05 choice). `scripts/kickoff-core.cjs` binds the card to the request and stores only hashes and selections; stop-gate R16 blocks writes or side-effect commands when the current request has no valid confirmation. Pure questions, an explicit "不用确认", and continuations of an already confirmed task are exempt.
+- Add a mandatory kickoff confirmation loop for every task except simple Q&A: read-only checks may come first, but the same turn must end with the restated goal/object/scope/acceptance, 2–7 verifiable steps, serial vs parallel decision and explicit AskUserQuestion confirmation before any write or side-effect command. Medium/large tasks ask documentation, goal and parallel in the same round (the verification tier stays a separate B05 choice). `scripts/kickoff-core.cjs` binds the card to the request and stores only hashes and selections; stop-gate R16 blocks unconfirmed writes or side-effect commands, and R17 blocks ending the turn without a composed, confirmed and recorded card. Pure questions, an explicit "不用确认", and continuations of an already confirmed task are exempt. Question detection now looks at the final clause so business names containing action words (for example "诱导发布") do not force a complex card.
 - Replace the old "明确、单步、低风险可直接交付" wording across the rules, clarify command, README files and ambiguity note with the kickoff-card contract.
 
 ### 中文摘要
-- 新增“开工确认”必要闭环：除简单纯问答外，先复述目标/对象/范围/验收、列 2–7 步计划、判断并行/串行，再用 AskUserQuestion 确认后执行；中大型/多阶段/审查+成文任务在同一张卡内加问文档、目标、并行（验证档仍按 B05 单独选）。
-- 新增 `scripts/kickoff-core.cjs`：卡片与当前请求绑定，台账只存哈希与选择；stop-gate R16 在“当前请求有待确认 + 已写入/执行副作用命令”时拦下。纯问答、用户明确说不用确认、同一任务已确认的继续执行豁免。
+- 新增“开工确认”必要闭环：除简单纯问答外可先做只读检查，但同一轮结束前必须复述目标/对象/范围/验收、列 2–7 步计划、判断并行/串行，再用 AskUserQuestion 确认后执行；中大型/多阶段/审查+成文任务在同一张卡内加问文档、目标、并行（验证档仍按 B05 单独选）。
+- 新增 `scripts/kickoff-core.cjs`：卡片与当前请求绑定，台账只存哈希与选择；stop-gate R16 拦“未确认就写入/执行副作用命令”，R17 拦“未出卡、未确认或未落账就收尾”。纯问答、用户明确说不用确认、同一任务已确认的继续执行豁免；问答识别改为看末句，业务名词含动作词（如“诱导发布”）不再误判为复杂任务。
 - 规则文档、clarify 命令、README 与含混提示同步移除“单步低风险可直接交付”的旧口径。
 
 ## [0.1.4] - 2026-11-10
