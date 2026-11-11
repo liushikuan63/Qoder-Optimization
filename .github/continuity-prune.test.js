@@ -244,3 +244,107 @@ test('prune 命令行 apply 返回 0，非法保留期返回 3 且不改档案',
   assert.equal(JSON.parse(applied.stdout).status, 'PRUNED');
   assert.equal(fs.existsSync(c.location(old).dir), false);
 });
+
+function legacyRecord(o, days) {
+  const dir = c.location(o).dir;
+  const scopeFile = path.join(dir, 'scope.json');
+  const scope = JSON.parse(fs.readFileSync(scopeFile, 'utf8'));
+  const at = new Date(Date.now() - days * 86400000).toISOString();
+  fs.writeFileSync(scopeFile, JSON.stringify({ ...scope, auto: true, createdAt: at }));
+  const transcript = path.join(o.cwd, o.session + '.jsonl');
+  fs.writeFileSync(transcript, '');
+  const body = { schema: 1, task: o.task, session: o.session, cwd: scope.cwd, kind: 'user-request', text: 'LEGACY-EVIDENCE', source: { file: transcript, byteOffset: 0, byteLength: 0, sha256: crypto.createHash('sha256').update('').digest('hex') } };
+  const id = crypto.createHash('sha256').update(JSON.stringify({ ...body, origin: body.source })).digest('hex');
+  const record = { id, capturedAt: at, integrity: crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex'), ...body };
+  const records = path.join(dir, 'records');
+  fs.mkdirSync(records, { recursive: true });
+  const file = path.join(records, id + '.json');
+  fs.writeFileSync(file, JSON.stringify(record));
+  const old = new Date(Date.now() - days * 86400000);
+  for (const item of [scopeFile, file]) fs.utimesSync(item, old, old);
+  return file;
+}
+
+test('旧 JSON 档案不被误判为空档，0 字节库加 legacy 记录也受保护', () => {
+  const base = path.join(root, 'prune-legacy-' + (++seq));
+  const store = path.join(base, 'store');
+  pruneConfig(store, { retentionDays: 30 });
+  const legacy = { store, cwd: path.join(base, 'ws-legacy'), session: '11111111-aaaa-4aaa-8aaa-111111111111', task: 'LEGACY-TASK' };
+  fs.mkdirSync(legacy.cwd, { recursive: true });
+  c.enable(legacy);
+  legacyRecord(legacy, 20);
+  assert.equal(c.prune({ store }).candidates.some(item => item.sessionHash === hashOf(legacy)), false);
+  const db = path.join(c.location(legacy).dir, 'continuity.sqlite');
+  fs.writeFileSync(db, '');
+  const old = new Date(Date.now() - 20 * 86400000);
+  fs.utimesSync(db, old, old);
+  assert.equal(c.prune({ store }).candidates.some(item => item.sessionHash === hashOf(legacy)), false);
+});
+
+test('prune 排除指定当前会话，手工 apply 不会删它', () => {
+  const base = path.join(root, 'prune-exclude-' + (++seq));
+  const store = path.join(base, 'store');
+  pruneConfig(store, { retentionDays: 30 });
+  const current = session(store, base, '22222222-bbbb-4bbb-8bbb-222222222222', 'CURRENT', { days: 60 });
+  const other = session(store, base, '33333333-cccc-4ccc-8ccc-333333333333', 'OTHER', { days: 60 });
+  const applied = c.prune({ store, apply: true, cwd: current.cwd, session: current.session });
+  assert.equal(applied.deleted.length, 1);
+  assert.ok(fs.existsSync(c.location(current).dir));
+  assert.equal(fs.existsSync(c.location(other).dir), false);
+  assert.equal(c.prune({ store, cwd: current.cwd }).status, 'INVALID_ARGUMENT');
+});
+
+test('transcript 移到已知根目录时不判孤儿', () => {
+  const base = path.join(root, 'prune-alt-' + (++seq));
+  const store = path.join(base, 'store');
+  pruneConfig(store, { retentionDays: 90, orphanGraceDays: 7 });
+  const o = session(store, base, '44444444-dddd-4ddd-8ddd-444444444444', 'MOVED', { days: 10 });
+  fs.unlinkSync(o.transcript);
+  const alt = path.join(base, 'qoder-cn', 'projects', 'project-x', o.session + '.jsonl');
+  fs.mkdirSync(path.dirname(alt), { recursive: true });
+  fs.writeFileSync(alt, '');
+  assert.equal(c.prune({ store }).candidates.some(item => item.sessionHash === hashOf(o)), false);
+});
+
+test('未完成隔离批次可通过 recover 移回，list 能列出批次', () => {
+  const base = path.join(root, 'prune-recover-' + (++seq));
+  const store = path.join(base, 'store');
+  pruneConfig(store, { retentionDays: 30 });
+  const old = session(store, base, '55555555-eeee-4eee-8eee-555555555555', 'RECOVER', { days: 60 });
+  const applied = c.prune({ store, apply: true });
+  assert.equal(applied.deleted.length, 1);
+  const manifestFile = path.join(applied.quarantineBatch, 'manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+  manifest.status = 'inprogress';
+  for (const item of manifest.sessions) delete item.restoredAt;
+  fs.writeFileSync(manifestFile, JSON.stringify(manifest));
+  assert.equal(c.listQuarantine(store).batches.length, 1);
+  const recovered = c.recoverQuarantine(store);
+  assert.equal(recovered.status, 'RECOVERED');
+  assert.equal(recovered.restored.length, 1);
+  assert.ok(fs.existsSync(c.location(old).dir));
+});
+
+test('scope.json 的 mtime 不会给旧会话续命', () => {
+  const base = path.join(root, 'prune-activity-' + (++seq));
+  const store = path.join(base, 'store');
+  pruneConfig(store, { retentionDays: 30 });
+  const o = session(store, base, '66666666-ffff-4fff-8fff-666666666666', 'OLD', { days: 60 });
+  const now = new Date();
+  fs.utimesSync(path.join(c.location(o).dir, 'scope.json'), now, now);
+  assert.ok(c.prune({ store }).candidates.some(item => item.sessionHash === hashOf(o)));
+});
+
+test('apply 写审计与检查缓存，dry-run 零写入', () => {
+  const base = path.join(root, 'prune-audit-' + (++seq));
+  const store = path.join(base, 'store');
+  pruneConfig(store, { retentionDays: 30 });
+  session(store, base, '77777777-aaaa-4aaa-8aaa-777777777777', 'AUDIT', { days: 60 });
+  const before = snapshot(store);
+  c.prune({ store });
+  assert.equal(snapshot(store), before);
+  assert.equal(fs.existsSync(path.join(store, 'prune-audit.jsonl')), false);
+  c.prune({ store, apply: true });
+  assert.ok(fs.existsSync(path.join(store, 'prune-audit.jsonl')));
+  assert.ok(fs.existsSync(path.join(store, 'prune-cache.json')));
+});

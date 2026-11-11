@@ -566,10 +566,25 @@ function pruneTempRoot() {
   try { fs.mkdirSync(preferred, { recursive: true }); return preferred; } catch { return os.tmpdir(); }
 }
 
+function legacyRecords(dir) {
+  const legacyDir = path.join(dir, 'records');
+  if (!statSafe(legacyDir)?.isDirectory()) return { count: 0, sources: [] };
+  const files = namesOf(legacyDir).filter(name => /^[a-f0-9]{64}\.json$/.test(name));
+  const sources = [];
+  for (const name of files) {
+    const source = readJsonSafe(path.join(legacyDir, name))?.source;
+    if (source && typeof source.file === 'string' && source.file) sources.push(source.file);
+  }
+  return { count: files.length, sources: [...new Set(sources)] };
+}
+
 function inspectSession(dir) {
   const file = path.join(dir, 'continuity.sqlite');
   const stat = statSafe(file);
-  if (!stat || stat.size === 0) return { exists: Boolean(stat), size: stat?.size || 0, readable: false, records: 0, sources: [], empty: true };
+  const legacy = legacyRecords(dir);
+  if (!stat || stat.size === 0) {
+    return { exists: Boolean(stat), size: stat?.size || 0, readable: false, records: legacy.count, sources: legacy.sources, legacy: legacy.count, empty: legacy.count === 0 };
+  }
   let temp;
   try {
     temp = fs.mkdtempSync(path.join(pruneTempRoot(), 'continuity-prune-'));
@@ -589,10 +604,12 @@ function inspectSession(dir) {
           return typeof source.file === 'string' && source.file ? source.file : null;
         } catch { return null; }
       }).filter(Boolean))];
-      return { exists: true, size: stat.size, readable: true, records: count, sources, empty: count === 0 };
+      const records = Math.max(count, legacy.count);
+      const allSources = [...new Set([...sources, ...legacy.sources])];
+      return { exists: true, size: stat.size, readable: true, records, sources: allSources, legacy: legacy.count, empty: records === 0 };
     } finally { db.close(); }
   } catch (error) {
-    return { exists: true, size: stat.size, readable: false, records: 0, sources: [], empty: false, error: String(error.message || error) };
+    return { exists: true, size: stat.size, readable: false, records: legacy.count, sources: legacy.sources, legacy: legacy.count, empty: false, error: String(error.message || error) };
   } finally {
     if (temp) { try { fs.rmSync(temp, { recursive: true, force: true }); } catch {} }
   }
@@ -619,8 +636,10 @@ function sessionActivity(dir) {
   const scopeFile = path.join(dir, 'scope.json');
   const created = msOf(readJsonSafe(scopeFile)?.createdAt);
   if (created !== null) times.push(created);
-  const scopeStat = statSafe(scopeFile);
-  if (scopeStat) times.push(scopeStat.mtimeMs);
+  else {
+    const scopeStat = statSafe(scopeFile);
+    if (scopeStat) times.push(scopeStat.mtimeMs);
+  }
   for (const name of namesOf(dir)) {
     if (!/^last-[A-Za-z]+\.json$/.test(name)) continue;
     const at = msOf(readJsonSafe(path.join(dir, name))?.at);
@@ -638,6 +657,33 @@ function sessionActivity(dir) {
   return times.length ? Math.max(...times) : 0;
 }
 
+function transcriptRoots(store) {
+  const roots = [];
+  if (process.env.CONTINUITY_TRANSCRIPT_ROOTS) {
+    roots.push(...String(process.env.CONTINUITY_TRANSCRIPT_ROOTS).split(path.delimiter).filter(Boolean));
+  }
+  roots.push(
+    path.resolve(store, '..', 'qoder-cn', 'projects'),
+    path.resolve(store, '..', 'qoder', 'projects'),
+    path.join(os.homedir(), '.qoder', 'projects'),
+    path.join(os.homedir(), '.qoder-cn', 'projects')
+  );
+  return [...new Set(roots.map(root => path.resolve(root)))];
+}
+
+function alternativeTranscript(session, store) {
+  if (!session) return null;
+  const name = session + '.jsonl';
+  for (const root of transcriptRoots(store)) {
+    if (!statSafe(root)?.isDirectory()) continue;
+    for (const project of namesOf(root)) {
+      const file = path.join(root, project, name);
+      if (statSafe(file)?.isFile()) return file;
+    }
+  }
+  return null;
+}
+
 function storeSessions(store) {
   const list = [];
   for (const cwdHash of namesOf(store)) {
@@ -652,9 +698,22 @@ function storeSessions(store) {
   return list;
 }
 
+function loadPruneCache(store) {
+  const value = readJsonSafe(path.join(store, 'prune-cache.json'));
+  if (!value || value.schema !== 1 || !value.entries || typeof value.entries !== 'object') return { schema: 1, entries: {} };
+  return value;
+}
+
+function savePruneCache(store, cache) {
+  atomic(path.join(store, 'prune-cache.json'), cache);
+}
+
 function planPrune(store, policy, options = {}) {
   const now = Date.now();
   const excluded = options.excludeDir ? path.resolve(options.excludeDir) : '';
+  const cache = options.cache || loadPruneCache(store);
+  const cacheNext = { schema: 1, entries: { ...cache.entries } };
+  let inspected = 0;
   const sessions = [];
   for (const entry of storeSessions(store)) {
     const scope = readJsonSafe(path.join(entry.dir, 'scope.json'));
@@ -663,7 +722,7 @@ function planPrune(store, policy, options = {}) {
     const bytes = dirBytes(entry.dir);
     const lockStat = statSafe(path.join(entry.dir, 'capture.lock'));
     const freshLock = Boolean(lockStat && now - lockStat.mtimeMs < CAPTURE_LOCK_STALE_MS);
-    const item = { ...entry, task: scope?.task || '', manual, lastActivity, bytes, freshLock, records: null, readable: null, reasons: [] };
+    const item = { ...entry, scope, task: scope?.task || '', manual, lastActivity, bytes, freshLock, records: null, readable: null, legacy: 0, reasons: [] };
     if (excluded && samePath(entry.dir, excluded)) item.reasons.push('current-session');
     else if (freshLock) item.reasons.push('capture-lock');
     sessions.push(item);
@@ -672,14 +731,34 @@ function planPrune(store, policy, options = {}) {
     if (item.reasons.length) continue;
     const ageDays = item.lastActivity ? (now - item.lastActivity) / 86400000 : Infinity;
     if (ageDays <= policy.orphanGraceDays) continue;
-    const info = inspectSession(item.dir);
+    const dbStat = statSafe(path.join(item.dir, 'continuity.sqlite'));
+    const legacyStat = statSafe(path.join(item.dir, 'records'));
+    const dbMtime = dbStat?.mtimeMs || 0;
+    const dbSize = dbStat?.size || 0;
+    const legacyMtime = legacyStat?.mtimeMs || 0;
+    const key = item.cwdHash + '/' + item.sessionHash;
+    const cached = cache.entries[key];
+    let info;
+    if (cached && cached.dbMtime === dbMtime && cached.dbSize === dbSize && cached.legacyMtime === legacyMtime) {
+      info = { exists: Boolean(dbStat), size: dbSize, readable: cached.readable !== false, records: cached.records, sources: cached.sources || [], legacy: cached.legacy || 0, empty: cached.empty === true };
+    } else {
+      info = inspectSession(item.dir);
+      inspected++;
+      cacheNext.entries[key] = {
+        dbMtime, dbSize, legacyMtime, readable: info.readable, records: info.records,
+        sources: info.sources, legacy: info.legacy || 0, empty: info.empty,
+        checkedAt: new Date().toISOString(),
+      };
+    }
     item.records = info.records;
     item.readable = info.readable;
-    const orphan = info.sources.length > 0 && info.sources.every(file => !fs.existsSync(file));
+    item.legacy = info.legacy || 0;
+    const missingSources = info.sources.length > 0 && info.sources.every(file => !fs.existsSync(file));
+    const orphan = missingSources && !info.legacy && !alternativeTranscript(item.scope?.session, store);
     const allowed = !policy.protectManual || policy.includeManual || !item.manual;
     if (orphan) item.reasons.push('orphan');
     if (allowed && ageDays > policy.retentionDays) item.reasons.push('expired');
-    if (allowed && (info.empty || (!info.exists && !item.readable))) item.reasons.push('empty');
+    if (allowed && info.empty) item.reasons.push('empty');
   }
   if (policy.protectManual && !policy.includeManual) {
     for (const item of sessions) {
@@ -699,7 +778,7 @@ function planPrune(store, policy, options = {}) {
   }
   const deletable = item => item.reasons.some(reason => ['expired', 'orphan', 'empty', 'quota'].includes(reason));
   const candidates = sessions.filter(deletable).sort((a, b) => a.lastActivity - b.lastActivity);
-  return { sessions, candidates, totalBytes };
+  return { sessions, candidates, totalBytes, cache: cacheNext, inspected };
 }
 
 function batchStamp() {
@@ -723,6 +802,18 @@ function moveDirectory(src, dest) {
     fs.cpSync(src, dest, { recursive: true, errorOnExist: true });
     fs.rmSync(src, { recursive: true, force: false });
     return 'copy';
+  }
+}
+
+function claimCapture(dir) {
+  const file = path.join(dir, 'capture.lock');
+  try {
+    const fd = fs.openSync(file, 'wx', 0o600);
+    fs.closeSync(fd);
+    return file;
+  } catch (error) {
+    if (error.code === 'EEXIST') return null;
+    throw error;
   }
 }
 
@@ -751,7 +842,7 @@ function quarantineBatches(root) {
     if (!stat || !stat.isDirectory()) return null;
     const manifest = readJsonSafe(path.join(dir, 'manifest.json'));
     if (!manifest || manifest.schema !== 1 || manifest.tool !== 'continuity-prune') return null;
-    return { dir, name, at: stat.mtimeMs };
+    return { dir, name, at: stat.mtimeMs, manifest };
   }).filter(Boolean).sort((a, b) => b.name.localeCompare(a.name));
 }
 
@@ -759,6 +850,8 @@ function cleanupQuarantine(policy) {
   const removed = [];
   quarantineBatches(policy.quarantineRoot).forEach((batch, index) => {
     if (index === 0) return;
+    const status = batch.manifest.status;
+    if (status === 'inprogress' || status === 'partial') return;
     const overCount = index >= policy.maxQuarantineBatches;
     const overAge = Date.now() - batch.at > policy.quarantineDays * 86400000;
     if (!overCount && !overAge) return;
@@ -767,16 +860,81 @@ function cleanupQuarantine(policy) {
   return removed;
 }
 
+function listQuarantine(store) {
+  const policy = prunePolicy(store);
+  if (policy.invalid) return { status: 'INVALID_CONFIG', error: policy.invalid, store };
+  const batches = quarantineBatches(policy.quarantineRoot).map(batch => ({
+    name: batch.name,
+    status: batch.manifest.status || 'legacy',
+    createdAt: batch.manifest.createdAt || null,
+    sessions: (batch.manifest.sessions || []).length,
+    bytes: (batch.manifest.sessions || []).reduce((sum, item) => sum + (item.bytes || 0), 0),
+  }));
+  return { status: 'QUARANTINE', store, quarantineRoot: policy.quarantineRoot, batches };
+}
+
+function recoverQuarantine(store) {
+  const policy = prunePolicy(store);
+  if (policy.invalid) return { status: 'INVALID_CONFIG', error: policy.invalid, store };
+  const lock = acquirePruneLock(store);
+  if (!lock) return { status: 'BUSY', store };
+  const restored = [];
+  const skipped = [];
+  const errors = [];
+  try {
+    for (const batch of quarantineBatches(policy.quarantineRoot)) {
+      const manifest = batch.manifest;
+      if (!manifest.status || manifest.status === 'complete' || manifest.status === 'recovered') continue;
+      let changed = false;
+      for (const item of manifest.sessions || []) {
+        const source = path.join(batch.dir, item.cwdHash, item.sessionHash);
+        const target = path.join(store, item.cwdHash, item.sessionHash);
+        if (!statSafe(source)?.isDirectory()) { skipped.push({ batch: batch.name, sessionHash: item.sessionHash, code: 'SOURCE_MISSING' }); continue; }
+        if (statSafe(target)) { skipped.push({ batch: batch.name, sessionHash: item.sessionHash, code: 'TARGET_EXISTS' }); continue; }
+        try {
+          fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
+          moveDirectory(source, target);
+          item.restoredAt = new Date().toISOString();
+          restored.push({ batch: batch.name, cwdHash: item.cwdHash, sessionHash: item.sessionHash });
+          changed = true;
+        } catch (error) {
+          errors.push({ batch: batch.name, sessionHash: item.sessionHash, code: /^[A-Z0-9_]+$/.test(error.message) ? error.message : 'IO_ERROR' });
+        }
+      }
+      if (changed) {
+        manifest.status = (manifest.sessions || []).every(item => item.restoredAt) ? 'recovered' : 'partial';
+        manifest.updatedAt = new Date().toISOString();
+        atomic(path.join(batch.dir, 'manifest.json'), manifest);
+      }
+    }
+    return { status: 'RECOVERED', store, restored, skipped, errors };
+  } finally {
+    try { fs.unlinkSync(lock); } catch {}
+  }
+}
+
+function appendAudit(store, entry) {
+  try {
+    fs.appendFileSync(path.join(store, 'prune-audit.jsonl'), JSON.stringify(entry) + '\n', { mode: 0o600 });
+  } catch {}
+}
+
 function prune(options = {}) {
   const store = path.resolve(options.store || defaultStore());
   if (!statSafe(store)?.isDirectory()) return { status: 'NOT_FOUND', store };
   const policy = prunePolicy(store, options);
   if (policy.invalid) return { status: 'INVALID_CONFIG', error: policy.invalid, store };
+  let excludeDir = options.excludeDir ? path.resolve(options.excludeDir) : '';
+  if (!excludeDir && (options.cwd || options.session)) {
+    if (!options.cwd || !options.session) return { status: 'INVALID_ARGUMENT', error: 'CWD_SESSION_REQUIRED', store };
+    try { excludeDir = location({ store, cwd: options.cwd, session: options.session }).dir; }
+    catch (error) { return { status: 'INVALID_ARGUMENT', error: /^[A-Z0-9_]+$/.test(error.message) ? error.message : 'INVALID_ARGUMENT', store }; }
+  }
   const apply = options.apply === true;
   const lock = apply ? acquirePruneLock(store) : null;
   if (apply && !lock) return { status: 'BUSY', store };
   try {
-    const plan = planPrune(store, policy, options);
+    const plan = planPrune(store, policy, { ...options, excludeDir });
     const summary = {
       status: apply ? 'PRUNED' : 'DRY_RUN',
       store,
@@ -792,11 +950,12 @@ function prune(options = {}) {
       totalBytes: plan.totalBytes,
       candidates: plan.candidates.map(item => ({
         cwdHash: item.cwdHash, sessionHash: item.sessionHash, task: item.task || null,
-        reasons: item.reasons, manual: item.manual,
+        reasons: item.reasons, manual: item.manual, legacy: item.legacy,
         lastActivity: item.lastActivity ? new Date(item.lastActivity).toISOString() : null,
         bytes: item.bytes, records: item.records,
       })),
       deleted: [],
+      skipped: [],
       kept: plan.sessions.length - plan.candidates.length,
       reclaimedBytes: 0,
       quarantineBatch: null,
@@ -804,37 +963,64 @@ function prune(options = {}) {
       errors: [],
     };
     if (!apply) return summary;
-    const manifest = { schema: 1, tool: 'continuity-prune', createdAt: new Date().toISOString(), store, policy: summary.policy, sessions: [] };
+    const manifest = { schema: 1, tool: 'continuity-prune', status: 'inprogress', createdAt: new Date().toISOString(), store, policy: summary.policy, sessions: [] };
     let batchDir = null;
+    const flushManifest = () => {
+      if (!batchDir) return;
+      manifest.updatedAt = new Date().toISOString();
+      atomic(path.join(batchDir, 'manifest.json'), manifest);
+    };
     for (const item of plan.candidates) {
+      let claim = null;
       try {
+        claim = claimCapture(item.dir);
+        if (!claim) { summary.skipped.push({ cwdHash: item.cwdHash, sessionHash: item.sessionHash, code: 'CAPTURE_LOCK' }); continue; }
+        const activity = sessionActivity(item.dir);
+        if (activity > item.lastActivity) {
+          try { fs.unlinkSync(claim); } catch {}
+          summary.skipped.push({ cwdHash: item.cwdHash, sessionHash: item.sessionHash, code: 'ACTIVITY_CHANGED' });
+          continue;
+        }
         const files = fileHashes(item.dir);
         if (!batchDir) {
           batchDir = path.join(policy.quarantineRoot, batchStamp());
           fs.mkdirSync(batchDir, { recursive: true, mode: 0o700 });
+          flushManifest();
         }
         const dest = path.join(batchDir, item.cwdHash, item.sessionHash);
         fs.mkdirSync(path.dirname(dest), { recursive: true, mode: 0o700 });
         const mode = moveDirectory(item.dir, dest);
         manifest.sessions.push({
           cwdHash: item.cwdHash, sessionHash: item.sessionHash, task: item.task || null,
-          reasons: item.reasons, manual: item.manual,
+          reasons: item.reasons, manual: item.manual, legacy: item.legacy,
           lastActivity: item.lastActivity ? new Date(item.lastActivity).toISOString() : null,
           bytes: item.bytes, records: item.records, mode, files,
         });
+        flushManifest();
         summary.deleted.push({ cwdHash: item.cwdHash, sessionHash: item.sessionHash, task: item.task || null, reasons: item.reasons, bytes: item.bytes });
         summary.reclaimedBytes += item.bytes;
       } catch (error) {
+        if (claim) { try { if (fs.existsSync(claim)) fs.unlinkSync(claim); } catch {} }
         summary.errors.push({ cwdHash: item.cwdHash, sessionHash: item.sessionHash, code: /^[A-Z0-9_]+$/.test(error.message) ? error.message : 'IO_ERROR' });
       }
     }
-    if (batchDir) atomic(path.join(batchDir, 'manifest.json'), manifest);
+    if (batchDir) {
+      manifest.status = 'complete';
+      flushManifest();
+    }
     for (const cwdHash of new Set(plan.candidates.map(item => item.cwdHash))) {
       const cwdDir = path.join(store, cwdHash);
       try { if (namesOf(cwdDir).length === 0) fs.rmdirSync(cwdDir); } catch {}
     }
     summary.quarantineBatch = batchDir;
     summary.quarantineCleanup = cleanupQuarantine(policy);
+    for (const item of summary.deleted) delete plan.cache.entries[item.cwdHash + '/' + item.sessionHash];
+    if (plan.inspected > 0 || plan.candidates.length) savePruneCache(store, plan.cache);
+    appendAudit(store, {
+      schema: 1, tool: 'continuity-prune', at: new Date().toISOString(), status: summary.status,
+      deleted: summary.deleted, skipped: summary.skipped, quarantineBatch: batchDir,
+      reclaimedBytes: summary.reclaimedBytes, errors: summary.errors,
+    });
     return summary;
   } finally {
     if (lock) { try { fs.unlinkSync(lock); } catch {} }
@@ -906,7 +1092,7 @@ function hook(payload, options = {}) {
 
 function parseArgs(argv) {
   const options = {};
-  const booleans = new Set(['--history', '--apply', '--include-manual']);
+  const booleans = new Set(['--history', '--apply', '--include-manual', '--recover', '--list-quarantine']);
   const values = new Set(['--cwd', '--session', '--task', '--store', '--transcript', '--query', '--id', '--retention-days', '--orphan-days']);
   for (let i = 0; i < argv.length; i++) {
     if (booleans.has(argv[i])) { options[argv[i].slice(2)] = true; continue; }
@@ -949,12 +1135,25 @@ function cli(argv) {
     const scope = scopeAt(loc);
     console.log(JSON.stringify({ scope, records: scope ? records(loc).length : 0, directory: loc.dir }));
   } else if (command === 'prune') {
+    const store = path.resolve(options.store || defaultStore());
+    if (options['list-quarantine'] === true) {
+      const result = listQuarantine(store);
+      console.log(JSON.stringify(result));
+      return result.status === 'QUARANTINE' ? 0 : 3;
+    }
+    if (options.recover === true) {
+      const result = recoverQuarantine(store);
+      console.log(JSON.stringify(result));
+      return result.status === 'RECOVERED' ? 0 : 3;
+    }
     const result = prune({
-      store: options.store,
+      store,
       apply: options.apply === true,
       includeManual: options['include-manual'] === true,
       retentionDays: options['retention-days'],
       orphanDays: options['orphan-days'],
+      cwd: options.cwd,
+      session: options.session,
     });
     console.log(JSON.stringify(result));
     return result.status === 'PRUNED' || result.status === 'DRY_RUN' ? 0 : 3;
@@ -962,7 +1161,7 @@ function cli(argv) {
   return 0;
 }
 
-module.exports = { enable, disable, capture, search, restore, hook, records, location, databasePath, redact, selected, defaultStore, autoBindPolicy, autoBind, prune, prunePolicy, planPrune, autoPrune, CONTEXT_CHARS, cli };
+module.exports = { enable, disable, capture, search, restore, hook, records, location, databasePath, redact, selected, defaultStore, autoBindPolicy, autoBind, prune, prunePolicy, planPrune, autoPrune, recoverQuarantine, listQuarantine, CONTEXT_CHARS, cli };
 if (require.main === module) {
   try { process.exitCode = cli(process.argv.slice(2)); }
   catch (error) {

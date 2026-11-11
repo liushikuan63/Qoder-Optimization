@@ -8,9 +8,19 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ### Added
 - Add opt-in automatic pruning for the SQLite continuity archive. `prune` runs as a dry run by default; `--apply` moves expired, orphaned (source transcript missing) or empty session directories into a quarantine batch with a per-file SHA-256 manifest. Auto-bound sessions expire after `retentionDays` (default 90), orphaned archives get a 7-day grace, manually named task archives stay protected unless `--include-manual`, fresh capture locks and the current session are always excluded, and `SessionStart` runs cleanup at most once per `intervalHours` (default 24). Automatic cleanup stays off until `<store>/prune.json` enables it.
+- Add `prune --recover` for interrupted (`inprogress`/`partial`) quarantine batches, `prune --list-quarantine`, in-progress manifests written before and during moves, a `prune-audit.jsonl` audit entry per applied run, and a `prune-cache.json` inspection cache that avoids reopening unchanged databases.
+
+### Fixed
+- Do not treat legacy JSON-only continuity archives as empty session directories: `prune` now counts `records/*.json`, and such archives are governed only by the retention window instead of the 7-day empty grace.
+- Re-check `capture.lock` and the last activity immediately before moving a session, skip sessions touched after the scan, and let `prune --cwd/--session` exclude the current session; orphan detection also checks known transcript roots so a moved transcript is not mistaken for a deleted session.
+- `scope.json` mtime no longer extends a session's life, so disabling an old session cannot postpone cleanup.
 
 ### 中文摘要
 - 新增接续档案自动清理（默认关闭，需在 `<store>/prune.json` 开启）：`prune` 默认干跑，`--apply` 才把超期、孤儿（来源 transcript 已消失）或空会话目录移入隔离批次并写逐文件 SHA-256 清单；自动绑定会话按 `retentionDays`（默认 90 天）过期，孤儿宽限 7 天，手工命名任务档案除非 `--include-manual` 否则保留，当前会话与新鲜 `capture.lock` 永远排除，`SessionStart` 每 `intervalHours`（默认 24 小时）最多执行一次。
+- 新增 `prune --recover`（恢复崩溃中断批次）、`prune --list-quarantine`、移动前/过程中写 in-progress 清单、每次 apply 追加 `prune-audit.jsonl` 审计，以及 `prune-cache.json` 检查缓存，避免重复打开未变化的数据库。
+- 旧 `records/*.json` 档案不再被判为空档：`prune` 会计入 legacy 记录，这类档案只受保留期约束，不会被 7 天宽限误清。
+- 移动前重新抢占 `capture.lock` 并复核活动时间，扫描后被触碰的会话跳过；`prune --cwd/--session` 可排除当前会话；孤儿判定会检查已知 transcript 根目录，避免“文件移动”被当成“会话已删”。
+- `scope.json` 的 mtime 不再延长会话寿命，`disable` 不会给旧会话续命。
 
 ## [0.1.5] - 2026-11-10
 
