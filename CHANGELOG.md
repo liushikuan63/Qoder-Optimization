@@ -6,6 +6,12 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Added
+- Add opt-in automatic pruning for the SQLite continuity archive. `prune` runs as a dry run by default; `--apply` moves expired, orphaned (source transcript missing) or empty session directories into a quarantine batch with a per-file SHA-256 manifest. Auto-bound sessions expire after `retentionDays` (default 90), orphaned archives get a 7-day grace, manually named task archives stay protected unless `--include-manual`, fresh capture locks and the current session are always excluded, and `SessionStart` runs cleanup at most once per `intervalHours` (default 24). Automatic cleanup stays off until `<store>/prune.json` enables it.
+
+### 中文摘要
+- 新增接续档案自动清理（默认关闭，需在 `<store>/prune.json` 开启）：`prune` 默认干跑，`--apply` 才把超期、孤儿（来源 transcript 已消失）或空会话目录移入隔离批次并写逐文件 SHA-256 清单；自动绑定会话按 `retentionDays`（默认 90 天）过期，孤儿宽限 7 天，手工命名任务档案除非 `--include-manual` 否则保留，当前会话与新鲜 `capture.lock` 永远排除，`SessionStart` 每 `intervalHours`（默认 24 小时）最多执行一次。
+
 ## [0.1.5] - 2026-11-10
 
 ### Changed
