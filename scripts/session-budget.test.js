@@ -228,6 +228,22 @@ for (const c of cases) {
   fs.rmSync(remindState, { force: true });
   r = runTr();
   check('超期提醒：临时根不存在 → 静默', !ctxOf(r).includes('清理提醒'), JSON.stringify((r.stdout || '').slice(0, 40)));
+
+  // 水位提醒：只看字节/顶层条目，超阈值才注入；24h 节流
+  const usageState = path.join(trRoot, 'tmp', 'tmp-sweeper', 'usage-reminded.json');
+  fs.mkdirSync(trWork, { recursive: true });
+  fs.writeFileSync(path.join(trWork, 'a.png'), 'x');
+  fs.writeFileSync(path.join(trWork, 'b.png'), 'x');
+  fs.writeFileSync(path.join(trRoot, 'tmp-sweeper.json'), JSON.stringify({ usageWarnEntries: 1 }));
+  fs.rmSync(usageState, { force: true });
+  r = runTr();
+  check('水位提醒：顶层条目超阈值 → 注入', ctxOf(r).includes('临时根水位'), JSON.stringify((r.stdout || '').slice(0, 40)));
+  check('水位提醒：提醒后写节流状态', fs.existsSync(usageState));
+  r = runTr();
+  check('水位提醒：24h 内重复开台 → 静默（节流）', !ctxOf(r).includes('临时根水位'), JSON.stringify((r.stdout || '').slice(0, 40)));
+  fs.rmSync(path.join(trRoot, 'tmp-sweeper.json'), { force: true });
+  fs.rmSync(usageState, { force: true });
+  fs.rmSync(trWork, { recursive: true, force: true });
 }
 
 // ── 返回侧入账：回合间增量（体积小到不触发分档，也要能单独报出来）──

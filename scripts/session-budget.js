@@ -479,6 +479,8 @@ function watchdogNote() {
 const SWEEPER_SCRIPT = path.join(CLIENT_ROOT, 'scripts', 'tmp-sweeper.js');
 const TMP_REMIND_STATE = path.join(CLIENT_ROOT, 'tmp', 'tmp-sweeper', 'last-reminded.json');
 const TMP_REMIND_DAYS = Number(process.env.SB_TMP_REMIND_DAYS || 7);
+const TMP_USAGE_REMIND_STATE = path.join(CLIENT_ROOT, 'tmp', 'tmp-sweeper', 'usage-reminded.json');
+const TMP_USAGE_REMIND_HOURS = Number(process.env.SB_TMP_USAGE_REMIND_HOURS || 24);
 
 function tmpOverdueNote() {
   if (!fs.existsSync(SWEEPER_SCRIPT)) return null;        // 清理器没装，不是它能管的事
@@ -506,6 +508,39 @@ function tmpOverdueNote() {
     `再用 AskUserQuestion 一次问全（推荐清理），确认后才 \`--apply\`，最后复验清单为空。默认只列不删。`;
 }
 
+// SessionStart 之五：**临时根水位**（2026-11-11）。年龄策略管不到"总量失控"：
+// 大量未超期文件照样能把 D:/tmp 撑大。这里只看字节/顶层条目，超阈值才提醒，24h 节流。
+function tmpUsageNote() {
+  if (!fs.existsSync(SWEEPER_SCRIPT)) return null;
+  let sweeper;
+  try { sweeper = require(SWEEPER_SCRIPT); } catch (e) { return null; }
+  if (typeof sweeper.usageScan !== 'function') return null;
+  let usage;
+  try {
+    usage = sweeper.usageScan(sweeper.resolveRoots([]), 800);
+  } catch (e) { return null; }
+  if (!usage || !usage.roots || !usage.roots.length) return null;
+  const cfg = sweeper.loadConfig ? sweeper.loadConfig() : {};
+  const warnGb = Number.isFinite(cfg.usageWarnGb) ? cfg.usageWarnGb : 5;
+  const warnEntries = Number.isFinite(cfg.usageWarnEntries) ? cfg.usageWarnEntries : 2000;
+  const level = usage.bytes >= warnGb * 1024 * 1024 * 1024 || usage.topEntries >= warnEntries ? 'warn' : 'ok';
+  if (level !== 'warn') return null;
+  try {
+    const st = JSON.parse(fs.readFileSync(TMP_USAGE_REMIND_STATE, 'utf8'));
+    const hours = (Date.now() - Date.parse(st.at)) / 3600000;
+    if (Number.isFinite(hours) && hours <= TMP_USAGE_REMIND_HOURS) return null;
+  } catch (e) { /* 没有状态文件 ⇒ 第一次提醒 */ }
+  try {
+    fs.mkdirSync(path.dirname(TMP_USAGE_REMIND_STATE), { recursive: true });
+    fs.writeFileSync(TMP_USAGE_REMIND_STATE, JSON.stringify({ at: new Date().toISOString(), bytes: usage.bytes,
+      topEntries: usage.topEntries, partial: !!usage.partial }));
+  } catch (e) { /* 状态写不进去最多重复提醒 */ }
+  return `【临时根水位】${usage.roots.join('、')} 已用 **${(usage.bytes / 1048576).toFixed(1)}MB** / `
+    + `${usage.files} 个文件（顶层 ${usage.topEntries} 项；阈值 ${warnGb}GB 或 ${warnEntries} 项）`
+    + `${usage.partial ? '（预算内，数值为下限）' : ''}。先 \`node ~/.qoder/scripts/tmp-sweeper.js --json\` 看清单，`
+    + `再用 AskUserQuestion 定清理范围；按年龄的 /clean-temp 照样适用。`;
+}
+
 function main() {
   let payload;
   try { payload = JSON.parse(readStdin()); } catch (e) { return; }
@@ -526,11 +561,13 @@ function main() {
   if (event === 'SessionStart') {
     // tmpOverdueNote 有副作用（写节流状态），只算一次；算两次第二次会被自己节流掉
     const tmpNote = tmpOverdueNote();
-    const parts = [resumeQueue(cwd), vibePackNote(cwd), watchdogNote(), diskNote(), tmpNote].filter(Boolean);
+    const usageNote = tmpUsageNote();
+    const parts = [resumeQueue(cwd), vibePackNote(cwd), watchdogNote(), diskNote(), tmpNote, usageNote].filter(Boolean);
     if (parts.length) {
       // 台账记"注入了哪几路"，而不是只记条数：几路里少一路时必须能看出来少的是哪路
       const tags = [resumeQueue(cwd) ? 'resume-queue' : null, vibePackNote(cwd) ? 'vibe-pack' : null,
-        watchdogNote() ? 'watchdog' : null, diskNote() ? 'disk' : null, tmpNote ? 'tmp-overdue' : null].filter(Boolean).join('+');
+        watchdogNote() ? 'watchdog' : null, diskNote() ? 'disk' : null, tmpNote ? 'tmp-overdue' : null,
+        usageNote ? 'tmp-usage' : null].filter(Boolean).join('+');
       ledger(['SessionStart', tags, String(cwd).slice(0, 60)]);
       emit('SessionStart', parts.join('\n\n'));
     }

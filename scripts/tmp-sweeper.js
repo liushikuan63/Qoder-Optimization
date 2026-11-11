@@ -17,8 +17,11 @@
  * ③ 活跃保护：顶层条目 24h 内有改动 ⇒ 视为活跃会话产物，整棵跳过（`--include-fresh` 可解除）。
  * ④ 删除后回收空目录（只回收本次实际扫描过的顶层目录，根目录本身不动）。
  *
+ * ⑤ 证据自声明：目录内 `.keep` / `.evidence.json` ⇒ 整棵保留；`<root>/.trash` 是隔离区，不扫不删；
+ *    未分类扩展名不再永久豁免，走 30 天 `other` 兜底。
+ *
  * <p>用法：`node tmp-sweeper.js [--apply] [--root <dir>]... [--json] [--include-fresh] [--max-ms <n>]`；
- * 自测 `node tmp-sweeper.test.js`。
+ * `--usage` 只读统计临时根用量（开台水位提醒用）；自测 `node tmp-sweeper.test.js`。
  */
 'use strict'
 
@@ -28,11 +31,15 @@ const path = require('path')
 const { clientRoot } = require('./client-root.js');
 const CLIENT_ROOT = clientRoot()
 
-/** 超期阈值（天）：图片 / 文本类一次性产物 3 天，脚本类 15 天（脚本常被复用作模板，留久一点）。 */
+/** 超期阈值（天）：一次性产物按类型分档；未命中的扩展名走 30 天兜底，不能"永远不超期"。 */
 const RULES = [
   { kind: 'image', exts: ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'], maxAgeDays: 3 },
   { kind: 'text', exts: ['.log', '.txt', '.json', '.md', '.csv', '.html', '.output'], maxAgeDays: 3 },
-  { kind: 'script', exts: ['.js', '.cjs', '.mjs', '.ts', '.py', '.ps1', '.sh', '.mjs'], maxAgeDays: 15 },
+  { kind: 'media', exts: ['.mp4', '.mov', '.avi', '.mkv', '.wav', '.mp3'], maxAgeDays: 7 },
+  { kind: 'archive', exts: ['.zip', '.7z', '.rar', '.tgz', '.tar', '.gz', '.bz2', '.xz'], maxAgeDays: 15 },
+  { kind: 'document', exts: ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'], maxAgeDays: 15 },
+  { kind: 'script', exts: ['.js', '.cjs', '.mjs', '.ts', '.py', '.ps1', '.sh'], maxAgeDays: 15 },
+  { kind: 'other', exts: null, maxAgeDays: 30 },
 ]
 
 const DAY = 24 * 60 * 60 * 1000
@@ -48,18 +55,18 @@ function isHostSessionDir(p) {
   return p.split(path.sep).some((seg) => /^qoder-[^-]+-cwd$/i.test(seg))
 }
 
-/** 硬否决：宿主会话目录、配置根内、.git、node_modules、任何链接目录由调用方另行跳过。 */
+/** 硬否决：宿主会话目录、配置根内、.git、node_modules、隔离区、任何链接目录由调用方另行跳过。 */
 function isForbidden(p) {
   if (isHostSessionDir(p)) return true
   const rel = path.relative(CLIENT_ROOT, p)
   if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) return true
-  return p.split(path.sep).some((seg) => seg === '.git' || seg === 'node_modules')
+  return p.split(path.sep).some((seg) => seg === '.git' || seg === 'node_modules' || seg === '.trash')
 }
 
 function classify(name) {
   const ext = path.extname(name).toLowerCase()
   for (const r of RULES) {
-    if (r.exts.includes(ext)) {
+    if (r.exts === null || r.exts.includes(ext)) {
       return r
     }
   }
@@ -91,6 +98,62 @@ function isExcluded(p, ex, topName) {
   if (ex.paths.some((x) => low === x || low.startsWith(x + path.sep))) return true
   if (topName && ex.prefixes.some((pre) => topName.startsWith(pre))) return true
   return false
+}
+
+/** 证据自声明：目录内放 .keep / .evidence.json 即整棵保留，不再依赖中心前缀清单。 */
+const KEEP_MARKERS = ['.keep', '.evidence.json']
+
+function directMarker(dir, cache) {
+  const key = path.resolve(dir).toLowerCase()
+  if (cache && cache.has(key)) return cache.get(key)
+  let hit = false
+  for (const m of KEEP_MARKERS) {
+    try {
+      if (fs.statSync(path.join(dir, m)).isFile()) { hit = true; break }
+    } catch (e) {}
+  }
+  if (cache) cache.set(key, hit)
+  return hit
+}
+
+/** 从 dir 向上检查到 rootDir（含），命中任一目录的标记即保留。 */
+function ancestorMarker(dir, rootDir, cache) {
+  let cur = path.resolve(dir)
+  const rootLow = rootDir ? path.resolve(rootDir).toLowerCase() : null
+  for (let i = 0; i < 16; i++) {
+    if (directMarker(cur, cache)) return true
+    if (rootLow && cur.toLowerCase() === rootLow) break
+    const parent = path.dirname(cur)
+    if (parent === cur) break
+    cur = parent
+  }
+  return false
+}
+
+/** 顶层目录内任意子目录带标记 ⇒ 整棵保留（有界递归，避免深树拖慢扫描）。 */
+function treeMarker(dir, cache, state) {
+  if (directMarker(dir, cache)) return true
+  state = state || { n: 0 }
+  let list
+  try { list = fs.readdirSync(dir, { withFileTypes: true }) } catch (e) { return false }
+  for (const e of list) {
+    if (e.isSymbolicLink() || !e.isDirectory()) continue
+    if (state.n++ > 2000) return false
+    const full = path.join(dir, e.name)
+    if (isForbidden(full)) continue
+    if (treeMarker(full, cache, state)) return true
+  }
+  return false
+}
+
+function hasKeepMarker(p, rootDir, cache) {
+  try {
+    const st = fs.statSync(p)
+    const base = st.isDirectory() ? p : path.dirname(p)
+    return ancestorMarker(base, rootDir, cache || new Map())
+  } catch (e) {
+    return false
+  }
 }
 
 /** 我方临时根。名字必须精确等于 `qoder-work`，否则宁可什么都不扫。 */
@@ -134,6 +197,7 @@ function resolveRoots(argv) {
 
 function walk(dir, out, opts) {
   opts = opts || {}
+  const cache = opts.cache || (opts.cache = new Map())
   let entries
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true })
@@ -153,10 +217,14 @@ function walk(dir, out, opts) {
       continue
     }
     if (e.isDirectory()) {
+      if (directMarker(full, cache)) continue
       walk(full, out, opts)
       continue
     }
     if (!e.isFile()) {
+      continue
+    }
+    if (ancestorMarker(dir, opts.rootDir, cache)) {
       continue
     }
     const rule = classify(e.name)
@@ -183,12 +251,14 @@ function scanRoot(root, opts) {
   opts = opts || {}
   const found = []
   const scannedDirs = []
+  const cache = opts.cache || (opts.cache = new Map())
   let skippedFresh = 0
+  let skippedKeep = 0
   let entries
   try {
     entries = fs.readdirSync(root, { withFileTypes: true })
   } catch (e) {
-    return { found, scannedDirs, skippedFresh, error: true }
+    return { found, scannedDirs, skippedFresh, skippedKeep, error: true }
   }
   for (const e of entries) {
     if (opts.deadline && Date.now() > opts.deadline) {
@@ -197,6 +267,10 @@ function scanRoot(root, opts) {
     }
     const full = path.join(root, e.name)
     if (isForbidden(full) || e.isSymbolicLink() || isExcluded(full, opts.exclude, e.name)) continue
+    if (e.isDirectory() && treeMarker(full, cache)) {
+      skippedKeep += 1
+      continue
+    }
     if (!opts.includeFresh && opts.freshTopMs !== 0) {
       let st
       try { st = fs.statSync(full) } catch (err) { continue }
@@ -207,8 +281,9 @@ function scanRoot(root, opts) {
     }
     if (e.isDirectory()) {
       scannedDirs.push(full)
-      walk(full, found, opts)
+      walk(full, found, Object.assign({}, opts, { rootDir: root, cache }))
     } else if (e.isFile()) {
+      if (ancestorMarker(root, root, cache)) continue
       const rule = classify(e.name)
       if (rule === null) continue
       let st
@@ -220,7 +295,7 @@ function scanRoot(root, opts) {
       }
     }
   }
-  return { found, scannedDirs, skippedFresh, error: false }
+  return { found, scannedDirs, skippedFresh, skippedKeep, error: false }
 }
 
 /** 多根扫描；opts.maxMs 为时间预算（提醒/自动路径用），到点即停并标 partial。 */
@@ -231,19 +306,57 @@ function scan(opts) {
   const deadline = opts.maxMs && opts.maxMs > 0 ? Date.now() + opts.maxMs : 0
   const cfg = opts.config || loadConfig()
   const exclude = opts.exclude || buildExclude(cfg)
-  const scanOpts = { deadline, state, includeFresh: !!opts.includeFresh, freshTopMs: opts.freshTopMs, exclude }
+  const scanOpts = { deadline, state, includeFresh: !!opts.includeFresh, freshTopMs: opts.freshTopMs, exclude,
+    cache: new Map() }
   const found = []
   const scannedDirs = []
   let skippedFresh = 0
+  let skippedKeep = 0
   for (const r of roots) {
     const res = scanRoot(r, scanOpts)
     // 大根（如 D:/tmp 数十万文件）下 spread 实参超调用栈上限，逐条追加
     for (const item of res.found) found.push(item)
     for (const dir of res.scannedDirs) scannedDirs.push(dir)
     skippedFresh += res.skippedFresh
+    skippedKeep += res.skippedKeep || 0
     if (state.partial) break
   }
-  return { roots, stale: found, scannedDirs, skippedFresh, partial: state.partial }
+  return { roots, stale: found, scannedDirs, skippedFresh, skippedKeep, partial: state.partial }
+}
+
+/** 用量统计要看见隔离区（它仍占磁盘），只否决宿主目录 / 配置根 / .git / node_modules。 */
+function isForbiddenExceptTrash(p) {
+  if (isHostSessionDir(p)) return true
+  const rel = path.relative(CLIENT_ROOT, p)
+  if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) return true
+  return p.split(path.sep).some((seg) => seg === '.git' || seg === 'node_modules')
+}
+
+/** 只读用量统计：供开台水位提醒用；带时间/文件数预算，partial 表示数值为下限。 */
+function usageScan(roots, maxMs) {
+  const state = { partial: false }
+  const deadline = maxMs && maxMs > 0 ? Date.now() + maxMs : 0
+  let bytes = 0
+  let files = 0
+  let topEntries = 0
+  const stack = roots.map((r) => ({ dir: r, depth: 0 }))
+  while (stack.length) {
+    if (deadline && Date.now() > deadline) { state.partial = true; break }
+    const cur = stack.pop()
+    let list
+    try { list = fs.readdirSync(cur.dir, { withFileTypes: true }) } catch (e) { continue }
+    if (cur.depth === 0) topEntries += list.length
+    for (const e of list) {
+      const full = path.join(cur.dir, e.name)
+      if (isForbiddenExceptTrash(full)) continue
+      if (e.isSymbolicLink()) continue
+      if (e.isDirectory()) { stack.push({ dir: full, depth: cur.depth + 1 }); continue }
+      if (!e.isFile()) continue
+      try { bytes += fs.statSync(full).size; files++ } catch (err) {}
+      if (files > 200000) { state.partial = true; break }
+    }
+  }
+  return { roots, bytes, files, topEntries, partial: state.partial }
 }
 
 /** 回收空目录（只回收本次实际扫描过的顶层目录；根目录本身不动）。 */
@@ -289,6 +402,25 @@ function main(argv) {
   if (mi >= 0 && argv[mi + 1] && /^\d+$/.test(argv[mi + 1])) maxMs = Number(argv[mi + 1])
   const cfg = loadConfig()
   const freshTopMs = Number.isFinite(cfg.freshTopHours) ? cfg.freshTopHours * 3600000 : FRESH_TOP_MS
+  if (argv.includes('--usage')) {
+    const roots = resolveRoots(argv)
+    const usage = usageScan(roots, maxMs)
+    const warnGb = Number.isFinite(cfg.usageWarnGb) ? cfg.usageWarnGb : 5
+    const warnEntries = Number.isFinite(cfg.usageWarnEntries) ? cfg.usageWarnEntries : 2000
+    const level = usage.bytes >= warnGb * 1024 * 1024 * 1024 || usage.topEntries >= warnEntries ? 'warn' : 'ok'
+    if (!readOnly) {
+      heartbeat(`USAGE roots=${roots.length} bytes=${usage.bytes} files=${usage.files} top=${usage.topEntries}`
+        + `${usage.partial ? ' partial' : ''}`)
+    }
+    if (asJson) {
+      process.stdout.write(`${JSON.stringify({ roots, usage, level, warnGb, warnEntries }, null, 2)}\n`)
+    } else {
+      process.stdout.write(`临时根用量：${(usage.bytes / 1048576).toFixed(1)}MB / ${usage.files} 个文件 / `
+        + `顶层 ${usage.topEntries} 项（阈值 ${warnGb}GB 或 ${warnEntries} 项）⇒ ${level}`
+        + `${usage.partial ? '（预算内，数值为下限）' : ''}\n`)
+    }
+    return 0
+  }
   const res = scan({ roots: resolveRoots(argv), includeFresh, maxMs, freshTopMs, config: cfg })
   const found = res.stale
   let deleted = 0
@@ -306,7 +438,7 @@ function main(argv) {
     if (failed === 0) pruned = pruneEmptyDirs(res.scannedDirs, buildExclude(cfg))
   }
   if (!readOnly) {
-    heartbeat(`${apply ? 'APPLY' : 'SCAN'} roots=${res.roots.length} stale=${found.length} deleted=${deleted} failed=${failed} pruned=${pruned} skippedFresh=${res.skippedFresh}${res.partial ? ' partial' : ''}`)
+    heartbeat(`${apply ? 'APPLY' : 'SCAN'} roots=${res.roots.length} stale=${found.length} deleted=${deleted} failed=${failed} pruned=${pruned} skippedFresh=${res.skippedFresh} skippedKeep=${res.skippedKeep}${res.partial ? ' partial' : ''}`)
   }
   if (asJson) {
     process.stdout.write(`${JSON.stringify({ roots: res.roots, apply, stale: found, deleted, failed, pruned,
@@ -336,4 +468,5 @@ if (require.main === module) {
 }
 
 module.exports = { main, walk, scan, scanRoot, pruneEmptyDirs, classify, isHostSessionDir, isForbidden,
-  isExcluded, buildExclude, loadConfig, resolveRoots, RULES, defaultRoot, CLIENT_ROOT, CONFIG_PATH }
+  isForbiddenExceptTrash, isExcluded, buildExclude, loadConfig, resolveRoots, RULES, defaultRoot, CLIENT_ROOT,
+  CONFIG_PATH, hasKeepMarker, usageScan, KEEP_MARKERS }

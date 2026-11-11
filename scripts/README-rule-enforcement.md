@@ -277,3 +277,18 @@ Post 是另一个事件面（要看返回），塞进 `risky-match-guard` 就等
 | `/i-have-adhd` 入口不存在（库内技能、无命令） | 改为 skill-load 定位后 Read | — |
 | computer-use 插件与 CUA 阶梯重叠 | `rules/cua-automation.md` 明确其为备用面，不得混用 | — |
 | verify-before-claim 与目标推进抢触发 | description 加"不用于目标推进/接续（→goal-driven-execution）"，保持 ≤300 字符 | skills-doctor CLEAN + 索引重建 128 |
+
+## 2026-11-11：临时产物清理门禁强化（R14 / R15）
+
+| 问题 | 改法 | 判据 |
+|---|---|---|
+| R15 授权判定把"不要自动清理"当成授权 | 否定式优先；"不用问 / 无需询问"不算否定；只认明确授权词，不再把单独出现的"自动清理"当授权 | stop-gate：否定授权必拦 + 两种肯定式放行 |
+| 只看命令文本/散文即算闭环 | 自动清理必须 `--apply --json`；解析 `entries / deleted / recommended.preserve / failed`，要求本轮探测条目全部被删除或保留、`failed=0`、`--since` 与本轮用户消息偏差 ≤10 分钟 | R14/R15：未来/超期 since、failed、未覆盖均拦 |
+| 按顶层 mtime 命中后整棵删目录 | 只自动删"本轮新建"（birthtime ≥ since）；仅被修改的旧目录默认保留，`--only` 或 `--include-modified` 才删 | tmp-round-scan 62 条（含旧目录只修改用例） |
+| 并行会话产物被按时间窗误删 | `--session <8位会话id>` 只自动删名字含本会话令牌的条目；`--only` 精确指定；`--apply` 只允许 canonicalRoot（越界需 `--force`） | tmp-round-scan `--session` / 边界负对照 |
+| 未分类扩展名永不超期，压缩包/大件长期滞留 | 图片/文本 3 天、媒体 7 天、压缩包/文档/脚本 15 天、未分类 30 天兜底 | tmp-sweeper 40 条 |
+| 证据目录只靠中心前缀清单，容易漏登记 | 目录内 `.keep` / `.evidence.json` 自声明，扫描与自动清理都整棵保留 | tmp-sweeper / tmp-round-scan `.keep` 用例 |
+| 分享包产物与旧回滚点永久删除 | `--include-share-package` 默认移入 `<root>/.trash/<时间戳>`，保留 7 天后回收；`--no-trash` 才永久删 | tmp-round-scan 隔离区用例 |
+| 临时根总量失控没有提醒 | SessionStart 调 `tmp-sweeper --usage`，超过 5GB 或 2000 个顶层条目时提醒，24h 节流 | session-budget 水位用例 |
+
+**自测入口**：`node ~/.qoder/scripts/stop-gate.test.js`（432 条）、`tmp-sweeper.test.js`（40 条）、`tmp-round-scan.test.js`（62 条）、`session-budget.test.js`（全过）。

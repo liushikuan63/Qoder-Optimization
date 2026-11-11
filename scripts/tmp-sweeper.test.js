@@ -54,8 +54,20 @@ const freshImg = touch(path.join(root, 'shot-new.png'), 0)
 const staleScript = touch(path.join(root, 'probe-old.cjs'), 16)
 const freshScript = touch(path.join(root, 'probe-new.cjs'), 1)
 const oddExt = touch(path.join(root, 'data-xyzzy.qdx'), 40)
+const oddFresh = touch(path.join(root, 'data-fresh.qdx'), 1)
+const oldZip = touch(path.join(root, 'pkg-old.zip'), 20)
+const freshZip = touch(path.join(root, 'pkg-new.zip'), 5)
 const nestedStale = touch(path.join(root, 'sub/old-log.log'), 4)
 const staleOutput = touch(path.join(root, 'task-old.output'), 4)
+// 证据自声明：目录内 .keep ⇒ 整棵保留；.trash 是隔离区，永不入扫描
+const keepDir = path.join(root, 'keep-me')
+fs.mkdirSync(keepDir, { recursive: true })
+fs.writeFileSync(path.join(keepDir, '.keep'), '')
+touch(path.join(keepDir, 'old-shot.png'), 5)
+ageDir(keepDir, 5)
+touch(path.join(root, '.trash/20260101/old-shot.png'), 90)
+ageDir(path.join(root, '.trash/20260101'), 90)
+ageDir(path.join(root, '.trash'), 90)
 // 宿主会话目录形状：即使躺在临时根里、即使超期，也绝不能被列、更不能被删
 const hostDirName = 'qoder-AB12CD34-cwd'
 const hostStale = touch(path.join(root, hostDirName, 'inside.png'), 90)
@@ -66,7 +78,12 @@ check('超期图片被列出', listed(['shot-old.png']), [true])
 check('新鲜图片不被列（对照组，防"全列"式误删）', listed(['shot-new.png']), [false])
 check('超期脚本被列出', listed(['probe-old.cjs']), [true])
 check('15 天内的脚本不被列（脚本阈值比图片宽）', listed(['probe-new.cjs']), [false])
-check('未知扩展名一律不碰', listed(['data-xyzzy.qdx']), [false])
+check('未分类扩展名按 other 30 天兜底：超期被列出', listed(['data-xyzzy.qdx']), [true])
+check('未分类扩展名未超期不列（对照组）', listed(['data-fresh.qdx']), [false])
+check('压缩包按 archive 15 天：超期被列出', listed(['pkg-old.zip']), [true])
+check('压缩包 15 天内不列（对照组）', listed(['pkg-new.zip']), [false])
+check('.keep 目录整棵保留', listed(['keep-me/old-shot.png']), [false])
+check('.trash 隔离区不扫', listed(['.trash/20260101/old-shot.png']), [false])
 check('子目录里的超期件也能扫到', listed(['sub/old-log.log']), [true])
 check('.output（会话任务输出）按文本类识别', listed(['task-old.output']), [true])
 check('qoder-*-cwd 里的超期件不被列（硬否决）', listed([`${hostDirName}/inside.png`]), [false])
@@ -95,9 +112,21 @@ check('--apply 真的删掉了子目录超期日志', stillThere(nestedStale), f
 check('--apply 删掉了超期 .output', stillThere(staleOutput), false)
 check('--apply 没碰新鲜图片', stillThere(freshImg), true)
 check('--apply 没碰 15 天内的脚本', stillThere(freshScript), true)
-check('--apply 没碰未知扩展名', stillThere(oddExt), true)
+check('--apply 删掉了 other 兜底超期件', stillThere(oddExt), false)
+check('--apply 没碰 other 未超期件', stillThere(oddFresh), true)
+check('--apply 没碰压缩包未超期件', stillThere(freshZip), true)
+check('--apply 没碰 .keep 目录', stillThere(path.join(keepDir, 'old-shot.png')), true)
+check('--apply 没碰 .trash 隔离区', stillThere(path.join(root, '.trash/20260101/old-shot.png')), true)
 check('--apply 没碰宿主会话目录里的文件', stillThere(hostStale), true)
 check('--apply 回收了被清空的子目录', stillThere(path.join(root, 'sub')), false)
+
+// --usage：只读用量统计，不删任何文件
+const usageRun = spawnSync(process.execPath, [path.join(__dirname, 'tmp-sweeper.js'), '--root', root, '--usage', '--json'], { encoding: 'utf8' })
+let usageOut = null
+try { usageOut = JSON.parse(usageRun.stdout) } catch (e) {}
+check('--usage 返回字节数与顶层条目', !!usageOut && usageOut.usage.bytes > 0 && usageOut.usage.topEntries > 0, true)
+check('--usage 不删除文件', fs.existsSync(freshImg) && fs.existsSync(oddFresh), true)
+check('--usage 计入 .trash 占用', !!usageOut && usageOut.usage.bytes >= 1, true)
 
 // 把宿主会话目录本身当 --root 传进来，也必须被拒
 check('显式 --root 指到宿主会话目录也会被拒',
