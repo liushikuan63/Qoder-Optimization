@@ -19,19 +19,37 @@ Object.assign(env, {
 });
 for (const dir of [env.APPDATA, env.LOCALAPPDATA, path.join(home, '.qoder/scripts')]) fs.mkdirSync(dir, { recursive: true });
 for (const name of ['hook-crash-guard.js', 'client-root.js']) fs.copyFileSync(path.join(root, 'scripts', name), path.join(home, '.qoder/scripts', name));
+// 平台脚本自测已由 global self-tests（smoke-runner --tests-only 枚举 scripts/*.test.js）覆盖，
+// 这里只补它查不到的一类：技能自带工具的自测。只取第一方 skills/*/scripts/，不进 node_modules。
+function firstPartyTests(dir, extensions) {
+  const absolute = path.join(root, dir);
+  if (!fs.existsSync(absolute)) return [];
+  return fs.readdirSync(absolute).filter((file) => extensions.some((ext) => file.endsWith(ext))).sort()
+    .map((file) => path.join(absolute, file));
+}
+function skillToolTests() {
+  const out = [];
+  for (const skill of fs.readdirSync(path.join(root, 'skills')).sort()) {
+    const dir = path.join(root, 'skills', skill, 'scripts');
+    if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) continue;
+    for (const file of fs.readdirSync(dir).sort()) {
+      if (/\.test\.(js|mjs|cjs)$/.test(file)) out.push(path.join(dir, file));
+    }
+  }
+  return out;
+}
+const testRunner = ['--test', '--test-timeout=180000', '--test-concurrency=1'];
 const checks = [
   ['global self-tests', [path.join(root, 'skills/global-config-smoke-runner/scripts/smoke-runner.cjs'), '--tests-only']],
-  ['mechanize fail-streak self-tests', [path.join(root, 'skills/mechanize-rule-into-hook-guard/scripts/fail-streak-guard.test.js')]],
-  ['mechanize fail-streak mutation', [path.join(root, 'skills/mechanize-rule-into-hook-guard/scripts/fail-streak-merge-mutation.test.js')]],
-  ['release, suggestion, scan and tiering contracts', ['--test', '--test-timeout=180000', '--test-concurrency=1', ...fs.readdirSync(__dirname).filter((file) => file.endsWith('.test.js')).sort().map((file) => path.join(__dirname, file))]],
+  ['skill tool self-tests', [...testRunner, ...skillToolTests()]],
+  ['release, suggestion, scan and tiering contracts', [...testRunner, ...firstPartyTests('.github', ['.test.js'])]],
 ];
 let failures = 0;
 try {
   console.log('Runtime ' + process.version + '; isolated HOME and temp; no live client configuration inherited');
   for (const [name, args] of checks) {
-    // Aggregated suites already bound individual tests; a nine-minute cap can skip later files.
-    const boundedSuite = name === 'global self-tests' || name === 'release, suggestion, scan and tiering contracts';
-    const result = spawnSync(process.execPath, args, { cwd: root, env, stdio: 'inherit', timeout: boundedSuite ? 0 : 540000 });
+    // 三个套件都是聚合跑（node --test / smoke-runner 自带逐文件超时）；整批再设 9 分钟上限会让后面的文件被静默跳过。
+    const result = spawnSync(process.execPath, args, { cwd: root, env, stdio: 'inherit', timeout: 0 });
     console.log(`${name} EXIT=${result.status === null ? 'TIMEOUT/CRASH' : result.status}`);
     if (result.status !== 0) {
       failures++;

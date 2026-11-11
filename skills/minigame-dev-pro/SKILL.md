@@ -283,6 +283,9 @@ node scripts/knowledge-filter.mjs --stage <阶段> --json    # 知识过滤；so
 
 > 完整 31 个工具的参数与调用协议见 [references/engine/execution-protocol.md](references/engine/execution-protocol.md)。
 
+> 高风险工具自测（门禁/发布/合规类，随技能目录整体打包）：`node --test scripts/release-gate.test.mjs`；同目录另有 `scripts/gate-check.test.mjs`、`scripts/publish.test.mjs`、`scripts/compliance-scan.test.mjs`、`scripts/sensitive-word-scan.test.mjs`、`scripts/copyright-asset-scan.test.mjs`。用例全程用隔离临时目录，**不真上传、不连真机、不外发**；`publish` 用例一律指向不存在的 cli，确保走不到真实上传。
+> 退出码口径：`compliance-scan` 判 fail、`release-gate` 判 complete=false 时**仍 exit 0**，调用方必须读 JSON 的 `status` / `complete` 字段，不能用 `&&` 直接串起发布。
+
 ### 端到端门控链路（空目录 → 可上架）
 
 完整发布链路被合规/安全闸门守护，每一步的运行方与边界见 [references/knowledge/gate-pipeline.md](references/knowledge/gate-pipeline.md) §五：
