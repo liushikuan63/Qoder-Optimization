@@ -57,6 +57,43 @@ function paths(ledger) { return ledger.files.map(item => item.path); }
   check('A9 --compare-since 显式呈报漏扫清单', j.sinceComparison.missedBySince.includes('new-parent.txt') && j.sinceComparison.sinceFiles === 0, JSON.stringify(j.sinceComparison));
 }
 
+// ── F34：非 ASCII 路径不得被 git core.quotepath 转义成八进制字面量 ──
+{
+  const dir = repoFixture('unicode');
+  const cn = 'README-安装说明.md';
+  const nested = '技能/说明.md';
+  commit(dir, cn, '# 安装\n', '2026-11-05T00:00:00Z');
+  commit(dir, nested, '# 说明\n', '2026-11-06T00:00:00Z');
+  const ledger = buildLedger({ repo: dir, ...WINDOW });
+  const list = paths(ledger);
+  check('F34 中文文件名按真实 UTF-8 路径入台账', list.includes(cn) && list.includes(nested), JSON.stringify(list));
+  check('F34 不出现八进制转义字面量', !list.some(p => /\\[0-7]{3}/.test(p) || p.startsWith('"')), JSON.stringify(list));
+  const cnEntry = ledger.files.find(item => item.path === cn);
+  check('F34 现存中文文件 exists=true（不被误判已删）', Boolean(cnEntry && cnEntry.exists && cnEntry.existsAtRef), JSON.stringify(cnEntry));
+  check('F34 existing 计数含两个中文文件', ledger.existingFiles === 2 && ledger.deletedFiles === 0, `existing=${ledger.existingFiles} deleted=${ledger.deletedFiles}`);
+
+  const evidence = path.join(dir, 'evidence.log');
+  fs.writeFileSync(evidence, 'read line by line\n');
+  const recordsFile = path.join(dir, 'records.json');
+  fs.writeFileSync(recordsFile, JSON.stringify({
+    schema: 1,
+    entries: [
+      { path: cn, level: 'static', evidenceRef: 'evidence.log' },
+      { path: nested, level: 'static', evidenceRef: 'evidence.log' },
+    ],
+  }));
+  const covered = buildLedger({ repo: dir, ...WINDOW, records: recordsFile });
+  check('F34 按真实路径登记可达成 FULL', covered.coverage === 'FULL' && covered.unauditedCount === 0 && covered.outOfWindow.length === 0,
+    `coverage=${covered.coverage} unaudited=${covered.unauditedCount} outOfWindow=${JSON.stringify(covered.outOfWindow)}`);
+
+  // 负对照：拿 git 转义后的字面量登记不得命中（否则等于用假路径凑覆盖）
+  const escaped = '"README-\\345\\256\\211\\350\\243\\205\\350\\257\\264\\346\\230\\216.md"';
+  fs.writeFileSync(recordsFile, JSON.stringify({ schema: 1, entries: [{ path: escaped, level: 'static', evidenceRef: 'evidence.log' }] }));
+  const wrong = buildLedger({ repo: dir, ...WINDOW, records: recordsFile });
+  check('F34 负对照：转义字面量登记不命中真实文件', wrong.auditedCount === 0 && wrong.outOfWindow.length === 1 && wrong.coverage === 'PARTIAL',
+    `audited=${wrong.auditedCount} outOfWindow=${wrong.outOfWindow.length}`);
+}
+
 // ── 确定性：绝对窗口钉住后 HEAD 前进不改变窗口文件集 ──
 {
   const dir = repoFixture('pinned');

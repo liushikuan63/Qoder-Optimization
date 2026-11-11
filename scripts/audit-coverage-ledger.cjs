@@ -14,7 +14,9 @@ const COMMIT_HEADER = /^([0-9a-f]{40})\t(\d+)$/;
 const MAX_BUFFER = 256 * 1024 * 1024;
 
 function git(repo, args) {
-  const r = spawnSync('git', args, { cwd: repo, encoding: 'utf8', maxBuffer: MAX_BUFFER });
+  // core.quotepath 默认会把非 ASCII 路径转义成 "\345\256\211…" 字面量：
+  // 那种 key 既对不上真实文件（exists 误判已删），也永远匹配不上按真实路径写的审计登记。
+  const r = spawnSync('git', ['-c', 'core.quotepath=false', ...args], { cwd: repo, encoding: 'utf8', maxBuffer: MAX_BUFFER });
   if (r.error || r.status !== 0) throw new Error('GIT_FAILED: ' + String((r.stderr || r.error?.message || '')).trim().slice(0, 200));
   return r.stdout;
 }
