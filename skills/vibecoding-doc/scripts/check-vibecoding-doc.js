@@ -524,6 +524,10 @@ function checkPack(dir) {
   notes.push(`旧任务包模式：共 ${files.length} 个 md`);
 }
 
+// 一个标题可能同时命中多条段判据（「模块地图与禁区」既算地图又算禁区），
+// 同一处空节会被 push 两次，把问题数虚高、让基线对不上。同一事实只报一次。
+function uniqueProblems() { return [...new Set(problems)]; }
+
 // ---------- 自测（A5：校验器自身也要有能失败的判据） ----------
 function runSelfTest() {
   const os = require('os');
@@ -583,6 +587,23 @@ function runSelfTest() {
   reset(); checkAgents(goodAgents);
   ok('合规 AGENTS 判绿（负对照：不得过严）', problems.length === 0, problems.join(' | '));
 
+  // 6. 同一事实只报一次：一个标题同时命中「地图」与「禁区」两条段判据
+  const dualAgents = path.join(tmp, 'AGENTS.md');
+  fs.writeFileSync(dualAgents, '# AGENTS\n\n## 模块地图与禁区\n');
+  reset(); checkAgents(dualAgents);
+  const rawDual = problems.slice();
+  const uniqDual = uniqueProblems();
+  ok('变异对照：不去重时同一空节被重复计数', rawDual.length > uniqDual.length, `raw=${rawDual.length} uniq=${uniqDual.length}`);
+  ok('去重后同一空节只报一条', uniqDual.filter((p) => /模块地图与禁区.*是空的/.test(p)).length === 1, uniqDual.join(' | '));
+  ok('去重不吞掉其他判据', uniqDual.some((p) => /缺少「按需阅读」段/.test(p)), uniqDual.join(' | '));
+
+  // 7. 负对照：四个不同的空节不得被合并成一条
+  const fourEmpty = path.join(tmp, 'AGENTS-four-empty.md');
+  fs.writeFileSync(fourEmpty, '# AGENTS\n\n## 地图\n\n## 命令\n\n## 硬约束 / 禁区\n\n## 按需阅读\n');
+  reset(); checkAgents(fourEmpty);
+  const uniqEmpty = uniqueProblems();
+  ok('负对照：不同空节仍各报一条', uniqEmpty.filter((p) => /是空的/.test(p)).length === 4, uniqEmpty.join(' | '));
+
   fs.rmSync(tmp, { recursive: true, force: true });
   console.log(failed ? `\nselftest FAIL ${failed}` : '\nselftest ALL PASS');
   return failed ? 1 : 0;
@@ -616,7 +637,8 @@ else {
 
 for (const n of notes) console.log('  ' + n);
 console.log(`vibecoding 文档校验（${mode}）：${rel(TARGET) || path.basename(TARGET)}`);
-if (problems.length === 0) { console.log('结果：通过（0 个问题）'); process.exit(0); }
-console.log(`结果：${problems.length} 个问题`);
-for (const p of problems) console.log('  ✗ ' + p);
+const listed = uniqueProblems();
+if (listed.length === 0) { console.log('结果：通过（0 个问题）'); process.exit(0); }
+console.log(`结果：${listed.length} 个问题`);
+for (const p of listed) console.log('  ✗ ' + p);
 process.exit(1);
