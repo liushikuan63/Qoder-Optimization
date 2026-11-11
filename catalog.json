@@ -8,7 +8,7 @@
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 133,
-  "script": 161,
+  "script": 162,
   "command": 11,
   "agent": 2
  },
@@ -791,7 +791,7 @@
    "name": "mongodb-search-and-ai",
    "status": "shipped",
    "tier": "library",
-   "description": "MongoDB Atlas Search / Vector Search / Hybrid Search：全文、语义向量与混合检索的实现与调优。触发词：Atlas Search、全文检索、向量检索、Vector Search、RAG、混合检索、HNSW。不用于：普通查询与索引 → mongodb-query-optimizer。",
+   "description": "MongoDB Atlas Search / Vector Search / Hybrid Search：全文、语义向量与混合检索的实现与调优。触发词：Atlas Search、全文检索、Atlas 向量检索、Vector Search、RAG、Atlas 混合检索、Atlas HNSW。不用于：普通查询与索引 → mongodb-query-optimizer。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1215,7 +1215,7 @@
    "name": "redis-search",
    "status": "shipped",
    "tier": "library",
-   "description": "Redis Search：FT.CREATE schema、字段类型（TEXT/TAG/NUMERIC/GEO/VECTOR/JSON）、DIALECT 2、FT.SEARCH/AGGREGATE/HYBRID、HNSW/FLAT 向量与混合检索。触发词：RediSearch、FT.CREATE、FT.SEARCH、向量检索、HNSW、混合检索。不用于：LLM 语义缓存 → redis-semantic-cache。",
+   "description": "Redis Search：FT.CREATE schema、字段类型（TEXT/TAG/NUMERIC/GEO/VECTOR/JSON）、DIALECT 2、FT.SEARCH/AGGREGATE/HYBRID、HNSW/FLAT 向量与混合检索。触发词：RediSearch、FT.CREATE、FT.SEARCH、Redis 向量检索、Redis HNSW、Redis 混合检索。不用于：LLM 语义缓存 → redis-semantic-cache。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1413,7 +1413,7 @@
    "name": "skill-tiering-lazy-load",
    "status": "shipped",
    "tier": "library",
-   "description": "技能分层懒加载 playbook：注入过大时，把 ~/.qoder/skills 拆成「常驻元/高频 + skills-library 按需库」，用 tier-skills 迁移、build-skills-index 重建索引、skill-load 检索；含常驻集拍板、library 回退修补、注入降幅测量、可失败验收、回滚与分享包复现。触发词：技能分层、按需库、skills-library、skill-load。不用于停用合并（skill-trim-with-capability-transfer）、描述瘦身（skill-description-route-cue-rewrite）。",
+   "description": "技能分层懒加载 playbook：注入过大时，把 ~/.qoder/skills 拆成「常驻元/高频 + skills-library 按需库」，用 tier-skills 迁移、build-skills-index 重建索引、skill-load 检索；含常驻集拍板、library 回退修补、注入降幅测量、可失败验收、回滚与分享包复现。触发词：技能分层、按需库、skills-library、skill-load 检索。不用于停用合并（skill-trim-with-capability-transfer）、描述瘦身（skill-description-route-cue-rewrite）。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1611,7 +1611,7 @@
    "name": "svg-scene-animation",
    "status": "shipped",
    "tier": "library",
-   "description": "单文件 HTML+SVG+CSS keyframes 的 2D 循环场景动画交付与真机取证。触发词：SVG 动画、CSS keyframes、轮速与地面速度、视差平铺、旋转轴心、dashoffset、连杆 IK、相位贴合、animation-play-state、reduced-motion、Playwright、animationName/animationDuration 断言。含静态图纸清单与引擎级负对照。不用于 SMIL、视频生成或普通页面动效。",
+   "description": "单文件 HTML+SVG+CSS keyframes 的 2D 循环场景动画交付与真机取证。触发词：SVG 动画、CSS keyframes、轮速与地面速度、视差平铺、旋转轴心、dashoffset、连杆 IK、相位贴合、animation-play-state、reduced-motion、Playwright 动画断言、animationName/animationDuration 断言。含静态图纸清单与引擎级负对照。不用于 SMIL、视频生成或普通页面动效。",
    "source": "skills/svg-scene-animation",
    "install": {
     "mode": "copy-skill",
@@ -1751,7 +1751,7 @@
    "name": "vibecoding-doc",
    "status": "shipped",
    "tier": "core",
-   "description": "把模糊需求变成可交给 AI 实施的四层文档：AGENTS.md（地图/命令/禁区）、spec.md（what/why+验收）、plan/tasks（短周期计划）、运行时上下文（按需装载）。按风险定强度：小项目只留宪法+窄契约+验收，字段级模型/完整四态/全量版本冻结仅在跨人、长周期、高风险时加。降本靠稳定前缀缓存与子 agent 隔离，不靠写更长。触发词：写 vibecoding 文档、SPEC、需求规格、AGENTS.md、上下文工程、氛围编程。也用于需求扩维后的文档同步；不用于明确需求的直接实施、架构评审、代码评审。",
+   "description": "把模糊需求变成可交给 AI 实施的四层文档：AGENTS.md（地图/命令/禁区）、spec.md（what/why+验收）、plan/tasks（短周期计划）、运行时上下文（按需装载）。按风险定强度：小项目只留宪法+窄契约+验收，字段级模型/完整四态/全量版本冻结仅在跨人、长周期、高风险时加。降本靠稳定前缀缓存与子 agent 隔离，不靠写更长。触发词：写 vibecoding 文档、SPEC、实施规格、AGENTS.md、上下文工程、氛围编程。也用于需求扩维后的文档同步；不用于明确需求的直接实施、架构评审、代码评审。",
    "install": {
     "mode": "copy-skill",
     "tier": "core"
@@ -3532,6 +3532,19 @@
    },
    "dependencies": [
     "script:skill-reference-integrity.cjs"
+   ]
+  },
+  {
+   "id": "script:skill-trigger-uniqueness.cjs",
+   "category": "script",
+   "name": "skill-trigger-uniqueness.cjs",
+   "status": "shipped",
+   "source": "scripts/skill-trigger-uniqueness.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:skill-description.cjs"
    ]
   },
   {

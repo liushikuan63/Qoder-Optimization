@@ -1,6 +1,6 @@
 ---
 name: mongodb-search-and-ai
-description: "MongoDB Atlas Search / Vector Search / Hybrid Search：全文、语义向量与混合检索的实现与调优。触发词：Atlas Search、全文检索、向量检索、Vector Search、RAG、混合检索、HNSW。不用于：普通查询与索引 → mongodb-query-optimizer。"
+description: "MongoDB Atlas Search / Vector Search / Hybrid Search：全文、语义向量与混合检索的实现与调优。触发词：Atlas Search、全文检索、Atlas 向量检索、Vector Search、RAG、Atlas 混合检索、Atlas HNSW。不用于：普通查询与索引 → mongodb-query-optimizer。"
 license: Apache-2.0
 metadata:
   version: "1.0.0"

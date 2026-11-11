@@ -1,5 +1,8 @@
 'use strict';
 // one-off: measure the two-way skill gap + trigger collisions between CN and international skill sets
+// 适用范围（A2）：只扫现役常驻集（~/.qoder-cn/skills 与 ~/.qoder/skills），**不是**仓库全量技能。
+// 判据是「共享区分性词 ≥12 且占小集合 ≥22%」的模糊阈值，单个精确短语重复结构上不可能命中，
+// 因此「触发重叠对 = 0」不能当作无重复的结论。精确短语唯一性请用 scripts/skill-trigger-uniqueness.cjs。
 const fs = require('fs');
 const path = require('path');
 const HOME = (process.env.USERPROFILE || require('os').homedir()).replace(/\\/g, '/');
@@ -53,6 +56,7 @@ for (let i = 0; i < names.length; i++) {
   }
 }
 pairs.sort((x, y) => y.jac - x.jac);
+console.log('【适用范围】仅现役常驻集 CN=' + cn.length + ' / INTL=' + q.length + '，不含仓库 library 技能；本判据是模糊阈值，0 对不等于无精确短语重复（全量精确判据见 skill-trigger-uniqueness.cjs）');
 console.log('触发重叠对（共享区分性词 ≥12 且占小集合 ≥22%）=' + pairs.length + '，其中**已在 description 里互相指认**=' + pairs.filter((p) => p.cross).length + '，未指认=' + pairs.filter((p) => !p.cross).length);
 console.log('--- TOP 12 重叠对 ---');
 pairs.slice(0, 12).forEach((p) => console.log('  ' + p.jac + '  shared=' + p.shared + '  crossRef=' + (p.cross ? 'YES' : 'NO ') + '  ' + p.a + '  <->  ' + p.b));

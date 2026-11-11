@@ -1,6 +1,6 @@
 ---
 name: svg-scene-animation
-description: 单文件 HTML+SVG+CSS keyframes 的 2D 循环场景动画交付与真机取证。触发词：SVG 动画、CSS keyframes、轮速与地面速度、视差平铺、旋转轴心、dashoffset、连杆 IK、相位贴合、animation-play-state、reduced-motion、Playwright、animationName/animationDuration 断言。含静态图纸清单与引擎级负对照。不用于 SMIL、视频生成或普通页面动效。
+description: 单文件 HTML+SVG+CSS keyframes 的 2D 循环场景动画交付与真机取证。触发词：SVG 动画、CSS keyframes、轮速与地面速度、视差平铺、旋转轴心、dashoffset、连杆 IK、相位贴合、animation-play-state、reduced-motion、Playwright 动画断言、animationName/animationDuration 断言。含静态图纸清单与引擎级负对照。不用于 SMIL、视频生成或普通页面动效。
 ---
 
 # SVG / CSS 场景动画：从建模到真机取证

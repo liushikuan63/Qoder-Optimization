@@ -1,6 +1,6 @@
 ---
 name: skill-tiering-lazy-load
-description: "技能分层懒加载 playbook：注入过大时，把 ~/.qoder/skills 拆成「常驻元/高频 + skills-library 按需库」，用 tier-skills 迁移、build-skills-index 重建索引、skill-load 检索；含常驻集拍板、library 回退修补、注入降幅测量、可失败验收、回滚与分享包复现。触发词：技能分层、按需库、skills-library、skill-load。不用于停用合并（skill-trim-with-capability-transfer）、描述瘦身（skill-description-route-cue-rewrite）。"
+description: "技能分层懒加载 playbook：注入过大时，把 ~/.qoder/skills 拆成「常驻元/高频 + skills-library 按需库」，用 tier-skills 迁移、build-skills-index 重建索引、skill-load 检索；含常驻集拍板、library 回退修补、注入降幅测量、可失败验收、回滚与分享包复现。触发词：技能分层、按需库、skills-library、skill-load 检索。不用于停用合并（skill-trim-with-capability-transfer）、描述瘦身（skill-description-route-cue-rewrite）。"
 ---
 
 # 技能分层与按需懒加载
