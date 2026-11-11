@@ -70,3 +70,18 @@
 - **拦截语义**：只有 `exit 2` 或 `deny` JSON 真拦截；其余非零退出码 / 超时 / 崩溃默认**放行（fail-open）**——别把 hook 当安全边界，硬权限仍交权限系统。
 - **自证在跑**：每个 hook 都要能自证——`rules-reminder` 写心跳日志、各脚本带 `--selftest` 或 `.test.js`、`global-config-guard --check` 会报接线缺失与"指向不存在的脚本"。接完线**新开一次会话**再跑几轮，确认台账 / 心跳有记录。
 - 说明全文见 `../scripts/README-rule-enforcement.md`（三层机制全貌与阈值/选型依据）。
+
+## 两种等价接线形态：逐守卫多入口 vs dispatcher 单入口
+
+本包同时随包 `scripts/pre-tool-dispatcher.js` 与 `scripts/post-tool-dispatcher.js`，两种形态**守卫逻辑零改动**，可任选其一：
+
+| 形态 | 接线 | 适用 |
+|---|---|---|
+| 逐守卫多入口 | 按上表把每个守卫各挂一条 hook | 非 Windows、或 MSYS 进程数不是瓶颈的机器 |
+| dispatcher 单入口 | `PreToolUse` 只挂 `pre-tool-dispatcher.js`、`PostToolUse` 只挂 `post-tool-dispatcher.js` | **Windows**：Qoder 用 Git Bash 包每个 hook，一次工具调用会并发拉起 6~12 个 MSYS 进程；MSYS2 挂载表共享段若在首个进程初始化中途被杀，之后每个 bash 自旋约 15.7s 后报 EPERM。dispatcher 用 node 原生 `spawnSync` 串行调用原守卫，把每次调用的 MSYS 进程数从 N 降到 1 |
+
+- **等价性**：dispatcher 内部按原 settings 顺序调用同一批守卫，matcher 与超时逐条保留；缺失的守卫记 `skip-missing` 并继续（fail-open），不会因某个守卫未安装而整条失效。
+- **continuity 是可选项**：`post-tool-dispatcher.js` 按 `CONTINUITY_CJS` 环境变量或 `<客户端目录>/scripts/continuity.cjs` 解析，**不硬编码任何本机安装路径**；未安装时自动跳过。
+- **关闭**：`<客户端目录>/pre-tool-dispatcher.json` 或 `post-tool-dispatcher.json` 写 `{"disabled":true}`。
+- **台账**：`<客户端目录>/tmp/{pre,post}-tool-dispatcher/decisions.log`。
+- **体检**：`config-doctor.cjs` 的 `HOOK-DIFF` 比对的是**命令集合**，因此两侧分别采用不同形态时会报红——这是形态差异而非守卫缺失；`HOOK-ENTRY-MISSING` 才判「接线指向不存在的脚本」。要消除该红项，把两侧统一为同一形态（属现役配置改动，需单独批准）。

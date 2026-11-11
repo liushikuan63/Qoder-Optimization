@@ -84,16 +84,22 @@ test('evolution CLI rejects flag-shaped output values and unbounded day windows 
   assert.equal(fs.existsSync(path.join(f.home, '--json')), false);
 });
 
-for (const mode of ['small', 'git-covered', 'temporary']) {
+// 'temporary' 必须用**真实临时根**：C12 之后 isTempish 按前缀判临时根，
+// 合法项目目录恰好叫 tmp 不再被豁免（那正是 C12 要修的保护静默失效）。
+// 因此新增 'tmp-named-project' 模式，断言它**仍然**得到备份提醒。
+for (const mode of ['small', 'git-covered', 'temporary', 'tmp-named-project']) {
   test('carrier checks survive backup exemptions: ' + mode, t => {
     const f = fixture(t);
-    const target = path.join(f.home, mode === 'temporary' ? 'tmp/project' : 'project', 'skills/demo/SKILL.md');
+    const base = mode === 'temporary' ? fs.mkdtempSync(path.join(os.tmpdir(), 'qo-hooks-temp-')) : path.join(f.home, mode === 'tmp-named-project' ? 'tmp/project' : 'project');
+    const target = path.join(base, 'skills/demo/SKILL.md');
     f.write(target, mode === 'small' ? 'existing rule' : 'existing rule\n'.repeat(300));
     if (mode === 'git-covered') fs.mkdirSync(path.join(f.home, 'project/.git'), { recursive: true });
     const r = f.run('edit-guard.js', [], { hook_event_name: 'PreToolUse', tool_name: 'Write', session_id: 'carrier-' + mode, tool_input: { file_path: target } });
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /载体预检提醒/);
-    assert.doesNotMatch(r.stdout, /备份提醒/);
+    if (mode === 'tmp-named-project') assert.match(r.stdout, /备份提醒/);
+    else assert.doesNotMatch(r.stdout, /备份提醒/);
+    if (mode === 'temporary') fs.rmSync(base, { recursive: true, force: true });
   });
 }
 

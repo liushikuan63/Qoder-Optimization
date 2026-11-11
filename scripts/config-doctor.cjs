@@ -49,6 +49,20 @@ function check() {
   const onlyA = a.filter((x) => !b.includes(x)), onlyB = b.filter((x) => !a.includes(x));
   if (onlyA.length || onlyB.length) push('RED', 'HOOK-DIFF', '仅 CN: [' + onlyA.join('; ') + '] 仅 INTL: [' + onlyB.join('; ') + ']');
   else push('OK', 'HOOK-DIFF', a.length + ' 条两侧一致');
+  // A2. 反向 drift（现役侧）：hook 接线引用的脚本必须真实存在。
+  // 正向 drift 只比对「包内有的条目」，结构上查不出「现役挂了但根本没这个脚本」——
+  // 本项目实测过两个 dispatcher 只存在于本机、仓库与 catalog 都没有的情况。
+  const entryMissing = [];
+  for (const side of ['CN', 'INTL']) {
+    for (const h of hookSet(side)) {
+      const m = /([A-Za-z]:[\\/][^\s"']+\.(?:js|cjs|mjs)|~\/[^\s"']+\.(?:js|cjs|mjs))/.exec(h);
+      if (!m) continue;
+      const p = m[1].replace(/^~/, process.env.USERPROFILE || process.env.HOME || '');
+      if (!fs.existsSync(p)) entryMissing.push(side + ': ' + p);
+    }
+  }
+  if (entryMissing.length) push('RED', 'HOOK-ENTRY-MISSING', '接线指向不存在的脚本 ' + entryMissing.length + ' 条: [' + [...new Set(entryMissing)].join('; ') + ']');
+  else push('OK', 'HOOK-ENTRY-MISSING', '两侧 hook 入口脚本均存在');
   // B. 插件集合一致。分两档：bundler（两侧市场都有）缺了算 RED；
   // 市场插件（@qoder-marketplace）在两边的市场目录里未必都上架，属平台差异，只报 INFO 不判红。
   const isMkt = (k) => /@qoder-marketplace$/.test(k);

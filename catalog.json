@@ -8,7 +8,7 @@
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 133,
-  "script": 158,
+  "script": 161,
   "command": 11,
   "agent": 2
  },
@@ -2715,6 +2715,19 @@
    ]
   },
   {
+   "id": "script:guard-criteria.test.js",
+   "category": "script",
+   "name": "guard-criteria.test.js",
+   "status": "shipped",
+   "source": "scripts/guard-criteria.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:attempt-lock-core.js"
+   ]
+  },
+  {
    "id": "script:hook-crash-guard.js",
    "category": "script",
    "name": "hook-crash-guard.js",
@@ -3162,6 +3175,38 @@
    "source": "scripts/pkg-catalog.test.js",
    "dependencies": [
     "script:pkg-catalog.cjs"
+   ]
+  },
+  {
+   "id": "script:post-tool-dispatcher.js",
+   "category": "script",
+   "name": "post-tool-dispatcher.js",
+   "status": "shipped",
+   "source": "scripts/post-tool-dispatcher.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:attempt-lock-guard.js",
+    "script:auth-lock-guard.js",
+    "script:client-root.js",
+    "script:cua-cursor-guard.js",
+    "script:hook-crash-guard.js",
+    "script:tool-payload-guard.js"
+   ]
+  },
+  {
+   "id": "script:pre-tool-dispatcher.js",
+   "category": "script",
+   "name": "pre-tool-dispatcher.js",
+   "status": "shipped",
+   "source": "scripts/pre-tool-dispatcher.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:client-root.js",
+    "script:hook-crash-guard.js"
    ]
   },
   {
