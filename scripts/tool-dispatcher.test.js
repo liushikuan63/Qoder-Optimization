@@ -164,6 +164,19 @@ test('tool dispatchers', async (t) => {
     assert.ok(!/skip-missing\|continuity/.test(present.ledger), 'env 指到真实脚本后不得再记 skip-missing');
   });
 
+  await t.test('PostToolUse matcher decides whether a real guard runs at all', () => {
+    const payload = { hook_event_name: 'PostToolUse', tool_response: 'x'.repeat(4096), session_id: 'matcher-probe' };
+    const read = run(POST, { ...payload, tool_name: 'Read' }, sandbox('post-match-read'), { TPG_BYTES: '1024' });
+    assert.equal(read.status, 0);
+    assert.equal(only(read.stdout).decision, 'block', 'Read 在 tool-payload-guard 的 matcher 内，必须真的被调用');
+    assert.match(read.ledger, /hit\|tool-payload-guard\|Read/);
+
+    const write = run(POST, { ...payload, tool_name: 'Write' }, sandbox('post-match-write'), { TPG_BYTES: '1024' });
+    assert.equal(write.status, 0);
+    assert.equal(write.stdout.trim(), '', 'Write 不在该守卫 matcher 内，不得被调用');
+    assert.ok(!/tool-payload-guard/.test(write.ledger), 'matcher 不命中时台账不得出现该守卫');
+  });
+
   await t.test('PostToolUse disabled switch and malformed input stay fail-open', () => {
     const box = sandbox('post-disabled');
     fs.writeFileSync(path.join(box.client, 'post-tool-dispatcher.json'), JSON.stringify({ disabled: true }));
