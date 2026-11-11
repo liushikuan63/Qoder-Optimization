@@ -310,6 +310,89 @@ check('显式恢复常驻后重新建卡', () => {
   fs.writeFileSync(prefFile, JSON.stringify({ schema: 1, resident: true }));
   assert.strictEqual(core.prepareKickoff({ sessionId: 'sess-pref2', prompt: '修复登录按钮的文案', cwd: process.cwd() }).skip, false);
 });
+console.log('# read-only fast path');
+freshState();
+check('审阅加建议的纯审阅请求跳过开工卡', () => {
+  const result = core.prepareKickoff({ sessionId: 'sess-ro1', prompt: '审阅之前的实现，按你的理解，相关方案是否可以更优，请给出更优的建议', cwd: process.cwd() });
+  assert.strictEqual(result.skip, true);
+  assert.strictEqual(result.reason, 'READ_ONLY');
+});
+check('显式只读且声明不实施时跳过', () => {
+  assert.strictEqual(core.prepareKickoff({ sessionId: 'sess-ro2', prompt: '只读审阅，提出修改建议，不实施', cwd: process.cwd() }).reason, 'READ_ONLY');
+});
+check('先只读检查后执行仍要开工卡', () => {
+  assert.strictEqual(core.prepareKickoff({ sessionId: 'sess-ro3', prompt: '先只读检查，然后按计划执行修改', cwd: process.cwd() }).skip, false);
+});
+check('审阅并修改仍要开工卡', () => {
+  assert.strictEqual(core.prepareKickoff({ sessionId: 'sess-ro4', prompt: '审阅并修改登录按钮文案', cwd: process.cwd() }).skip, false);
+});
+
+console.log('# machine-readable selections');
+freshState();
+check('复杂卡选项带机读 value', () => {
+  const context = contextFor(undefined, 'sess-sel1');
+  core.writePending(context);
+  const composed = core.composeCard({ schema: 1, context, card: complexCard(context) }, context.binding);
+  const values = composed.questions.flatMap((question) => question.options.map((option) => option.value));
+  for (const value of ['proceed', 'update', 'create', 'none', 'parallel', 'serial']) assert.ok(values.includes(value), value);
+});
+check('复杂卡未显式选择文档与目标时拒绝记录', () => {
+  const context = contextFor(undefined, 'sess-sel2');
+  core.writePending(context);
+  const composed = core.composeCard({ schema: 1, context, card: complexCard(context) }, context.binding);
+  throwsCode(() => core.recordConfirmation({ schema: 1, context, cardDigest: composed.cardDigest, choice: 'proceed' }, context.binding), 'MISSING_KICKOFF_SELECTION');
+});
+check('复杂卡显式选择 none 按用户选择落账', () => {
+  const context = contextFor(undefined, 'sess-sel3');
+  core.writePending(context);
+  const composed = core.composeCard({ schema: 1, context, card: complexCard(context) }, context.binding);
+  core.recordConfirmation({ schema: 1, context, cardDigest: composed.cardDigest, choice: 'proceed', selections: { documentation: 'none', goal: 'none', parallel: 'serial' } }, context.binding);
+  assert.deepStrictEqual(core.readConfirmed('sess-sel3').selections, { documentation: 'none', goal: 'none', parallel: 'serial' });
+});
+
+console.log('# request binding');
+check('requestId 命中即可匹配', () => assert.strictEqual(core.matchesRequest(contextFor(undefined, 'sess-bind1'), { requestMessageId: 'msg-sess-bind1' }), true));
+check('空白差异时 promptKey 兜底匹配', () => assert.strictEqual(core.matchesRequest(contextFor('修复 登录按钮的文案', 'sess-bind2'), { text: '修复   登录按钮的文案' }), true));
+check('不同请求不匹配', () => assert.strictEqual(core.matchesRequest(contextFor(undefined, 'sess-bind3'), { text: '把 README 版本号改成 0.1.6' }), false));
+
+console.log('# preference split');
+freshState();
+check('inject 开 enforce 关：仍注入但不硬拦', () => {
+  fs.writeFileSync(prefFile, JSON.stringify({ schema: 1, inject: true, enforce: false }));
+  assert.strictEqual(core.kickoffInjectEnabled(), true);
+  assert.strictEqual(core.kickoffEnforceEnabled(), false);
+  assert.strictEqual(core.prepareKickoff({ sessionId: 'sess-split1', prompt: '修复登录按钮的文案', cwd: process.cwd() }).skip, false);
+});
+check('inject 关时单独 enforce 无执行路径', () => {
+  fs.writeFileSync(prefFile, JSON.stringify({ schema: 1, inject: false, enforce: true }));
+  assert.strictEqual(core.kickoffEnforceEnabled(), false);
+  assert.strictEqual(core.prepareKickoff({ sessionId: 'sess-split2', prompt: '修复登录按钮的文案', cwd: process.cwd() }).reason, 'USER_DISABLED');
+});
+
+console.log('# note size and ledger');
+freshState();
+delete process.env.KICKOFF_PREFERENCE_FILE;
+check('注入块体积受控', () => {
+  const result = core.prepareKickoff({ sessionId: 'sess-note', prompt: '修复登录按钮的文案', cwd: process.cwd() });
+  const bytes = Buffer.byteLength(result.note);
+  assert.ok(bytes < 2200, 'note bytes=' + bytes);
+  assert.ok(result.note.includes('KICKOFF_BINDING') && result.note.includes('KICKOFF_COMPOSE_COMMAND'));
+});
+check('台账 status 列出文件且 gc 默认只预览', () => {
+  const oldFile = path.join(STATE, 'pending-old.json');
+  const newFile = path.join(STATE, 'pending-new.json');
+  fs.writeFileSync(oldFile, JSON.stringify({ schema: 1, context: { schema: 1 }, at: '2020-01-01T00:00:00.000Z' }));
+  fs.writeFileSync(newFile, JSON.stringify({ schema: 1, context: { schema: 1 }, at: new Date().toISOString() }));
+  assert.ok(core.ledgerStatus(null).files.some((item) => item.name === 'pending-old.json'));
+  const preview = core.gcLedger({});
+  assert.deepStrictEqual(preview.expired.map((item) => path.basename(item.file)), ['pending-old.json']);
+  assert.strictEqual(fs.existsSync(oldFile), true);
+  const applied = core.gcLedger({ apply: true });
+  assert.strictEqual(applied.deleted, 1);
+  assert.strictEqual(fs.existsSync(oldFile), false);
+  assert.strictEqual(fs.existsSync(newFile), true);
+});
+
 delete process.env.KICKOFF_PREFERENCE_FILE;
 
 fs.rmSync(STATE, { recursive: true, force: true });

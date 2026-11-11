@@ -238,6 +238,8 @@ function kickoffNote(promptText) {
     if (result.skip) {
       if (result.reason === 'CONTINUATION') return kickoffCore.buildContinuationNote(result.continuation);
       if (result.reason === 'USER_SKIP') return '\n【开工确认 · 用户豁免】用户明确说不用确认；本轮可直接执行，但对象、范围或验收变化时仍重新判断。';
+      // 纯审阅/分析请求：不注入开工卡；本轮若出现写入由 stop-gate R16 兜底。
+      if (result.reason === 'READ_ONLY') return '';
       // 安装时选择不常驻（USER_DISABLED）：不再自动注入开工提示卡；其他提醒保持原样。
       return '';
     }

@@ -19,6 +19,25 @@ const IMPERATIVE_PREFIX = /^(?:帮我|请帮我|麻烦|给我|把)/;
 const EXPLICIT_SKIP = /(?:不用|无需|不必|免)(?:再)?(?:确认|问|问我)|直接(?:做|执行|开工|改|处理)|别(?:问|确认)|先(?:做|执行)再说/;
 const CONTINUATION = /^(?:继续(?:刚才|之前|上面|原计划)?的?(?:任务|工作|计划)?|接着|按(?:此|计划|刚才|上面|原计划)(?:继续)?|就按(?:这个|此|计划)|开始|执行吧|开工吧|下一步|往下做|继续做|好[的]?[，,]?(?:继续|开工|执行)|可以[，,]?(?:继续|开工|执行)|确认[，,]?(?:继续|执行|开工)|同意[，,]?(?:继续|执行|开工))(?:[。.!！~～]|$)/;
 const COMPLEX_MARKERS = /(?:跨模块|跨端|前后端|全链路|全量|重构|迁移|架构|发布|部署|批量|多文件|多模块|多端|系统性|整套|多阶段|长期|长任务|并行|多会话|全部|整体|升级|打包|集成|联调|兼容|回归|灰度|上线|生产|权限|鉴权|计费|安全|性能|并发|缓存|消息队列|分布式|微服务)/g;
+const READONLY_EXPLICIT = /(?:只读|仅(?:提供|做|作)?(?:审阅|审查|评审|分析|建议)|只(?:给|提供)(?:方案|建议)|不(?:要|得)?(?:修改|写入|改动)任何文件)/;
+const READONLY_REVIEW = /(?:审阅|审查|评审|评估|复盘|分析|诊断|排查|对比|梳理|检视)/;
+const READONLY_OUTPUT = /(?:建议|结论|意见|方案|推荐|判断|报告|评估)/;
+const MUTATION_INTENT = /(?<!的)(?:修改|改动|改成|修复|实现|新增|添加|删除|移除|部署|发布|上线|提交|推送|写入|重构|迁移|安装|升级|替换|更新|优化|调整|执行|落地|开工|改一|改下|做一个|写一个|生成)/;
+
+// 纯审阅/分析且没有变更动词时，不要求开工确认；显式"只读"优先，但带明确
+// 先后顺序或祈使动作（"先只读检查，然后执行""帮我改…"）时仍按执行任务处理。
+function isReadOnlyRequest(prompt) {
+  const text = normalize(prompt);
+  if (!text) return false;
+  if (/不(?:要|得)?(?:修改|写入|改动)任何文件/.test(text)) return true;
+  if (READONLY_EXPLICIT.test(text)) {
+    if (/(?:然后|接着|之后|再|并|同时|随后)[^，。；]{0,16}(?:修改|改动|修复|实现|写入|新增|删除|移除|部署|发布|提交|推送|优化|调整|更新|安装|升级|执行|落地)/.test(text)) return false;
+    if (/(?:帮我|请帮我|麻烦|给我|需要你|要你)[^，。；]{0,10}(?:修改|改动|修复|实现|写入|新增|删除|移除|部署|发布|提交|推送|优化|调整|更新|安装|升级|执行|落地|做一个|写一个)/.test(text)) return false;
+    return true;
+  }
+  if (MUTATION_INTENT.test(text)) return false;
+  return READONLY_REVIEW.test(text) && READONLY_OUTPUT.test(text);
+}
 
 function fail(code, message) {
   const error = new Error(message || code);
@@ -39,11 +58,31 @@ function sha256(value) {
   return crypto.createHash('sha256').update(String(value)).digest('hex');
 }
 
+// 请求锚点：前缀 + 长度，避免 transcript 尾部截断导致整段摘要失配。
+function requestKey(prompt) {
+  const text = normalize(prompt);
+  return sha256(text.slice(0, 160) + '|' + text.length);
+}
+
+function matchesRequest(context, candidate) {
+  if (!context) return false;
+  const id = candidate && candidate.requestMessageId;
+  if (id && context.requestMessageId && String(id) === String(context.requestMessageId)) return true;
+  const text = candidate && typeof candidate.text === 'string' ? candidate.text : '';
+  if (text) {
+    if (sha256(text.trim()) === context.requestDigest) return true;
+    if (context.promptKey && requestKey(text) === context.promptKey) return true;
+  }
+  const digest = candidate && candidate.digest;
+  return Boolean(digest && digest === context.requestDigest);
+}
+
 function classifyKickoffTask(prompt) {
   const text = normalize(prompt);
   if (!text) return { profile: 'question', signals: [], explicitSkip: false, text };
   if (/^[/!]/.test(text)) return { profile: 'question', signals: ['命令入口'], explicitSkip: false, text };
   if (EXPLICIT_SKIP.test(text)) return { profile: 'simple', signals: ['用户显式跳过'], explicitSkip: true, text };
+  if (isReadOnlyRequest(text)) return { profile: 'simple', signals: ['只读审阅'], explicitSkip: false, readOnly: true, text };
   const imperative = ACTION_WORDS.test(text);
   const clauses = text.split(/[，,。；;！!？?\n]/).map((part) => part.trim()).filter(Boolean);
   const tail = clauses[clauses.length - 1] || text;
@@ -99,6 +138,7 @@ function createKickoffContext({ sessionId, prompt, cwd, requestMessageId, profil
     workspaceKey: path.resolve(cwd),
     requestMessageId: String(requestMessageId || id).slice(0, 200),
     requestDigest: digest,
+    promptKey: requestKey(prompt),
     profileHint: profileHint || classification.profile,
     signals: (signals || classification.signals).slice(0, 5),
   };
@@ -127,12 +167,27 @@ function preferenceFile() {
 function readPreference() {
   const file = preferenceFile();
   const data = readJson(file);
-  if (!data || data.schema !== 1 || typeof data.resident !== 'boolean') return { schema: 1, resident: true, file, configured: false };
-  return { schema: 1, resident: data.resident, file, configured: true };
+  const split = data && data.schema === 1 && (typeof data.inject === 'boolean' || typeof data.enforce === 'boolean');
+  if (!data || data.schema !== 1 || (typeof data.resident !== 'boolean' && !split)) {
+    return { schema: 1, resident: true, inject: true, enforce: true, file, configured: false };
+  }
+  const resident = typeof data.resident === 'boolean' ? data.resident : data.inject !== false && data.enforce !== false;
+  const inject = typeof data.inject === 'boolean' ? data.inject : resident;
+  // 不注入就无从确认，单独的 enforce 没有可执行路径；它只在 inject 开启时生效。
+  const enforce = inject && (typeof data.enforce === 'boolean' ? data.enforce : resident);
+  return { schema: 1, resident, inject, enforce, file, configured: true };
 }
 
 function kickoffResidentEnabled() {
-  return readPreference().resident !== false;
+  return readPreference().inject !== false;
+}
+
+function kickoffInjectEnabled() {
+  return readPreference().inject !== false;
+}
+
+function kickoffEnforceEnabled() {
+  return readPreference().enforce !== false;
 }
 
 function sessionSlug(sessionId) {
@@ -193,6 +248,49 @@ function readPending(sessionId) {
   if (pending.context.binding !== contextBinding(pending.context)) return null;
   if (!fresh(pending.at, PENDING_MS)) return null;
   return pending;
+}
+
+function ledgerFiles() {
+  const dir = stateDir();
+  let names = [];
+  try { names = fs.readdirSync(dir).filter((name) => /^(?:pending|confirmed)-[A-Za-z0-9._-]+\.json$/.test(name)); } catch {}
+  return names.map((name) => {
+    const file = path.join(dir, name);
+    let at = null;
+    try { at = JSON.parse(fs.readFileSync(file, 'utf8')).at || null; } catch {}
+    if (!at) { try { at = fs.statSync(file).mtime.toISOString(); } catch {} }
+    return { name, file, at, kind: name.startsWith('pending-') ? 'pending' : 'confirmed' };
+  });
+}
+
+function ledgerStatus(sessionId) {
+  const pref = readPreference();
+  const status = {
+    schema: 1,
+    stateDir: stateDir(),
+    preference: { resident: pref.resident, inject: pref.inject, enforce: pref.enforce, configured: pref.configured, file: pref.file },
+    files: ledgerFiles(),
+  };
+  if (sessionId) {
+    const pending = readPending(sessionId);
+    const confirmed = readConfirmed(sessionId);
+    status.session = sessionId;
+    status.pending = pending ? { at: pending.at, decisionId: pending.context.decisionId, cardDigest: pending.cardDigest || null, steps: pending.stepsCount || null } : null;
+    status.confirmed = confirmed ? { at: confirmed.at, choice: confirmed.choice, decisionId: confirmed.context.decisionId, selections: confirmed.selections || null } : null;
+  }
+  return status;
+}
+
+function gcLedger({ apply = false, days, now = Date.now() } = {}) {
+  const pendingMs = days ? days * 86400000 : PENDING_MS;
+  const confirmedMs = days ? days * 86400000 : CONFIRMED_MS;
+  const expired = ledgerFiles().filter((item) => {
+    const ts = Date.parse(item.at);
+    if (!Number.isFinite(ts)) return false;
+    return now - ts > (item.kind === 'pending' ? pendingMs : confirmedMs);
+  });
+  if (apply) for (const item of expired) { try { fs.unlinkSync(item.file); } catch {} }
+  return { schema: 1, apply, days: days || null, expired: expired.map((item) => ({ kind: item.kind, file: item.file, at: item.at })), deleted: apply ? expired.length : 0 };
 }
 
 function readConfirmed(sessionId) {
@@ -318,8 +416,8 @@ function cardDigest(card) {
   }));
 }
 
-function option(label, description) {
-  return { label, description };
+function option(label, description, value) {
+  return value ? { label, description, value } : { label, description };
 }
 
 function buildQuestions(card) {
@@ -329,8 +427,8 @@ function buildQuestions(card) {
       header: '开工确认',
       multiSelect: false,
       options: [
-        ...card.interpretations.map((item, index) => option(index === 0 ? item.label + '（推荐）' : item.label, item.description)),
-        ...(card.interpretations.length < 4 ? [option('都不对，我来补充', '先不执行；请补充或修正理解，我修订后重新确认。')] : []),
+        ...card.interpretations.map((item, index) => option(index === 0 ? item.label + '（推荐）' : item.label, item.description, 'interpretation:' + index)),
+        ...(card.interpretations.length < 4 ? [option('都不对，我来补充', '先不执行；请补充或修正理解，我修订后重新确认。', 'clarify')] : []),
       ],
     }
     : {
@@ -338,9 +436,9 @@ function buildQuestions(card) {
       header: '开工确认',
       multiSelect: false,
       options: [
-        option('按此计划执行（推荐）', '按复述的目标/范围/验收、步骤和并行判断推进；对象、范围或验收变化时重新确认。'),
-        option('调整理解或步骤', '先不执行；请指出要修正的对象、范围、步骤或验收，我修订后重新确认。'),
-        option('取消本轮', '本轮不执行写入或副作用命令，只保留讨论。'),
+        option('按此计划执行（推荐）', '按复述的目标/范围/验收、步骤和并行判断推进；对象、范围或验收变化时重新确认。', 'proceed'),
+        option('调整理解或步骤', '先不执行；请指出要修正的对象、范围、步骤或验收，我修订后重新确认。', 'adjust'),
+        option('取消本轮', '本轮不执行写入或副作用命令，只保留讨论。', 'cancel'),
       ],
     };
   const questions = [plan];
@@ -352,12 +450,12 @@ function buildQuestions(card) {
     multiSelect: false,
     options: d.recommend
       ? [
-        option('创建/更新文档（推荐）', '同批维护 ' + (d.target || '相关文档') + '，便于交接与复查。'),
-        option('本轮不成文', '只改代码或配置，不新增、不更新文档。'),
+        option('创建/更新文档（推荐）', '同批维护 ' + (d.target || '相关文档') + '，便于交接与复查。', d.mode === 'update' ? 'update' : 'create'),
+        option('本轮不成文', '只改代码或配置，不新增、不更新文档。', 'none'),
       ]
       : [
-        option('本轮不成文（推荐）', '现有文档已覆盖或本轮范围很小，不新增文档。'),
-        option('创建/更新文档', '同批更新 ' + (d.target || '相关文档') + '，便于交接与复查。'),
+        option('本轮不成文（推荐）', '现有文档已覆盖或本轮范围很小，不新增文档。', 'none'),
+        option('创建/更新文档', '同批更新 ' + (d.target || '相关文档') + '，便于交接与复查。', d.mode === 'update' ? 'update' : 'create'),
       ],
   });
   const g = card.goal;
@@ -367,12 +465,12 @@ function buildQuestions(card) {
     multiSelect: false,
     options: g.recommend
       ? [
-        option('创建目标（推荐）', '创建“' + (g.title || '本轮任务') + '”的带判据目标，逐格推进并落盘。'),
-        option('不创建目标', '用任务清单推进，不创建 Goal。'),
+        option('创建目标（推荐）', '创建“' + (g.title || '本轮任务') + '”的带判据目标，逐格推进并落盘。', 'create'),
+        option('不创建目标', '用任务清单推进，不创建 Goal。', 'none'),
       ]
       : [
-        option('不创建目标（推荐）', '任务规模可控，用任务清单推进即可。'),
-        option('创建目标', '创建“' + (g.title || '本轮任务') + '”的目标，适合跨多回合推进。'),
+        option('不创建目标（推荐）', '任务规模可控，用任务清单推进即可。', 'none'),
+        option('创建目标', '创建“' + (g.title || '本轮任务') + '”的目标，适合跨多回合推进。', 'create'),
       ],
   });
   // 只读检查可并行、无需询问；正式开工的并行（尤其并行写入）仍要在卡内确认。
@@ -382,8 +480,8 @@ function buildQuestions(card) {
       header: '并行',
       multiSelect: false,
       options: [
-        option('按计划并行（推荐）', '按卡片给出的互斥 ownedPaths 并行；写入仍收敛为单会话顺序执行。'),
-        option('改为串行', '本轮单会话顺序执行，不派发并行。'),
+        option('按计划并行（推荐）', '按卡片给出的互斥 ownedPaths 并行；写入仍收敛为单会话顺序执行。', 'parallel'),
+        option('改为串行', '本轮单会话顺序执行，不派发并行。', 'serial'),
       ],
     });
   }
@@ -458,6 +556,10 @@ function recordConfirmation(input, expectedBinding) {
   let selections = null;
   if (input.choice === 'proceed') {
     const given = input.selections || {};
+    // 复杂卡必须按选项 value 显式回传，避免"不创建目标"被默认成 create。
+    if (pending.profile === 'complex' && (!given.documentation || !given.goal)) {
+      throw fail('MISSING_KICKOFF_SELECTION', 'complex cards require explicit documentation and goal selections');
+    }
     selections = {
       documentation: given.documentation || (modes.documentation === 'create' || modes.documentation === 'update' ? modes.documentation : 'none'),
       goal: given.goal || (modes.goal === 'create' ? 'create' : 'none'),
@@ -510,29 +612,22 @@ function buildKickoffNote(result) {
   const compose = commandFor('compose', context.binding);
   const record = commandFor('record', context.binding);
   const complex = profile === 'complex';
-  return '\n【开工确认 · 必要项｜' + profile + '】' + signals + '。除简单纯问答外，先完成确认再写入/执行；纯问答、用户明确说“不用确认”、同一任务已确认的继续执行可豁免。'
-    + '\n先做只读检查（含并行可行性；只读并行无需询问）；但必须在**本轮结束前**在回复正文写确认卡并完成确认：理解（目标/对象/范围/验收/禁止项）、步骤（2–7 步，每步可验证）、并行（串行/可并行+理由）、影响与回滚。未出卡不得直接收尾，未确认不得写入/执行。'
-    + '\n若存在多种合理解读，在 card.interpretations 列 2–4 种（首个为推荐）供用户在卡内选择；单一理解用标准计划确认。'
-    + (complex
-      ? '\n复杂任务同轮另问：文档（创建/更新/不成文）、目标（创建/不创建）；计划并行写入时再加问并行，验证档沿用现有 B05 必问。'
-      : '\n简单任务只问计划确认；只读检查可并行、无需询问；并行写入仍在卡内加问确认，写入收敛单会话。')
+  return '\n【开工确认 · 必要项｜' + profile + '】' + signals + '。除纯问答外，先只读检查，并在收尾前完成：正文确认卡（理解/步骤/并行/影响与回滚）→ AskUserQuestion → record；未确认前不写入、不执行副作用。'
+    + '\n若存在多种合理理解，card.interpretations 列 2–4 种（首个推荐）。'
+    + (complex ? '\n复杂卡同轮另问文档与目标；计划并行写入时加问并行。' : '\n简单卡只问计划；并行写入仍需在卡内加问。')
     + '\nKICKOFF_CONTEXT ' + JSON.stringify(context)
     + '\nKICKOFF_BINDING ' + context.binding
     + '\nKICKOFF_COMPOSE_COMMAND ' + JSON.stringify(compose.command)
-    + '\nKICKOFF_COMPOSE_SHELL ' + JSON.stringify(compose.shell)
     + '\nKICKOFF_RECORD_COMMAND ' + JSON.stringify(record.command)
-    + '\nKICKOFF_RECORD_SHELL ' + JSON.stringify(record.shell)
-    + '\n结构化输入（compose）：{schema:1,context:<上方 KICKOFF_CONTEXT 原样>,card:{schema:1,bindingDigest:"' + context.binding + '",taskId:"<当前任务ID>",profile:"simple|complex",understanding:{goal:"…",object:"…",scope:"…",acceptance:"…",prohibitions:["…"]},interpretations?:[{label:"…",description:"…"}],steps:["…","…"],parallel:{mode:"serial|parallel",reason:"…"}'
-    + (complex ? ',documentation:{mode:"create|update|none",target:"…",recommend:true|false,reason:"…"},goal:{mode:"create|none",title:"…",recommend:true|false,reason:"…"}' : '')
-    + '}}。'
-    + '\n流程：① 运行 compose 校验卡片并取得 AskUserQuestion 载荷与 cardDigest；② 用 AskUserQuestion 确认（简单 1 问；复杂计划/文档/目标 3 问；计划并行写入时加问并行，一次问全）；③ 用 cardDigest 运行 record（choice=proceed|adjust|cancel）；④ 确认 proceed 后再写入/执行。只读检查可并行、无需询问；未确认前只做只读检查，并在本轮结束前完成 ①–③；未出卡就收尾会被 R17 拦下，已写入但未确认会被 R16 拦下。用户选调整则修订后重问，选取消则停手。台账只存哈希与选择，不存原文。';
+    + '\n流程：--compose → AskUserQuestion → --record（choice=proceed|adjust|cancel；复杂卡 selections 必填文档/目标）→ 执行；卡片字段见 rules/long-task.md。';
 }
 
 function prepareKickoff({ sessionId, prompt, cwd, requestMessageId }) {
-  if (!kickoffResidentEnabled()) return { skip: true, reason: 'USER_DISABLED' };
+  if (!kickoffInjectEnabled()) return { skip: true, reason: 'USER_DISABLED' };
   if (!validSession(sessionId)) return { skip: true, reason: 'NO_SESSION' };
   const classification = classifyKickoffTask(prompt);
   if (classification.explicitSkip) return { skip: true, reason: 'USER_SKIP' };
+  if (classification.readOnly) return { skip: true, reason: 'READ_ONLY' };
   if (typeof cwd !== 'string' || !path.isAbsolute(cwd)) throw fail('INVALID_KICKOFF_CONTEXT', 'absolute cwd is required');
   const confirmed = readConfirmed(sessionId);
   if (confirmed && confirmed.choice === 'proceed' && isContinuation(prompt)) {
@@ -565,12 +660,34 @@ function readStdin() {
 }
 
 function main(argv) {
+  if (argv.includes('--status')) {
+    const at = argv.indexOf('--session');
+    const sessionId = at >= 0 ? argv[at + 1] : null;
+    if (sessionId !== null && !validSession(sessionId)) {
+      console.log(JSON.stringify({ ok: false, code: 'INVALID_SESSION' }));
+      process.exitCode = 2;
+      return;
+    }
+    console.log(JSON.stringify(ledgerStatus(sessionId), null, 2));
+    return;
+  }
+  if (argv.includes('--gc')) {
+    const at = argv.indexOf('--days');
+    const days = at >= 0 ? Number(argv[at + 1]) : undefined;
+    if (days !== undefined && (!Number.isFinite(days) || days <= 0)) {
+      console.log(JSON.stringify({ ok: false, code: 'INVALID_DAYS' }));
+      process.exitCode = 2;
+      return;
+    }
+    console.log(JSON.stringify(gcLedger({ apply: argv.includes('--apply'), days }), null, 2));
+    return;
+  }
   const compose = argv.indexOf('--compose');
   const record = argv.indexOf('--record');
   const mode = compose >= 0 ? 'compose' : record >= 0 ? 'record' : null;
   const flag = compose >= 0 ? compose : record;
   if (!mode || flag < 0) {
-    console.error('USAGE: kickoff-core.cjs --compose|--record <json|-> --binding <sha256> [--json]');
+    console.error('USAGE: kickoff-core.cjs --compose|--record <json|-> --binding <sha256> [--json] | --status [--session <id>] [--json] | --gc [--days N] [--apply]');
     process.exitCode = 2;
     return;
   }
@@ -602,8 +719,10 @@ function main(argv) {
 
 module.exports = {
   classifyKickoffTask, isContinuation, createKickoffContext, contextBinding,
+  isReadOnlyRequest, requestKey, matchesRequest,
   prepareKickoff, buildKickoffNote, buildContinuationNote, composeCard, recordConfirmation,
   readPending, readConfirmed, clearPending, writePending, stateDir, cardDigest,
-  preferenceFile, readPreference, kickoffResidentEnabled,
+  ledgerStatus, gcLedger,
+  preferenceFile, readPreference, kickoffResidentEnabled, kickoffInjectEnabled, kickoffEnforceEnabled,
 };
 if (require.main === module) main(process.argv.slice(2));

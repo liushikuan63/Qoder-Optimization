@@ -116,7 +116,7 @@ function toolFailed(value, depth = 0) {
 
 // transcript 只取尾部，解析出：最后一条助手文本 + 最后一条真实用户文本 + 最近一轮的工具调用
 function scanTranscript(file, tailBytes) {
-  const out = { lastUserText: '', lastAssistantText: '', turnTools: [], lastUserAt: null, parsed: 0, exists: false };
+  const out = { lastUserText: '', lastAssistantText: '', turnTools: [], lastUserAt: null, lastUserId: null, parsed: 0, exists: false };
   try {
     const st = fs.statSync(file);
     out.exists = true;
@@ -154,6 +154,7 @@ function scanTranscript(file, tailBytes) {
         const toolReturn = Array.isArray(c) && c.some((x) => x && x.type === 'tool_result');
         if (txt && !toolReturn && !j.isMeta && !msg.isMeta && !/^\[stop-gate\b|^Base directory for this skill:|^Note: The file|^\[SYSTEM NOTIFICATION - NOT USER INPUT\]/.test(txt)) {
           out.lastUserText = txt;
+          out.lastUserId = String(j.uuid || msg.uuid || j.messageId || msg.messageId || '') || null;
           out.lastAssistantText = '';
           out.turnTools = [];
           const tsRaw = j.timestamp !== undefined ? j.timestamp : msg.timestamp;
@@ -439,7 +440,9 @@ function staleBlockers(ctx) {
 function taskScope(userText) {
   const text = userText || '';
   return {
-    readOnly: /只读|仅(?:提供|做|作)?(?:审阅|审查|评审|分析|建议)|只(?:给|提供)(?:方案|建议)|不(?:要|得)?(?:修改|写入|改动)任何文件|在(?:更改|修改)任何文件之前/.test(text),
+    readOnly: kickoffCore && kickoffCore.isReadOnlyRequest
+      ? kickoffCore.isReadOnlyRequest(text)
+      : /只读|仅(?:提供|做|作)?(?:审阅|审查|评审|分析|建议)|只(?:给|提供)(?:方案|建议)|不(?:要|得)?(?:修改|写入|改动)任何文件|在(?:更改|修改)任何文件之前/.test(text),
     handoffOnly: /仅做交接|只(?:做交接|给(?:我)?开工提示词)|我自己新开会话/.test(text),
     noMemory: /不(?:要|得)?(?:写入|保存|更新|使用|读取|新增|写)记忆|不要记住/.test(text),
   };
@@ -728,9 +731,19 @@ try { kickoffCore = require('./kickoff-core.cjs'); } catch {}
 const KICKOFF_MUTATION = /(?:\bgit(?:\s+-C\s+\S+)?\s+(?:commit|push|merge|rebase|reset|clean|tag|rm|restore|stash\s+(?:push|pop|drop)|checkout\s+--)\b|\b(?:npm|pnpm|yarn)\s+(?:install|i|ci|add|remove|uninstall|publish)\b|\bgh\s+(?:release\s+(?:create|edit|delete)|pr\s+(?:create|merge|close|edit)|issue\s+(?:create|close|edit)|api\b[^\n]*--method\s+(?:POST|PATCH|PUT|DELETE))\b|\bcurl\b[^\n]*(?:-X\s*(?:POST|PUT|PATCH|DELETE)|--data|--form|-d\s)|\bnode\s+[^\n]*--(?:apply|write|fix|deploy|publish)\b|(?:^|[;&|]\s*)(?:rm|rmdir|del|erase|mv|move|cp|copy|ren|mkdir|touch|chmod|chown|ln|tee)\b|(?:^|[;&|]\s*)(?:Set-Content|Add-Content|Out-File|New-Item|Remove-Item|Move-Item|Copy-Item|Rename-Item)\b|(^|[^0-9=<>-])>{1,2}(?!&)\s*[^\s|&])/i;
 function promptDigest(text) { return crypto.createHash('sha256').update(String(text || '').trim()).digest('hex'); }
 // 安装时选择不常驻开工提示卡：只关闭 R16/R17，不拦截其他规则。
-function kickoffEnabled() { try { return !kickoffCore || kickoffCore.kickoffResidentEnabled(); } catch { return true; } }
+function kickoffEnabled() { try { return !kickoffCore || kickoffCore.kickoffEnforceEnabled(); } catch { return true; } }
 function kickoffPending(session) { try { return kickoffCore && kickoffCore.readPending(session); } catch { return null; } }
 function kickoffConfirmed(session) { try { return kickoffCore && kickoffCore.readConfirmed(session); } catch { return null; } }
+// 请求绑定优先按 requestId，其次整段摘要，再用 promptKey（前缀+长度）兜底。
+function kickoffMatches(context, ctx, digest) {
+  try {
+    if (kickoffCore && kickoffCore.matchesRequest) {
+      if (kickoffCore.matchesRequest(context, { text: ctx.lastUserText, digest, requestMessageId: ctx.requestMessageId })) return true;
+      return false;
+    }
+  } catch {}
+  return context.requestDigest === digest;
+}
 function kickoffMutation(ctx) {
   return ctx.turnTools.some((tool) => {
     if (!tool.success) return false;
@@ -1063,10 +1076,13 @@ const RULES = [
     needsText: false,
     // 除简单纯问答外的任务先确认再写入；当前请求的台账不匹配不拦，避免上一轮 pending 误伤新任务。
     test: (t, ctx) => {
-      if (!kickoffEnabled() || !kickoffMutation(ctx)) return false;
+      if (!kickoffEnabled()) return false;
+      if (!kickoffMutation(ctx)) return false;
+      // 只读/审阅请求不要求开工卡，但本轮一旦出现写入或副作用命令就拦下。
+      if (ctx.scope.readOnly) return true;
       const digest = promptDigest(ctx.lastUserText);
       const confirmed = kickoffConfirmed(ctx.sessionId);
-      const current = confirmed && confirmed.context && confirmed.context.requestDigest === digest ? confirmed : null;
+      const current = confirmed && confirmed.context && kickoffMatches(confirmed.context, ctx, digest) ? confirmed : null;
       if (current) {
         if (current.choice === 'cancel') return true;
         if (current.choice === 'proceed') {
@@ -1074,13 +1090,16 @@ const RULES = [
         }
       }
       const pending = kickoffPending(ctx.sessionId);
-      if (!pending || !pending.context || pending.context.requestDigest !== digest) return false;
+      if (!pending || !pending.context || !kickoffMatches(pending.context, ctx, digest)) return false;
       return true;
     },
     reason: (ctx) => {
+      if (ctx.scope.readOnly) {
+        return '用户要求只读审阅，本轮却出现写入或副作用命令；先说明并取得实施授权（重新走开工确认），不要沿用审阅结论直接改。';
+      }
       const digest = promptDigest(ctx.lastUserText);
       const confirmed = kickoffConfirmed(ctx.sessionId);
-      const current = confirmed && confirmed.context && confirmed.context.requestDigest === digest ? confirmed : null;
+      const current = confirmed && confirmed.context && kickoffMatches(confirmed.context, ctx, digest) ? confirmed : null;
       if (current && current.choice === 'cancel') {
         return '用户已取消本轮开工确认，不能再写入或执行副作用命令；若用户改主意，重新走开工确认。';
       }
@@ -1100,12 +1119,13 @@ const RULES = [
     // 允许先只读检查，但同一轮结束前必须出卡并经 AskUserQuestion 确认 + record；未出卡/未落账都不许收尾。
     test: (t, ctx) => {
       if (!kickoffEnabled()) return false;
+      if (ctx.scope.readOnly) return false;
       const digest = promptDigest(ctx.lastUserText);
       if (!digest) return false;
       const pending = kickoffPending(ctx.sessionId);
-      if (!pending || !pending.context || pending.context.requestDigest !== digest) return false;
+      if (!pending || !pending.context || !kickoffMatches(pending.context, ctx, digest)) return false;
       const confirmed = kickoffConfirmed(ctx.sessionId);
-      const current = confirmed && confirmed.context && confirmed.context.requestDigest === digest ? confirmed : null;
+      const current = confirmed && confirmed.context && kickoffMatches(confirmed.context, ctx, digest) ? confirmed : null;
       if (current && current.choice === 'cancel') return false;
       const asked = ctx.turnTools.some((x) => x.success && toolName(x) === 'AskUserQuestion');
       if (current && current.choice === 'proceed' && asked) return false;
@@ -1114,7 +1134,7 @@ const RULES = [
     reason: (ctx) => {
       const digest = promptDigest(ctx.lastUserText);
       const confirmed = kickoffConfirmed(ctx.sessionId);
-      const current = confirmed && confirmed.context && confirmed.context.requestDigest === digest ? confirmed : null;
+      const current = confirmed && confirmed.context && kickoffMatches(confirmed.context, ctx, digest) ? confirmed : null;
       const pending = kickoffPending(ctx.sessionId);
       const binding = pending && pending.context ? pending.context.binding : '<见注入块 KICKOFF_BINDING>';
       if (current && current.choice === 'proceed') {
@@ -1202,7 +1222,7 @@ function main() {
     input = {};
   }
   const event = input.hook_event_name || 'Stop';
-  const scan = input.transcript_path ? scanTranscript(input.transcript_path, TAIL_BYTES) : { turnTools: [], lastUserText: '', lastAssistantText: '' };
+  const scan = input.transcript_path ? scanTranscript(input.transcript_path, TAIL_BYTES) : { turnTools: [], lastUserText: '', lastAssistantText: '', lastUserId: null };
   const text = typeof input.last_assistant_message === 'string' && input.last_assistant_message
     ? input.last_assistant_message
     : scan.lastAssistantText;
@@ -1225,7 +1245,7 @@ function main() {
 
   const ctx = { turnTools: scan.turnTools, lastUserText: scan.lastUserText || '', lastAssistantText: text,
     cwd: input.cwd || process.cwd(), sessionId: session, taskId: input.task_id || null,
-    lastUserAt: scan.lastUserAt || null,
+    lastUserAt: scan.lastUserAt || null, requestMessageId: input.request_message_id || scan.lastUserId || null,
     scope: taskScope(scan.lastUserText), transcriptPath: input.transcript_path || null };
 
   const stateFile = path.join(STATE_DIR, session.replace(/[^A-Za-z0-9._-]/g, '_') + '.json');

@@ -223,7 +223,7 @@ test('installer writes the kickoff preference only when explicitly chosen and ke
 
   const off = f.run(['--yes', '--kickoff-resident', 'no', '--json']);
   assert.equal(off.status, 0, off.stdout + off.stderr);
-  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { schema: 1, resident: false });
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { schema: 1, resident: false, inject: false, enforce: false });
 
   const kept = f.run(['--yes', '--json']);
   assert.equal(kept.status, 0, kept.stdout + kept.stderr);
@@ -231,7 +231,7 @@ test('installer writes the kickoff preference only when explicitly chosen and ke
 
   const on = f.run(['--yes', '--kickoff-resident', 'yes', '--json']);
   assert.equal(on.status, 0, on.stdout + on.stderr);
-  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { schema: 1, resident: true });
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { schema: 1, resident: true, inject: true, enforce: true });
 
   const bad = f.run(['--yes', '--kickoff-resident', 'maybe']);
   assert.notEqual(bad.status, 0);
@@ -259,7 +259,32 @@ test('interactive install asks once whether the kickoff card stays resident', as
   });
   assert.equal(code, 0, out);
   assert.match(out, /常驻开工提示卡/);
-  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(f.client, 'kickoff-preference.json'), 'utf8')), { schema: 1, resident: false });
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(f.client, 'kickoff-preference.json'), 'utf8')), { schema: 1, resident: false, inject: false, enforce: false });
+});
+
+test('installed hooks honor the stored kickoff preference and the receipt records it', t => {
+  const f = fixture(t);
+  const installed = f.run(['--yes', '--skills-scope', 'base', '--kickoff-resident', 'no', '--json']);
+  assert.equal(installed.status, 0, installed.stdout + installed.stderr);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(f.client, 'package-activation.json'), 'utf8')).kickoffResident, false);
+
+  const status = f.run(['--status', '--json']);
+  assert.equal(status.status, 0, status.stdout + status.stderr);
+  const parsed = JSON.parse(status.stdout);
+  assert.equal(parsed.kickoff.resident, false);
+  assert.equal(parsed.kickoff.receiptResident, false);
+  assert.ok(fs.readFileSync(path.join(f.client, 'settings.json'), 'utf8').includes('rules-reminder'));
+
+  const prompt = JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'installed-e2e', cwd: f.client, prompt: '修复登录按钮的文案' });
+  const runReminder = () => spawnSync(process.execPath, [path.join(f.client, 'scripts/rules-reminder.js')], { env: f.env, input: prompt, encoding: 'utf8', timeout: 60000 });
+  const off = runReminder();
+  assert.equal(off.status, 0, off.stdout + off.stderr);
+  assert.ok(!off.stdout.includes('KICKOFF_BINDING'), 'resident=false must not inject the kickoff card');
+
+  f.put('kickoff-preference.json', JSON.stringify({ schema: 1, resident: true }));
+  const on = runReminder();
+  assert.equal(on.status, 0, on.stdout + on.stderr);
+  assert.ok(on.stdout.includes('KICKOFF_BINDING'), 'resident=true must inject the kickoff card');
 });
 
 test('an activated client treats the complete explicit install closure as selected despite disabled suggestions', t => {

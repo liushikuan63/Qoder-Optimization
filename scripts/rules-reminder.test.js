@@ -279,8 +279,8 @@ const kickoffCtx = JSON.parse(kickoffRun.stdout).hookSpecificOutput.additionalCo
 check('㊱ 执行任务注入开工确认块与台账绑定',
   kickoffCtx.includes('KICKOFF_BINDING') && kickoffCtx.includes('KICKOFF_COMPOSE_COMMAND') && kickoffCtx.includes('开工确认'),
   '');
-check('㊱b 注入块要求本轮结束前出卡并说明 R16/R17',
-  kickoffCtx.includes('本轮结束前') && kickoffCtx.includes('R16') && kickoffCtx.includes('R17'),
+check('㊱b 注入块要求收尾前完成出卡与 record 闭环',
+  kickoffCtx.includes('收尾前完成') && kickoffCtx.includes('record') && kickoffCtx.includes('未确认前不写入'),
   '');
 const kickoffFile = path.join(HOME, '.qoder', 'tmp', 'kickoff', 'pending-kickoff-sid.json');
 check('㊲ 开工确认台账已创建且不存原文',

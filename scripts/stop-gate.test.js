@@ -702,7 +702,7 @@ replay('R13 用户明确直接更新放行', '直接更新，不用逐条对比'
 // R12 含混判别门禁：高置信初筛 + 写入 + 无判别记录才拦
 const ambDir = path.join(ROOT, 'ambiguity');
 fs.mkdirSync(ambDir, { recursive: true });
-function r12Case(label, { prompt = '帮我优化一下', tools = [], level = 'high', resolved = null, expected }) {
+function r12Case(label, { prompt = '帮我优化一下', tools = [], level = 'high', resolved = null, expected, reason = 'R12-ambiguity-decision-missing' }) {
   const session = 'amb-' + (++n);
   const decisionId = 'd-' + session;
   fs.writeFileSync(path.join(ambDir, 'pending-' + session + '.json'), JSON.stringify({
@@ -711,14 +711,16 @@ function r12Case(label, { prompt = '帮我优化一下', tools = [], level = 'hi
   if (resolved) fs.writeFileSync(path.join(ambDir, 'resolved-' + session + '.json'), JSON.stringify({ schema: 1, decisionId, verdict: resolved, at: new Date().toISOString() }));
   const result = run({ transcript_path: transcript([user(prompt), ...tools, asst('处理完毕。')]), session_id: session }, session, { AMBIGUITY_STATE_DIR: ambDir });
   check(label, result.decision, expected);
-  if (expected === 'block') check(label + '（原因确为 R12）', result.out.includes('R12-ambiguity-decision-missing'), true);
+  if (expected === 'block') check(label + '（原因确为 ' + reason + '）', result.out.includes(reason), true);
+  return result;
 }
 r12Case('R12 高置信含混未判别就写入必须拦', { tools: [tool('Edit', { file_path: 'D:/x/a.ts' })], expected: 'block' });
 r12Case('R12 已有判别记录放行', { tools: [tool('Edit', { file_path: 'D:/x/a.ts' })], resolved: 'clear', expected: 'allow' });
 r12Case('R12 纯讨论无写入放行', { expected: 'allow' });
 r12Case('R12 已弹窗放行', { tools: [tool('AskUserQuestion', { questions: [] }), tool('Edit', { file_path: 'D:/x/a.ts' })], expected: 'allow' });
 r12Case('R12 中置信不拦', { level: 'medium', tools: [tool('Edit', { file_path: 'D:/x/a.ts' })], expected: 'allow' });
-r12Case('R12 只读任务不拦', { prompt: '只读审阅，不修改任何文件', tools: [tool('Edit', { file_path: 'D:/x/a.ts' })], expected: 'allow' });
+const r12ReadOnly = r12Case('R12 只读任务不触发 R12（写入由 R16 只读守卫接管）', { prompt: '只读审阅，不修改任何文件', tools: [tool('Edit', { file_path: 'D:/x/a.ts' })], expected: 'block', reason: 'R16-kickoff-confirmation-missing' });
+check('R16 只读轮写入的拦截原因指向只读授权', r12ReadOnly.out.includes('用户要求只读审阅'), true);
 r12Case('R12 clarify 未弹窗仍要拦', { tools: [tool('Edit', { file_path: 'D:/x/a.ts' })], resolved: 'clarify', expected: 'block' });
 r12Case('R12 clarify 已弹窗放行', { tools: [tool('AskUserQuestion', { questions: [] }), tool('Edit', { file_path: 'D:/x/a.ts' })], resolved: 'clarify', expected: 'allow' });
 
@@ -794,6 +796,15 @@ check('R17 调整后的拦截原因可读', r17Adjust.out.includes('调整'), tr
 r17Case('R17 纯问答不误拦', 'kickoff-n', '什么是闭包？', [], 'allow');
 r17Case('R17 上一轮 pending 不误伤新请求', 'kickoff-o', '把 README 的版本号改成 0.1.6', [], 'allow', () => kickoff.writePending(kickoffContext('kickoff-o', r17Prompt)));
 r17Case('R17 文本收尾也要先出卡', 'kickoff-p', r17Prompt, [], 'block', () => kickoff.writePending(kickoffContext('kickoff-p', r17Prompt)), '现状已核实，需要你先定口径。');
+
+// P0-1 只读快速通道：纯审阅请求不要求开工卡，但同一轮出现写入仍要拦
+const reviewPrompt = '审阅之前的实现，按你的理解，相关方案是否可以更优，请给出更优的建议';
+kickoff.writePending(kickoffContext('kickoff-review', reviewPrompt));
+const reviewOnly = run({ transcript_path: transcript([user(reviewPrompt), tool('Read', { file_path: 'D:/x/a.ts' }), asst('结论：建议先改 A。')]), session_id: 'kickoff-review' }, 'kickoff-review', { KICKOFF_STATE_DIR: kickoffDir });
+check('R17 纯审阅请求不要求开工卡', reviewOnly.decision, 'allow');
+const reviewWrite = run({ transcript_path: transcript([user(reviewPrompt), r16Write, asst('已修改。')]), session_id: 'kickoff-review2' }, 'kickoff-review2', { KICKOFF_STATE_DIR: kickoffDir });
+check('R16 只读审阅轮出现写入必须拦', reviewWrite.decision, 'block');
+check('R16 只读轮拦截原因指向只读授权', reviewWrite.out.includes('用户要求只读审阅'), true);
 
 // 安装时选择"不常驻"：开工提示卡不注入，R16/R17 一并停用；其他规则不受影响
 const kickoffDisabledPref = path.join(ROOT, 'kickoff-disabled.json');

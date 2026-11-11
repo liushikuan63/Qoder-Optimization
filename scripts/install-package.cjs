@@ -40,7 +40,7 @@ function assertNodeVersion(version = process.versions.node) {
 function parseArgs(argv) {
   const result = { install: [], resident: [], yes: false, dryRun: false };
   const seen = new Set();
-  const flags = new Map([['--yes', 'yes'], ['--dry-run', 'dryRun'], ['--json', 'json'], ['--continuity', 'continuity'], ['--no-auto-bind', 'noAutoBind'], ['--help', 'help'], ['-h', 'help'], ['--no', 'skip'], ['--skip', 'skip'], ['--non-interactive', 'nonInteractive']]);
+  const flags = new Map([['--yes', 'yes'], ['--dry-run', 'dryRun'], ['--json', 'json'], ['--continuity', 'continuity'], ['--no-auto-bind', 'noAutoBind'], ['--help', 'help'], ['-h', 'help'], ['--no', 'skip'], ['--skip', 'skip'], ['--non-interactive', 'nonInteractive'], ['--status', 'status']]);
   const values = new Map([['--client-root', 'client'], ['--catalog', 'catalogFile'], ['--previous-catalog', 'previousCatalogFile'], ['--bind-library', 'bindLibrary'], ['--profile', 'profile'], ['--preferences', 'preferencesFile'], ['--install', 'install'], ['--resident', 'resident'], ['--workflow-mode', 'workflowMode'], ['--skills-scope', 'skillsScope'], ['--kickoff-resident', 'kickoffResident']]);
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -274,10 +274,11 @@ function prepare(options = {}) {
   try {
     const data = JSON.parse(fs.readFileSync(plan.kickoffFile, 'utf8'));
     if (data && data.schema === 1 && typeof data.resident === 'boolean') existingKickoff = data.resident;
+    else if (data && data.schema === 1 && typeof data.inject === 'boolean') existingKickoff = data.inject !== false && data.enforce !== false;
   } catch {}
   plan.kickoffResident = options.kickoffResident === undefined ? existingKickoff : options.kickoffResident;
   if (options.kickoffResident !== undefined) {
-    const bytes = Buffer.from(JSON.stringify({ schema: 1, resident: options.kickoffResident }, null, 2) + '\n');
+    const bytes = Buffer.from(JSON.stringify({ schema: 1, resident: options.kickoffResident, inject: options.kickoffResident, enforce: options.kickoffResident }, null, 2) + '\n');
     plan.kickoffBytes = fs.existsSync(plan.kickoffFile) && fs.readFileSync(plan.kickoffFile).equals(bytes) ? null : bytes;
   }
   const closure = ids => {
@@ -620,7 +621,7 @@ function apply(plan, options = {}) {
       fs.writeFileSync(file, plan.kickoffBytes, { flag: 'wx', mode: 0o600 });
       publish({ id: 'metadata:kickoff-preference', target: plan.kickoffFile, before: plan.kickoffBefore, staged: file });
     }
-    const receipt = { schema: 1, installedAt: new Date().toISOString(), catalog: plan.catalogFile, catalogSha256: plan.catalogHash, ready: plan.baseReady, hook: plan.baseReady ? plan.hook.state : 'BLOCKED', ...(plan.baseReady ? { profile: plan.profile, managedRules: Object.fromEntries(plan.rules.map(rule => [rule.rel, rule.hash])), requiredFiles: [...plan.changes, ...plan.verifyTargets].filter(item => plan.requiredIds.includes(item.id)).map(item => path.relative(plan.client, path.join(item.target, item.entry?.category === 'skill' || item.id.startsWith('skill:') ? 'SKILL.md' : '')).split(path.sep).join('/')) } : plan.previousActivation), baseBlocked: plan.baseBlocked, installedIds: plan.changes.map(item => item.id), recoveryDirectory: stage, externalRecoveryDirectories: externalStages };
+    const receipt = { schema: 1, installedAt: new Date().toISOString(), catalog: plan.catalogFile, catalogSha256: plan.catalogHash, ready: plan.baseReady, kickoffResident: plan.kickoffResident, hook: plan.baseReady ? plan.hook.state : 'BLOCKED', ...(plan.baseReady ? { profile: plan.profile, managedRules: Object.fromEntries(plan.rules.map(rule => [rule.rel, rule.hash])), requiredFiles: [...plan.changes, ...plan.verifyTargets].filter(item => plan.requiredIds.includes(item.id)).map(item => path.relative(plan.client, path.join(item.target, item.entry?.category === 'skill' || item.id.startsWith('skill:') ? 'SKILL.md' : '')).split(path.sep).join('/')) } : plan.previousActivation), baseBlocked: plan.baseBlocked, installedIds: plan.changes.map(item => item.id), recoveryDirectory: stage, externalRecoveryDirectories: externalStages };
     const receiptFile = path.join(stage, 'package-activation.json'); fs.writeFileSync(receiptFile, JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
     publish({ id: 'metadata:activation', target: path.join(plan.client, 'package-activation.json'), before: plan.receiptBefore, staged: receiptFile });
     verifyPublished();
@@ -696,13 +697,39 @@ function printSummary(result) {
   if (pendingItems.length) console.log('NEXT_ACTION: ASK_INSTALL_OR_UPDATE — 仅询问上述未完成的候选/差异；已完成的基础安装、更新与精确选择无需重复批准。');
 }
 
+function printStatus(options) {
+  const client = path.resolve(options.client || clientRoot());
+  const read = name => { try { return JSON.parse(fs.readFileSync(path.join(client, name), 'utf8')); } catch { return null; } };
+  const activation = read('package-activation.json') || {};
+  const pref = read('kickoff-preference.json');
+  const resident = pref && typeof pref.resident === 'boolean'
+    ? pref.resident
+    : pref && (typeof pref.inject === 'boolean' || typeof pref.enforce === 'boolean')
+      ? pref.inject !== false && pref.enforce !== false
+      : true;
+  const inject = pref && typeof pref.inject === 'boolean' ? pref.inject : resident;
+  const enforce = pref && typeof pref.enforce === 'boolean' ? pref.enforce : resident;
+  const status = {
+    client,
+    installedAt: activation.installedAt || null,
+    profile: activation.profile || null,
+    ready: activation.ready === undefined ? null : activation.ready,
+    hook: activation.hook || null,
+    kickoff: { resident, inject, enforce, receiptResident: activation.kickoffResident === undefined ? null : activation.kickoffResident, configured: Boolean(pref), file: path.join(client, 'kickoff-preference.json') },
+  };
+  if (options.json) console.log(JSON.stringify(status, null, 2));
+  else console.log('客户端：' + client + '\n安装：' + (status.installedAt || '未记录') + '（' + (status.profile || '未知') + '，ready=' + status.ready + '）\n开工提示卡：' + (resident ? '常驻' : '已关闭') + '（inject=' + inject + '，enforce=' + enforce + '）\n配置：' + status.kickoff.file);
+  return 0;
+}
+
 async function main(argv) {
   const options = parseArgs(argv);
   if (options.help) {
-    console.log('用法：node scripts/install-package.cjs [--yes] [--dry-run] [--client-root <目录>] [--catalog <catalog.json>] [--install <exact-id>] [--resident <exact-id>] [--skills-scope all|base] [--kickoff-resident yes|no] [--preferences <json>] [--workflow-mode route|model] [--bind-library <已有真实目录>] [--continuity] [--no-auto-bind] [--json]\n默认只核对；新装默认 complete（12公开核心技能/规则/16条exec hook），已有登记保留 routing；--profile complete|routing 明确选择，--previous-catalog <可信旧catalog> 指定可追溯旧源。--yes 安装所选工作流基础能力并更新与旧包一致的已安装条目。技能默认按 --skills-scope all 全量安装：包内每个随包技能都装入按需库，由 skills-router/skill-load 按需引用，不再逐条挑选；--skills-scope base 回到只装基础能力与 --install 明确选择的旧路径。脚本、命令、agent 与 hook 属代码/接线，任何范围下都只装基础能力与明确选择项；本地有差异（REVIEW_UPDATE）只报告，不覆盖。所选技能默认进按需库；交互运行会询问是否常驻，非交互用 --resident 选择常驻（需与 --install 同时给出）。已安装技能换层请用 tier-skills --promote。--workflow-mode 显式切换已有 rules-reminder 接线；省略时新装默认 model、已有选择保留。--kickoff-resident 决定是否常驻开工提示卡：交互安装会问一次（默认沿用现状），非交互用 yes/no 显式写入；选 no 后不再自动注入开工确认，也不启用 R16/R17。接续存储仅在 --continuity 单独同意时调用旧安装器。');
+    console.log('用法：node scripts/install-package.cjs [--yes] [--dry-run] [--client-root <目录>] [--catalog <catalog.json>] [--install <exact-id>] [--resident <exact-id>] [--skills-scope all|base] [--kickoff-resident yes|no] [--preferences <json>] [--workflow-mode route|model] [--bind-library <已有真实目录>] [--continuity] [--no-auto-bind] [--json]\n默认只核对；新装默认 complete（12公开核心技能/规则/16条exec hook），已有登记保留 routing；--profile complete|routing 明确选择，--previous-catalog <可信旧catalog> 指定可追溯旧源。--yes 安装所选工作流基础能力并更新与旧包一致的已安装条目。技能默认按 --skills-scope all 全量安装：包内每个随包技能都装入按需库，由 skills-router/skill-load 按需引用，不再逐条挑选；--skills-scope base 回到只装基础能力与 --install 明确选择的旧路径。脚本、命令、agent 与 hook 属代码/接线，任何范围下都只装基础能力与明确选择项；本地有差异（REVIEW_UPDATE）只报告，不覆盖。所选技能默认进按需库；交互运行会询问是否常驻，非交互用 --resident 选择常驻（需与 --install 同时给出）。已安装技能换层请用 tier-skills --promote。--workflow-mode 显式切换已有 rules-reminder 接线；省略时新装默认 model、已有选择保留。--kickoff-resident 决定是否常驻开工提示卡：交互安装会问一次（默认沿用现状），非交互用 yes/no 显式写入；选 no 后不再自动注入开工确认，也不启用 R16/R17。接续存储仅在 --continuity 单独同意时调用旧安装器。--status 只读查看安装回执与开工提示卡偏好（可与 --json 同用）。');
     return 0;
   }
   if (options.skip) { console.log('已跳过，未修改任何文件。'); return 0; }
+  if (options.status) return printStatus(options);
   assertNodeVersion();
   let plan = prepare(options);
   if (!options.yes && !options.dryRun && !options.nonInteractive && process.stdin.isTTY && process.stdout.isTTY) {
@@ -730,6 +757,9 @@ async function main(argv) {
     } finally { rl.close(); }
   }
   const result = apply(plan, options);
+  if (options.yes && options.kickoffResident === undefined && !options.dryRun) {
+    console.log('开工提示卡：沿用现状（' + (plan.kickoffResident ? '常驻' : '已关闭') + '）；变更用 --kickoff-resident yes|no。');
+  }
   let continuityExit = 0;
   if (options.yes && !options.dryRun && options.continuity) {
     const args = [path.resolve(result.frozenPackage, 'scripts/install-continuity.cjs'), '--yes', '--client-root', plan.client];
