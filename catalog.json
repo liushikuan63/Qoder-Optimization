@@ -116,11 +116,11 @@
    "category": "skill",
    "name": "concurrent-edit-attribution-check",
    "status": "shipped",
-   "tier": "core",
+   "tier": "library",
    "description": "改共享Git工作区或无版本控制目录（~/.qoder/skills、服务器配置目录）的文件时，发现陌生 .bak、现役文件 md5 与自己刚备份内容不一致、疑似并行会话改了同一文件、或平台拦截 SKILL_HASH_CHANGED 时使用。配方：备份后 md5 三方比对判断改动归属，diff 定位对方改动行，全程定点替换不整文件覆盖，改完断言对方改动仍在；含备份保留策略与复验判据两个坑。两套改动相撞把回归大面积判红时先二分 harness 漂移/产品缺陷，可协调的启动期校验一律 clamp 到语义安全值并暴露在健康端点，不做拒绝启动。触发词：大面积判红、拒绝启动、clamp、领地预检。",
    "install": {
     "mode": "copy-skill",
-    "tier": "core"
+    "tier": "library"
    },
    "source": "skills/concurrent-edit-attribution-check",
    "dependencies": [
@@ -132,11 +132,11 @@
    "category": "skill",
    "name": "continuation-state-audit",
    "status": "shipped",
-   "tier": "core",
+   "tier": "library",
    "description": "Audit continuation queues/goal files before resuming，claimed done vs real artifacts，detect stale items；也核对当前会话交付结论与原始验收逐项对账。Qoder 异常会话恢复（定位会话、最小窗口读取、单次结构化恢复消息、终态回调＝成功判据）。触发：接续/继续上次/看队列/核对上次完成状态/上次说做完了但没生效/交付结论复核/原始验收对账/会话恢复/异常会话。Not for goal tracking/checkpoint writes（→goal-driven-execution）。",
    "install": {
     "mode": "copy-skill",
-    "tier": "core"
+    "tier": "library"
    },
    "source": "skills/continuation-state-audit",
    "dependencies": []
@@ -398,11 +398,11 @@
    "category": "skill",
    "name": "goal-driven-execution",
    "status": "shipped",
-   "tier": "core",
+   "tier": "library",
    "description": "目标化执行：把长任务设成\"带可失败判据的目标\"，逐格推进、每格落盘，直到判据全绿才算完成；后台任务按「启动 ≠ 完成」闭环（等完成通知不轮询、核对真实退出码与日志终态标记、通过验收再进依赖步骤）。当任务是中大型 / 跨多回合 / 容易半途跑偏或\"看起来做完了其实没做完\"时使用。触发词：设个目标、持续推进、盯到完成、别中途跑偏、长任务、多步骤、任务目标、Goal 模式、完成判据、什么时候算做完、后台任务、完成通知、退出码透传、DELIVERY_VERIFIED、启动不等于完成。不用于：小改动与单点修复（直接做）、纯探索类问题（先给结论）。",
    "install": {
     "mode": "copy-skill",
-    "tier": "core"
+    "tier": "library"
    },
    "source": "skills/goal-driven-execution",
    "dependencies": []
@@ -1270,11 +1270,11 @@
    "category": "skill",
    "name": "safe-text-editing",
    "status": "shipped",
-   "tier": "core",
+   "tier": "library",
    "description": "改文件与传参的字符安全 playbook。当\"内容写出来不对\"时用：引号/反斜杠/反引号/`$` 被 shell 先解释、中文进 .cmd 变乱码、CRLF 与 GBK 被改写、整文件覆盖丢内容、替换串手抄失配、管道吞掉退出码、命令成功但改错地方。触发词：编辑出错、字符被吃掉、内容不对、乱码、转义、引号问题、sed 替换没生效、写进去的不是我要的、编码、GBK、CRLF、退出码不对。不用于：纯文本内容校对（走文档类技能）、.cmd 工具的整套改/验/发链（走 verify-windows-cmd-tool）。",
    "install": {
     "mode": "copy-skill",
-    "tier": "core"
+    "tier": "library"
    },
    "source": "skills/safe-text-editing",
    "dependencies": []
@@ -1284,11 +1284,11 @@
    "category": "skill",
    "name": "self-evolution",
    "status": "shipped",
-   "tier": "core",
+   "tier": "library",
    "description": "将用户明确的长期偏好、重复纠正、验证过的复用经验和持续能力缺口转为有证据的规则、技能或工具配置更新；也用于查看、暂停、恢复与回退自动调整。触发词：自进化、学到的规则、暂停自动调整、恢复自进化、撤销最近学到的、查看学到的规则、经验沉淀、证据门槛。不用于：单次临时指令和普通成功任务。",
    "install": {
     "mode": "copy-skill",
-    "tier": "core"
+    "tier": "library"
    },
    "source": "skills/self-evolution",
    "dependencies": [
@@ -1596,11 +1596,11 @@
    "category": "skill",
    "name": "structured-edit-safety",
    "status": "shipped",
-   "tier": "core",
+   "tier": "library",
    "description": "对清单/表格/队列/台账/多站点源码做批量机械改造的安全 playbook：追加型编辑锚点丢失（队列行被顶掉、表格行丢失）、多处替换只中一部分却「看起来成功」、dry-run→apply→复扫四段式、逐处计数断言当门禁、混行尾文件正则零命中、批量替换禁止 sed。触发词：批量替换、追加变覆盖、锚点、计数断言、dry-run、复扫、台账批量编辑。不用于字符级转义（→safe-text-editing）。",
    "install": {
     "mode": "copy-skill",
-    "tier": "core"
+    "tier": "library"
    },
    "source": "skills/structured-edit-safety",
    "dependencies": []
@@ -1736,11 +1736,11 @@
    "category": "skill",
    "name": "vibe-coding-workflow",
    "status": "shipped",
-   "tier": "core",
+   "tier": "library",
    "description": "大需求五阶段流程：需求澄清→架构→逐模块生成→调试→迭代；每阶段检查准入，已授权连续实施时不逐阶段重问；含 spec/plan/tasks 四层载体与 route-phase.js 阶段判定。触发词：五阶段、需求阶段、架构阶段、模块开发、调试、迭代、阶段准入。不用于：单点小改（直接做）、成套任务包→vibecoding-doc、纯文档分层→vibecoding-doc。",
    "install": {
     "mode": "copy-skill",
-    "tier": "core"
+    "tier": "library"
    },
    "source": "skills/vibe-coding-workflow",
    "dependencies": []

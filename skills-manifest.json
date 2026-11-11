@@ -40,12 +40,12 @@
   },
   {
    "name": "concurrent-edit-attribution-check",
-   "tier": "core",
+   "tier": "library",
    "files": 1
   },
   {
    "name": "continuation-state-audit",
-   "tier": "core",
+   "tier": "library",
    "files": 2
   },
   {
@@ -140,7 +140,7 @@
   },
   {
    "name": "goal-driven-execution",
-   "tier": "core",
+   "tier": "library",
    "files": 1
   },
   {
@@ -450,12 +450,12 @@
   },
   {
    "name": "safe-text-editing",
-   "tier": "core",
+   "tier": "library",
    "files": 2
   },
   {
    "name": "self-evolution",
-   "tier": "core",
+   "tier": "library",
    "files": 3
   },
   {
@@ -565,7 +565,7 @@
   },
   {
    "name": "structured-edit-safety",
-   "tier": "core",
+   "tier": "library",
    "files": 3
   },
   {
@@ -615,7 +615,7 @@
   },
   {
    "name": "vibe-coding-workflow",
-   "tier": "core",
+   "tier": "library",
    "files": 4
   },
   {

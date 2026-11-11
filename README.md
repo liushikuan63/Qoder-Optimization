@@ -91,9 +91,9 @@ For a guided setup, give the repository to Qoder and ask it to inspect your curr
 
 > Read `README-安装说明.md`, `INDEX.md`, `catalog.json`, `hooks/README-hooks.md`, and `mcp/README-mcp.md`. Inspect my existing `~/.qoder` or `~/.qoder-cn` setup, then propose an install plan covering skills, conflicts, and configuration changes. Show the plan and wait for confirmation before editing; back up each file before changing it.
 
-For a manual setup, follow the [installation guide](README-安装说明.md). Install only the skills you need; do not copy `skills/` wholesale.
+For a manual setup, follow the [installation guide](README-安装说明.md). The installer puts every shipped skill into the on-demand library by default (`--skills-scope all`); use `--skills-scope base` for the core set only. Do not copy `skills/` wholesale by hand.
 
-Start with `install.cmd` on Windows, or `node scripts/install-package.cjs` elsewhere. A fresh installation defaults to the complete portable workflow: 12 public core skills, managed rules, required helpers and 16 exec hooks across five events. Existing routing installations retain their choice; select `--profile complete` to upgrade. Personal rules, accounts, private memory and optional integrations are preserved separately. The package checks installed capabilities, updates only verified unchanged older copies, and asks about missing general or explicitly preferred capabilities. It wires task routing so relevant installed capabilities can prompt for use. Optional SQLite continuity remains a separate explicit choice (`--continuity` or `install-continuity.cjs`); accepted continuity installs auto-bind supported sessions while preserving explicit disables.
+Start with `install.cmd` on Windows, or `node scripts/install-package.cjs` elsewhere. A fresh installation defaults to the complete portable workflow: 5 public core skills, managed rules, required helpers and 16 exec hooks across five events. Existing routing installations retain their choice; select `--profile complete` to upgrade. Personal rules, accounts, private memory and optional integrations are preserved separately. The package checks installed capabilities, updates only verified unchanged older copies, and asks about missing general or explicitly preferred capabilities. It wires task routing so relevant installed capabilities can prompt for use. Optional SQLite continuity remains a separate explicit choice (`--continuity` or `install-continuity.cjs`); accepted continuity installs auto-bind supported sessions while preserving explicit disables.
 
 After setup, run the checks from the client directory you configured:
 
@@ -166,7 +166,7 @@ Details: [installation and tiers](README-安装说明.md), [working rules](Qoder
 
 ### Catalog snapshot
 
-In the catalog generated on 2026-11-10, 12 core skill descriptions total 2,728 characters; all 133 skill descriptions total 27,523 characters. The core descriptions are 9.9% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
+In the catalog generated on 2026-11-10, 5 core skill descriptions total 1,083 characters; all 133 skill descriptions total 27,523 characters. The core descriptions are 3.9% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
 
 ### Requirements and limits
 
@@ -284,9 +284,9 @@ Hooks      在配置的流程节点运行检查
 
 > 先阅读 `README-安装说明.md`、`INDEX.md`、`catalog.json`、`hooks/README-hooks.md` 和 `mcp/README-mcp.md`。检查我当前的 `~/.qoder` 或 `~/.qoder-cn` 配置，提出技能选择、冲突和配置修改计划。先展示计划并等待确认；修改前逐个备份文件。
 
-手动安装请按[安装说明](README-安装说明.md)操作。只安装需要的技能，不要整目录复制 `skills/`。
+手动安装请按[安装说明](README-安装说明.md)操作。安装器默认把全部随包技能装入按需库（`--skills-scope all`），只要核心集时用 `--skills-scope base`；不要手工整目录复制 `skills/`。
 
-Windows 从包根 `install.cmd` 开始，其他平台运行 `node scripts/install-package.cjs`。新装默认完整工作流：12 个公开核心技能、托管规则、必要依赖和五类事件共 16 条 exec hook；已有 routing 保留，显式 `--profile complete` 升级。个人规则、账号、私人记忆和可选集成分别保留。安装包主动核对已有能力，只更新可证明未被本地修改的旧副本；缺失仅通用或符合明确偏好时询问安装，其他跳过，并把相关已装能力接入任务询问与路由。SQLite 接续记忆仍需单独显式选择（`--continuity` 或 `install-continuity.cjs`），启用后自动绑定并保留会话关闭选择。
+Windows 从包根 `install.cmd` 开始，其他平台运行 `node scripts/install-package.cjs`。新装默认完整工作流：5 个公开核心技能、托管规则、必要依赖和五类事件共 16 条 exec hook；已有 routing 保留，显式 `--profile complete` 升级。个人规则、账号、私人记忆和可选集成分别保留。安装包主动核对已有能力，只更新可证明未被本地修改的旧副本；缺失仅通用或符合明确偏好时询问安装，其他跳过，并把相关已装能力接入任务询问与路由。SQLite 接续记忆仍需单独显式选择（`--continuity` 或 `install-continuity.cjs`），启用后自动绑定并保留会话关闭选择。
 
 安装后，在所使用客户端的目录中运行：
 
@@ -359,7 +359,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 
 ### 目录快照
 
-截至 2026-11-10 生成的目录，12 个常驻技能的描述共 2,728 字符；133 个技能的描述共 27,523 字符。常驻描述占全部技能描述文本的 9.9%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
+截至 2026-11-10 生成的目录，5 个常驻技能的描述共 1,083 字符；133 个技能的描述共 27,523 字符。常驻描述占全部技能描述文本的 3.9%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
 
 ### 环境与限制
 
