@@ -8,7 +8,7 @@
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 133,
-  "script": 165,
+  "script": 166,
   "command": 12,
   "agent": 2
  },
@@ -3830,6 +3830,21 @@
    "source": "scripts/tmp-sweeper.test.js",
    "dependencies": [
     "script:tmp-sweeper.js"
+   ]
+  },
+  {
+   "id": "script:tool-dispatcher.test.js",
+   "category": "script",
+   "name": "tool-dispatcher.test.js",
+   "status": "shipped",
+   "source": "scripts/tool-dispatcher.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:continuity.cjs",
+    "script:post-tool-dispatcher.js",
+    "script:pre-tool-dispatcher.js"
    ]
   },
   {

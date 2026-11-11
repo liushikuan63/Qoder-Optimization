@@ -238,6 +238,12 @@ function main() {
     mk('INTL', bad);
     check();
     const out2 = cap.join('\n');
+    cap.length = 0;
+    const ghost = JSON.parse(JSON.stringify(clean));
+    ghost.hooks.Stop[0].hooks.push({ command: 'node ~/cfg-doctor-ghost-' + process.pid + '.js' });
+    mk('INTL', ghost);
+    check();
+    const out3 = cap.join('\n');
     console.log = log;
     S.CN = savedS.CN; S.INTL = savedS.INTL;
     fs.rmSync(base, { recursive: true, force: true });
@@ -246,6 +252,8 @@ function main() {
       ['NEG 多挂的 hook 被报红', /RED   HOOK-DIFF/.test(out2)],
       ['NEG 两侧 mcpServers 不一致被报红', /RED   MCP-SERVERS/.test(out2)],
       ['NEG 空转记忆 hook 被报红', /RED   HOOK-INERT/.test(out2)],
+      ['基线入口都存在时 HOOK-ENTRY-MISSING 判 OK', /OK    HOOK-ENTRY-MISSING/.test(out1)],
+      ['NEG 接线指向不存在脚本被报红（反向 drift）', /RED   HOOK-ENTRY-MISSING/.test(out3)],
     ];
     let fail = 0;
     for (const [n, ok] of t) { log((ok ? 'PASS ' : 'FAIL ') + n); if (!ok) fail++; }
