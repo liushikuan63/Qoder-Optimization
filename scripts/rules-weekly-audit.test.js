@@ -368,6 +368,82 @@ r = audit();
 check('V16 单端（无 ~/.qoder-cn）也必须零告警（反假警报）', r.code === 0, `exit=${r.code}`);
 if (r.code !== 0) console.log('     实际输出片段：' + r.out.replace(/\n/g, ' | ').slice(0, 300));
 
+// ── T-11 / A1：现役体检只读巡检通道（两个 doctor 挂进周检，不进 CI 隔离 HOME）──
+function installDoctors(skillsStub) {
+  fs.copyFileSync(path.join(__dirname, 'config-doctor.cjs'), path.join(H, 'scripts', 'config-doctor.cjs'));
+  fs.copyFileSync(path.join(__dirname, 'client-root.js'), path.join(H, 'scripts', 'client-root.js'));
+  if (skillsStub) w(path.join(H, 'scripts', 'skills-doctor.cjs'), skillsStub);
+  else fs.copyFileSync(path.join(__dirname, 'skills-doctor.cjs'), path.join(H, 'scripts', 'skills-doctor.cjs'));
+}
+function ledgerLast() {
+  const p = path.join(H, 'tmp', 'rules-audit', 'history.log');
+  if (!fs.existsSync(p)) return '';
+  return fs.readFileSync(p, 'utf8').split('\n').filter(Boolean).pop() || '';
+}
+function driftCnHooks() {
+  const p = path.join(C, 'settings.json');
+  const original = fs.readFileSync(p, 'utf8');
+  const j = JSON.parse(original);
+  j.hooks.UserPromptSubmit[0].hooks.push({ type: 'command', command: 'node ' + path.join(H, 'scripts', 'helper.js'), timeout: 5 });
+  fs.writeFileSync(p, JSON.stringify(j, null, 2));
+  return { p, original };
+}
+
+buildSandbox();
+installDoctors();
+r = audit(['--no-fix']);
+const cdHits = (r.out.match(/现役体检 — config-doctor/g) || []).length;
+const sdHits = (r.out.match(/现役体检 — skills-doctor/g) || []).length;
+check('V29 巡检报告含 config-doctor 与 skills-doctor 结论各 1 次', cdHits === 1 && sdHits === 1, `config-doctor=${cdHits} skills-doctor=${sdHits} exit=${r.code}`);
+if (cdHits !== 1 || sdHits !== 1) console.log('     实际输出片段：' + r.out.replace(/\n/g, ' | ').slice(0, 400));
+check('V29b --no-fix 不写台账（只读巡检零写入）', ledgerLast() === '', ledgerLast());
+
+buildSandbox();
+installDoctors();
+const drift = driftCnHooks();
+r = audit(['--no-fix']);
+check('V30 负对照：造一条 hook 接线漂移后巡检必须判红',
+  r.code === 1 && /现役体检 — config-doctor 判红/.test(r.out) && /HOOK-DIFF/.test(r.out), `exit=${r.code}`);
+if (!/现役体检 — config-doctor 判红/.test(r.out)) console.log('     实际输出片段：' + r.out.replace(/\n/g, ' | ').slice(0, 400));
+fs.writeFileSync(drift.p, drift.original);
+r = audit(['--no-fix']);
+check('V30b 还原漂移后 config-doctor 复绿', /现役体检 — config-doctor 结论 CLEAN/.test(r.out), `exit=${r.code}`);
+if (!/现役体检 — config-doctor 结论 CLEAN/.test(r.out)) console.log('     实际输出片段：' + r.out.replace(/\n/g, ' | ').slice(0, 400));
+
+buildSandbox();
+// 真 skills-doctor 在裸沙箱里会因两侧 skills/ 不存在而判红（V29 实测），
+// 所以「健康 → doctors 字段为空」这条必须用绿色桩，否则断言的是沙箱缺陷而不是巡检行为。
+installDoctors('console.log("OK    SKILL-PARITY=0");\nconsole.log("VERDICT=CLEAN");\nprocess.exit(0);\n');
+r = audit();
+check('V31 健康时台账追加 doctors= 空字段', /\|doctors=$/.test(ledgerLast()), ledgerLast());
+const drift2 = driftCnHooks();
+r = audit();
+check('V31b 红项进台账 doctors=config-doctor', /\|doctors=config-doctor/.test(ledgerLast()), ledgerLast());
+fs.writeFileSync(drift2.p, drift2.original);
+
+buildSandbox();
+installDoctors('console.log("RED   SKILL-PARITY  两侧技能集不一致");\nconsole.log("VERDICT=RED");\nprocess.exit(1);\n');
+r = audit(['--no-fix']);
+check('V32 doctor 判红 → 周检 warn 且点名红项', r.code === 1 && /现役体检 — skills-doctor 判红 1 项/.test(r.out) && /SKILL-PARITY/.test(r.out), `exit=${r.code}`);
+
+buildSandbox();
+installDoctors('console.log("ERROR precondition");\nprocess.exit(2);\n');
+r = audit(['--no-fix']);
+check('V33 doctor 前置失败（exit 2）→ 报"未能执行"而不是静默', /现役体检 — skills-doctor 未能执行（退出码 2）/.test(r.out), `exit=${r.code}`);
+
+buildSandbox();
+r = audit(['--no-fix']);
+check('V34 未装 doctor 的单端机器 → INFO 跳过、不判红、不凭空造目录',
+  r.code === 0 && /现役体检 — config-doctor 不在本机客户端 scripts 目录，跳过/.test(r.out), `exit=${r.code}`);
+
+// 单端 + 只装 CN 侧：巡检不得为了跑 doctor 去新建 .qoder
+buildSandbox();
+fs.rmSync(C, { recursive: true, force: true });
+fs.copyFileSync(path.join(__dirname, 'config-doctor.cjs'), path.join(H, 'scripts', 'config-doctor.cjs'));
+fs.copyFileSync(path.join(__dirname, 'client-root.js'), path.join(H, 'scripts', 'client-root.js'));
+r = audit(['--no-fix']);
+check('V35 单端跑巡检后另一侧目录仍不存在（0 个凭空创建）', !fs.existsSync(C), `exists=${fs.existsSync(C)} exit=${r.code}`);
+
 fs.rmSync(SB, { recursive: true, force: true });
 console.log(fail === 0 ? '\nALL PASS' : `\n${fail} FAILURE(S)`);
 process.exit(fail === 0 ? 0 : 1);

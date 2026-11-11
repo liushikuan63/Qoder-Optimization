@@ -3325,7 +3325,10 @@
    },
    "source": "scripts/rules-weekly-audit.test.js",
    "dependencies": [
+    "script:client-root.js",
+    "script:config-doctor.cjs",
     "script:rules-weekly-audit.js",
+    "script:skills-doctor.cjs",
     "script:sync-global-config.sh"
    ]
   },

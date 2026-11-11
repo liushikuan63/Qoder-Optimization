@@ -473,6 +473,24 @@ function watchdogNote() {
     `可能 cron 失效或机器在计划时间关机。手工跑一次确认：\`node ~/.qoder/scripts/rules-weekly-audit.js\`。`;
 }
 
+// SessionStart 之三：**现役体检红项**（A1 / T-11）。
+// 周检把 config-doctor / skills-doctor 的只读结论写进台账的 doctors= 字段；这里只在有红项时出声，
+// 健康时零输出。不重跑 doctor（开台预算），也不自动修——改现役配置需单独批准。
+function liveDoctorNote() {
+  if (!fs.existsSync(AUDIT_LEDGER)) return null;
+  let last = '';
+  try {
+    const lines = fs.readFileSync(AUDIT_LEDGER, 'utf8').split('\n').filter(Boolean);
+    last = lines[lines.length - 1] || '';
+  } catch (e) { return null; }
+  const field = /(?:^|\|)doctors=([^|]*)/.exec(last);
+  if (!field || !field[1].trim()) return null;
+  const names = field[1].split(',').map(s => s.trim()).filter(Boolean);
+  if (!names.length) return null;
+  return `【现役体检】上次周检里 ${names.join(' / ')} 判红（${last.slice(0, 10)}）——现役配置漂移只读巡检不自动修。`
+    + `看详情：\`node ~/.qoder/scripts/rules-weekly-audit.js --no-fix\`；改现役 settings.json 需单独批准。`;
+}
+
 // SessionStart 之四：**超期临时产物提醒**（2026-11-09）。
 // /clean-temp 默认只列不删、删除必须弹窗确认——没有提醒就没人触发（实测：127 个超期件
 // 11 天无一次 APPLY，周检只出 INFO）。这里只提醒、不删除；7 天节流，避免每次开台都刷。
@@ -562,11 +580,11 @@ function main() {
     // tmpOverdueNote 有副作用（写节流状态），只算一次；算两次第二次会被自己节流掉
     const tmpNote = tmpOverdueNote();
     const usageNote = tmpUsageNote();
-    const parts = [resumeQueue(cwd), vibePackNote(cwd), watchdogNote(), diskNote(), tmpNote, usageNote].filter(Boolean);
+    const parts = [resumeQueue(cwd), vibePackNote(cwd), watchdogNote(), liveDoctorNote(), diskNote(), tmpNote, usageNote].filter(Boolean);
     if (parts.length) {
       // 台账记"注入了哪几路"，而不是只记条数：几路里少一路时必须能看出来少的是哪路
       const tags = [resumeQueue(cwd) ? 'resume-queue' : null, vibePackNote(cwd) ? 'vibe-pack' : null,
-        watchdogNote() ? 'watchdog' : null, diskNote() ? 'disk' : null, tmpNote ? 'tmp-overdue' : null,
+        watchdogNote() ? 'watchdog' : null, liveDoctorNote() ? 'live-doctor' : null, diskNote() ? 'disk' : null, tmpNote ? 'tmp-overdue' : null,
         usageNote ? 'tmp-usage' : null].filter(Boolean).join('+');
       ledger(['SessionStart', tags, String(cwd).slice(0, 60)]);
       emit('SessionStart', parts.join('\n\n'));

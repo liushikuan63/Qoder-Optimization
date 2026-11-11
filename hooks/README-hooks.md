@@ -85,3 +85,18 @@
 - **关闭**：`<客户端目录>/pre-tool-dispatcher.json` 或 `post-tool-dispatcher.json` 写 `{"disabled":true}`。
 - **台账**：`<客户端目录>/tmp/{pre,post}-tool-dispatcher/decisions.log`。
 - **体检**：`config-doctor.cjs` 的 `HOOK-DIFF` 比对的是**命令集合**，因此两侧分别采用不同形态时会报红——这是形态差异而非守卫缺失；`HOOK-ENTRY-MISSING` 才判「接线指向不存在的脚本」。要消除该红项，把两侧统一为同一形态（属现役配置改动，需单独批准）。
+
+## 现役体检的只读巡检通道（周检 + 开台提示）
+
+`config-doctor.cjs` 与 `skills-doctor.cjs` 查的是**现役客户端配置**，因此有一条独立于 CI 的巡检通道：
+
+| 环节 | 载体 | 行为 |
+|---|---|---|
+| 定期巡检 | `scripts/rules-weekly-audit.js` 的 `checkLiveDoctors()` | 按 `client-root` 解析出的客户端 `scripts/` 目录，**无参数**只读运行两个 doctor（绝不触发 `fix` / `apply-sync`），把结论各记 1 条 finding |
+| 台账 | `<客户端目录>/tmp/rules-audit/history.log` | 行尾追加 `doctors=<判红的 doctor 名，逗号分隔>`；健康时为空字段 |
+| 开台提示 | `scripts/session-budget.js` 的 `liveDoctorNote()`（SessionStart） | 只在 `doctors=` 非空时出声并点名，健康时零输出；不重跑 doctor（开台预算），不自动修 |
+
+- **为什么不进 CI**：`.github/run-tests.js` 用隔离 HOME 跑 `smoke-runner.cjs --tests-only`，四个 CHECKERS 全在 `if (!TESTS_ONLY)` 内被跳过——沙箱里没有现役配置，查了也无意义。`--tests-only` 的行为与本通道接线前完全一致。
+- **单端合法**：doctor 脚本不在本机客户端目录时记 INFO 跳过，不判红、**不为了跑它去新建另一侧目录**。
+- **判红不等于自动修**：巡检只报告。改现役 `settings.json`（含统一两侧接线形态）属现役配置改动，需单独批准。
+- **可失败判据**：`scripts/rules-weekly-audit.test.js` 的 V29–V35（含「造一条 hook 接线漂移 → 巡检判红 → 还原复绿」的真实 config-doctor 负对照、`--no-fix` 零写入、exit 2 前置失败必须出声、单端不造目录）；`scripts/session-budget.test.js` 的「现役体检红项提示」四例（空字段静默 / 双红点名 / 旧格式台账兼容 / 单红只点名该项）。

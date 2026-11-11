@@ -180,6 +180,37 @@ for (const c of cases) {
   check('看门狗：台账过期 15 天 → 报"已 X 天没跑"', /已 \*\*1[45]\.\d 天\*\*没成功跑过/.test(r3), r3.slice(0, 46));
 }
 
+// ── 现役体检红项提示（T-11 / A1）：周检台账 doctors= 字段 → SessionStart 出声 ──
+{
+  const dh = path.join(SB, 'ld-home', '.qoder');
+  const ledger = path.join(dh, 'tmp', 'rules-audit', 'history.log');
+  const mk = () => { fs.mkdirSync(path.join(dh, 'scripts'), { recursive: true }); fs.mkdirSync(path.dirname(ledger), { recursive: true }); fs.writeFileSync(path.join(dh, 'scripts', 'rules-weekly-audit.js'), '// stub\n'); };
+  const runLd = () => spawnSync(NODE, [SCRIPT], {
+    input: JSON.stringify({ hook_event_name: 'SessionStart', cwd: path.join(SB, 'empty-proj') }),
+    encoding: 'utf8', timeout: 20000,
+    env: { ...process.env, HOME: path.join(SB, 'ld-home'), USERPROFILE: path.join(SB, 'ld-home'), SB_STATE_DIR: path.join(SB, 'ld-state') },
+  });
+  const ctxOf = (r) => { try { return JSON.parse(r.stdout).hookSpecificOutput.additionalContext; } catch (e) { return ''; } };
+  const fresh = new Date().toISOString();
+
+  fs.rmSync(path.join(SB, 'ld-home'), { recursive: true, force: true });
+  mk();
+  fs.writeFileSync(ledger, fresh + '|warn=0|fixed=0|info=2|doctors=\n');
+  check('现役体检：doctors 为空 → 静默', !ctxOf(runLd()).includes('【现役体检】'), ctxOf(runLd()).slice(0, 60));
+
+  fs.writeFileSync(ledger, fresh + '|warn=2|fixed=0|info=0|doctors=config-doctor,skills-doctor\n');
+  const hit = ctxOf(runLd());
+  check('现役体检：两个 doctor 判红 → 提示并点名', hit.includes('【现役体检】') && hit.includes('config-doctor') && hit.includes('skills-doctor'), hit.slice(0, 90));
+  check('现役体检：提示只读、不自动修', /只读巡检不自动修/.test(hit) && /需单独批准/.test(hit));
+
+  fs.writeFileSync(ledger, fresh + '|warn=0|fixed=0|info=0\n');
+  check('现役体检：旧格式台账（无 doctors 字段）→ 静默', !ctxOf(runLd()).includes('【现役体检】'));
+
+  fs.writeFileSync(ledger, fresh + '|warn=1|fixed=0|info=0|doctors=config-doctor\n');
+  const one = ctxOf(runLd());
+  check('现役体检：单个红项只点名该项', one.includes('config-doctor') && !one.includes('skills-doctor'), one.slice(0, 80));
+}
+
 // ── 超期临时产物提醒：有超期件 → 提醒；7 天节流；新鲜 / 无根 → 静默 ──
 {
   const trHome = path.join(SB, 'tr-home');

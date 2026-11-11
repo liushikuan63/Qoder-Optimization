@@ -585,6 +585,40 @@ function checkHookCrashes() {
   }
 }
 
+// ── 8. 现役体检：两个 doctor 的只读巡检通道（A1 / T-11）──────────────────────
+// 它们查的是**现役客户端配置**，所以不能塞进 CI 的隔离 HOME（沙箱里没有现役配置，查了也无意义）；
+// smoke-runner 的四个 CHECKERS 又全在 `if (!TESTS_ONLY)` 内、且 needsCn 在单端会再跳一次。
+// 这里只读运行、只把结论带进周检报告与台账；绝不触发它们的 fix / apply-sync 子命令，也不改现役配置。
+const LIVE_DOCTORS = ['config-doctor.cjs', 'skills-doctor.cjs'];
+const doctorsRed = [];
+
+function checkLiveDoctors() {
+  for (const file of LIVE_DOCTORS) {
+    const name = file.replace(/\.cjs$/, '');
+    const script = path.join(SCRIPTS, file);
+    if (!fs.existsSync(script)) {
+      add('info', '现役体检', `${name} 不在本机客户端 scripts 目录，跳过（单端 / 未装该脚本是合法形态）`, '装上后本项自动生效');
+      continue;
+    }
+    const r = runNode(script, [], 60000);
+    if (r.code !== 0 && r.code !== 1) {
+      add('warn', '现役体检', `${name} 未能执行（退出码 ${r.code}）：${r.out.slice(0, 160)}`,
+        '手工跑一次看卡在哪；它挂了现役配置漂移就没人提醒');
+      doctorsRed.push(name);
+      continue;
+    }
+    const reds = r.out.split('\n').map(line => line.trim()).filter(line => /^RED\b/.test(line));
+    if (r.code === 1 || reds.length) {
+      add('warn', '现役体检', `${name} 判红 ${reds.length} 项：${reds.slice(0, 6).join(' | ').slice(0, 400)}`,
+        '只读巡检不自动修；按该 doctor 所属流程人工裁决后再动现役配置（改 settings.json 需单独批准）');
+      doctorsRed.push(name);
+    } else {
+      const verdict = /VERDICT=(RED|CLEAN)/.exec(r.out);
+      add('info', '现役体检', `${name} 结论 ${verdict ? verdict[1] : 'CLEAN'}（退出码 0）`, '无需处理');
+    }
+  }
+}
+
 function main() {
   if (!QUIET) console.log('=== 全局规则周体检 ===\n');
   checkConsistency();
@@ -594,6 +628,7 @@ function main() {
   checkAdherence();
   checkDisk();
   checkHookCrashes();
+  checkLiveDoctors();
 
   const warns = findings.filter(f => f.level === 'warn');
   const fixed = findings.filter(f => f.level === 'fixed');
@@ -603,7 +638,7 @@ function main() {
   if (!READ_ONLY) {
     try {
       fs.mkdirSync(OUT_DIR, { recursive: true });
-      fs.appendFileSync(HISTORY, `${new Date().toISOString()}|warn=${warns.length}|fixed=${fixed.length}|info=${infos.length}\n`);
+      fs.appendFileSync(HISTORY, `${new Date().toISOString()}|warn=${warns.length}|fixed=${fixed.length}|info=${infos.length}|doctors=${doctorsRed.join(',')}\n`);
     } catch (e) { /* 报告失败不影响结论 */ }
   }
 
