@@ -579,9 +579,20 @@ function ranTestCommand(command) {
     return /^(?:bash|sh)(?:\.exe)?$/i.test(executable) && /\.test\.sh$/.test(args[0] || '');
   });
 }
+// 文档交付的判据是文档校验器，不是测试/构建。只读审计 + 文档落盘轮跑校验器 exit 0
+// 即为有效运行证据（此前被连拦两次，属判据与交付物错配）。
+const DOC_VALIDATOR = /\b(?:check-vibecoding-doc\.js|line-refs\.mjs|check-share-docs\.js|share-package-verify\.cjs|skill-reference-integrity\.cjs|validate\.mjs)\b/;
+const CODE_FILE = /\.(?:js|cjs|mjs|ts|tsx|jsx|py|go|java|rs|vue|sh|ps1)$/i;
+function codeEditedThisTurn(ctx) {
+  return ctx.turnTools.some((t) => /^(?:Write|Edit|NotebookEdit)$/.test(toolName(t))
+    && CODE_FILE.test(String((t.input || {}).file_path || (t.input || {}).path || '')));
+}
 function ranGreenThisTurn(ctx) {
-  return ctx.turnTools.some((tool) => tool.success && toolName(tool) === 'Bash'
-    && ranTestCommand(String(tool.input.command || '')));
+  if (ctx.turnTools.some((tool) => tool.success && toolName(tool) === 'Bash'
+    && ranTestCommand(String(tool.input.command || '')))) return true;
+  // 改了源码就必须有测试/构建；只改文档时校验器算数。
+  return !codeEditedThisTurn(ctx) && ctx.turnTools.some((tool) => tool.success && toolName(tool) === 'Bash'
+    && DOC_VALIDATOR.test(String(tool.input.command || '')));
 }
 
 function askedAbout(ctx, pattern) {
@@ -789,10 +800,17 @@ function tempGateProbe(ctx) {
 }
 
 // R15：使用分享包（安装/合并/发布构建）后必须做一次临时扫描并询问清理范围（2026-11-09）。
-const SHARE_PKG_OP = /install-package\.cjs|(?:unzip|tar\s+(?:-?x|--extract))[^\n]*Qoder-Optimization|Qoder-Optimization[^\n]*\.zip/i;
+// 只认**真实调用**，不认只读提及：`grep -n … scripts/install-package.cjs` 是检查而非包操作，
+// 旧正则匹配任何提及，导致只读审计轮被误判为「执行了分享包操作」（实测）。
+const SHARE_PKG_OP = /\bnode\b[^\n]*\b(?:install-package|build-release|publish-release|pack-share-extras|pack-folder)\.(?:cjs|js)|(?:unzip|tar\s+(?:-?x|--extract))[^\n]*Qoder-Optimization|Qoder-Optimization[^\n]*\.zip/i;
+const READ_ONLY_INSPECT = /^\s*(?:grep|rg|sed|cat|head|tail|ls|awk|wc|find|git\s+(?:diff|show|log|status))\b/;
 function sharePackageOp(ctx) {
-  return ctx.turnTools.some((x) => x.success && toolName(x) === 'Bash'
-    && SHARE_PKG_OP.test(String((x.input || {}).command || '')));
+  return ctx.turnTools.some((x) => {
+    if (!(x.success && toolName(x) === 'Bash')) return false;
+    const c = String((x.input || {}).command || '');
+    if (READ_ONLY_INSPECT.test(c) && !/\bnode\b/.test(c)) return false;
+    return SHARE_PKG_OP.test(c);
+  });
 }
 function shareTempScanRan(ctx) {
   return ctx.turnTools.some((x) => x.success && toolName(x) === 'Bash'

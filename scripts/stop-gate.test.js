@@ -900,6 +900,23 @@ const pkgApplyShareCovered = tool('Bash', { command: 'node ~/.qoder/scripts/tmp-
 check('R15 有时间戳：覆盖本轮条目才放行', r15At('r15-p', [pkgOp, pkgApplyShareCovered], shareReport).decision, 'allow');
 check('R15 有时间戳：未覆盖本轮条目仍拦', r15At('r15-q', [pkgOp, pkgApplyShare], shareReport).decision, 'block');
 
+// —— T-17 / C2：文档交付承认校验器为有效运行证据；改了源码仍必须有测试/构建 ——
+const docValidator = tool('Bash', { command: 'node C:/Users/x/.qoder/skills/vibecoding-doc/scripts/check-vibecoding-doc.js docs/pkg' }, '结果：通过（0 个问题）');
+const docWrite = tool('Write', { file_path: 'D:/proj/docs/pkg/spec.md', content: '# spec' });
+const codeWrite = tool('Write', { file_path: 'D:/proj/scripts/foo.js', content: 'x' });
+const r9run = (sess, tools, text = r9text) => run({ last_assistant_message: text, transcript_path: transcript([user('做文档'), ...tools, asst(text)]), session_id: sess }, sess);
+check('C2 只改文档且跑过校验器则放行', r9run('c2-a', [docWrite, docValidator]).decision, 'allow');
+check('C2 负对照：改了源码只跑校验器仍拦', r9run('c2-b', [codeWrite, docValidator]).decision, 'block');
+check('C2 负对照：只改文档但没跑任何校验/测试仍拦', r9run('c2-c', [docWrite, tool('Bash', { command: 'ls docs' }, 'x')]).decision, 'block');
+check('C2 负对照：校验器失败不算证据', r9run('c2-d', [docWrite, tool('Bash', { command: 'node check-vibecoding-doc.js docs/pkg' }, '结果：3 个问题', true)]).decision, 'block');
+
+// —— T-17 / C3：只读提及 install-package.cjs 不是包操作；真实构建/发布调用是 ——
+check('C3 grep 只读检查 install-package.cjs 不触发 R15', r15('c3-a', [tool('Bash', { command: 'grep -n "copy-script" scripts/install-package.cjs' }, '12: x')]).decision, 'allow');
+check('C3 sed 只读查看 install-package.cjs 不触发 R15', r15('c3-b', [tool('Bash', { command: 'sed -n "1,20p" scripts/install-package.cjs' }, 'x')]).decision, 'allow');
+check('C3 负对照：真实调用 install-package.cjs 仍触发', r15('c3-c', [pkgOp]).decision, 'block');
+check('C3 负对照：真实调用 build-release.js 仍触发', r15('c3-d', [tool('Bash', { command: 'node .github/build-release.js v0.1.6 D:/out HEAD' }, 'BUILT')]).decision, 'block');
+check('C3 负对照：真实调用 publish-release.js 仍触发', r15('c3-e', [tool('Bash', { command: 'node .github/publish-release.js v0.1.6 D:/out' }, 'PUBLISHED')]).decision, 'block');
+
 console.log(results.join('\n'));
 
 const failed = results.filter((x) => x.startsWith('FAIL')).length;
