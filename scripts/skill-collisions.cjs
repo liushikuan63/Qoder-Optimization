@@ -7,17 +7,8 @@ const CN = HOME + '/.qoder-cn/skills';
 const Q = HOME + '/.qoder/skills';  // read-only scanner used by 技能门禁复盘
 const dirs = (r) => fs.readdirSync(r, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
 function descOf(md) {
-  const lines = md.split(/\r?\n/);
-  if (lines[0] !== '---') return '';
-  let end = -1;
-  for (let i = 1; i < Math.min(lines.length, 120); i++) if (lines[i] === '---') { end = i; break; }
-  let d = '', key = null;
-  for (const l of lines.slice(1, end)) {
-    const m = l.match(/^([A-Za-z_][\w-]*):\s?(.*)$/);
-    if (m) { if (m[1] === 'description') d = m[2]; key = m[1]; continue; }
-    if (/^\s+\S/.test(l) && key === 'description') d = (d + ' ' + l.trim()).trim();
-  }
-  return d.replace(/^"|"$/g, '').replace(/\\(["\\])/g, '$1');
+  // 共用唯一解析真源：此前这里只解码 \" 与 \\，遇到 \n / \t / \uXXXX 会与生产者分歧。
+  try { return require('./skill-description.cjs').parseDescription(md); } catch (e) { return ''; }
 }
 const cn = dirs(CN), q = dirs(Q);
 const set = (a) => new Set(a);

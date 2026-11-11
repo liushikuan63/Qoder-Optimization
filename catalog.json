@@ -8,7 +8,7 @@
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 133,
-  "script": 154,
+  "script": 158,
   "command": 11,
   "agent": 2
  },
@@ -949,7 +949,7 @@
    "name": "postgresql-optimization",
    "status": "shipped",
    "tier": "library",
-   "description": "Expert in PostgreSQL performance tuning, query optimization, and database administration. Specializes in EXPLAIN analysis, indexing strategies, connection pooling, partitioning, and production-grade",
+   "description": "Expert in PostgreSQL performance tuning, query optimization, and database administration. Specializes in EXPLAIN analysis, indexing strategies, connection pooling, partitioning, and production-grade PostgreSQL operations.",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -3006,7 +3006,8 @@
    "source": "scripts/pack-share-extras.cjs",
    "dependencies": [
     "script:archive-entries.cjs",
-    "script:package-dependencies.cjs"
+    "script:package-dependencies.cjs",
+    "script:skill-description.cjs"
    ]
   },
   {
@@ -3335,6 +3336,7 @@
    },
    "source": "scripts/share-package-verify.cjs",
    "dependencies": [
+    "script:skill-description.cjs",
     "script:skills-doctor.cjs"
    ]
   },
@@ -3384,7 +3386,33 @@
     "mode": "copy-file"
    },
    "source": "scripts/skill-collisions.cjs",
+   "dependencies": [
+    "script:skill-description.cjs"
+   ]
+  },
+  {
+   "id": "script:skill-description.cjs",
+   "category": "script",
+   "name": "skill-description.cjs",
+   "status": "shipped",
+   "source": "scripts/skill-description.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
    "dependencies": []
+  },
+  {
+   "id": "script:skill-description.test.js",
+   "category": "script",
+   "name": "skill-description.test.js",
+   "status": "shipped",
+   "source": "scripts/skill-description.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:skill-description.cjs"
+   ]
   },
   {
    "id": "script:skill-load.cjs",
@@ -3423,6 +3451,19 @@
     "mode": "copy-file"
    },
    "dependencies": []
+  },
+  {
+   "id": "script:skill-reference-coverage.test.js",
+   "category": "script",
+   "name": "skill-reference-coverage.test.js",
+   "status": "shipped",
+   "source": "scripts/skill-reference-coverage.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:skill-reference-integrity.cjs"
+   ]
   },
   {
    "id": "script:skill-reference-integrity.cjs",
@@ -3620,6 +3661,19 @@
     "script:build-skills-index.cjs",
     "script:capability-roots.cjs",
     "script:client-root.js"
+   ]
+  },
+  {
+   "id": "script:tmp-round-scan-evidence.test.js",
+   "category": "script",
+   "name": "tmp-round-scan-evidence.test.js",
+   "status": "shipped",
+   "source": "scripts/tmp-round-scan-evidence.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:tmp-round-scan.cjs"
    ]
   },
   {

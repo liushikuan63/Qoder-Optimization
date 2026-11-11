@@ -53,13 +53,9 @@ function scriptDirectoryFiles(root, rel) {
 }
 
 function descriptionOf(file) {
-  const text = fs.readFileSync(file, 'utf8');
-  const raw = (text.match(/^description:[ \t]*(.+)$/m) || [])[1];
-  if (!raw) throw new Error('缺少单行 description：' + path.basename(path.dirname(file)));
-  const value = raw.trim();
-  if (value.startsWith('"') && value.endsWith('"')) return JSON.parse(value);
-  if (value.startsWith("'") && value.endsWith("'")) return value.slice(1, -1).replace(/''/g, "'");
-  return value;
+  // 唯一解析真源；此前只取首行，多行 description 被静默截断
+  // （实测 postgresql-optimization 丢了续行 "PostgreSQL operations."）。
+  return require('./skill-description.cjs').descriptionOfFile(file);
 }
 
 function metadataFor(root, options = {}) {

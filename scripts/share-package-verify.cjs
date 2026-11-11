@@ -51,9 +51,9 @@ function walk(dir, base, out) {
 }
 
 function descOf(file) {
-  const t = fs.readFileSync(file, 'utf8');
-  const m = t.match(/^description:\s*(.+)$/m);
-  return m ? m[1] : null;
+  // 与生产者 pack-share-extras 共用同一解析真源：此前这里取含引号的原始行、不解码，
+  // 导致 89 个 quoted 技能长度多算 2、含转义的多算 3（实测 90/133 分歧）。
+  try { return require('./skill-description.cjs').descriptionOfFile(file); } catch (e) { return null; }
 }
 
 function verify(pkgDir, agentsPath) {
