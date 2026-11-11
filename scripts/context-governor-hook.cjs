@@ -201,7 +201,9 @@ function snapshotFor(event, state) {
 }
 
 function pointerText() {
-  return '[context-governor] 压缩已发生：仅恢复指针，不申报输入减量，也没有 fold 句柄。先核对当前请求/授权；需要原文时用 continuity 档案检索（node "D:/tools/qoder-context-continuity/continuity.cjs" search --cwd <目录> --session <会话> --query "<关键词>"），或直接读取原始 transcript；未核对前不要把摘要当事实。';
+  // 指针必须指向随包兄弟脚本：写死某台机器的工具目录会让其他机器的恢复指引指向不存在的文件。
+  const continuity = path.join(__dirname, 'continuity.cjs').split(path.sep).join('/');
+  return `[context-governor] 压缩已发生：仅恢复指针，不申报输入减量，也没有 fold 句柄。先核对当前请求/授权；需要原文时用 continuity 档案检索（node "${continuity}" search --cwd <目录> --session <会话> --query "<关键词>"），或直接读取原始 transcript；未核对前不要把摘要当事实。`;
 }
 
 function injectText(ratio, level) {

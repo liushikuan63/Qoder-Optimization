@@ -839,4 +839,21 @@ test('context-governor core', async (t) => {
     assert.equal(show.code, 4);
     assert.equal(show.status, 'STALE');
   });
+
+  await t.test('default data dir leaves the D: drive when it is not there', () => {
+    const home = path.join(os.homedir(), '.qoder', 'context-governor');
+    assert.equal(typeof gov.defaultDataDir, 'function', '默认数据目录必须由可测的解析器给出');
+    assert.equal(gov.defaultDataDir('linux'), home, '非 Windows 必须落到 home 目录，不能写死 D:');
+    assert.equal(gov.DEFAULT_DATA_DIR, gov.defaultDataDir(), '模块常量必须走同一解析器');
+    if (process.platform === 'win32' && fs.existsSync('D:\\')) {
+      assert.equal(gov.defaultDataDir('win32'), 'D:/qoder-data/context-governor', '有 D: 盘的 Windows 既有行为不得改变');
+    }
+    const mutantDir = path.join(ROOT, 'datadir-mutant');
+    fs.mkdirSync(mutantDir, { recursive: true });
+    const source = fs.readFileSync(path.join(__dirname, 'context-governor.cjs'), 'utf8');
+    const anchor = 'const DEFAULT_DATA_DIR = defaultDataDir();';
+    assert.ok(source.includes(anchor), '变异锚点必须存在于实现中');
+    fs.writeFileSync(path.join(mutantDir, 'gov.cjs'), source.replace(anchor, "const DEFAULT_DATA_DIR = 'D:/qoder-data/context-governor';"));
+    assert.notEqual(require(path.join(mutantDir, 'gov.cjs')).DEFAULT_DATA_DIR, home, '旧的无条件 D: 默认必须被这条判据杀掉');
+  });
 });

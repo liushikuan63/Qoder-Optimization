@@ -8,7 +8,12 @@ const crypto = require('crypto');
 const { DatabaseSync } = require('node:sqlite');
 
 const SCHEMA_VERSION = 1;
-const DEFAULT_DATA_DIR = 'D:/qoder-data/context-governor';
+// 与 continuity.cjs 同一口径：只有真的存在 D: 盘才用 D:，否则落到 home，避免在没有 D: 的机器上写不进去。
+function defaultDataDir(platform = process.platform) {
+  if (platform === 'win32' && fs.existsSync('D:\\')) return 'D:/qoder-data/context-governor';
+  return path.join(os.homedir(), '.qoder', 'context-governor');
+}
+const DEFAULT_DATA_DIR = defaultDataDir();
 const FALLBACK_WINDOW = 200000;
 const SOFT_SUMMARY_TOKENS = 1500;
 const HARD_SUMMARY_TOKENS = 2000;
@@ -1587,6 +1592,7 @@ function main(argv = process.argv.slice(2)) {
 module.exports = {
   SCHEMA_VERSION,
   DEFAULT_DATA_DIR,
+  defaultDataDir,
   estimateTokens,
   canonicalJson,
   integrityOf,

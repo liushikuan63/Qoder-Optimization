@@ -100,6 +100,33 @@ test('context-governor hook', async (t) => {
     assert.equal(second.stdout.trim(), '');
   });
 
+  await t.test('restore pointer names the shipped continuity sibling, not a machine path', () => {
+    const sibling = path.join(__dirname, 'continuity.cjs').split(path.sep).join('/');
+    assert.ok(fs.existsSync(path.join(__dirname, 'continuity.cjs')), '包内必须真的带着 continuity.cjs');
+    const portable = (text) => text.includes(sibling) && !/[A-Za-z]:\/tools\//.test(text) && text.length <= 300;
+    const text = require(HOOK).pointerText();
+    assert.ok(portable(text), '恢复指针必须指向随包兄弟脚本且不含本机专用路径：' + text);
+
+    const dir = path.join(ROOT, 'pointer-runtime');
+    const dataDir = path.join(dir, 'data');
+    const transcript = makeTranscript(dir, 'pointer-session', 0.7);
+    run({ hook_event_name: 'PostCompact', session_id: 'pointer-session', transcript_path: transcript }, dataDir);
+    const start = run({ hook_event_name: 'SessionStart', session_id: 'pointer-session', transcript_path: transcript }, dataDir);
+    assert.equal(start.status, 0);
+    assert.ok(portable(JSON.parse(start.stdout).hookSpecificOutput.additionalContext), '真实 SessionStart 注入同样须可移植');
+
+    // 负对照：把兄弟脚本换回本机专用绝对路径（旧实现），判据必须判红。
+    const mutantDir = path.join(dir, 'mutant');
+    fs.mkdirSync(mutantDir, { recursive: true });
+    fs.writeFileSync(path.join(mutantDir, 'context-governor.cjs'), "module.exports={DEFAULT_DATA_DIR:'" + mutantDir.split(path.sep).join('/') + "'};\n");
+    const source = fs.readFileSync(HOOK, 'utf8');
+    const anchor = "path.join(__dirname, 'continuity.cjs').split(path.sep).join('/')";
+    assert.ok(source.includes(anchor), '变异锚点必须存在于实现中');
+    fs.writeFileSync(path.join(mutantDir, 'hook.cjs'), source.replace(anchor, "'D:/tools/qoder-context-continuity/continuity.cjs'"));
+    const mutantText = require(path.join(mutantDir, 'hook.cjs')).pointerText();
+    assert.equal(portable(mutantText), false, '旧的本机专用路径必须被这条判据杀掉');
+  });
+
   await t.test('UserPromptSubmit is silent below threshold and injects once at soft ratio', () => {
     const belowDir = path.join(ROOT, 'below');
     const belowData = path.join(belowDir, 'data');
