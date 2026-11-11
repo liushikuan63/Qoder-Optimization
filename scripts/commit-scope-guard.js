@@ -66,9 +66,39 @@ function pathspecsOf(command) {
     .filter((t) => !t.startsWith('-'));
 }
 
+// git 的全局选项可以出现在 `git` 与子命令之间（`git -C <path> commit …`）。
+// 旧实现只看紧邻 token，`-C` 一插入就整条放行 —— 该守卫存在的唯一理由随之失效。
+const GIT_GLOBAL_WITH_VALUE = new Set(['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--super-prefix', '--exec-path']);
+const GIT_GLOBAL_FLAG = /^--?(?:no-pager|paginate|bare|no-replace-objects|literal-pathspecs|glob-pathspecs|noglob-pathspecs|icase-pathspecs|no-optional-locks)$/;
+function gitSubcommandIndex(tokens) {
+  const i = tokens.findIndex((t) => t === 'git' || /(^|[\\/])git(?:\.exe)?$/i.test(t));
+  if (i < 0) return -1;
+  let j = i + 1;
+  while (j < tokens.length) {
+    const t = tokens[j];
+    if (GIT_GLOBAL_WITH_VALUE.has(t)) { j += 2; continue; }
+    if (/^--(?:git-dir|work-tree|namespace|super-prefix|exec-path)=/.test(t)) { j += 1; continue; }
+    if (GIT_GLOBAL_FLAG.test(t)) { j += 1; continue; }
+    break;
+  }
+  return j < tokens.length ? j : -1;
+}
 function isGitCommit(tokens) {
-  const i = tokens.findIndex((t) => t === 'git');
-  return i >= 0 && tokens[i + 1] === 'commit';
+  const j = gitSubcommandIndex(tokens);
+  return j >= 0 && tokens[j] === 'commit';
+}
+// `-C <path>` 改变 git 的工作目录；脏文件必须按它查，否则查错仓库等于放行。
+function gitCOption(tokens) {
+  const i = tokens.findIndex((t) => t === 'git' || /(^|[\\/])git(?:\.exe)?$/i.test(t));
+  if (i < 0) return null;
+  for (let j = i + 1; j < tokens.length; j++) {
+    const t = tokens[j];
+    if (t === '-C') return tokens[j + 1] ? tokens[j + 1].replace(/^["']|["']$/g, '') : null;
+    if (GIT_GLOBAL_WITH_VALUE.has(t)) { j++; continue; }
+    if (/^--(?:git-dir|work-tree|namespace|super-prefix|exec-path)=/.test(t) || GIT_GLOBAL_FLAG.test(t)) continue;
+    break;
+  }
+  return null;
 }
 
 // git 默认 `core.quotepath=true`，`diff --name-only` 会把非 ASCII 路径打成八进制转义并带引号
@@ -123,7 +153,9 @@ function main() {
   const pathspecs = pathspecsOf(command);
   if (pathspecs.length === 0) return;
 
-  const cwd = String(input.dir_path ?? input.cwd ?? process.cwd());
+  const baseCwd = String(input.dir_path ?? input.cwd ?? process.cwd());
+  const cOpt = gitCOption(tokens);
+  const cwd = cOpt ? path.resolve(baseCwd, cOpt) : baseCwd;
   let dirty;
   try {
     dirty = unstagedPaths(cwd);

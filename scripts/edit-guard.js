@@ -62,11 +62,21 @@ function hasGit(dir) {
 
 function isTempish(p) {
   const s = String(p).replace(/\\/g, '/').toLowerCase();
-  // 先按本机真实临时根判（Git Bash 下 TMP/TEMP 常被映射成 D:/Temp，不在 /tmp 也不在 AppData\Local\Temp）
   const os = require('os');
-  const t = String(os.tmpdir() || '').replace(/\\/g, '/').toLowerCase().replace(/\/$/, '') + '/';
-  if (t !== '/' && s.startsWith(t)) return true;
-  return /\/tmp\/|\/appdata\/local\/temp\/|vibe_images|\.bak/.test(s);
+  // 临时根按**前缀**判，不用 substring：合法项目目录名恰为 tmp 时旧实现会误判为临时，
+  // 使「覆盖已存在大文件且无 git 兜底」拿不到备份提醒（实测）。
+  const roots = [os.tmpdir(), '/tmp', '/var/tmp', '/var/folders', process.env.TMPDIR, process.env.TEMP, process.env.TMP]
+    .filter(Boolean)
+    .map((r) => String(r).replace(/\\/g, '/').toLowerCase().replace(/\/$/, '') + '/');
+  for (const t of roots) if (t !== '/' && s.startsWith(t)) return true;
+  if (/^[a-z]:\/users\/[^/]+\/appdata\/local\/temp\//.test(s)) return true;
+  const seg = s.split('/');
+  if (seg.includes('vibe_images')) return true;
+  // 备份后缀只看**文件名**且只认「结尾」或「接时间戳/日期」：notes.bak.md 是真实文档，不是备份。
+  const base = seg[seg.length - 1] || '';
+  if (/\.(bak|orig|rej)$/i.test(base)) return true;
+  if (/\.(bak|orig|rej)[._-]\d/i.test(base)) return true;
+  return false;
 }
 
 // 新增载体前的预检提醒：技能 / 规则 / 记忆 / hook / agent / MCP 都是"加了就长期生效"的载体。

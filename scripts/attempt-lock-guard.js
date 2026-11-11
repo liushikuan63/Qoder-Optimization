@@ -34,4 +34,6 @@ try { p = JSON.parse(readStdin() || '{}'); } catch (e) { process.exit(0); }
 if (String(p.hook_event_name || 'PostToolUse') !== 'PostToolUse') process.exit(0);
 const r = core.postRecord(p);
 if (r && r.reason) out({ decision: 'block', reason: r.reason });
+// advisory 只提示不硬拦：同一目标换 3 种手段仍失败时提醒停手定位根因。
+else if (r && r.advisory) out({ decision: 'approve', reason: r.advisory });
 process.exit(0);

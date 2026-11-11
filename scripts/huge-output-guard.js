@@ -113,12 +113,19 @@ function checkRead(toolInput) {
       + '一次就能把上下文吃掉一大块。改法：① 用截图工具的缩略/裁剪参数只截目标区域；② 先缩小或压缩成缩略图再读；'
       + `③ 需要原图细节时分块裁剪后逐块读。（阈值可用 HOG_IMAGE_BYTES 调整。）`;
   }
-  if (toolInput.offset !== undefined || toolInput.limit !== undefined) return null;   // 已经是局部读
   const st = fileStats(String(p));
   if (st === null) return null;
-  if (st.bytes <= READ_BYTES && st.lines <= READ_LINES) return null;
-  const mb = (st.bytes / 1024).toFixed(0);
-  return `整读会把 ${mb} KB / ${st.lines} 行一次性灌进上下文（本项目实测：` +
+  // 显式 offset/limit 是「我知道自己在读什么」的信号，但**实质无界**的 limit 与整读等价：
+  // 219KB 文件配 limit=999999 旧实现直接放行（实测），守卫存在的理由被规避。
+  const rawLimit = Number(toolInput.limit);
+  const bounded = toolInput.limit !== undefined && Number.isFinite(rawLimit) && rawLimit > 0 && rawLimit <= READ_LINES;
+  if (bounded) return null;
+  if (toolInput.offset !== undefined && toolInput.limit === undefined) return null;
+  const effLines = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, st.lines) : st.lines;
+  const avgBytes = st.lines > 0 ? st.bytes / st.lines : st.bytes;
+  if (effLines <= READ_LINES && effLines * avgBytes <= READ_BYTES) return null;
+  const mb = (Math.min(effLines * avgBytes, st.bytes) / 1024).toFixed(0);
+  return `整读会把 ${mb} KB / ${effLines} 行一次性灌进上下文（本项目实测：` +
     `单条 >20KB 的返回共 81 条，最大的几条正是这类整读）。改法二选一：` +
     `① 先 Grep 定位（\`grep -n "关键词" 文件\` 或 Grep 工具）再 Read 带 offset/limit 只读那一段；` +
     `② 确实要通读就先 \`sed -n '1,200p'\` 分段读，每次不超过 200 行。` +
@@ -127,13 +134,28 @@ function checkRead(toolInput) {
 
 // ---------- 判据 2：Bash 命令会吐一屏 ----------
 // 这些形态的判据是**命令文本**：有没有输出限流器，一眼可判、不会误伤（不依赖输出内容）。
+const HEAD_TAIL_LIMITER = /\bhead\b|\btail\b/;
+const SHORT_LC_LIMITER = /(^|\s)-[A-Za-z]*[lc][A-Za-z]*(\s|$)/;
+// head/tail 的数值上界超过阈值就不算有效限流（`head -c 999999` ≈ 1MB 照样进上下文）。
+function oversizedHeadTail(cmd) {
+  const c = String(cmd || '');
+  for (const m of c.matchAll(/\b(?:head|tail)\b([^|;&]*)/g)) {
+    const seg = m[1];
+    const n = /(?:-[cn]\s*|--(?:bytes|lines)=?\s*)(\d+)/.exec(seg);
+    if (!n) continue;                       // 无显式上界＝默认 10 行，有效
+    const v = Number(n[1]);
+    const isBytes = /-c\b|--bytes/.test(seg);
+    if (isBytes ? v > READ_BYTES : v > READ_LINES) return true;
+  }
+  return false;
+}
 const LIMITERS = [
   /\|/,                        // 任何管道（head/tail/grep/wc/sort…）都算限流
   />\s*\S/,                    // 重定向到文件
-  /\bhead\b|\btail\b/,         // 直接 head/tail
+  HEAD_TAIL_LIMITER,           // 直接 head/tail（上界有效性另行判定）
   // 短参簇里带 l 或 c 就算限流/计数：-l、-c、-rl、-lc、-rL 都要认。
   // （自测抓到过：旧写法 /-l\b/ 匹配不到 `grep -rl`，因为那三个字符是 `-`、`r`、`l`，压根没有 `-l` 子串。）
-  /(^|\s)-[A-Za-z]*[lc][A-Za-z]*(\s|$)/,
+  SHORT_LC_LIMITER,
   /-m\s/,                      // grep -m 5
   /--oneline|--stat|--name-only|--porcelain|--quiet|--short|--numstat|--max-depth/,
   /-n\s*\d+/,                  // git log -n 20 / head -n 20
@@ -141,6 +163,9 @@ const LIMITERS = [
 ];
 const VERBOSE = [
   { re: /^\s*(cat|type|more|less)\s+\S/, hint: 'cat 一个大文件 ≈ 一次上下文炸弹' },
+  // head/tail 带**失效上界**时同样会吐一屏（`head -c 999999` ≈ 1MB）；
+  // 上界有效时由 LIMITERS 放行，不会误伤 `head -n 20`。
+  { re: /\b(?:head|tail)\b/, hint: 'head/tail 的 -c/-n 上界超过阈值，等于没限流' },
   { re: /\bgit\s+(log|diff|show|blame)\b/, hint: 'git log/diff/show 不加限流就是全史/全 diff' },
   { re: /\b(grep|rg)\b/, hint: 'grep 不加 -l/-c/-m 或管道就是把所有命中铺开' },
   { re: /\bfind\b/, hint: 'find 不加 -name 过滤就是整棵目录树' },
@@ -190,7 +215,10 @@ function checkBash(toolInput) {
   if (!cmd.trim()) return null;
   const inline = checkInlineBacktick(cmd);
   if (inline !== null) return inline;
-  if (LIMITERS.some((re) => re.test(cmd))) return null;
+  const oversized = oversizedHeadTail(cmd);
+  if (LIMITERS.some((re) => re !== HEAD_TAIL_LIMITER && re !== SHORT_LC_LIMITER && re.test(cmd))) return null;
+  // head/tail 与 -l/-c 短选项簇只在**上界有效**时算限流：`head -c 999999` 旧实现照样放行（实测）。
+  if (!oversized && (HEAD_TAIL_LIMITER.test(cmd) || SHORT_LC_LIMITER.test(cmd))) return null;
   for (const v of VERBOSE) {
     if (v.re.test(cmd)) {
       return `${v.hint}。这条命令没有任何输出限流（管道 / 重定向 / head / tail / -l / -c / -m / --oneline 都没有）。` +

@@ -16,11 +16,14 @@ const reset = () => { try { fs.rmSync(STATE, { recursive: true, force: true }); 
 
 // 沙箱自测不许写进真机状态目录（写进去会污染真实门禁）
 const REAL_DIR = path.join(process.env.USERPROFILE || process.env.HOME || os.homedir(), '.qoder', 'tmp', 'attempt-lock');
-const snapReal = () => {
-  const g = (f) => { try { return fs.readFileSync(path.join(REAL_DIR, f), 'utf8'); } catch (e) { return '<absent>'; } };
-  return g('state.json') + '@@' + g('decisions.log');
+// ⑩ 的判据是「真机状态里不得出现沙箱专属键」，不是「整目录快照相等」。
+// 快照相等在 hook 活跃时必然假红：本会话之外的真实调用会往 decisions.log 追加行
+// （本项目多次实测，单跑复绿）。内容判据既能抓到真泄漏，又不被无关写入撞红。
+const realStateText = () => { try { return fs.readFileSync(path.join(REAL_DIR, 'state.json'), 'utf8'); } catch (e) { return ''; } };
+const realLedgerText = () => { try { return fs.readFileSync(path.join(REAL_DIR, 'decisions.log'), 'utf8'); } catch (e) { return ''; } };
+const sandboxKeys = () => {
+  try { return Object.keys(JSON.parse(fs.readFileSync(path.join(STATE, 'state.json'), 'utf8')).entries || {}); } catch (e) { return []; }
 };
-const REAL_BEFORE = snapReal();
 
 const POST_SCRIPT = path.join(__dirname, 'attempt-lock-guard.js');
 const PRE_SCRIPT = path.join(__dirname, 'risky-match-guard.js');
@@ -159,7 +162,23 @@ for (let i = 0; i < 3; i++) post('rg "npm run build" README.md', { exitCode: 1 }
 check('搜索构建命令的 rg 不建账', !pre('rg "npm run build" README.md').blocked);
 
 // —— 沙箱隔离 ——
-check('⑩ 沙箱自测没有写进真机状态目录', snapReal() === REAL_BEFORE);
+// 沙箱派生键由 keyOf 直接算出，不依赖断言点上是否还有残留状态（前面的 reset 会清空）。
+const sandboxCwds = [projectA, projectB, path.join(SB, 'project with spaces'), SB];
+const sandboxCmds = ['npm run build', 'npm test', 'mvn package', 'pytest', 'scp file host:/tmp/x'];
+const expectedSandboxKeys = [];
+for (const cwd of sandboxCwds) {
+  for (const cmd of sandboxCmds) {
+    for (const fam of ['build', 'test', 'deploy']) {
+      const k = keyOf(fam, cmd, cwd);
+      if (k) expectedSandboxKeys.push(k);
+    }
+  }
+}
+const realAll = realStateText() + '\n' + realLedgerText();
+const leakedKeys = expectedSandboxKeys.filter((k) => realAll.includes(k));
+check('⑩ 沙箱自测没有写进真机状态目录',
+  expectedSandboxKeys.length > 0 && leakedKeys.length === 0 && !realAll.includes(SB),
+  `expectedKeys=${expectedSandboxKeys.length} leaked=${leakedKeys.length}`);
 
 try { fs.rmSync(SB, { recursive: true, force: true }); } catch (e) {}
 console.log(fail ? `\n${fail} 项失败` : '\nALL PASS');

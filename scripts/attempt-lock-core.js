@@ -50,8 +50,20 @@ function familyOfWords(words) {
   if (/^(?:tsc|make)$/.test(executable)) return 'build';
   if (executable === 'node') return args.includes('--test') && !args.some(arg => /^(?:-v$|-e(?:=|$)|--eval(?:=|$)|-p(?:=|$)|--print(?:=|$))/.test(arg)) ? 'test' : null;
   if (/^(?:npm|pnpm|yarn|bun)$/.test(executable)) {
-    const operation = args.filter(arg => !/^(?:--silent|--quiet|--verbose|--if-present|-s|-q)$/.test(arg));
-    const task = operation[0] === 'run' ? operation[1] : operation[0];
+    // 按**已知子命令**识别，不再枚举允许的选项：旧白名单只认 --silent/--quiet/--verbose/--if-present/-s/-q，
+    // `npm --loglevel error test` 落在白名单外就完全不建账（实测 familyOf 返回 null）。
+    const TASKS = /^(?:test|e2e|build|ci|run)$/;
+    let task = null;
+    for (let i = 0; i < args.length; i++) {
+      const a = args[i];
+      if (a.startsWith('-')) continue;
+      if (!TASKS.test(a)) continue;
+      if (a === 'run') {
+        const next = args.slice(i + 1).find((x) => !x.startsWith('-'));
+        task = next || null;
+      } else task = a;
+      break;
+    }
     if (/^(?:test|e2e)$/.test(task || '')) return 'test';
     if (/^(?:build|ci)$/.test(task || '')) return 'build';
     return null;
@@ -189,9 +201,24 @@ function keyOf(family, cmd, cwd) {
   const target = commandTargets(cmd, cwd).find(t => t.family === family);
   return target ? targetKey(target) : null;
 }
+// 签名归一化：npm 类命令的**选项值**会混进非选项 token（`npm --loglevel error test`
+// 旧签名是 "npm error test"），使选项变体与裸命令落到不同键、连败计数被拆开。
+// 按已知子命令定位，只保留 executable + 任务（run 时带脚本名）。
+function sigWords(words) {
+  const fallback = words.filter(t => t && t.charAt(0) !== '-').slice(0, 3);
+  const exec = path.basename(String(words[0] || '').replace(/\\/g, '/')).replace(/\.(?:exe|cmd|bat)$/i, '').toLowerCase();
+  if (!/^(?:npm|pnpm|yarn|bun)$/.test(exec)) return fallback;
+  const TASKS = /^(?:test|e2e|build|ci|run)$/;
+  const bare = words.slice(1).filter(w => w && !w.startsWith('-'));
+  const i = bare.findIndex(w => TASKS.test(w));
+  if (i < 0) return fallback;
+  if (bare[i] === 'run') return [exec, 'run', bare[i + 1]].filter(Boolean);
+  return [exec, bare[i]];
+}
+
 function targetKey(target) {
   const family = target.family;
-  const sig = target.words.filter(t => t && t.charAt(0) !== '-').slice(0, 3).join(' ').toLowerCase();
+  const sig = sigWords(target.words).join(' ').toLowerCase();
   // Remote destinations often follow multiple option/value pairs. Retain the
   // complete invocation in its digest so different hosts cannot share a key.
   // Only known verbosity switches are ignored; other remote arguments remain
@@ -255,6 +282,9 @@ function prune(s, c) {
     const age = now - (e.at || 0);
     if (e.blocked ? age > bttl : age > ttl) delete s.entries[k];
   }
+  for (const k of Object.keys(s.families || {})) {
+    if (now - (s.families[k].at || 0) > ttl) delete s.families[k];
+  }
   return s;
 }
 
@@ -298,6 +328,9 @@ function postRecord(payload) {
   if (signal === 'neutral') { ledger(['neutral', t.key]); return { key: t.key, count: cur ? cur.count || 0 : 0, kind: 'neutral' }; }
   if (signal === 'ok') {
     if (cur && !cur.blocked) { delete s.entries[t.key]; save(s); ledger(['reset', t.key]); }
+    // 成功一次即清零「连续」语义，目标级的不同手段计数同样重置。
+    const fk = familyKeyOf(t.key);
+    if (fk && s.families && s.families[fk]) { delete s.families[fk]; save(s); }
     return { key: t.key, count: 0, kind: 'ok' };
   }
   const e = cur || { count: 0, at: Date.now() };
@@ -305,10 +338,28 @@ function postRecord(payload) {
   e.at = Date.now();
   if (e.count >= threshold) e.blocked = true;
   s.entries[t.key] = e;
+  // F20b：AGENTS 红线是「同类修复连败三次（**3 种不同手段**）即停」，而按命令签名建键
+  // 会让「换手段就换键」永远累不到 3（实测三个不同 key 各 count=1）。这里按 family+cwd
+  // 另记**不同签名的失败种类数**，达到阈值发 advisory 提示，但**不硬拦**（避免噪声误伤）。
+  const famKey = familyKeyOf(t.key);
+  let advisory = null;
+  if (famKey) {
+    s.families = s.families || {};
+    const fam = s.families[famKey] || { sigs: [], at: Date.now() };
+    const sig = signatureOf(t.key);
+    if (sig && !fam.sigs.includes(sig)) fam.sigs.push(sig);
+    fam.at = Date.now();
+    s.families[famKey] = fam;
+    if (fam.sigs.length >= threshold) {
+      advisory = '[attempt-lock] 同一工作目录已用 ' + fam.sigs.length
+        + ' 种不同手段连续失败：' + fam.sigs.join('、') + '。按「3 种不同手段连败即停」：'
+        + '停止继续换命令重试，先定位根因或上报；这是提示，不硬拦。';
+    }
+  }
   save(s);
   ledger(['fail', t.key, 'n=' + e.count]);
   return {
-    key: t.key, count: e.count, kind: 'fail',
+    key: t.key, count: e.count, kind: 'fail', advisory,
     reason: e.count >= threshold
       ? '[attempt-lock] `' + t.key + '` 已连续失败 ' + e.count + ' 次。按「连败 3 次即停」：'
         + '停止原样重试，换诊断手段；下一次同类调用会被 PreToolUse 硬拦，人工解除用 --clear。'
@@ -316,11 +367,22 @@ function postRecord(payload) {
   };
 }
 
+// key 形如 `test@npm test#<cwdHash>`。advisory 的「同一目标」＝**cwdHash**，
+// 跨 family 统计不同手段：换手段常常同时换 family（test→build），按 family 分组会永远累不到 3。
+function familyKeyOf(key) {
+  const m = /^([^@]+)@(.*)#([0-9a-f]+)$/.exec(String(key || ''));
+  return m ? m[3] : null;
+}
+function signatureOf(key) {
+  const m = /^([^@]+)@(.*)#[0-9a-f]+$/.exec(String(key || ''));
+  return m ? m[1] + ':' + m[2] : null;
+}
+
 function status() { const s = prune(load(), cfg()); return { state: STATE, entries: s.entries }; }
 function clear(arg) {
   const s = load();
   let removed = 0;
-  if (!arg || arg === 'ALL') { removed = Object.keys(s.entries).length; s.entries = {}; }
+  if (!arg || arg === 'ALL') { removed = Object.keys(s.entries).length; s.entries = {}; s.families = {}; }
   else if (s.entries[arg]) { delete s.entries[arg]; removed = 1; }
   save(s); ledger(['clear', arg || 'ALL', String(removed)]);
   return removed;

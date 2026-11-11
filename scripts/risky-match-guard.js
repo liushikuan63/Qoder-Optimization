@@ -37,7 +37,10 @@ function checkBash(cmd) {
   //    非递归的 `rm -f *.tar.gz` 是常规清理，拦它会变成噪声（本项目实测教训：噪声多就被忽略）。
   //    首跑实测：真机上它拦下了我自己的一条 `rm -f <包目录>/*.tar.gz`，说明接线生效——同时也说明判据偏宽，故收窄。
   if (/\brm\b[^|;&]*\s-[a-zA-Z]*(r|R)[a-zA-Z]*\b[^|;&]*[*?]/.test(c)
-      || /\brm\b[^|;&]*\s-[a-zA-Z]*(r|R)[a-zA-Z]*\s+[^\s|;&]*[*?]/.test(c)) {
+      || /\brm\b[^|;&]*\s-[a-zA-Z]*(r|R)[a-zA-Z]*\s+[^\s|;&]*[*?]/.test(c)
+      // 长选项与短选项语义等价：`rm --recursive --force dir/*` 旧实现漏网（实测 ALLOW）。
+      || /\brm\b[^|;&]*\s--recursive\b[^|;&]*[*?]/.test(c)
+      || /\brm\b[^|;&]*\s--recursive\s+[^\s|;&]*[*?]/.test(c)) {
     return '检测到 **递归** `rm -r/-rf` 带通配（匹配范围可能远超预期）。' + PREVIEW + '改法：先 `ls <通配>` 看清单 → 再把命令换成显式路径列表（或先 `mkdir` 出待删目录再按目录删）。';
   }
   // ② find -delete / -exec rm
@@ -74,7 +77,9 @@ function shellSqlPayloads(cmd) {
 }
 
 function sqlVerdict(sql) {
-  const up = String(sql || '').toUpperCase();
+  // 先剥注释再判定：`DELETE /*c*/ FROM t` 与 `DELETE FROM t` 语义相同，
+  // 旧实现被注释插入绕过（实测 ALLOW），而该语句会删全表。
+  const up = String(sql || '').replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--[^\n]*/g, ' ').toUpperCase();
   if (!up.trim()) return null;
   if (/\b(DROP\s+(TABLE|DATABASE|SCHEMA|INDEX)|TRUNCATE\s+(TABLE\s+)?)\b/.test(up)) {
     return '检测到 DROP / TRUNCATE（结构破坏不可逆）。' + PREVIEW
