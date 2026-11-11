@@ -40,7 +40,7 @@ node scripts/install-package.cjs --yes --install skill:parallel-orchestration --
 
 ## 完整工作流：分享包复现通用本机效果
 
-新客户端默认 `complete`，确认安装后落地公开的 12 个核心技能、完整依赖、`/checkpoint` 与 `/fact`、AGENTS 托管规则及 `rules/long-task.md`、`rules/vibe-coding.md`，并接入五类事件共 16 条 hook。AGENTS 和规则中的原有内容保留，托管段有摘要登记；托管段被本地修改时先审查。其他专业技能和 MCP、插件、SQLite 接续仍单独选择。
+新客户端默认 `complete`，确认安装后落地公开工作流的 12 个技能（**5 个常驻 + 7 个按需**，常驻集与 catalog `tier=core` 一致）、完整依赖、`/checkpoint` 与 `/fact`、AGENTS 托管规则及 `rules/long-task.md`、`rules/vibe-coding.md`，并接入五类事件共 16 条 hook。AGENTS 和规则中的原有内容保留，托管段有摘要登记；托管段被本地修改时先审查。其他专业技能和 MCP、插件、SQLite 接续仍单独选择。
 
 ```bash
 # 先看计划；全新客户端默认完整工作流
