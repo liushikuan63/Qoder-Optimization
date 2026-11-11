@@ -20,11 +20,12 @@
 const fs = require('fs');
 const path = require('path');
 
-const USAGE = '用法: node check-vibecoding-doc.js <AGENTS.md | spec.md | plan.md | tasks.md | CLAUDE.md | 目录 | 单篇 .md>';
+const USAGE = '用法: node check-vibecoding-doc.js <AGENTS.md | spec.md | plan.md | tasks.md | CLAUDE.md | 目录 | 单篇 .md> | --selftest';
 const arg = process.argv[2];
 if (!arg) { console.error(USAGE); process.exit(2); }
-const TARGET = path.resolve(arg);
-if (!fs.existsSync(TARGET)) { console.error(`路径不存在: ${TARGET}`); process.exit(2); }
+const SELFTEST = arg === '--selftest';
+const TARGET = SELFTEST ? process.cwd() : path.resolve(arg);
+if (!SELFTEST && !fs.existsSync(TARGET)) { console.error(`路径不存在: ${TARGET}`); process.exit(2); }
 
 const problems = [];
 const notes = [];
@@ -42,13 +43,31 @@ function listMd(dir, out = []) {
   return out;
 }
 
+// 围栏感知逐行扫描：代码围栏内的 `#` 是 shell 注释，不是标题。
+// 不跟踪围栏会把带注释的命令块切成多个假小节，截断真实小节正文（本项目实测误判过）。
+// 闭合围栏必须同字符且不短于开启围栏，且不带 info string（CommonMark 语义）。
+function* scannedLines(text) {
+  let fence = null;
+  for (const line of text.split('\n')) {
+    const m = line.match(/^\s{0,3}(`{3,}|~{3,})(.*)$/);
+    if (m) {
+      const run = m[1];
+      if (!fence) fence = { ch: run[0], len: run.length };
+      else if (run[0] === fence.ch && run.length >= fence.len && !m[2].trim()) fence = null;
+      yield { line, heading: null };
+      continue;
+    }
+    if (fence) { yield { line, heading: null }; continue; }
+    yield { line, heading: line.match(/^(#{1,6})\s+(.*)$/) };
+  }
+}
+
 // 任意层级标题切段（旧单篇/旧任务包沿用）
 function sections(text) {
   const out = [];
   let cur = null;
-  for (const line of text.split('\n')) {
-    const h = line.match(/^(#{1,6})\s+(.*)$/);
-    if (h) { cur = { title: h[2].trim(), body: [] }; out.push(cur); continue; }
+  for (const { line, heading } of scannedLines(text)) {
+    if (heading) { cur = { title: heading[2].trim(), body: [] }; out.push(cur); continue; }
     if (cur) cur.body.push(line);
   }
   return out.map((s) => ({ title: s.title, body: s.body.join('\n').trim() }));
@@ -58,9 +77,8 @@ function sections(text) {
 function topSections(text) {
   const out = [];
   let cur = null;
-  for (const line of text.split('\n')) {
-    const h = line.match(/^(#{1,2})\s+(.*)$/);
-    if (h) { cur = { title: h[2].trim(), body: [] }; out.push(cur); continue; }
+  for (const { line, heading } of scannedLines(text)) {
+    if (heading && heading[1].length <= 2) { cur = { title: heading[2].trim(), body: [] }; out.push(cur); continue; }
     if (cur) cur.body.push(line);
   }
   return out.map((s) => ({ title: s.title, body: s.body.join('\n').trim() }));
@@ -70,14 +88,11 @@ function topSections(text) {
 function blocksAtLevel(text, level) {
   const out = [];
   let cur = null;
-  for (const line of text.split('\n')) {
-    const h = line.match(/^(#{1,6})\s+(.*)$/);
-    if (h) {
-      if (h[1].length <= level) {
-        if (cur) out.push(cur);
-        cur = { title: h[2].trim(), body: [] };
-        continue;
-      }
+  for (const { line, heading } of scannedLines(text)) {
+    if (heading && heading[1].length <= level) {
+      if (cur) out.push(cur);
+      cur = { title: heading[2].trim(), body: [] };
+      continue;
     }
     if (cur) cur.body.push(line);
   }
@@ -509,7 +524,72 @@ function checkPack(dir) {
   notes.push(`旧任务包模式：共 ${files.length} 个 md`);
 }
 
+// ---------- 自测（A5：校验器自身也要有能失败的判据） ----------
+function runSelfTest() {
+  const os = require('os');
+  let failed = 0;
+  const ok = (label, cond, detail) => { console.log(`${cond ? 'PASS' : 'FAIL'}  ${label}${detail ? ' :: ' + detail : ''}`); if (!cond) failed++; };
+  const reset = () => { problems.length = 0; notes.length = 0; };
+
+  // 1. 围栏内的 # 是注释，不得开新小节
+  const cmdDoc = ['# AGENTS', '', '## 命令', '', '```bash',
+    '# 结构校验', 'node a.js', '# 引用校验', 'node b.js', '# 合约', 'node c.js',
+    '# 依赖', 'npm ci', '# 全量', 'node d.js', '# 体检', 'node e.js',
+    '# 构建', 'node f.js', '# 复验', 'node g.js', '```', '', '## 禁区', '', '- 禁止 x'].join('\n');
+  const secs = topSections(cmdDoc);
+  const cmdSec = secs.find((s) => s.title === '命令');
+  const cmdLines = cmdSec ? cmdSec.body.split('\n').filter((l) => CMD_RE.test(l)).length : 0;
+  ok('围栏内 7 条 # 注释不开新小节，命令段保留 8 条命令', secs.length === 3 && cmdLines === 8, `sections=${secs.length} cmdLines=${cmdLines}`);
+  ok('三个切段函数一致认定小节数', sections(cmdDoc).length === 3 && blocksAtLevel(cmdDoc, 2).length === 3);
+
+  // 1b. 变异负对照：去掉围栏跟踪后必须复现截断（证明判据能失败）
+  const naiveTop = (text) => {
+    const out = []; let cur = null;
+    for (const line of text.split('\n')) {
+      const h = line.match(/^(#{1,2})\s+(.*)$/);
+      if (h) { cur = { title: h[2].trim(), body: [] }; out.push(cur); continue; }
+      if (cur) cur.body.push(line);
+    }
+    return out.map((s) => ({ title: s.title, body: s.body.join('\n').trim() }));
+  };
+  const naive = naiveTop(cmdDoc);
+  const naiveCmd = naive.find((s) => s.title === '命令');
+  const naiveLines = naiveCmd ? naiveCmd.body.split('\n').filter((l) => CMD_RE.test(l)).length : 0;
+  ok('变异负对照：无围栏跟踪时命令段被截断', naive.length > 3 && naiveLines < 8, `naiveSections=${naive.length} naiveCmdLines=${naiveLines}`);
+
+  // 2. 嵌套围栏：外层 ```` 不被内层 ``` 提前闭合
+  const nested = ['## 任务', '', '````text', '```', '# 内层注释不是标题', '```', '````', '', '## 下一节'].join('\n');
+  const nsecs = topSections(nested);
+  ok('嵌套 ```` 内的 ``` 与 # 不开新小节', nsecs.length === 2 && nsecs[0].title === '任务', `n=${nsecs.length}`);
+
+  // 3. 缺小节必判红
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'vbc-selftest-'));
+  const badAgents = path.join(tmp, 'AGENTS.md');
+  fs.writeFileSync(badAgents, '# AGENTS\n\n## 地图\n\n有内容\n');
+  reset(); checkAgents(badAgents);
+  ok('缺小节必判红', problems.length > 0, `problems=${problems.length}`);
+
+  // 4. 空小节必判红
+  const emptyAgents = path.join(tmp, 'AGENTS.md');
+  fs.writeFileSync(emptyAgents, '# AGENTS\n\n## 地图\n\n## 命令\n\n## 硬约束 / 禁区\n\n## 按需阅读\n');
+  reset(); checkAgents(emptyAgents);
+  ok('空小节必判红', problems.some((p) => /空的/.test(p)), `problems=${problems.length}`);
+
+  // 5. 合规 AGENTS 必须判绿（防止把判据改得过严）
+  const goodAgents = path.join(tmp, 'AGENTS.md');
+  fs.writeFileSync(goodAgents, ['# AGENTS', '', '## 地图', '', '入口见 docs/x.md', '', '## 命令', '',
+    '- 校验：`node a.js`', '- 测试：`node b.js`', '', '## 硬约束 / 禁区', '', '- 禁止 git add -A', '',
+    '## 按需阅读', '', '- 详见 docs/x.md'].join('\n'));
+  reset(); checkAgents(goodAgents);
+  ok('合规 AGENTS 判绿（负对照：不得过严）', problems.length === 0, problems.join(' | '));
+
+  fs.rmSync(tmp, { recursive: true, force: true });
+  console.log(failed ? `\nselftest FAIL ${failed}` : '\nselftest ALL PASS');
+  return failed ? 1 : 0;
+}
+
 // ---------- 分发 ----------
+if (SELFTEST) process.exit(runSelfTest());
 const isDir = fs.statSync(TARGET).isDirectory();
 if (!isDir && !TARGET.toLowerCase().endsWith('.md')) {
   console.error(`不是 .md 也不是目录: ${TARGET}`);
