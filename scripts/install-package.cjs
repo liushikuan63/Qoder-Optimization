@@ -757,7 +757,7 @@ async function main(argv) {
     } finally { rl.close(); }
   }
   const result = apply(plan, options);
-  if (options.yes && options.kickoffResident === undefined && !options.dryRun) {
+  if (options.yes && options.kickoffResident === undefined && !options.dryRun && !options.json) {
     console.log('开工提示卡：沿用现状（' + (plan.kickoffResident ? '常驻' : '已关闭') + '）；变更用 --kickoff-resident yes|no。');
   }
   let continuityExit = 0;

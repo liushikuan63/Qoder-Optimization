@@ -215,6 +215,7 @@ test('installer writes the kickoff preference only when explicitly chosen and ke
   const file = path.join(f.client, 'kickoff-preference.json');
   const first = f.run(['--yes', '--json']);
   assert.equal(first.status, 0, first.stdout + first.stderr);
+  assert.equal(JSON.parse(first.stdout).plan.kickoffResident, true, '--json without an explicit choice must stay valid JSON');
   assert.equal(fs.existsSync(file), false, 'non-interactive install without the flag must preserve the default');
 
   const dry = f.run(['--yes', '--dry-run', '--kickoff-resident', 'no', '--json']);
