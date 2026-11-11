@@ -647,6 +647,11 @@ function sessionActivity(dir) {
   }
   const dbStat = statSafe(path.join(dir, 'continuity.sqlite'));
   if (dbStat) times.push(dbStat.mtimeMs);
+  // WAL 未 checkpoint 时主库 mtime 不变，活动判定必须看 sidecar，否则活跃会话显得陈旧。
+  for (const suffix of ['-wal', '-shm']) {
+    const s = statSafe(path.join(dir, 'continuity.sqlite' + suffix));
+    if (s) times.push(s.mtimeMs);
+  }
   const legacy = path.join(dir, 'records');
   if (statSafe(legacy)?.isDirectory()) {
     for (const name of namesOf(legacy)) {
@@ -736,16 +741,27 @@ function planPrune(store, policy, options = {}) {
     const dbMtime = dbStat?.mtimeMs || 0;
     const dbSize = dbStat?.size || 0;
     const legacyMtime = legacyStat?.mtimeMs || 0;
+    // WAL 模式下新记录先落 -wal，主库 mtime/size 可能不变；缓存键必须含 sidecar，
+    // 否则有记录的会话会命中过期缓存被判 empty（inspectSession 本就专门复制 sidecar）。
+    const walStat = statSafe(path.join(item.dir, 'continuity.sqlite-wal'));
+    const shmStat = statSafe(path.join(item.dir, 'continuity.sqlite-shm'));
+    const walMtime = walStat?.mtimeMs || 0;
+    const walSize = walStat?.size || 0;
+    const shmMtime = shmStat?.mtimeMs || 0;
+    const shmSize = shmStat?.size || 0;
     const key = item.cwdHash + '/' + item.sessionHash;
     const cached = cache.entries[key];
     let info;
-    if (cached && cached.dbMtime === dbMtime && cached.dbSize === dbSize && cached.legacyMtime === legacyMtime) {
+    if (cached && cached.dbMtime === dbMtime && cached.dbSize === dbSize && cached.legacyMtime === legacyMtime
+      && cached.walMtime === walMtime && cached.walSize === walSize
+      && cached.shmMtime === shmMtime && cached.shmSize === shmSize) {
       info = { exists: Boolean(dbStat), size: dbSize, readable: cached.readable !== false, records: cached.records, sources: cached.sources || [], legacy: cached.legacy || 0, empty: cached.empty === true };
     } else {
       info = inspectSession(item.dir);
       inspected++;
       cacheNext.entries[key] = {
-        dbMtime, dbSize, legacyMtime, readable: info.readable, records: info.records,
+        dbMtime, dbSize, legacyMtime, walMtime, walSize, shmMtime, shmSize,
+        readable: info.readable, records: info.records,
         sources: info.sources, legacy: info.legacy || 0, empty: info.empty,
         checkedAt: new Date().toISOString(),
       };
@@ -769,7 +785,11 @@ function planPrune(store, policy, options = {}) {
   const totalBytes = sessions.reduce((sum, item) => sum + item.bytes, 0);
   let projected = totalBytes;
   if (policy.maxStoreBytes > 0 && projected > policy.maxStoreBytes) {
-    const evictable = sessions.filter(item => !item.manual && item.reasons.length === 0).sort((a, b) => a.lastActivity - b.lastActivity);
+    // quota 也要过 grace 闸门：orphan/expired/empty 都有年龄下限，配额压力不该绕过它
+    // 去隔离仍在使用的年轻会话。
+    const evictable = sessions.filter(item => !item.manual && item.reasons.length === 0
+      && (item.lastActivity ? (now - item.lastActivity) / 86400000 : Infinity) > policy.orphanGraceDays)
+      .sort((a, b) => a.lastActivity - b.lastActivity);
     for (const item of evictable) {
       if (projected <= policy.maxStoreBytes) break;
       item.reasons.push('quota');
@@ -795,11 +815,23 @@ function fileHashes(dir) {
   });
 }
 
-function moveDirectory(src, dest) {
+function moveDirectory(src, dest, expected) {
   try { fs.renameSync(src, dest); return 'rename'; }
   catch (error) {
     if (error.code !== 'EXDEV') throw error;
     fs.cpSync(src, dest, { recursive: true, errorOnExist: true });
+    // 跨设备复制后必须逐文件核字节才允许删源：静默短复制/损坏曾会让源被删且 manifest 记 complete。
+    if (Array.isArray(expected) && expected.length) {
+      for (const item of expected) {
+        const target = path.join(dest, item.path);
+        let st = null;
+        try { st = fs.statSync(target); } catch (e) { st = null; }
+        if (!st || !st.isFile()) throw new Error('COPY_VERIFY_FAILED');
+        if (item.symlink) continue;
+        if (st.size !== item.size) throw new Error('COPY_VERIFY_FAILED');
+        if (item.sha256 && hash(fs.readFileSync(target)) !== item.sha256) throw new Error('COPY_VERIFY_FAILED');
+      }
+    }
     fs.rmSync(src, { recursive: true, force: false });
     return 'copy';
   }
@@ -989,7 +1021,7 @@ function prune(options = {}) {
         }
         const dest = path.join(batchDir, item.cwdHash, item.sessionHash);
         fs.mkdirSync(path.dirname(dest), { recursive: true, mode: 0o700 });
-        const mode = moveDirectory(item.dir, dest);
+        const mode = moveDirectory(item.dir, dest, files);
         manifest.sessions.push({
           cwdHash: item.cwdHash, sessionHash: item.sessionHash, task: item.task || null,
           reasons: item.reasons, manual: item.manual, legacy: item.legacy,
@@ -1005,7 +1037,8 @@ function prune(options = {}) {
       }
     }
     if (batchDir) {
-      manifest.status = 'complete';
+      // 有失败项时不得标 complete：否则批次看起来成功而源可能未被安全移走。
+      manifest.status = summary.errors.length ? 'incomplete' : 'complete';
       flushManifest();
     }
     for (const cwdHash of new Set(plan.candidates.map(item => item.cwdHash))) {

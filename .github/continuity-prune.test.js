@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { spawnSync } = require('node:child_process');
+const { DatabaseSync } = require('node:sqlite');
 const c = require('../scripts/continuity.cjs');
 const script = path.join(__dirname, '..', 'scripts', 'continuity.cjs');
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qo-continuity-prune-'));
@@ -347,4 +348,251 @@ test('apply 写审计与检查缓存，dry-run 零写入', () => {
   c.prune({ store, apply: true });
   assert.ok(fs.existsSync(path.join(store, 'prune-audit.jsonl')));
   assert.ok(fs.existsSync(path.join(store, 'prune-cache.json')));
+});
+
+// ---- T-04：跨设备隔离先核字节再删源 ----
+// EXDEV 无法在单盘夹具里自然触发，只能注入；注入点严格限定为本会话目录，
+// 免得把 atomic() 的 renameSync 也改成跨设备，污染 manifest 写入路径。
+function withCrossDevice(dir, fault, run) {
+  const realRename = fs.renameSync;
+  const realCp = fs.cpSync;
+  const hits = { exdev: 0, fault: 0 };
+  const isTarget = value => path.resolve(String(value)) === path.resolve(dir);
+  fs.renameSync = function (src) {
+    if (isTarget(src)) {
+      hits.exdev++;
+      const error = new Error('cross-device link not permitted');
+      error.code = 'EXDEV';
+      throw error;
+    }
+    return realRename.apply(fs, arguments);
+  };
+  fs.cpSync = function (src, dest) {
+    const result = realCp.apply(fs, arguments);
+    if (isTarget(src) && fault) { fault(dest); hits.fault++; }
+    return result;
+  };
+  try { return { value: run(), hits }; }
+  finally { fs.renameSync = realRename; fs.cpSync = realCp; }
+}
+
+function payloadSession(store, base, id, task, days) {
+  const o = session(store, base, id, task, { days });
+  const dir = c.location(o).dir;
+  const payload = path.join(dir, 'payload.bin');
+  fs.writeFileSync(payload, Buffer.alloc(4096, 7));
+  return { o, dir, payload };
+}
+
+function readManifest(applied) {
+  return JSON.parse(fs.readFileSync(path.join(applied.quarantineBatch, 'manifest.json'), 'utf8'));
+}
+
+for (const [label, fault] of [
+  ['截断 1 字节', dest => fs.writeFileSync(path.join(dest, 'payload.bin'), Buffer.alloc(4095, 7))],
+  ['大小相同但内容不同', dest => fs.writeFileSync(path.join(dest, 'payload.bin'), Buffer.alloc(4096, 9))],
+]) {
+  test('T-04 跨设备复制' + label + '时保留源、不记 complete', () => {
+    const base = path.join(root, 'prune-copy-bad-' + (++seq));
+    const store = path.join(base, 'store');
+    pruneConfig(store, { retentionDays: 30 });
+    const { dir, payload } = payloadSession(store, base, 'a1b2c3d4-1111-4111-8111-111111111111', 'COPY-BAD', 60);
+    const { value: applied, hits } = withCrossDevice(dir, fault, () => c.prune({ store, apply: true }));
+    assert.equal(hits.exdev, 1, '必须真的走到 EXDEV 分支');
+    assert.equal(hits.fault, 1, '必须真的注入了坏副本');
+    assert.equal(applied.errors.length, 1);
+    assert.equal(applied.errors[0].code, 'COPY_VERIFY_FAILED');
+    assert.equal(applied.deleted.length, 0);
+    assert.ok(fs.existsSync(dir), '核验失败时源目录必须保留');
+    assert.equal(fs.statSync(payload).size, 4096);
+    assert.equal(fs.readFileSync(payload).equals(Buffer.alloc(4096, 7)), true);
+    const manifest = readManifest(applied);
+    assert.equal(manifest.status, 'incomplete');
+    assert.notEqual(manifest.status, 'complete');
+  });
+}
+
+test('T-04 正常跨设备复制逐文件核字节通过后删源并记 mode:copy', () => {
+  const base = path.join(root, 'prune-copy-ok-' + (++seq));
+  const store = path.join(base, 'store');
+  pruneConfig(store, { retentionDays: 30 });
+  const { dir } = payloadSession(store, base, 'a1b2c3d4-2222-4222-8222-222222222222', 'COPY-OK', 60);
+  const { value: applied, hits } = withCrossDevice(dir, null, () => c.prune({ store, apply: true }));
+  assert.equal(hits.exdev, 1);
+  assert.equal(hits.fault, 0);
+  assert.equal(applied.errors.length, 0);
+  assert.equal(applied.deleted.length, 1);
+  assert.equal(fs.existsSync(dir), false);
+  const manifest = readManifest(applied);
+  assert.equal(manifest.status, 'complete');
+  assert.equal(manifest.sessions[0].mode, 'copy');
+  const movedRoot = path.join(applied.quarantineBatch, manifest.sessions[0].cwdHash, manifest.sessions[0].sessionHash);
+  for (const file of manifest.sessions[0].files) {
+    const moved = fs.readFileSync(path.join(movedRoot, file.path));
+    assert.equal(moved.length, file.size);
+    if (file.sha256) assert.equal(crypto.createHash('sha256').update(moved).digest('hex'), file.sha256);
+  }
+});
+
+test('T-04 同设备仍走 rename 快路径，行为与改动前一致', () => {
+  const base = path.join(root, 'prune-rename-' + (++seq));
+  const store = path.join(base, 'store');
+  pruneConfig(store, { retentionDays: 30 });
+  const { dir } = payloadSession(store, base, 'a1b2c3d4-3333-4333-8333-333333333333', 'RENAME', 60);
+  const applied = c.prune({ store, apply: true });
+  assert.equal(applied.errors.length, 0);
+  assert.equal(fs.existsSync(dir), false);
+  const manifest = readManifest(applied);
+  assert.equal(manifest.status, 'complete');
+  assert.equal(manifest.sessions[0].mode, 'rename');
+});
+
+// ---- T-05：缓存键与活动判定纳入 WAL sidecar ----
+function emptyAgedSession(store, base, id, task, days) {
+  const cwd = path.join(base, 'ws-' + id.slice(0, 6));
+  fs.mkdirSync(cwd, { recursive: true });
+  const transcript = path.join(base, id + '.jsonl');
+  fs.writeFileSync(transcript, '');
+  const o = { store, cwd, session: id, task, transcript };
+  c.enable(o);
+  const dir = c.location(o).dir;
+  const scopeFile = path.join(dir, 'scope.json');
+  fs.writeFileSync(scopeFile, JSON.stringify({ ...JSON.parse(fs.readFileSync(scopeFile, 'utf8')), auto: true }));
+  c.capture(o);
+  ageSession(o, days);
+  return { o, dir, transcript };
+}
+
+function backdate(file, days) {
+  const at = new Date(Date.now() - days * 86400000);
+  fs.utimesSync(file, at, at);
+}
+
+function reasonsOf(plan, sessionHash) {
+  const item = plan.sessions.find(entry => entry.sessionHash === sessionHash);
+  return item ? item.reasons : null;
+}
+
+test('T-05 主库 mtime/size 不变、仅 -wal 增长时不得判 empty', () => {
+  const base = path.join(root, 'prune-wal-' + (++seq));
+  const store = path.join(base, 'store');
+  pruneConfig(store, { retentionDays: 90, orphanGraceDays: 7 });
+  const { o, dir, transcript } = emptyAgedSession(store, base, 'b1b2c3d4-1111-4111-8111-111111111111', 'WAL-ONLY', 30);
+  const dbFile = path.join(dir, 'continuity.sqlite');
+  const first = c.planPrune(store, c.prunePolicy(store));
+  assert.equal(first.inspected, 1);
+  assert.deepEqual(reasonsOf(first, hashOf(o)), ['empty']);
+  fs.writeFileSync(path.join(store, 'prune-cache.json'), JSON.stringify(first.cache));
+
+  const before = fs.statSync(dbFile);
+  const wal = new DatabaseSync(dbFile);
+  let second;
+  try {
+    wal.exec('PRAGMA wal_autocheckpoint = 0');
+    wal.prepare('INSERT INTO records (id,kind,text,source,task,session,cwd,captured_at,integrity) VALUES (?,?,?,?,?,?,?,?,?)')
+      .run('wal-row-1', 'user-request', 'WAL-EVIDENCE', JSON.stringify({ file: transcript }), 'WAL-ONLY', o.session, o.cwd, new Date().toISOString(), 'ok');
+    const walFile = dbFile + '-wal';
+    assert.ok(fs.existsSync(walFile) && fs.statSync(walFile).size > 0, '夹具必须真的把记录留在 -wal 里');
+    // 负对照必须在连接仍打开时取：close 会 checkpoint 并改主库 mtime，把归因混进活动闸门
+    const during = fs.statSync(dbFile);
+    assert.equal(during.mtimeMs, before.mtimeMs, '主库 mtime 必须未变');
+    assert.equal(during.size, before.size, '主库 size 必须未变');
+    for (const suffix of ['-wal', '-shm']) if (fs.existsSync(dbFile + suffix)) backdate(dbFile + suffix, 30);
+    second = c.planPrune(store, c.prunePolicy(store));
+  } finally { wal.close(); }
+  assert.equal(second.inspected, 1, 'sidecar 指纹变了必须重新检查，不得命中过期缓存');
+  const item = second.sessions.find(entry => entry.sessionHash === hashOf(o));
+  assert.equal(item.records, 1);
+  assert.deepEqual(item.reasons, []);
+});
+
+test('T-05 旧格式缓存条目缺 sidecar 字段必须失效并重查', () => {
+  const base = path.join(root, 'prune-wal-legacy-cache-' + (++seq));
+  const store = path.join(base, 'store');
+  pruneConfig(store, { retentionDays: 90, orphanGraceDays: 7 });
+  const o = session(store, base, 'b1b2c3d4-2222-4222-8222-222222222222', 'OLD-CACHE', { days: 30 });
+  const policy = c.prunePolicy(store);
+  const first = c.planPrune(store, policy);
+  assert.equal(first.inspected, 1);
+  const stale = JSON.parse(JSON.stringify(first.cache));
+  for (const entry of Object.values(stale.entries)) {
+    for (const field of ['walMtime', 'walSize', 'shmMtime', 'shmSize']) delete entry[field];
+  }
+  fs.writeFileSync(path.join(store, 'prune-cache.json'), JSON.stringify(stale));
+  const second = c.planPrune(store, policy);
+  assert.equal(second.inspected, 1, '缺 sidecar 字段的旧条目不得当作命中');
+  assert.equal(second.sessions.find(entry => entry.sessionHash === hashOf(o)).records, first.sessions[0].records);
+});
+
+test('T-05 无 sidecar 时缓存命中路径与改动前一致', () => {
+  const base = path.join(root, 'prune-wal-hit-' + (++seq));
+  const store = path.join(base, 'store');
+  pruneConfig(store, { retentionDays: 90, orphanGraceDays: 7 });
+  const o = session(store, base, 'b1b2c3d4-3333-4333-8333-333333333333', 'CACHE-HIT', { days: 30 });
+  const dbFile = path.join(c.location(o).dir, 'continuity.sqlite');
+  assert.equal(fs.existsSync(dbFile + '-wal'), false);
+  assert.equal(fs.existsSync(dbFile + '-shm'), false);
+  const policy = c.prunePolicy(store);
+  const first = c.planPrune(store, policy);
+  assert.equal(first.inspected, 1);
+  fs.writeFileSync(path.join(store, 'prune-cache.json'), JSON.stringify(first.cache));
+  const second = c.planPrune(store, policy);
+  assert.equal(second.inspected, 0);
+  assert.deepEqual(reasonsOf(second, hashOf(o)), reasonsOf(first, hashOf(o)));
+  assert.equal(second.sessions[0].records, first.sessions[0].records);
+});
+
+test('T-05 活动判定看 sidecar：仅 -wal 新鲜时不再显得陈旧', () => {
+  const base = path.join(root, 'prune-wal-activity-' + (++seq));
+  const store = path.join(base, 'store');
+  pruneConfig(store, { retentionDays: 30, orphanGraceDays: 7 });
+  const { o, dir } = emptyAgedSession(store, base, 'b1b2c3d4-4444-4444-8444-444444444444', 'WAL-ACTIVE', 60);
+  const dbFile = path.join(dir, 'continuity.sqlite');
+  assert.ok(c.prune({ store }).candidates.some(item => item.sessionHash === hashOf(o)), '对照组：陈旧空档应被清理');
+  const wal = new DatabaseSync(dbFile);
+  try {
+    wal.exec('PRAGMA wal_autocheckpoint = 0');
+    wal.prepare('INSERT INTO records (id,kind,text,source,task,session,cwd,captured_at,integrity) VALUES (?,?,?,?,?,?,?,?,?)')
+      .run('wal-row-2', 'user-request', 'FRESH-WAL', JSON.stringify({ file: path.join(base, 'missing.jsonl') }), 'WAL-ACTIVE', o.session, o.cwd, new Date().toISOString(), 'ok');
+    assert.ok(fs.statSync(dbFile + '-wal').size > 0);
+    assert.equal(c.prune({ store }).candidates.some(item => item.sessionHash === hashOf(o)), false, '-wal 刚写过就是活跃会话');
+  } finally { wal.close(); }
+});
+
+// ---- T-06：quota 驱逐补年龄下限 ----
+test('T-06 超配额时年轻自动会话不得被 quota 命中', () => {
+  const base = path.join(root, 'prune-quota-young-' + (++seq));
+  const store = path.join(base, 'store');
+  pruneConfig(store, { retentionDays: 365, orphanGraceDays: 7, maxStoreBytes: 1 });
+  session(store, base, 'c1b2c3d4-1111-4111-8111-111111111111', 'YOUNG', { days: 1 });
+  const dry = c.prune({ store });
+  assert.ok(dry.totalBytes > 1, '夹具必须真的超配额');
+  assert.deepEqual(dry.candidates, []);
+});
+
+test('T-06 超配额时超过宽限期的老会话仍被 quota 命中', () => {
+  const base = path.join(root, 'prune-quota-old-' + (++seq));
+  const store = path.join(base, 'store');
+  pruneConfig(store, { retentionDays: 365, orphanGraceDays: 7, maxStoreBytes: 1 });
+  const old = session(store, base, 'c1b2c3d4-2222-4222-8222-222222222222', 'OLD', { days: 30 });
+  const dry = c.prune({ store });
+  assert.equal(dry.candidates.length, 1);
+  assert.equal(dry.candidates[0].sessionHash, hashOf(old));
+  assert.match(dry.candidates[0].reasons.join(','), /quota/);
+});
+
+test('T-06 超配额下 manual / current-session / capture-lock 命中数均为 0', () => {
+  const base = path.join(root, 'prune-quota-protected-' + (++seq));
+  const store = path.join(base, 'store');
+  pruneConfig(store, { retentionDays: 365, orphanGraceDays: 7, maxStoreBytes: 1 });
+  session(store, base, 'c1b2c3d4-3333-4333-8333-333333333333', 'MANUAL', { auto: false, days: 30 });
+  const locked = session(store, base, 'c1b2c3d4-4444-4444-8444-444444444444', 'LOCKED', { days: 30 });
+  fs.writeFileSync(path.join(c.location(locked).dir, 'capture.lock'), '');
+  const current = session(store, base, 'c1b2c3d4-5555-4555-8555-555555555555', 'CURRENT', { days: 30 });
+  const dry = c.prune({ store, cwd: current.cwd, session: current.session });
+  assert.ok(dry.totalBytes > 1);
+  assert.deepEqual(dry.candidates, []);
+  const plan = c.planPrune(store, c.prunePolicy(store), { excludeDir: c.location(current).dir });
+  assert.equal(plan.sessions.filter(item => item.reasons.includes('quota')).length, 0);
+  assert.equal(plan.sessions.length, 3);
 });
