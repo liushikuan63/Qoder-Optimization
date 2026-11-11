@@ -659,6 +659,41 @@ function readStdin() {
   return Buffer.concat(chunks).toString('utf8');
 }
 
+// C4：解析失败必须回显位置与原始片段，否则调用方只看到 INVALID_JSON 无从下手。
+// 片段只回显到 stdout，绝不写进台账（台账仍只存哈希与选择）。
+function jsonParseError(text, error, source) {
+  const message = String((error && error.message) || error);
+  const at = /at position (\d+)(?: \(line (\d+) column (\d+)\))?/.exec(message);
+  const offset = at ? Number(at[1]) : null;
+  let line = at && at[2] ? Number(at[2]) : null;
+  let column = at && at[3] ? Number(at[3]) : null;
+  if (offset !== null && (line === null || column === null)) {
+    const before = text.slice(0, offset);
+    line = before.split('\n').length;
+    column = offset - before.lastIndexOf('\n');
+  }
+  const snippet = offset === null ? text.slice(0, 80) : text.slice(Math.max(0, offset - 40), offset + 40);
+  const out = { ok: false, code: 'INVALID_JSON', source, message, position: { offset, line, column }, snippet };
+  if (/bad escaped character|invalid unicode escape|bad unicode escape/i.test(message)) {
+    out.hint = 'JSON 字符串里的反斜杠必须双写（\\\\）或改用正斜杠；shell heredoc 会折叠反斜杠，改用 --from-file <path> 传文件可避免';
+  }
+  return out;
+}
+
+function readInput(argv, flag) {
+  const fromFileAt = argv.indexOf('--from-file');
+  const positional = argv[flag + 1];
+  const positionalIsValue = positional !== undefined && !positional.startsWith('--');
+  if (fromFileAt >= 0) {
+    const file = argv[fromFileAt + 1];
+    if (!file || file.startsWith('--')) { const e = new Error('--from-file 需要文件路径'); e.code = 'USAGE'; throw e; }
+    if (positionalIsValue) { const e = new Error('--from-file 与位置参数只能给一个'); e.code = 'USAGE'; throw e; }
+    return { text: fs.readFileSync(file, 'utf8'), source: 'file:' + file };
+  }
+  if (positionalIsValue && positional !== '-') return { text: fs.readFileSync(positional, 'utf8'), source: 'file:' + positional };
+  return { text: readStdin(), source: 'stdin' };
+}
+
 function main(argv) {
   if (argv.includes('--status')) {
     const at = argv.indexOf('--session');
@@ -687,7 +722,7 @@ function main(argv) {
   const mode = compose >= 0 ? 'compose' : record >= 0 ? 'record' : null;
   const flag = compose >= 0 ? compose : record;
   if (!mode || flag < 0) {
-    console.error('USAGE: kickoff-core.cjs --compose|--record <json|-> --binding <sha256> [--json] | --status [--session <id>] [--json] | --gc [--days N] [--apply]');
+    console.error('USAGE: kickoff-core.cjs --compose|--record <json|-|file> [--from-file <path>] --binding <sha256> [--json] | --status [--session <id>] [--json] | --gc [--days N] [--apply]');
     process.exitCode = 2;
     return;
   }
@@ -698,12 +733,17 @@ function main(argv) {
   }
   const bindingIndex = argv.indexOf('--binding');
   const binding = bindingIndex >= 0 ? argv[bindingIndex + 1] : undefined;
-  const source = argv[flag + 1];
+  let raw;
+  try { raw = readInput(argv, flag); }
+  catch (error) {
+    console.log(JSON.stringify({ ok: false, code: error.code === 'USAGE' ? 'USAGE' : 'INPUT_UNREADABLE', message: error.message }));
+    process.exitCode = 2;
+    return;
+  }
   let input;
-  try {
-    input = JSON.parse(source === '-' || source === undefined ? readStdin() : fs.readFileSync(source, 'utf8'));
-  } catch {
-    console.log(JSON.stringify({ ok: false, code: 'INVALID_JSON' }));
+  try { input = JSON.parse(raw.text); }
+  catch (error) {
+    console.log(JSON.stringify(jsonParseError(raw.text, error, raw.source)));
     process.exitCode = 2;
     return;
   }
@@ -722,7 +762,7 @@ module.exports = {
   isReadOnlyRequest, requestKey, matchesRequest,
   prepareKickoff, buildKickoffNote, buildContinuationNote, composeCard, recordConfirmation,
   readPending, readConfirmed, clearPending, writePending, stateDir, cardDigest,
-  ledgerStatus, gcLedger,
+  ledgerStatus, gcLedger, jsonParseError, readInput,
   preferenceFile, readPreference, kickoffResidentEnabled, kickoffInjectEnabled, kickoffEnforceEnabled,
 };
 if (require.main === module) main(process.argv.slice(2));

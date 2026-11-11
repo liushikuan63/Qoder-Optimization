@@ -393,6 +393,126 @@ check('台账 status 列出文件且 gc 默认只预览', () => {
   assert.strictEqual(fs.existsSync(newFile), true);
 });
 
+// ── C4：Windows 输入通道（--from-file 一次成功 / 解析失败回显位置与片段）──
+console.log('# C4 input channel');
+freshState();
+const CLI_SCRIPT = path.join(__dirname, 'kickoff-core.cjs');
+const C4_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'kickoff-c4-'));
+function runCli(script, args, stdin) {
+  return spawnSync(process.execPath, [script, ...args], {
+    input: stdin === undefined ? '' : stdin, encoding: 'utf8', timeout: 15000,
+    env: { ...process.env, KICKOFF_STATE_DIR: STATE, KICKOFF_PREFERENCE_FILE: prefFile },
+  });
+}
+function replaceOnce(source, anchor, replacement) {
+  assert.strictEqual(source.split(anchor).length - 1, 1, 'anchor must be unique: ' + anchor);
+  return source.replace(anchor, replacement);
+}
+// 盘符 + 反斜杠：JSON.stringify 写成 \\，正是 Git Bash heredoc 会折叠成 \ 的形态。
+const c4Context = core.createKickoffContext({ sessionId: 'sess-c4', prompt: '修复登录按钮的文案', cwd: process.cwd(), requestMessageId: 'msg-c4' });
+c4Context.workspaceKey = 'D:\\project\\Qoder-Optimization';
+c4Context.binding = core.contextBinding(c4Context);
+core.writePending(c4Context);
+const composeFile = path.join(C4_DIR, 'compose.json');
+fs.writeFileSync(composeFile, JSON.stringify({ schema: 1, context: c4Context, card: simpleCard(c4Context) }));
+const composeText = fs.readFileSync(composeFile, 'utf8');
+const collapsedText = composeText.split('\\\\').join('\\');
+
+check('夹具确实带转义后的盘符反斜杠', () => {
+  assert.ok(composeText.includes('D:\\\\project\\\\'), 'fixture must contain escaped backslashes');
+  assert.ok(collapsedText.includes('D:\\project\\'), 'collapsed fixture must contain bare backslashes');
+  assert.throws(() => JSON.parse(collapsedText), /escaped character/i);
+});
+check('compose 经 --from-file 一次成功', () => {
+  const run = runCli(CLI_SCRIPT, ['--compose', '--from-file', composeFile, '--binding', c4Context.binding, '--json']);
+  assert.strictEqual(run.status, 0, run.stdout + run.stderr);
+  assert.strictEqual(JSON.parse(run.stdout).action, 'ASK_CONFIRMATION');
+});
+check('含盘符反斜杠的 record JSON 经 --from-file 一次成功', () => {
+  const composed = core.composeCard({ schema: 1, context: c4Context, card: simpleCard(c4Context) }, c4Context.binding);
+  const recordFile = path.join(C4_DIR, 'record.json');
+  fs.writeFileSync(recordFile, JSON.stringify({ schema: 1, context: c4Context, cardDigest: composed.cardDigest, choice: 'proceed' }));
+  assert.ok(fs.readFileSync(recordFile, 'utf8').includes('D:\\\\project\\\\'));
+  const run = runCli(CLI_SCRIPT, ['--record', '--from-file', recordFile, '--binding', c4Context.binding, '--json']);
+  assert.strictEqual(run.status, 0, run.stdout + run.stderr);
+  assert.strictEqual(JSON.parse(run.stdout).action, 'proceed');
+  assert.strictEqual(core.readConfirmed('sess-c4').choice, 'proceed');
+});
+check('负对照：heredoc 折叠后必须回显位置与原始片段', () => {
+  const run = runCli(CLI_SCRIPT, ['--compose', '-', '--binding', c4Context.binding, '--json'], collapsedText);
+  assert.strictEqual(run.status, 2);
+  const out = JSON.parse(run.stdout);
+  assert.strictEqual(out.code, 'INVALID_JSON');
+  assert.strictEqual(out.source, 'stdin');
+  assert.ok(Number.isInteger(out.position.offset) && out.position.offset > 0, 'offset missing');
+  assert.ok(Number.isInteger(out.position.line) && out.position.line >= 1, 'line missing');
+  assert.ok(Number.isInteger(out.position.column) && out.position.column >= 1, 'column missing');
+  assert.ok(out.snippet.includes('\\p'), 'snippet must show the offending escape: ' + out.snippet);
+  assert.ok(out.hint && out.hint.includes('--from-file'), 'hint must point at the file channel');
+});
+check('解析失败不落台账、不留临时文件', () => {
+  core.writePending(c4Context);
+  const before = fs.readdirSync(STATE).sort();
+  const run = runCli(CLI_SCRIPT, ['--record', '-', '--binding', c4Context.binding, '--json'], collapsedText);
+  assert.strictEqual(run.status, 2);
+  assert.deepStrictEqual(fs.readdirSync(STATE).sort(), before);
+});
+check('--from-file 缺路径判 USAGE', () => {
+  const run = runCli(CLI_SCRIPT, ['--compose', '--from-file', '--binding', c4Context.binding, '--json']);
+  assert.strictEqual(run.status, 2);
+  assert.strictEqual(JSON.parse(run.stdout).code, 'USAGE');
+});
+check('--from-file 与位置参数互斥判 USAGE', () => {
+  const run = runCli(CLI_SCRIPT, ['--compose', composeFile, '--from-file', composeFile, '--binding', c4Context.binding, '--json']);
+  assert.strictEqual(run.status, 2);
+  assert.strictEqual(JSON.parse(run.stdout).code, 'USAGE');
+});
+check('--from-file 指向不存在的文件判 INPUT_UNREADABLE', () => {
+  const run = runCli(CLI_SCRIPT, ['--compose', '--from-file', path.join(C4_DIR, 'absent.json'), '--binding', c4Context.binding, '--json']);
+  assert.strictEqual(run.status, 2);
+  assert.strictEqual(JSON.parse(run.stdout).code, 'INPUT_UNREADABLE');
+});
+check('三条输入通道等价：--from-file / 位置文件 / stdin 得到同一 cardDigest', () => {
+  const digests = [
+    runCli(CLI_SCRIPT, ['--compose', '--from-file', composeFile, '--binding', c4Context.binding, '--json']),
+    runCli(CLI_SCRIPT, ['--compose', composeFile, '--binding', c4Context.binding, '--json']),
+    runCli(CLI_SCRIPT, ['--compose', '-', '--binding', c4Context.binding, '--json'], composeText),
+  ].map(run => { assert.strictEqual(run.status, 0, run.stdout + run.stderr); return JSON.parse(run.stdout).cardDigest; });
+  assert.strictEqual(new Set(digests).size, 1, digests.join(','));
+});
+check('文件通道的解析错误标出来源文件', () => {
+  const broken = path.join(C4_DIR, 'broken.json');
+  fs.writeFileSync(broken, collapsedText);
+  const run = runCli(CLI_SCRIPT, ['--compose', '--from-file', broken, '--binding', c4Context.binding, '--json']);
+  assert.strictEqual(run.status, 2);
+  const out = JSON.parse(run.stdout);
+  assert.strictEqual(out.source, 'file:' + broken);
+  assert.ok(out.snippet.includes('\\p'));
+});
+check('变异负对照：退回只给错误码的旧分支后位置回显消失', () => {
+  const source = fs.readFileSync(CLI_SCRIPT, 'utf8');
+  const mutant = path.join(C4_DIR, 'opaque-error.cjs');
+  fs.writeFileSync(mutant, replaceOnce(source,
+    'console.log(JSON.stringify(jsonParseError(raw.text, error, raw.source)));',
+    "console.log(JSON.stringify({ ok: false, code: 'INVALID_JSON' }));"));
+  const real = JSON.parse(runCli(CLI_SCRIPT, ['--compose', '-', '--binding', c4Context.binding, '--json'], collapsedText).stdout);
+  const bad = JSON.parse(runCli(mutant, ['--compose', '-', '--binding', c4Context.binding, '--json'], collapsedText).stdout);
+  assert.ok(real.position && real.snippet, 'real implementation must echo position and snippet');
+  assert.strictEqual(bad.position, undefined);
+  assert.strictEqual(bad.snippet, undefined);
+});
+check('变异负对照：去掉 --from-file 分支后文件通道不再可用', () => {
+  const source = fs.readFileSync(CLI_SCRIPT, 'utf8');
+  const mutant = path.join(C4_DIR, 'no-from-file.cjs');
+  fs.writeFileSync(mutant, replaceOnce(source, 'if (fromFileAt >= 0) {', 'if (false) {'));
+  const args = ['--compose', '--from-file', composeFile, '--binding', c4Context.binding, '--json'];
+  assert.strictEqual(runCli(CLI_SCRIPT, args).status, 0);
+  const bad = runCli(mutant, args);
+  assert.strictEqual(bad.status, 2);
+  assert.strictEqual(JSON.parse(bad.stdout).code, 'INVALID_JSON');
+});
+fs.rmSync(C4_DIR, { recursive: true, force: true });
+
 delete process.env.KICKOFF_PREFERENCE_FILE;
 
 fs.rmSync(STATE, { recursive: true, force: true });
