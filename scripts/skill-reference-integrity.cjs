@@ -76,6 +76,29 @@ function skillNames(root) {
     .sort();
 }
 
+// 白名单真源：scripts/skill-reference-allowlist.cjs（或 scripts/skill-reference-allowlist.json /
+// scripts/skill-reference-data/allowlist.json，JSON 优先）。每条必须写明原因。
+// 格式非法或路径越界一律判错，绝不静默丢弃：静默过滤会让作者以为已豁免，实际仍在判红。
+// 判据与负对照见 scripts/skill-reference-allowlist.test.js（增删改判红判绿、格式非法、路径越界、变异对照）。
+const ABSOLUTE_REF = /^(?:[A-Za-z]:[\\/]|\/|\\\\)/;
+function validateAllowlist(data) {
+  if (!data || data.schema !== 1 || !Array.isArray(data.entries)) throw new Error('invalid allowlist schema');
+  const seen = new Set();
+  return data.entries.map((entry, index) => {
+    const at = 'allowlist entry #' + (index + 1);
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new Error(at + ' must be an object');
+    for (const key of ['skill', 'ref', 'reason']) {
+      if (typeof entry[key] !== 'string' || !entry[key].trim()) throw new Error(at + ' requires a non-empty ' + key);
+    }
+    if (/[\u0000-\u001f]/.test(entry.skill + entry.ref)) throw new Error(at + ' must not contain control characters');
+    if (ABSOLUTE_REF.test(entry.ref)) throw new Error(at + ' ref must be relative, not absolute: ' + entry.ref);
+    const key = entry.skill + '\u0000' + entry.ref;
+    if (seen.has(key)) throw new Error(at + ' duplicates ' + entry.skill + ' / ' + entry.ref);
+    seen.add(key);
+    return { skill: entry.skill, ref: entry.ref, reason: entry.reason };
+  });
+}
+
 function loadAllowlist(root) {
   const jsonCandidates = [
     path.join(root, 'scripts', 'skill-reference-data', 'allowlist.json'),
@@ -90,8 +113,7 @@ function loadAllowlist(root) {
     delete require.cache[require.resolve(moduleFile)];
     data = require(moduleFile);
   }
-  if (!data || data.schema !== 1 || !Array.isArray(data.entries)) throw new Error('invalid allowlist schema');
-  return data.entries.filter(entry => entry && typeof entry.skill === 'string' && typeof entry.ref === 'string' && typeof entry.reason === 'string' && entry.reason.trim());
+  return validateAllowlist(data);
 }
 
 function resolveCandidate(root, skill, fromFile, ref) {
@@ -187,7 +209,7 @@ function main(argv) {
   if (check && result.missing.length) process.exitCode = 2;
 }
 
-module.exports = { scan, refsIn, skillNames, loadAllowlist };
+module.exports = { scan, refsIn, skillNames, loadAllowlist, validateAllowlist };
 
 if (require.main === module) {
   try { main(process.argv.slice(2)); }

@@ -8,8 +8,8 @@
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 133,
-  "script": 164,
-  "command": 11,
+  "script": 165,
+  "command": 12,
   "agent": 2
  },
  "entries": [
@@ -2257,7 +2257,8 @@
     "mode": "copy-file"
    },
    "dependencies": [
-    "script:context-governor.cjs"
+    "script:context-governor.cjs",
+    "script:continuity.cjs"
    ]
   },
   {
@@ -2270,7 +2271,8 @@
     "mode": "copy-file"
    },
    "dependencies": [
-    "script:context-governor-hook.cjs"
+    "script:context-governor-hook.cjs",
+    "script:continuity.cjs"
    ]
   },
   {
@@ -3528,6 +3530,20 @@
    "dependencies": []
   },
   {
+   "id": "script:skill-reference-allowlist.test.js",
+   "category": "script",
+   "name": "skill-reference-allowlist.test.js",
+   "status": "shipped",
+   "source": "scripts/skill-reference-allowlist.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:skill-reference-allowlist.cjs",
+    "script:skill-reference-integrity.cjs"
+   ]
+  },
+  {
    "id": "script:skill-reference-coverage.test.js",
    "category": "script",
    "name": "skill-reference-coverage.test.js",
@@ -4067,6 +4083,17 @@
     "mode": "copy-file"
    },
    "source": "commands/clean-temp.md",
+   "dependencies": []
+  },
+  {
+   "id": "command:context-governor",
+   "category": "command",
+   "name": "context-governor",
+   "status": "shipped",
+   "source": "commands/context-governor.md",
+   "install": {
+    "mode": "copy-file"
+   },
    "dependencies": []
   },
   {
