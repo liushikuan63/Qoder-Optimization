@@ -174,7 +174,9 @@ fs.writeFileSync(path.join(keepEvidence, '.keep'), '');
 fs.writeFileSync(path.join(keepEvidence, 'old.log'), 'x');
 const keepScan = scan(['--since', String(since)]);
 check('.keep 目录被标记保留', keepScan.entries.find((e) => e.name === 'keep-evidence')?.keep, true);
-check('JSON 带 guards/trash/session 字段', typeof keepScan.guards === 'object' && keepScan.trash === false && keepScan.session === null, true);
+check('JSON 带 guards/trash/session 字段（T-18 后目录删除默认进隔离区）', typeof keepScan.guards === 'object' && keepScan.trash === true && keepScan.session === null, true);
+const noTrashScan = scan(['--since', String(since), '--no-trash']);
+check('负对照 --no-trash 时 trash 为 false', noTrashScan.trash, false);
 scan(['--since', String(since), '--apply']);
 check('.keep 目录不被自动删除', fs.existsSync(keepEvidence), true);
 

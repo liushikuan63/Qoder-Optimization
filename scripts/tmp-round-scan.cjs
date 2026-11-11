@@ -20,7 +20,8 @@ const ALWAYS_PROTECT = [/^QO-(?:REL|AUDIT|FIX)-/i, /^qo-(?:deploy|wip)-/i]
 
 function parseArgs(argv) {
   const opts = { since: Date.now() - DAY, sinceSet: false, root: null, json: false, apply: false,
-    includeSharePackage: false, only: [], force: false, session: null, includeModified: false, trash: null }
+    includeSharePackage: false, only: [], force: false, session: null, includeModified: false, trash: null,
+    evidenceDocs: [] }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--json') opts.json = true
@@ -30,6 +31,7 @@ function parseArgs(argv) {
     else if (a === '--include-modified') opts.includeModified = true
     else if (a === '--trash') opts.trash = true
     else if (a === '--no-trash') opts.trash = false
+    else if (a === '--evidence-docs' && argv[i + 1]) opts.evidenceDocs.push(path.resolve(argv[++i]))
     else if (a === '--session' && argv[i + 1]) opts.session = String(argv[++i]).trim()
     else if (a === '--only' && argv[i + 1]) opts.only.push(path.resolve(argv[++i]))
     else if (a === '--since' && argv[i + 1]) {
@@ -39,12 +41,14 @@ function parseArgs(argv) {
     } else if (a === '--root' && argv[i + 1]) opts.root = path.resolve(argv[++i])
     else if (a === '--help') {
       console.log('用法：node tmp-round-scan.cjs [--since <ISO时间|毫秒>] [--root <目录>] [--json] [--apply] [--include-share-package] [--only <精确路径>]...')
-      console.log('  [--force] [--session <8位会话id>] [--include-modified] [--trash|--no-trash]')
+      console.log('  [--force] [--session <8位会话id>] [--include-modified] [--trash|--no-trash] [--evidence-docs <目录>]...')
       console.log('默认只扫描。--apply 只清理本轮可清条目，必须显式给 --since；受保护项、已登记证据、分享包产物与超期件不删。')
       console.log('默认只自动删"本轮新建"的条目；仅被修改的旧目录只列清单（--only 精确指定或 --include-modified 才删）。')
       console.log('--apply 要求 since 在 7 天内且 root 为 canonicalRoot；越界需 --force。--session 只自动删名字含该令牌的本会话产物。')
       console.log('--only 可重复，只处理临时根的直接子条目；并行会话共用 D:/tmp 时用它按精确路径清理本任务产物。')
-      console.log('分享包产物默认移入 <root>/.trash（7 天后自动回收），--no-trash 才永久删除；分享包流程默认必须扫描后询问清理范围。')
+      console.log('删除默认移入 <root>/.trash（7 天后自动回收），--no-trash 才永久删除；每次 --apply 写 <root>/.last-cleanup 台账。');
+      console.log('--evidence-docs <目录> 可重复：扫描其中 .md，被登记为证据路径的条目即使无 .keep/.evidence.json 也保留。');
+      console.log('分享包流程默认必须扫描后询问清理范围。')
       process.exit(0)
     }
   }
@@ -98,6 +102,37 @@ function purgeTrash(root, now) {
 function trashBatchDir(root, now) {
   const stamp = new Date(now).toISOString().replace(/[:.]/g, '-')
   return path.join(root, '.trash', stamp)
+}
+
+/** C10：扫描指定文档目录里的 .md，收集被登记为证据的绝对路径（正斜杠与反斜杠两种写法都认）。 */
+function collectRegisteredEvidence(docRoots) {
+  const found = new Set()
+  if (!Array.isArray(docRoots) || !docRoots.length) return found
+  const walk = (dir, depth) => {
+    if (depth > 6) return
+    let list = []
+    try { list = fs.readdirSync(dir, { withFileTypes: true }) } catch (e) { return }
+    for (const e of list) {
+      if (e.name === 'node_modules' || e.name === '.git') continue
+      const full = path.join(dir, e.name)
+      if (e.isDirectory()) { walk(full, depth + 1); continue }
+      if (!/\.md$/i.test(e.name)) continue
+      let text = ''
+      try { text = fs.readFileSync(full, 'utf8') } catch (err) { continue }
+      for (const m of text.matchAll(/[A-Za-z]:[\\/][^\s`'")\]，。；]+/g)) {
+        const raw = m[0].replace(/[.,;:]+$/, '')
+        found.add(raw.replace(/\\/g, '/').toLowerCase())
+        found.add(raw.toLowerCase())
+      }
+    }
+  }
+  for (const r of docRoots) walk(r, 0)
+  return found
+}
+
+/** C10：清理台账。没有它就无法归因「谁删了证据」——本项目已实际踩到。 */
+function writeCleanupLedger(root, record) {
+  try { fs.writeFileSync(path.join(root, '.last-cleanup'), JSON.stringify(record, null, 1)) } catch (e) {}
 }
 
 function buildProtect(cfg, includeSharePackage) {
@@ -179,7 +214,17 @@ function main() {
   const isOnly = (e) => onlySet.has(path.resolve(e.path).toLowerCase())
   const ex = sweeper.buildExclude(cfg)
   const protect = buildProtect(cfg, opts.includeSharePackage)
-  const useTrash = opts.trash === null ? opts.includeSharePackage : opts.trash
+  // C10：目录删除默认进隔离区，只有显式 --no-trash 才永久删除。
+  // 事故背景：用户选「全部保留」后，未加标记的证据目录仍被普通自动清理永久删除且无副本可恢复。
+  const useTrash = opts.trash === null ? true : opts.trash
+  // C10：被仓库文档以路径形式登记为证据的目录，即使没有 .keep/.evidence.json 也保留。
+  const registeredEvidence = collectRegisteredEvidence(opts.evidenceDocs)
+  const isRegistered = (full) => {
+    if (!registeredEvidence.size) return false
+    const forms = [String(full).replace(/\\/g, '/').toLowerCase(), String(full).toLowerCase()]
+    for (const f of forms) if (registeredEvidence.has(f)) return true
+    return false
+  }
   const keepCache = new Map()
   const entries = []
   if (fs.existsSync(root)) {
@@ -197,13 +242,16 @@ function main() {
       let st
       try { st = fs.statSync(full) } catch (err) { continue }
       if (st.mtimeMs < opts.since) continue
-      const excluded = sweeper.isExcluded(full, ex, e.name) || sweeper.isForbidden(full)
+      // 台账是清理机制自身的产物：可见但永不可清，否则复扫会把它当本轮新条目。
+      const excluded = e.name === '.last-cleanup'
+        || sweeper.isExcluded(full, ex, e.name) || sweeper.isForbidden(full)
       const size = e.isDirectory() ? dirSize(full, deadline) : { bytes: st.size, files: 1, truncated: false }
       const birth = st.birthtimeMs || 0
       entries.push({ name: e.name, path: full, dir: e.isDirectory(), bytes: size.bytes,
         files: size.files, truncated: size.truncated, excluded, protected: isProtected(e.name, protect),
         created: birth > 0 && birth >= opts.since, birthKnown: birth > 0,
         keep: sweeper.hasKeepMarker(full, root, keepCache),
+        registered: isRegistered(full),
         sessionOwned: !opts.session || e.name.toLowerCase().includes(opts.session.toLowerCase()),
         mtime: st.mtimeMs })
     }
@@ -217,7 +265,7 @@ function main() {
     ? [...onlySet].filter((p) => !scoped.some((e) => path.resolve(e.path).toLowerCase() === p))
     : []
   const candidates = scoped.filter((e) => {
-    if (e.excluded || e.protected || e.keep) return false
+    if (e.excluded || e.protected || e.keep || e.registered) return false
     if (isOnly(e)) return true
     if (opts.session && !e.sessionOwned) return false
     return opts.includeModified || e.created
@@ -225,6 +273,7 @@ function main() {
   const candidateSet = new Set(candidates.map((e) => path.resolve(e.path).toLowerCase()))
   const preserved = scoped.filter((e) => !candidateSet.has(path.resolve(e.path).toLowerCase()))
   const protectedEntries = scoped.filter((e) => e.protected && !e.excluded)
+  const registeredList = scoped.filter((e) => e.registered && !e.excluded).map((e) => e.path)
   const modifiedKept = scoped.filter((e) => !e.excluded && !e.protected && !e.keep
     && !e.created && !isOnly(e) && !opts.includeModified)
   const sessionSkipped = scoped.filter((e) => !e.excluded && !e.protected && !e.keep && e.created
@@ -252,6 +301,12 @@ function main() {
       }
     }
     purgedTrash = purgeTrash(root, now)
+    writeCleanupLedger(root, { schema: 1, at: new Date(now).toISOString(),
+      since: new Date(opts.since).toISOString(), root,
+      includeSharePackage: opts.includeSharePackage, trash: useTrash,
+      deleted: deleted.length, trashed: trashed.length, failed: failed.length,
+      preserved: preserved.length, registeredEvidence: registeredList.length,
+      paths: deleted.slice(0, 200) })
     heartbeat('ROUND-' + (opts.includeSharePackage ? 'APPLY-SHARE' : 'APPLY')
       + ' root=' + root + ' since=' + new Date(opts.since).toISOString()
       + ' deleted=' + deleted.length + ' failed=' + failed.length
@@ -271,7 +326,7 @@ function main() {
       modified: modifiedKept.map((e) => e.path),
       sessionSkipped: sessionSkipped.map((e) => e.path),
     },
-    guards, trashed, purgedTrash, deleted, failed }
+    guards, trashed, purgedTrash, deleted, failed, registeredEvidence: registeredList }
 
   if (opts.json) {
     console.log(JSON.stringify(result))
