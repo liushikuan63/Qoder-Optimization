@@ -15,6 +15,9 @@ const KNOWN_PREFIX = /^(?:\.\.\/)+(?:[A-Za-z0-9_.-]+\/)*[A-Za-z0-9_.-]+\.(?:json
 const KNOWN_DIR = /^(?:scripts|skills|commands|hooks|references|resources|design-md|fixtures|agents|mcp|\.github)\/[A-Za-z0-9_./-]+\.(?:json|mjs|cjs|md|js|ps1|sh|py)$/;
 const FENCE_RE = /```[\s\S]*?```/g;
 const MUTED_RE = /<!--[\s\S]*?-->/g;
+// build-release.js 明确把 .github/ 排除在发布包之外；技能文档引用仓库 CI 文件是正当主张，
+// 在包内扫描时不能按悬空判红（否则 CI 必红），在仓库根扫描时仍须照常核对。
+const REPO_ONLY_DIRS = ['.github'];
 
 function stripExamples(text) {
   return String(text).replace(FENCE_RE, '').replace(MUTED_RE, '');
@@ -118,7 +121,10 @@ function scan(root, options = {}) {
   if (!skills.length) throw new Error('package contains no skills to check');
   const allowlist = loadAllowlist(root);
   const allowed = new Set(allowlist.map(entry => entry.skill + '\u0000' + entry.ref));
-  const missing = [], seen = new Set();
+  // 发布包按设计不含 .github/（build-release.js 过滤掉它），仓库根含。只有扫描根**整体不含**
+  // 该目录时，指向它的引用才算「随包不发布」；目录存在时照常核对，伪造引用仍判红。
+  const notShipped = REPO_ONLY_DIRS.filter(dir => !fs.existsSync(path.join(root, dir)));
+  const missing = [], excluded = [], seen = new Set();
   let refsScanned = 0, filesScanned = 0;
 
   const pending = [];
@@ -142,12 +148,17 @@ function scan(root, options = {}) {
         if (transitive && resolved.endsWith('.md')) pending.push({ skill, file: resolved });
         continue;
       }
-      if (!allowed.has(key)) missing.push({ skill, ref, from: path.relative(root, file).replace(/\\/g, '/') });
+      const from = path.relative(root, file).replace(/\\/g, '/');
+      // 先归一再取首段，免得 `.github/../scripts/x` 这类写法蹭到豁免
+      const top = path.posix.normalize(ref).replace(/^\.\//, '').split('/')[0];
+      if (notShipped.includes(top)) { excluded.push({ skill, ref, from, dir: top }); continue; }
+      if (!allowed.has(key)) missing.push({ skill, ref, from });
     }
   }
 
   missing.sort((a, b) => a.skill.localeCompare(b.skill) || a.ref.localeCompare(b.ref));
-  return { schema: 1, root, skills: skills.length, filesScanned, refsScanned, allowlisted: allowlist.length, missing };
+  excluded.sort((a, b) => a.skill.localeCompare(b.skill) || a.ref.localeCompare(b.ref));
+  return { schema: 1, root, skills: skills.length, filesScanned, refsScanned, allowlisted: allowlist.length, notShipped, excluded, missing };
 }
 
 function main(argv) {
@@ -169,8 +180,9 @@ function main(argv) {
   const result = scan(root, { transitive });
   if (json) process.stdout.write(JSON.stringify(result, null, 2) + '\n');
   else {
-    console.log(`skills=${result.skills} files=${result.filesScanned} refs=${result.refsScanned} allowlisted=${result.allowlisted} missing=${result.missing.length}`);
+    console.log(`skills=${result.skills} files=${result.filesScanned} refs=${result.refsScanned} allowlisted=${result.allowlisted} missing=${result.missing.length} notShipped=${result.excluded.length}`);
     for (const item of result.missing) console.log(`${item.skill}: ${item.ref} (from ${item.from})`);
+    for (const item of result.excluded) console.log(`NOT_SHIPPED ${item.skill}: ${item.ref} (from ${item.from}; ${item.dir}/ 不在本扫描根内)`);
   }
   if (check && result.missing.length) process.exitCode = 2;
 }
