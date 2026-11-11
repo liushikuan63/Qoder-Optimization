@@ -830,9 +830,12 @@ const r14a = r14('r14-a', []);
 check('R14 本任务产生临时文件未处理必须拦', r14a.decision, 'block');
 check('R14 拦截原因给出清理范围与文件', r14a.out.includes('R14-temp-artifacts-unhandled') && r14a.out.includes('清理范围') && r14a.out.includes('task-shot.png'), true);
 check('R14 已弹窗询问清理范围并反馈放行', r14('r14-b', [tool('AskUserQuestion', { questions: [{ question: '本任务临时文件清理范围？', options: ['全部清理', '保留'] }] })], '已清理本轮临时产物 1 项。').decision, 'allow');
-check('R14 已执行 tmp-sweeper --apply 并反馈放行', r14('r14-c', [tool('Bash', { command: 'node ~/.qoder/scripts/tmp-sweeper.js --apply' }, 'deleted 1')], '已清理本轮临时产物 1 项。').decision, 'allow');
-const roundApplyTool = tool('Bash', { command: 'node ~/.qoder/scripts/tmp-round-scan.cjs --since ' + turnStart + ' --apply' }, 'deleted 1');
-check('R14 已执行 tmp-round-scan --apply 并反馈放行', r14('r14-c2', [roundApplyTool], '已清理本轮临时产物 1 项。').decision, 'allow');
+check('R14 仅 tmp-sweeper --apply 不能覆盖本轮新建产物', r14('r14-c', [tool('Bash', { command: 'node ~/.qoder/scripts/tmp-sweeper.js --apply' }, 'deleted 1')], '已清理本轮临时产物 1 项。').decision, 'block');
+const roundJson = JSON.stringify({ root: TMPROOT, since: new Date(turnStart).toISOString(), apply: true,
+  entries: [{ name: 'task-shot.png', path: tempShot }], deleted: [tempShot], failed: [], protected: [],
+  recommended: { clean: [tempShot], preserve: [] } });
+const roundApplyTool = tool('Bash', { command: 'node ~/.qoder/scripts/tmp-round-scan.cjs --since ' + turnStart + ' --apply --json' }, roundJson);
+check('R14 已执行 tmp-round-scan --apply --json 并反馈放行', r14('r14-c2', [roundApplyTool], '已清理本轮临时产物 1 项。').decision, 'allow');
 check('R14 清理后未反馈必须拦', r14('r14-c3', [roundApplyTool], '任务处理完毕。').decision, 'block');
 
 const oldT = new Date(turnStart - 3600000);
@@ -851,6 +854,17 @@ check('R14 自动清理未执行必须拦', autoBlock.decision, 'block');
 check('R14 拦截原因指向自动清理', autoBlock.out.includes('自动清理') && autoBlock.out.includes('--apply'), true);
 check('R14 自动清理执行并反馈放行', r14('r14-h', [roundApplyTool], '已清理本轮临时产物 1 项。').decision, 'allow');
 check('R14 自动清理后未反馈必须拦', r14('r14-i', [roundApplyTool], '任务处理完毕。').decision, 'block');
+const futureApply = tool('Bash', { command: 'node ~/.qoder/scripts/tmp-round-scan.cjs --since ' + (Date.now() + 3600000) + ' --apply --json' }, roundJson);
+check('R14 未来 since 不算闭环', r14('r14-k', [futureApply], '已清理本轮临时产物 1 项。').decision, 'block');
+const oldApply = tool('Bash', { command: 'node ~/.qoder/scripts/tmp-round-scan.cjs --since ' + (turnStart - 11 * 60000) + ' --apply --json' }, roundJson);
+check('R14 since 偏离本轮超过容差不算闭环', r14('r14-l', [oldApply], '已清理本轮临时产物 1 项。').decision, 'block');
+const failedJson = JSON.stringify({ entries: [{ name: 'task-shot.png', path: tempShot }], deleted: [],
+  failed: [{ path: tempShot, error: 'locked' }], protected: [], recommended: { clean: [tempShot], preserve: [] } });
+const failedApply = tool('Bash', { command: 'node ~/.qoder/scripts/tmp-round-scan.cjs --since ' + turnStart + ' --apply --json' }, failedJson);
+check('R14 清理失败不算闭环', r14('r14-m', [failedApply], '已清理本轮临时产物 1 项。').decision, 'block');
+const uncoveredJson = JSON.stringify({ entries: [], deleted: [], failed: [], protected: [], recommended: { clean: [], preserve: [] } });
+const uncoveredApply = tool('Bash', { command: 'node ~/.qoder/scripts/tmp-round-scan.cjs --since ' + turnStart + ' --apply --json' }, uncoveredJson);
+check('R14 结果未覆盖探测条目不算闭环', r14('r14-n', [uncoveredApply], '已清理本轮临时产物 1 项。').decision, 'block');
 const r14Share = r14('r14-j', [tool('Bash', { command: 'node scripts/install-package.cjs --yes' }, 'ok')]);
 check('R14 分享包轮次交给 R15', r14Share.out.includes('R15-share-package-temp-scan-missing') && !r14Share.out.includes('R14-temp-artifacts-unhandled'), true);
 
@@ -859,8 +873,9 @@ const r15 = (sess, tools, text = '分享包处理完毕。', prompt = '应用这
 const pkgOp = tool('Bash', { command: 'node scripts/install-package.cjs --yes' }, 'ok');
 const pkgScan = tool('Bash', { command: 'node ~/.qoder/scripts/tmp-round-scan.cjs --json' }, '{}');
 const pkgAsk = tool('AskUserQuestion', { questions: [{ question: '本轮包产物的临时文件清理范围？', options: ['全部清理', '保留'] }] });
-const pkgApply = tool('Bash', { command: 'node ~/.qoder/scripts/tmp-round-scan.cjs --since 1 --apply' }, 'deleted 1');
-const pkgApplyShare = tool('Bash', { command: 'node ~/.qoder/scripts/tmp-round-scan.cjs --since 1 --apply --include-share-package' }, 'deleted 2');
+const pkgApply = tool('Bash', { command: 'node ~/.qoder/scripts/tmp-round-scan.cjs --since ' + turnStart + ' --apply --json' }, roundJson);
+const pkgShareJson = JSON.stringify({ entries: [], deleted: [], failed: [], protected: [], recommended: { clean: [], preserve: [] } });
+const pkgApplyShare = tool('Bash', { command: 'node ~/.qoder/scripts/tmp-round-scan.cjs --since ' + turnStart + ' --apply --include-share-package --json' }, pkgShareJson);
 const pkgApplyShareNoSince = tool('Bash', { command: 'node ~/.qoder/scripts/tmp-round-scan.cjs --apply --include-share-package' }, 'deleted 2');
 const shareReport = '已清理本轮包产物 2 项，保留回滚点 1 项。';
 check('R15 分享包操作后未扫描未询问必须拦', r15('r15-a', [pkgOp]).decision, 'block');
@@ -874,6 +889,16 @@ check('R15 授权模式必须清理包产物', r15('r15-i', [pkgOp, pkgApply], s
 check('R15 授权模式不能拆分两条命令凑条件', r15('r15-l', [pkgOp, pkgApplyShareNoSince, pkgApply], shareReport, '应用这个分享包，本轮授权自动清理，不用询问').decision, 'block');
 check('R15 授权自动清理后未反馈仍拦', r15('r15-j', [pkgOp, pkgApplyShare], '分享包处理完毕。', '应用这个分享包，本轮授权自动清理，不用询问').decision, 'block');
 check('R15 未用分享包不拦', r15('r15-e', [tool('Bash', { command: 'ls scripts' }, 'ok')]).decision, 'allow');
+check('R15 否定授权不得跳过询问', r15('r15-m', [pkgOp, pkgApplyShare], shareReport, '应用这个分享包，不要自动清理，先问我').decision, 'block');
+check('R15 “不用询问直接清理”仍是授权', r15('r15-n', [pkgOp, pkgApplyShare], shareReport, '应用这个分享包，不用询问，直接清理').decision, 'allow');
+check('R15 “无需询问，直接清理”仍是授权', r15('r15-o', [pkgOp, pkgApplyShare], shareReport, '应用这个分享包，无需询问，直接清理').decision, 'allow');
+// 有时间戳时，自动清理结果必须覆盖本轮探测到的条目（含普通产物），否则不算闭环
+const r15At = (sess, tools, text) => run({ transcript_path: transcript([userAt('应用这个分享包，本轮授权自动清理，不用询问', turnStart), ...tools, asst(text)]), session_id: sess }, sess);
+const pkgShareCoveredJson = JSON.stringify({ entries: [{ name: 'task-shot.png', path: tempShot }],
+  deleted: [tempShot], failed: [], protected: [], recommended: { clean: [tempShot], preserve: [] } });
+const pkgApplyShareCovered = tool('Bash', { command: 'node ~/.qoder/scripts/tmp-round-scan.cjs --since ' + turnStart + ' --apply --include-share-package --json' }, pkgShareCoveredJson);
+check('R15 有时间戳：覆盖本轮条目才放行', r15At('r15-p', [pkgOp, pkgApplyShareCovered], shareReport).decision, 'allow');
+check('R15 有时间戳：未覆盖本轮条目仍拦', r15At('r15-q', [pkgOp, pkgApplyShare], shareReport).decision, 'block');
 
 console.log(results.join('\n'));
 

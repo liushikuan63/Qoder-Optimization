@@ -798,10 +798,23 @@ function shareTempScanRan(ctx) {
   return ctx.turnTools.some((x) => x.success && toolName(x) === 'Bash'
     && /tmp-round-scan\.cjs/.test(String((x.input || {}).command || '')));
 }
-function shareCleanupAsked(ctx) {
-  return ctx.turnTools.some((x) => x.success && toolName(x) === 'AskUserQuestion'
-    && /临时|清理|clean|包产物/i.test(JSON.stringify(x.input || {})));
+function askText(x) {
+  const qs = x && x.input && x.input.questions;
+  if (!Array.isArray(qs)) return '';
+  return qs.map((q) => {
+    if (!q || typeof q !== 'object') return '';
+    const opts = Array.isArray(q.options)
+      ? q.options.map((o) => (o && typeof o === 'object' ? o.label : o))
+      : [];
+    return [q.question, q.header, ...opts].filter(Boolean).join(' ');
+  }).join(' ');
 }
+// 只看问题/表头/选项，不看整段 JSON：无关提问里出现"清理"不算已经问过。
+function isCleanupAsk(ctx) {
+  return ctx.turnTools.some((x) => x.success && toolName(x) === 'AskUserQuestion'
+    && /临时|清理|cleanup/i.test(askText(x)));
+}
+function shareCleanupAsked(ctx) { return isCleanupAsk(ctx); }
 function tmpAutoCleanCfg() {
   const cfg = json(path.join(CLIENT_ROOT, 'tmp-sweeper.json')) || {};
   return cfg && cfg.autoClean && typeof cfg.autoClean === 'object' ? cfg.autoClean : {};
@@ -809,30 +822,83 @@ function tmpAutoCleanCfg() {
 function autoCleanEnabled() {
   return tmpAutoCleanCfg().enabled === true;
 }
-// 分享包默认必须询问；只有配置授权或本轮用户明确授权时才可跳过询问自动清理。
+// 否定式优先："不要自动清理"不是授权；但"不用问/无需询问，直接清理"仍是授权。
+const NEGATED_CLEAN = /(?:不要|别|禁止|暂不|先别|勿|不可|不能|不必|无需|不用)(?!\s*(?:再)?(?:询问|问))[^\n]{0,12}清理/;
+const POSITIVE_CLEAN = /(?:授权|允许|同意|可以|直接|不用问|无需询问)[^\n]{0,12}清理|清理[^\n]{0,8}(?:不用问|无需询问)/;
 function shareAutoCleanAuthorized(ctx) {
   if (tmpAutoCleanCfg().sharePackage === true) return true;
-  return /(授权|允许|直接|不用问|无需询问|自动)[^\n]{0,10}清理|清理[^\n]{0,10}(不用问|无需询问|自动)/.test(ctx.lastUserText || '');
+  const text = ctx.lastUserText || '';
+  if (NEGATED_CLEAN.test(text)) return false;
+  return POSITIVE_CLEAN.test(text);
+}
+const ROUND_SINCE_TOLERANCE_MS = 10 * 60 * 1000;
+const ROUND_SINCE_MAX_BACKDATE_MS = 7 * 24 * 60 * 60 * 1000;
+function commandSince(cmd) {
+  const m = /(?:^|\s)--since(?:=|\s+)(?:"([^"]+)"|'([^']+)'|(\d{10,})|([^\s"']+))/.exec(String(cmd || ''));
+  if (!m) return null;
+  const raw = m[1] || m[2] || m[3] || m[4];
+  const t = /^\d{10,}$/.test(raw) ? Number(raw) : Date.parse(raw);
+  return Number.isFinite(t) ? t : null;
+}
+function toolText(result) {
+  if (typeof result === 'string') return result;
+  if (Array.isArray(result)) return result.map((x) => (typeof x === 'string' ? x : (x && x.text) || '')).join('\n');
+  if (result && typeof result === 'object') {
+    if (typeof result.content === 'string') return result.content;
+    if (Array.isArray(result.content)) return toolText(result.content);
+    if (typeof result.stdout === 'string') return result.stdout;
+  }
+  return '';
+}
+function toolJson(x) {
+  const lines = toolText(x && x.result).split('\n').map((l) => l.trim()).filter(Boolean);
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (!lines[i].startsWith('{')) continue;
+    try { return JSON.parse(lines[i]); } catch (e) {}
+  }
+  return null;
+}
+function normPath(p) {
+  try { return path.resolve(String(p)).toLowerCase(); } catch (e) { return String(p).toLowerCase(); }
+}
+function sinceLooksLikeTurn(since, ctx) {
+  const now = Date.now();
+  if (since > now + 5000) return false;
+  if (since < now - ROUND_SINCE_MAX_BACKDATE_MS) return false;
+  if (ctx.lastUserAt && Math.abs(since - ctx.lastUserAt) > ROUND_SINCE_TOLERANCE_MS) return false;
+  return true;
+}
+// 自动清理必须可校验：--apply --json、since 贴近本轮、failed=0，且本轮探测到的条目
+// 全部出现在 deleted 或 preserve 中；只看命令文本/散文的"已完成"不再算闭环。
+function roundScanResult(x, ctx) {
+  const cmd = String((x && x.input && x.input.command) || '');
+  if (!/tmp-round-scan\.cjs/.test(cmd) || !/--apply/.test(cmd) || !/--json/.test(cmd)) return null;
+  const since = commandSince(cmd);
+  if (since === null || !sinceLooksLikeTurn(since, ctx)) return null;
+  const res = toolJson(x);
+  if (!res || !Array.isArray(res.entries) || !Array.isArray(res.deleted) || !Array.isArray(res.failed)) return null;
+  if (res.failed.length) return null;
+  const preserve = new Set([...(res.protected || []),
+    ...((res.recommended && res.recommended.preserve) || [])].map(normPath));
+  const deleted = new Set(res.deleted.map(normPath));
+  const covered = tempGateProbe(ctx).every((e) => deleted.has(normPath(e.path)) || preserve.has(normPath(e.path)));
+  return covered ? res : null;
 }
 function roundScanApply(ctx) {
   return ctx.turnTools.some((x) => x.success && toolName(x) === 'Bash'
-    && /tmp-round-scan\.cjs[^\n]*(?:--apply[^\n]*--since|--since[^\n]*--apply)/.test(String((x.input || {}).command || '')));
+    && !/--include-share-package/.test(String((x.input || {}).command || ''))
+    && !!roundScanResult(x, ctx));
 }
 function shareRoundScanApply(ctx) {
-  return ctx.turnTools.some((x) => {
-    if (!(x.success && toolName(x) === 'Bash')) return false;
-    const c = String((x.input || {}).command || '');
-    return /tmp-round-scan\.cjs/.test(c) && /--apply/.test(c)
-      && /--include-share-package/.test(c) && /--since/.test(c);
-  });
-}
-function tempSweeperApply(ctx) {
   return ctx.turnTools.some((x) => x.success && toolName(x) === 'Bash'
-    && /tmp-sweeper\.js[^\n]*--apply/.test(String((x.input || {}).command || '')));
+    && /--include-share-package/.test(String((x.input || {}).command || ''))
+    && !!roundScanResult(x, ctx));
 }
 function cleanupReported(text) {
-  return /(临时产物|清理|删除|保留|cleanup)/i.test(text || '')
-    && /(\d|无|没有|零|全部|已|完毕|保留|none|no)/i.test(text || '');
+  const t = String(text || '');
+  return /(临时产物|清理|删除|保留|cleanup)/i.test(t)
+    && (/(?:清理|删除|保留|已删|cleanup)[^\n]{0,24}\d/i.test(t)
+      || /(?:无|没有|零)[^\n]{0,12}(?:临时产物|可清条目|新增)/.test(t));
 }
 
 const RULES = [
@@ -1158,11 +1224,7 @@ const RULES = [
       if (sharePackageOp(ctx)) return false;
       const entries = tempGateProbe(ctx);
       if (!entries.length) return false;
-      const asked = ctx.turnTools.some((x) => x.success && toolName(x) === 'AskUserQuestion'
-        && /临时|清理|clean/i.test(JSON.stringify(x.input || {})));
-      const closed = autoCleanEnabled()
-        ? (roundScanApply(ctx) || asked)
-        : (roundScanApply(ctx) || tempSweeperApply(ctx) || asked);
+      const closed = roundScanApply(ctx) || isCleanupAsk(ctx);
       if (!closed) return true;
       return !cleanupReported(t);
     },
@@ -1170,9 +1232,13 @@ const RULES = [
       const entries = tempGateProbe(ctx) || [];
       const shown = entries.slice(0, 6).map((e) => '`' + e.path + '`').join('、');
       const head = '本任务在临时目录产生了 ' + entries.length + (entries.length >= 10 ? '+ 项（只列前 10）' : ' 项') + '：' + shown + '。';
+      const sinceIso = ctx.lastUserAt ? new Date(ctx.lastUserAt).toISOString() : '<本轮用户消息时间 ISO>';
+      const sessionToken = String(ctx.sessionId || '').replace(/-/g, '').slice(0, 8);
       if (autoCleanEnabled()) {
-        return head + '本机已授权按推荐范围自动清理：跑 `node ~/.qoder/scripts/tmp-round-scan.cjs --since <本轮开始> --apply`'
-          + '（只删本轮可清条目；已登记证据、分享包回滚点与受保护项保留），复扫后必须在最终回复里**反馈删除/保留结果**。'
+        return head + '本机已授权按推荐范围自动清理：跑 `node ~/.qoder/scripts/tmp-round-scan.cjs --since "' + sinceIso
+          + '" --apply --json`（只删本轮新建条目；仅修改的旧目录、已登记证据、`.keep`、分享包回滚点与受保护项保留）'
+          + (sessionToken ? '；并行会话场景加 `--session ' + sessionToken + '`' : '')
+          + '。复扫后必须在最终回复里**反馈删除/保留结果**；门禁会校验 JSON 的 deleted/preserve 覆盖与 failed=0。'
           + '本轮涉及分享包时不要用这条路径，交给 R15 的每轮询问（或用户明确授权的自动清理）。';
       }
       return head + '按 AGENTS.md「临时产物按用途处理」：用 AskUserQuestion 给出**本任务临时文件清理范围**——'
@@ -1197,18 +1263,20 @@ const RULES = [
       return !cleanupReported(t);
     },
     reason: (ctx) => {
+      const sinceIso = ctx.lastUserAt ? new Date(ctx.lastUserAt).toISOString() : '<本轮用户消息时间 ISO>';
       if (shareAutoCleanAuthorized(ctx)) {
-        return '本轮分享包操作已获自动清理授权。跑 `node ~/.qoder/scripts/tmp-round-scan.cjs --since <本轮开始> --apply --include-share-package`'
-          + '（回滚点、已登记证据与受保护项仍保留），复扫后必须在最终回复里**反馈删除/保留结果**。'
+        return '本轮分享包操作已获自动清理授权。跑 `node ~/.qoder/scripts/tmp-round-scan.cjs --since "' + sinceIso
+          + '" --apply --include-share-package --json`（默认移入隔离区，`--no-trash` 才永久删；回滚点、已登记证据与受保护项仍保留）'
+          + '，复扫后必须在最终回复里**反馈删除/保留结果**；门禁会校验 JSON 的 deleted/preserve 覆盖与 failed=0。'
           + '未获授权时不要用 `--include-share-package`，必须走 AskUserQuestion。';
       }
       return '本轮执行了分享包操作（安装/合并/发布构建）。分享包默认**每轮结束询问**：先跑 '
-        + '`node ~/.qoder/scripts/tmp-round-scan.cjs --since <本轮开始>`（再跑 `tmp-sweeper.js --json` 看超期件），'
+        + '`node ~/.qoder/scripts/tmp-round-scan.cjs --since "' + sinceIso + '" --json`（再跑 `tmp-sweeper.js --json` 看超期件），'
         + '把本轮包产物（下载 zip、解压/暂存目录、旧版本副本、日志）用 AskUserQuestion 给清理范围：'
         + '推荐＝全部清理本轮包产物；备选＝保留回滚点与已登记证据目录 / 全部保留。'
         + '按答复执行并复扫，最终回复必须**反馈删除/保留结果**。'
         + '超期清单只作参考（可能来自其他机器或包内配置，与本机不一定一致），如要清理须逐条核对本机存在性、归属与证据引用。'
-        + '只有用户本轮明确授权自动清理（或配置 `autoClean.sharePackage=true`）才可跳过询问，改用带 `--include-share-package` 的自动清理。';
+        + '只有用户本轮明确授权自动清理（或配置 `autoClean.sharePackage=true`）才可跳过询问，改用带 `--include-share-package` 的自动清理（默认隔离区）。';
     },
   },
 ];
