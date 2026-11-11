@@ -5,7 +5,7 @@ const os = require('node:os');
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const { test } = require('node:test');
-const { evaluatePolicy, POLICY_VERSION } = require('./verification-policy.cjs');
+const { evaluatePolicy, POLICY_VERSION, TIERS } = require('./verification-policy.cjs');
 const fixture = require('../skills/verify-before-claim/references/adaptive-verification.cases.json');
 const input = () => structuredClone(fixture.base);
 const contract = id => fixture.cases.find(c => c.id === id);
@@ -148,4 +148,81 @@ test('audit regression: irreversible work recommends deep without removing free 
   assert.equal(plan.recommendedTier, 'deep');
   assert.deepEqual(new Set(plan.options.map(o => o.optionId)), new Set(['light', 'standard', 'deep', 'manual']));
   assert.equal(evaluatePolicy(input()).recommendedTier, 'light');
+});
+
+// ── C9：动作不确定性 vs 结论不确定性 ──
+const conclusionInput = () => {
+  const data = input();
+  data.facts.uncertainty = 'gaps';
+  data.facts.uncertaintyScope = 'conclusion';
+  return data;
+};
+test('C9 bounded local work with pending conclusions passes on the first call', () => {
+  const plan = evaluatePolicy(conclusionInput());
+  assert.deepEqual(plan.blockers, []);
+  assert.equal(plan.conclusionPending, true);
+  assert.ok(plan.reasonCodes.includes('CONCLUSION_UNCERTAIN'));
+  assert.deepEqual(plan.options.map(o => o.optionId), ['standard', 'light', 'deep', 'manual']);
+});
+test('C9 the exemption never lowers the recommended tier', () => {
+  const pending = evaluatePolicy(conclusionInput()), settled = evaluatePolicy(input());
+  assert.equal(pending.recommendedTier, 'standard');
+  assert.equal(settled.recommendedTier, 'light');
+  assert.ok(TIERS.indexOf(pending.recommendedTier) >= TIERS.indexOf(settled.recommendedTier));
+});
+test('C9 action uncertainty still blocks unless the scope is explicitly conclusion', () => {
+  const data = input(); data.facts.uncertainty = 'gaps';
+  const plan = evaluatePolicy(data);
+  assert.deepEqual(plan.blockers, ['FACTS_UNRESOLVED']);
+  assert.equal(plan.conclusionPending, false);
+  assert.equal(plan.request.facts.uncertaintyScope, 'action');
+});
+for (const [label, patch] of [
+  ['external push', { action: 'push' }],
+  ['high risk', { risk: 'high' }],
+  ['irreversible', { reversible: false }],
+  ['sensitive', { sensitive: true }],
+  ['cross-module impact', { impact: 'cross-module' }],
+  ['unknown uncertainty', { uncertainty: 'unknown' }],
+  ['unknown action', { action: 'unknown' }],
+]) {
+  test('C9 negative control: ' + label + ' stays FACTS_UNRESOLVED under conclusion scope', () => {
+    const data = conclusionInput();
+    Object.assign(data.facts, patch);
+    assert.deepEqual(evaluatePolicy(data).blockers, ['FACTS_UNRESOLVED']);
+  });
+}
+test('C9 an unsupported uncertainty scope is rejected, not silently defaulted', () => {
+  const data = conclusionInput(); data.facts.uncertaintyScope = 'both';
+  rejects(() => evaluatePolicy(data), 'INVALID_FACTS');
+});
+const POLICY_PROBE = "const fs=require('node:fs');const m=require(process.argv[1]);process.stdout.write(JSON.stringify(m.evaluatePolicy(JSON.parse(fs.readFileSync(process.argv[2],'utf8')))));";
+function policyFrom(target, file) {
+  const run = spawnSync(process.execPath, ['-e', POLICY_PROBE, target, file], { encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  return JSON.parse(run.stdout);
+}
+function mutantOf(t, anchor, replacement) {
+  const dir = temporary(t), modulePath = path.join(__dirname, 'verification-policy.cjs');
+  const source = fs.readFileSync(modulePath, 'utf8');
+  assert.equal(source.split(anchor).length - 1, 1, 'anchor must be unique: ' + anchor);
+  const file = path.join(dir, 'mutant.cjs');
+  fs.writeFileSync(file, source.replace(anchor, replacement));
+  return { dir, file };
+}
+test('C9 mutation: widening the exemption past bounded local work is killed', t => {
+  const { dir, file } = mutantOf(t, '!(conclusionPending && boundedLocal)', '!(conclusionPending)');
+  const data = conclusionInput(); data.facts.risk = 'high';
+  const request = path.join(dir, 'request.json');
+  fs.writeFileSync(request, JSON.stringify(data));
+  assert.deepEqual(policyFrom(path.join(__dirname, 'verification-policy.cjs'), request).blockers, ['FACTS_UNRESOLVED']);
+  assert.deepEqual(policyFrom(file, request).blockers, []);
+});
+test('C9 mutation: dropping the conclusion-scope gate is killed', t => {
+  const { dir, file } = mutantOf(t, "f.uncertaintyScope === 'conclusion' &&", 'true &&');
+  const data = input(); data.facts.uncertainty = 'gaps';
+  const request = path.join(dir, 'request.json');
+  fs.writeFileSync(request, JSON.stringify(data));
+  assert.deepEqual(policyFrom(path.join(__dirname, 'verification-policy.cjs'), request).blockers, ['FACTS_UNRESOLVED']);
+  assert.deepEqual(policyFrom(file, request).blockers, []);
 });

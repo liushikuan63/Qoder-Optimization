@@ -57,8 +57,9 @@ function buildTriggerNote(result, policyPath) {
     + '\n开工前按 verify-before-claim 技能“按难度选档”执行：'
     + '\n1) 只读核对请求、实际改动、已有测试与验收要求；不要为了打分先跑测试或做全仓审查。'
     + '\n2) 用真实 facts/sourceRefs/checks/baseline 构造 request JSON（未知写 unknown，不得编造），运行 `' + policyPath + ' <request.json>`。'
-    + '\n3) 完整展示 recommendedTier 与四个选项（推荐置首、不隐藏低档），用 AskUserQuestion 原样提问；宿主没有该工具时用文本给出同样四项并等待明确答复。未答复/取消不默认档，同任务不重复询问。'
+    + '\n3) 完整展示 recommendedTier 与四个选项（推荐置首、不隐藏低档）：本轮有开工确认卡时，把四项作为卡内「验证档」问一次问全（card.verification 承载 tier/reason/options），不另弹窗；没有开工卡时才单独用 AskUserQuestion 原样提问。宿主没有该工具时用文本给出同样四项并等待明确答复。未答复/取消不默认档，同任务不重复询问。'
     + '\n4) 只执行所选档的 checkIds 与 mandatoryCheckIds，汇报所选范围与未执行项；选档不授予发布、安装或生产操作权限。'
+    + '\nfacts.uncertainty 描述动作风险；只是结论尚待取证时写 uncertaintyScope=conclusion（仅本地+可逆+非敏感+低影响低风险免阻断，高风险仍 FACTS_UNRESOLVED）。'
     + '\n若宿主未提供 resolveAuthority（本机当前如此）：不要调用 applyChoice/beginVerification，不要伪造授权或宣称 T-07 原生链路通过；按所选清单执行并标注“选档为咨询模式”。'
     + '\n若用户明确不需要选档或本任务已完成选档，忽略本条。';
 }

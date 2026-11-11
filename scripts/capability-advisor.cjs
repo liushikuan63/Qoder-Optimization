@@ -481,8 +481,9 @@ function buildWorkflowNote(context, script) {
     + '\n结构化输入：{schema:1,context:<上方原样对象>,model:{schema:1,bindingDigest:<上方绑定值>,taskId:<当前任务ID>,intent:question|read-only|execute|continuation|unclear,confidence:low|medium|high,sourceRefs:[<真实来源>],reason:<简短判断>,parallel:assess|skip,goal:recommend|skip,verification:assess|skip,documentation:recommend|skip},parallelPlan?:<parallel-plan 的完整输入>,verificationRequest?:<verification-policy 的完整输入>}。不能编造事实或授权；confidence 是自评，不是正确性证明。'
     + '\n在业务写入或启用额外流程前，按 WORKFLOW_COMMAND 的 executable 和 args 原样调用，结构化输入经 stdin 传入；WORKFLOW_SHELL_COMMAND 是本机 ' + (process.platform === 'win32' ? 'PowerShell' : 'POSIX shell') + ' 的等价命令。只读任务不写请求文件。没有当前身份、结果无效或 NEEDS_FACTS 时不回退成关键词自动启用；保留串行/任务清单及必需验证，补足最小证据后再判断。'
     + '\n开工自检（模型判断，不等关键词）：① 含混自检：主动判断请求是否存在多种合理解读、对象/范围/验收是否明确；误判会导致返工时，先用 AskUserQuestion 给 2–4 个真实备选（推荐项在前、写清代价）确认后开工；② 能力自检：对照当前任务判断是否需要已安装的专项能力，建议与关键词只是召回线索——命中也要核对适用边界，未命中不代表没有适用能力（可用 skills-router / skill-load 检索）；两项都不得为明确单步请求制造确认门。'
-    + '\n文档、目标并入开工确认卡（见 KICKOFF 注入块），不重复弹窗：卡内一次问全；未确认按不建目标、不成文处理，不依据模型建议调用 CreateGoal。只读检查可并行、无需征求；正式开工的并行（尤其并行写入）仍要在卡内加问确认，写入收敛单会话；只读任务只展示计划，不写文件、不派发。'
-    + '\n验证选档须给真实 facts/checks/baseline，taskId 绑定当前任务，sessionId/workspaceKey/requestMessageId 与本轮 context 一致；当本请求属于业务写入/执行类且未 veto 选档时，必须在开工前用 AskUserQuestion 展示推荐档与四个选项并取得明确选择，facts/checks/baseline 不足时先补最小只读证据，未答复/取消不默认档，同任务不重复询问；没有 resolveAuthority 仍为咨询模式，不调用 applyChoice/beginVerification。skip 只跳过可选选档，不能删除必需验证或降低发布检查。'
+    + '\n文档、目标、验证档与并行计划审批全部并入开工确认卡（见 KICKOFF 注入块）：一次弹窗、最多 4 问＝计划（含并行）/文档/目标/验证档；把 cardPrefill 原样并入卡片作预填推荐，不另开弹窗。未确认按不建目标、不成文、不启用并行处理，不依据模型建议调用 CreateGoal。只读检查可并行、无需征求；写并行须在计划问里显式选中 opt-in（推荐默认恒为串行），写入收敛单会话；只读任务只展示计划，不写文件、不派发。'
+    + '\n验证选档须给真实 facts/checks/baseline，taskId 绑定当前任务，sessionId/workspaceKey/requestMessageId 与本轮 context 一致；当本请求属于业务写入/执行类且未 veto 选档时，必须在开工前把推荐档与四个选项作为开工卡的「验证档」问取得明确选择（本轮没有开工卡时才单独 AskUserQuestion），facts/checks/baseline 不足时先补最小只读证据，未答复/取消不默认档，同任务不重复询问；没有 resolveAuthority 仍为咨询模式，不调用 applyChoice/beginVerification。skip 只跳过可选选档，不能删除必需验证或降低发布检查。'
+    + '\nfacts.uncertainty 描述动作风险；只是结论尚待取证时写 uncertaintyScope=conclusion（仅本地+可逆+非敏感+低影响低风险免阻断并标注结论待取证，高风险仍 NEEDS_FACTS）。'
     + '\n继续同一任务先核对既有计划、目标和明确答复；已有适用选择不重复询问，拒绝/取消不催问，范围或事实改变重新判断。所有裁决只是建议，不发放创建目标、派发、写入、安装、发布或生产操作权限。';
 }
 function evaluateWorkflowDecision(input, expectedBinding) {
@@ -512,11 +513,23 @@ function evaluateWorkflowDecision(input, expectedBinding) {
     const policy = require('./verification-policy.cjs').evaluatePolicy(request);
     const external = ['push', 'pull-request', 'deploy', 'publish'].includes(request.facts.action);
     result.verification = {
-      action: eligible && model.verification === 'assess' && !restrictions.verification ? 'REUSE_CHOICE_OR_ASK' : 'REQUIRED_BASELINE',
+      action: eligible && model.verification === 'assess' && !restrictions.verification ? 'ASK_IN_KICKOFF_CARD' : 'REQUIRED_BASELINE',
       mandatoryChecksPreserved: true, policy,
       requiredCheckIds: [...new Set([...policy.mandatoryCheckIds, ...(external ? policy.options.find(option => option.tier === 'deep').checkIds : policy.baselineCheckIds)])].sort(),
     };
     if (policy.blockers.length) { result.verdict = 'NEEDS_FACTS'; result.verification.action = 'RESOLVE_FACTS'; result.reasonCodes.push(...policy.blockers); }
+    // C1：裁决只作卡内预填推荐，不再另开一次弹窗；四个选项与推荐档原样交给开工卡。
+    if (result.verification.action === 'ASK_IN_KICKOFF_CARD') {
+      result.cardPrefill = result.cardPrefill || {};
+      result.cardPrefill.verification = {
+        tier: policy.recommendedTier,
+        reason: ((policy.conclusionPending ? '结论待取证；' : '') + '推荐档 ' + policy.recommendedTier + '，依据 ' + policy.reasonCodes.join('/')).slice(0, 280),
+        policyDigest: policy.policyDigest,
+        options: policy.options.map(option => ({ optionId: option.optionId, description: option.description })),
+      };
+      result.verification.channel = 'KICKOFF_CARD';
+    }
+    if (policy.conclusionPending && !policy.blockers.length) result.reasonCodes.push('CONCLUSION_UNCERTAIN');
   }
   if (model.intent === 'question') { result.reasonCodes.push('QUESTION_ONLY'); return result; }
   if (model.intent === 'continuation') { result.reasonCodes.push('CHECK_EXISTING_TASK_AND_CHOICES'); return result; }
@@ -541,7 +554,17 @@ function evaluateWorkflowDecision(input, expectedBinding) {
       else if (plan.requiresPlanApproval) {
         result.parallel = readOnly
           ? { action: 'DISPLAY_READ_ONLY_PLAN', planDigest: plan.planDigest, waves: plan.waves, units: plan.units, requiresWriteApproval: true }
-          : { action: 'GENERATE_PLAN_THEN_ASK', plan };
+          : { action: 'ASK_IN_KICKOFF_CARD', channel: 'KICKOFF_CARD', plan };
+        if (!readOnly) {
+          // C1：计划审批折进开工卡的计划问，不再单独弹窗；写并行的 opt-in 仍是独立选项。
+          result.cardPrefill = result.cardPrefill || {};
+          result.cardPrefill.parallel = {
+            mode: 'parallel',
+            optInKind: plan.optInKind === 'worktree-write' ? 'worktree-write' : 'read-only',
+            planDigest: plan.planDigest,
+            reason: (plan.requiresUserOptIn ? '计划审批并入计划问；写并行须显式选中 opt-in，推荐默认串行。' : '计划审批并入计划问；只读并行，写入仍收敛单会话。').slice(0, 280),
+          };
+        }
       }
       else result.reasonCodes.push(...plan.reasonCodes);
     }

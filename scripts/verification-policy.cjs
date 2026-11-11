@@ -35,6 +35,7 @@ function validateRequest(input) {
       || !['low', 'normal', 'high', 'unknown'].includes(f.risk)
       || !['local', 'module', 'cross-module', 'unknown'].includes(f.impact)
       || !['low', 'gaps', 'high', 'unknown'].includes(f.uncertainty)
+      || (f.uncertaintyScope !== undefined && !['action', 'conclusion'].includes(f.uncertaintyScope))
       || ![true, false, null].includes(f.reversible) || ![true, false, null].includes(f.sensitive)
       || !list(f.sourceRefs) || !f.sourceRefs.length) fail('INVALID_FACTS', 'facts and their source references are required');
   if (!TIERS.includes(input.modelSuggestedTier)) fail('INVALID_TIER', 'modelSuggestedTier must be light, standard or deep');
@@ -55,7 +56,7 @@ function validateRequest(input) {
   if (!list(input.userCheckIds) || !list(input.baselineCheckIds) || !input.baselineCheckIds.length || !text(input.baselineSourceRef)) fail('INVALID_BASELINE', 'explicit user checks and an independently sourced baseline are required');
   return {
     schema: 1, ...scope,
-    facts: { action: f.action, risk: f.risk, impact: f.impact, uncertainty: f.uncertainty, reversible: f.reversible, sensitive: f.sensitive, sourceRefs: union(f.sourceRefs) },
+    facts: { action: f.action, risk: f.risk, impact: f.impact, uncertainty: f.uncertainty, uncertaintyScope: f.uncertaintyScope || 'action', reversible: f.reversible, sensitive: f.sensitive, sourceRefs: union(f.sourceRefs) },
     modelSuggestedTier: input.modelSuggestedTier, checks, userCheckIds: union(input.userCheckIds),
     baselineCheckIds: union(input.baselineCheckIds), baselineSourceRef: input.baselineSourceRef,
   };
@@ -93,7 +94,14 @@ function evaluatePolicy(input) {
   const baselineCheckIds = checkClosure(request.checks, request.baselineCheckIds);
   const profiles = Object.fromEntries(TIERS.map(tier => [tier, checkClosure(request.checks, union(mandatoryCheckIds, request.checks.filter(c => rank(c.fromTier) <= rank(tier)).map(c => c.id)))]));
   const recommended = profiles[recommendedTier];
-  const blockers = (f.action === 'unknown' || f.risk === 'unknown' || f.impact === 'unknown' || f.uncertainty !== 'low' || f.reversible === null || f.sensitive === null) ? ['FACTS_UNRESOLVED'] : [];
+  // C9：结论尚待取证不等于动作风险不明。豁免只在「本地 + 可逆 + 非敏感 + 影响与风险都低」
+  // 时成立，且只解除阻断、不降低推荐档；其余情形仍按事实未决处理。
+  const boundedLocal = f.action === 'local' && f.reversible === true && f.sensitive === false && f.impact === 'local' && f.risk === 'low';
+  const conclusionPending = f.uncertaintyScope === 'conclusion' && (f.uncertainty === 'gaps' || f.uncertainty === 'high');
+  const unresolved = f.action === 'unknown' || f.risk === 'unknown' || f.impact === 'unknown' || f.reversible === null || f.sensitive === null
+    || (f.uncertainty !== 'low' && !(conclusionPending && boundedLocal));
+  const blockers = unresolved ? ['FACTS_UNRESOLVED'] : [];
+  if (conclusionPending && !unresolved) reasonCodes.push('CONCLUSION_UNCERTAIN');
   const options = [recommendedTier, ...TIERS.filter(tier => tier !== recommendedTier)].map(tier => {
     const omitted = recommended.filter(id => !profiles[tier].includes(id));
     const added = profiles[tier].filter(id => !recommended.includes(id));
@@ -113,7 +121,7 @@ function evaluatePolicy(input) {
   });
   return {
     schema: 1, policyVersion: POLICY_VERSION, ...validateScope(request), request,
-    policyDigest: fingerprint(request), recommendedTier, reasonCodes, blockers, mandatoryCheckIds,
+    policyDigest: fingerprint(request), recommendedTier, reasonCodes, blockers, conclusionPending, mandatoryCheckIds,
     userCheckIds: request.userCheckIds, baselineCheckIds,
     baselineDigest: fingerprint({ ids: baselineCheckIds, sourceRef: request.baselineSourceRef, checks: request.checks.filter(c => baselineCheckIds.includes(c.id)) }),
     checks: request.checks, options,

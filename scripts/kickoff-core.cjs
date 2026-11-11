@@ -10,6 +10,15 @@ const MAX_TEXT = 300;
 const MAX_REASON = 300;
 const PENDING_MS = 2 * 60 * 60 * 1000;
 const CONFIRMED_MS = 24 * 60 * 60 * 1000;
+// C1：验证四档与 verification-policy 的 optionId 一致，卡内一次问全，不另弹窗。
+const VERIFICATION_IDS = ['light', 'standard', 'deep', 'manual'];
+const VERIFICATION_LABELS = { light: '轻量验证', standard: '标准验证', deep: '强化验证', manual: '交由人工验证' };
+const VERIFICATION_DESCRIPTIONS = {
+  light: '只跑必需检查与轻量项；省略的标准/强化项会在汇报里列为缺口。',
+  standard: '必需检查加标准项；比轻量多覆盖回归与边界，暂无可靠估时。',
+  deep: '必需检查加标准与强化项；对外动作与高风险改动的完整检验，暂无可靠估时。',
+  manual: '不自动运行测试或审查；提供人工步骤与预期，保持待人工验证，不视为通过或发布许可。',
+};
 
 const ACTION_WORDS = /(?:帮我|请帮我|麻烦|给我|把|改|修|做|实现|写|删|加|新增|去掉|替换|优化|调整|重构|迁移|部署|发布|安装|升级|提交|推送|执行|检查|分析|审查|审阅|调研|对比|测试|验证|生成|创建|整理|清理|同步|合并|拆分|设计|搭建|接入|联调|打包|构建|启动|停止|修复|排查|定位|诊断|看下|看看|查一下|查查|列一下|列出|给出|输出|补|完善|简化|收敛|瘦身|对接|切换|回滚|备份|恢复|删除|移动|复制|重命名|更新|修改|引入|移除|启用|关闭|处理|推进|落地)/;
 const QUESTION_START = /^(?:请问|请解释|请说明|什么是|为什么|怎么|如何|是否|能否|能不能|可不可以|有没有|多少|哪|谁|何时|哪里|在哪个|哪些|在哪里|在哪儿|有哪些)/;
@@ -343,6 +352,17 @@ function normalizeCard(card, context) {
     mode: p.mode,
     reason: textValue(p.reason, 'INVALID_KICKOFF_CARD', MAX_REASON),
   };
+  // C1：并行计划审批折进计划问，不再单独弹窗。写并行的 opt-in 仍是一个独立选项，
+  // 且推荐默认恒为串行——没有任何路径能让并行写入被默认启用。
+  if (p.optInKind !== undefined) {
+    if (!['read-only', 'worktree-write'].includes(p.optInKind)) throw fail('INVALID_KICKOFF_CARD', 'parallel optInKind is invalid');
+    parallel.optInKind = p.optInKind;
+  }
+  if (p.planDigest !== undefined) {
+    if (typeof p.planDigest !== 'string' || !/^[a-f0-9]{64}$/.test(p.planDigest)) throw fail('INVALID_KICKOFF_CARD', 'parallel planDigest is invalid');
+    parallel.planDigest = p.planDigest;
+  }
+  if (p.planRef !== undefined) parallel.planRef = textValue(p.planRef, 'INVALID_KICKOFF_CARD');
   let interpretations;
   if (card.interpretations !== undefined) {
     if (!Array.isArray(card.interpretations) || card.interpretations.length < 2 || card.interpretations.length > 4) {
@@ -382,6 +402,27 @@ function normalizeCard(card, context) {
     };
     if (g.mode === 'create') goal.title = textValue(g.title, 'INVALID_KICKOFF_CARD', 120);
   }
+  let verification;
+  if (card.verification !== undefined) {
+    const v = card.verification;
+    if (!v || typeof v !== 'object' || Array.isArray(v) || !VERIFICATION_IDS.includes(v.tier)) {
+      throw fail('INVALID_KICKOFF_CARD', 'verification tier must be light, standard, deep or manual');
+    }
+    verification = { tier: v.tier, reason: textValue(v.reason, 'INVALID_KICKOFF_CARD', MAX_REASON) };
+    if (v.policyDigest !== undefined) {
+      if (typeof v.policyDigest !== 'string' || !/^[a-f0-9]{64}$/.test(v.policyDigest)) throw fail('INVALID_KICKOFF_CARD', 'verification policyDigest is invalid');
+      verification.policyDigest = v.policyDigest;
+    }
+    if (v.options !== undefined) {
+      if (!Array.isArray(v.options) || v.options.length !== VERIFICATION_IDS.length) throw fail('INVALID_KICKOFF_CARD', 'verification must keep all four options');
+      const ids = v.options.map(item => item && typeof item === 'object' ? item.optionId : null);
+      if (!VERIFICATION_IDS.every(id => ids.includes(id))) throw fail('INVALID_KICKOFF_CARD', 'verification options must not hide a tier');
+      verification.options = VERIFICATION_IDS.map(id => {
+        const item = v.options.find(entry => entry.optionId === id);
+        return { optionId: id, description: textValue(item.description, 'INVALID_KICKOFF_CARD', MAX_REASON) };
+      });
+    }
+  }
   if (card.profile === 'simple') {
     if ((documentation && documentation.mode !== 'none') || (goal && goal.mode !== 'none')) {
       throw fail('INVALID_KICKOFF_CARD', 'simple cards must not request documentation or goal creation');
@@ -399,6 +440,7 @@ function normalizeCard(card, context) {
     parallel,
     documentation,
     goal,
+    verification,
   };
 }
 
@@ -413,6 +455,7 @@ function cardDigest(card) {
     parallel: card.parallel,
     documentation: card.documentation || null,
     goal: card.goal || null,
+    verification: card.verification || null,
   }));
 }
 
@@ -420,29 +463,68 @@ function option(label, description, value) {
   return value ? { label, description, value } : { label, description };
 }
 
-function buildQuestions(card) {
-  const plan = card.interpretations
-    ? {
-      question: '按哪种理解开工？',
+// C1：并行折进计划问。写并行的推荐默认恒为串行，opt-in 只能由用户显式选中，
+// 因此"少一次弹窗"不会变成"少一次必需确认"。
+function recommendedParallel(card) {
+  if (card.parallel.mode !== 'parallel') return 'serial';
+  return card.parallel.optInKind === 'worktree-write' ? 'serial' : 'parallel';
+}
+
+function parallelNote(card) {
+  if (card.parallel.mode !== 'parallel') return '本轮单会话顺序执行。';
+  if (card.parallel.optInKind === 'worktree-write') {
+    return '计划含并行写入（' + (card.parallel.planRef || 'worktree + 互斥 ownedPaths') + '），默认串行，启用须显式选中 opt-in。';
+  }
+  return '只读调查按计划并行，写入仍收敛为单会话顺序执行。';
+}
+
+function planQuestion(card) {
+  const writeOptIn = card.parallel.mode === 'parallel' && card.parallel.optInKind === 'worktree-write';
+  if (card.interpretations) {
+    // 理解选项已占满 4 个位置：并行折为推荐默认，异议走「都不对，我来补充」这一次机会。
+    return {
+      question: '按哪种理解开工？' + parallelNote(card),
       header: '开工确认',
       multiSelect: false,
       options: [
         ...card.interpretations.map((item, index) => option(index === 0 ? item.label + '（推荐）' : item.label, item.description, 'interpretation:' + index)),
-        ...(card.interpretations.length < 4 ? [option('都不对，我来补充', '先不执行；请补充或修正理解，我修订后重新确认。', 'clarify')] : []),
-      ],
-    }
-    : {
-      question: '是否按此理解与步骤开工？',
-      header: '开工确认',
-      multiSelect: false,
-      options: [
-        option('按此计划执行（推荐）', '按复述的目标/范围/验收、步骤和并行判断推进；对象、范围或验收变化时重新确认。', 'proceed'),
-        option('调整理解或步骤', '先不执行；请指出要修正的对象、范围、步骤或验收，我修订后重新确认。', 'adjust'),
-        option('取消本轮', '本轮不执行写入或副作用命令，只保留讨论。', 'cancel'),
+        ...(card.interpretations.length < 4 ? [option('都不对，我来补充', '先不执行；请补充或修正理解，也可在此要求改串行或启用并行写入，我修订后重新确认。', 'clarify')] : []),
       ],
     };
-  const questions = [plan];
-  if (card.profile !== 'complex') return questions;
+  }
+  const options = [];
+  if (card.parallel.mode !== 'parallel') {
+    options.push(option('按此计划执行（推荐）', '按复述的目标/范围/验收与步骤推进；' + parallelNote(card) + '对象、范围或验收变化时重新确认。', 'proceed'));
+  } else if (writeOptIn) {
+    options.push(option('本轮串行执行（推荐）', '单会话顺序执行，不派发并行写入；' + parallelNote(card), 'serial'));
+    options.push(option('启用并行写入（显式 opt-in）', '按互斥 ownedPaths 在 worktree 内并行；未显式选中不启用。choice 可直接回传 parallel。', 'parallel'));
+  } else {
+    options.push(option('按计划并行执行（推荐）', '按复述的目标/范围/验收与步骤推进；' + parallelNote(card) + 'choice 可直接回传 parallel。', 'parallel'));
+    options.push(option('改为串行执行', '本轮单会话顺序执行，不派发并行。choice 可直接回传 serial。', 'serial'));
+  }
+  options.push(option('调整理解或步骤', '先不执行；请指出要修正的对象、范围、步骤或验收，我修订后重新确认。', 'adjust'));
+  options.push(option('取消本轮', '本轮不执行写入或副作用命令，只保留讨论。', 'cancel'));
+  return { question: '是否按此理解与步骤开工？', header: '开工确认', multiSelect: false, options };
+}
+
+function verificationQuestion(card) {
+  const v = card.verification;
+  const supplied = Object.fromEntries((v.options || []).map(item => [item.optionId, item.description]));
+  const ordered = [v.tier, ...VERIFICATION_IDS.filter(id => id !== v.tier && id !== 'manual'), ...(v.tier === 'manual' ? [] : ['manual'])];
+  return {
+    question: '本轮用哪一档验证？',
+    header: '验证档',
+    multiSelect: false,
+    options: ordered.map(id => option(VERIFICATION_LABELS[id] + (id === v.tier ? '（推荐）' : ''), supplied[id] || VERIFICATION_DESCRIPTIONS[id], id)),
+  };
+}
+
+function buildQuestions(card) {
+  const questions = [planQuestion(card)];
+  if (card.profile !== 'complex') {
+    if (card.verification) questions.push(verificationQuestion(card));
+    return questions;
+  }
   const d = card.documentation;
   questions.push({
     question: '是否创建或更新文档？',
@@ -473,18 +555,8 @@ function buildQuestions(card) {
         option('创建目标', '创建“' + (g.title || '本轮任务') + '”的目标，适合跨多回合推进。', 'create'),
       ],
   });
-  // 只读检查可并行、无需询问；正式开工的并行（尤其并行写入）仍要在卡内确认。
-  if (card.parallel.mode === 'parallel') {
-    questions.push({
-      question: '是否按计划并行执行？',
-      header: '并行',
-      multiSelect: false,
-      options: [
-        option('按计划并行（推荐）', '按卡片给出的互斥 ownedPaths 并行；写入仍收敛为单会话顺序执行。', 'parallel'),
-        option('改为串行', '本轮单会话顺序执行，不派发并行。', 'serial'),
-      ],
-    });
-  }
+  // C1：验证档与文档/目标同卡一次问全（复杂卡最多 4 问），不再单独弹窗。
+  if (card.verification) questions.push(verificationQuestion(card));
   return questions;
 }
 
@@ -514,7 +586,9 @@ function composeCard(input, expectedBinding) {
     modes: {
       documentation: card.documentation ? card.documentation.mode : 'none',
       goal: card.goal ? card.goal.mode : 'none',
-      parallel: card.parallel.mode,
+      parallel: recommendedParallel(card),
+      parallelOffered: card.parallel.mode === 'parallel',
+      verification: card.verification ? card.verification.tier : 'none',
     },
   };
   writeJson(pendingFile(context.sessionId), updated);
@@ -551,24 +625,37 @@ function recordConfirmation(input, expectedBinding) {
   }
   if (!pending.cardDigest || !/^[a-f0-9]{64}$/.test(pending.cardDigest)) throw fail('CARD_NOT_COMPOSED', 'compose the card before recording a confirmation');
   if (input.cardDigest !== pending.cardDigest) throw fail('STALE_KICKOFF_CARD', 'confirmation belongs to a different card');
-  if (!['proceed', 'adjust', 'cancel'].includes(input.choice)) throw fail('INVALID_KICKOFF_CHOICE', 'choice must be proceed, adjust or cancel');
+  // 计划问里的并行选项可以直接回传 value（serial/parallel）：等价于 proceed + 显式并行选择，
+  // 少一次往返就少一次弹窗，但落账仍是 proceed 与一条明确选择。
+  const parallelOverride = ['serial', 'parallel'].includes(input.choice) ? input.choice : null;
+  const choice = parallelOverride ? 'proceed' : input.choice;
+  if (!['proceed', 'adjust', 'cancel'].includes(choice)) throw fail('INVALID_KICKOFF_CHOICE', 'choice must be proceed, adjust or cancel');
   const modes = pending.modes || {};
   let selections = null;
-  if (input.choice === 'proceed') {
+  if (choice === 'proceed') {
     const given = input.selections || {};
     // 复杂卡必须按选项 value 显式回传，避免"不创建目标"被默认成 create。
     if (pending.profile === 'complex' && (!given.documentation || !given.goal)) {
       throw fail('MISSING_KICKOFF_SELECTION', 'complex cards require explicit documentation and goal selections');
     }
+    if (modes.verification && modes.verification !== 'none' && !given.verification) {
+      throw fail('MISSING_KICKOFF_SELECTION', 'a card that asks for a verification tier requires an explicit tier selection');
+    }
     selections = {
       documentation: given.documentation || (modes.documentation === 'create' || modes.documentation === 'update' ? modes.documentation : 'none'),
       goal: given.goal || (modes.goal === 'create' ? 'create' : 'none'),
-      parallel: given.parallel || modes.parallel || 'serial',
+      parallel: parallelOverride || given.parallel || modes.parallel || 'serial',
     };
+    if (modes.verification && modes.verification !== 'none') selections.verification = given.verification;
     if (!validSelection(selections.documentation, ['create', 'update', 'none'])
         || !validSelection(selections.goal, ['create', 'none'])
-        || !validSelection(selections.parallel, ['serial', 'parallel'])) {
+        || !validSelection(selections.parallel, ['serial', 'parallel'])
+        || (selections.verification !== undefined && !validSelection(selections.verification, VERIFICATION_IDS))) {
       throw fail('INVALID_KICKOFF_SELECTION', 'selections contain unsupported values');
+    }
+    // 卡里没计划并行时不接受并行选择：opt-in 只能针对已展示的计划，不能凭空启用。
+    if (selections.parallel === 'parallel' && modes.parallelOffered !== true) {
+      throw fail('INVALID_KICKOFF_SELECTION', 'parallel was not offered by this card');
     }
   }
   const confirmed = {
@@ -576,17 +663,17 @@ function recordConfirmation(input, expectedBinding) {
     context,
     cardDigest: pending.cardDigest,
     profile: pending.profile || context.profileHint,
-    choice: input.choice,
+    choice,
     selections,
     at: new Date().toISOString(),
   };
   writeJson(confirmedFile(context.sessionId), confirmed);
-  appendLog([confirmed.at, sessionSlug(context.sessionId), String(context.decisionId).slice(0, 8), confirmed.profile, input.choice, selections ? [selections.documentation, selections.goal, selections.parallel].join(',') : '-', pending.cardDigest.slice(0, 12)]);
-  if (input.choice !== 'adjust') clearPending(context.sessionId);
+  appendLog([confirmed.at, sessionSlug(context.sessionId), String(context.decisionId).slice(0, 8), confirmed.profile, choice, selections ? [selections.documentation, selections.goal, selections.parallel, selections.verification || '-'].join(',') : '-', pending.cardDigest.slice(0, 12)]);
+  if (choice !== 'adjust') clearPending(context.sessionId);
   return {
     schema: 1,
     ok: true,
-    action: input.choice === 'proceed' ? 'proceed' : input.choice === 'adjust' ? 'revise' : 'stop',
+    action: choice === 'proceed' ? 'proceed' : choice === 'adjust' ? 'revise' : 'stop',
     decisionId: context.decisionId,
     cardDigest: pending.cardDigest,
   };
@@ -614,12 +701,14 @@ function buildKickoffNote(result) {
   const complex = profile === 'complex';
   return '\n【开工确认 · 必要项｜' + profile + '】' + signals + '。除纯问答外，先只读检查，并在收尾前完成：正文确认卡（理解/步骤/并行/影响与回滚）→ AskUserQuestion → record；未确认前不写入、不执行副作用。'
     + '\n若存在多种合理理解，card.interpretations 列 2–4 种（首个推荐）。'
-    + (complex ? '\n复杂卡同轮另问文档与目标；计划并行写入时加问并行。' : '\n简单卡只问计划；并行写入仍需在卡内加问。')
+    + '\n一张卡一次问全（≤4问、只弹1次）：计划（含并行）' + (complex ? '/文档/目标' : '') + '/验证档；advisor 裁决只作卡内预填推荐。'
+    + '\n写并行默认串行，启用须显式选 opt-in（optInKind=worktree-write）；验证档＝card.verification{tier,reason,options?}。'
     + '\nKICKOFF_CONTEXT ' + JSON.stringify(context)
     + '\nKICKOFF_BINDING ' + context.binding
     + '\nKICKOFF_COMPOSE_COMMAND ' + JSON.stringify(compose.command)
     + '\nKICKOFF_RECORD_COMMAND ' + JSON.stringify(record.command)
-    + '\n流程：--compose → AskUserQuestion → --record（choice=proceed|adjust|cancel；复杂卡 selections 必填文档/目标）→ 执行；卡片字段见 rules/long-task.md。';
+    + '\n流程：--compose → AskUserQuestion → --record（choice=proceed|adjust|cancel，计划问的 serial/parallel 可直接回传；复杂卡 selections 必填文档/目标，带验证档必填 verification）→ 执行；字段见 rules/long-task.md。'
+    + '\n盘符反斜杠 JSON 先落盘再 --from-file <path>（等价 stdin）。';
 }
 
 function prepareKickoff({ sessionId, prompt, cwd, requestMessageId }) {
@@ -763,6 +852,7 @@ module.exports = {
   prepareKickoff, buildKickoffNote, buildContinuationNote, composeCard, recordConfirmation,
   readPending, readConfirmed, clearPending, writePending, stateDir, cardDigest,
   ledgerStatus, gcLedger, jsonParseError, readInput,
+  buildQuestions, recommendedParallel, VERIFICATION_IDS,
   preferenceFile, readPreference, kickoffResidentEnabled, kickoffInjectEnabled, kickoffEnforceEnabled,
 };
 if (require.main === module) main(process.argv.slice(2));

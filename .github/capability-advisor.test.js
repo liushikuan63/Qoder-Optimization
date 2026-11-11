@@ -80,9 +80,11 @@ test('model workflow accepts semantic recommendations without authorizing activa
   const result = workflow.evaluateWorkflowDecision(input, binding);
   assert.equal(result.verdict, 'ADVISORY');
   assert.equal(result.authorizesExecution, false);
-  assert.equal(result.parallel.action, 'GENERATE_PLAN_THEN_ASK');
+  assert.equal(result.parallel.action, 'ASK_IN_KICKOFF_CARD');
+  assert.equal(result.parallel.channel, 'KICKOFF_CARD');
   assert.equal(result.parallel.plan.requiresPlanApproval, true);
   assert.equal(result.parallel.plan.requiresUserOptIn, true);
+  assert.equal(result.cardPrefill.parallel.optInKind, 'read-only');
   assert.equal(result.goal.action, 'CHECK_ACTIVE_GOAL_THEN_ASK_IF_NEEDED');
   assert.equal(result.documentation.action, 'CHECK_EXISTING_DOCS_THEN_ASK_IF_NEEDED');
 });
@@ -234,9 +236,11 @@ test('write-worktree recommendations keep a separate explicit opt-in requirement
   const { input, binding } = workflowFixture(t);
   input.model.parallel = 'assess'; input.parallelPlan = workflowPlan('write');
   const result = workflow.evaluateWorkflowDecision(input, binding);
-  assert.equal(result.parallel.action, 'GENERATE_PLAN_THEN_ASK');
+  assert.equal(result.parallel.action, 'ASK_IN_KICKOFF_CARD');
   assert.equal(result.parallel.plan.optInKind, 'worktree-write');
   assert.equal(result.parallel.plan.requiresUserOptIn, true);
+  assert.equal(result.cardPrefill.parallel.optInKind, 'worktree-write');
+  assert.match(result.cardPrefill.parallel.reason, /显式选中 opt-in/);
   assert.equal(result.authorizesExecution, false);
 });
 
@@ -251,7 +255,11 @@ test('verification preserves user checks, baseline and the full external-action 
   assert.deepEqual(result.verification.requiredCheckIds, ['deep', 'syntax', 'unit']);
   input.model.verification = 'assess';
   result = workflow.evaluateWorkflowDecision(input, binding);
-  assert.equal(result.verification.action, 'REUSE_CHOICE_OR_ASK');
+  assert.equal(result.verification.action, 'ASK_IN_KICKOFF_CARD');
+  assert.equal(result.verification.channel, 'KICKOFF_CARD');
+  assert.deepEqual(result.cardPrefill.verification.options.map(option => option.optionId), ['deep', 'light', 'standard', 'manual']);
+  assert.equal(result.cardPrefill.verification.tier, 'deep');
+  assert.equal(result.cardPrefill.verification.policyDigest, result.verification.policy.policyDigest);
   assert.equal(result.authorizesExecution, false);
 });
 
@@ -345,7 +353,9 @@ test('workflow note is bound to the full prompt rather than its clipped summary'
   assert.ok(note.includes('AskUserQuestion'));
   assert.ok(note.includes('四个选项'));
   assert.ok(note.includes('只读检查可并行、无需征求'));
-  assert.ok(note.includes('文档、目标并入开工确认卡'));
+  assert.ok(note.includes('文档、目标、验证档与并行计划审批全部并入开工确认卡'));
+  assert.ok(note.includes('一次弹窗、最多 4 问'));
+  assert.ok(note.includes('cardPrefill'));
   assert.ok(note.includes('不依据模型建议调用 CreateGoal'));
   assert.ok(!note.includes(prompt));
 });
@@ -699,4 +709,106 @@ test('unclear requests recommend the clarify command and clear requests do not',
   assert.equal(found && found.reason, 'RELEVANT_INSTALLED_COMMAND');
   const clear = advisor({ ...options, prompt: '把 src/auth.ts 的 login 改成返回 401' });
   assert.equal(clear.items.some(entry => entry.id === 'command:clarify'), false);
+});
+
+// ── C9：动作不确定性 vs 结论不确定性（advisor 层判据）──
+function conclusionWorkflow(t, patch = {}) {
+  const { input, binding } = workflowFixture(t);
+  input.model.verification = 'assess';
+  input.verificationRequest = workflowVerification(input.context);
+  Object.assign(input.verificationRequest.facts, { uncertainty: 'gaps', uncertaintyScope: 'conclusion' }, patch);
+  return workflow.evaluateWorkflowDecision(input, binding);
+}
+test('C9 a bounded local request with pending conclusions is ADVISORY on the first call', t => {
+  const result = conclusionWorkflow(t);
+  assert.equal(result.verdict, 'ADVISORY');
+  assert.deepEqual(result.verification.policy.blockers, []);
+  assert.equal(result.verification.action, 'ASK_IN_KICKOFF_CARD');
+  assert.ok(result.reasonCodes.includes('CONCLUSION_UNCERTAIN'));
+  assert.match(result.cardPrefill.verification.reason, /结论待取证/);
+  assert.equal(result.authorizesExecution, false);
+});
+test('C9 negative control: high-risk requests still return NEEDS_FACTS under conclusion scope', t => {
+  for (const patch of [{ action: 'push' }, { action: 'publish' }, { risk: 'high' }, { reversible: false }, { sensitive: true }, { impact: 'cross-module' }, { uncertainty: 'unknown' }]) {
+    const result = conclusionWorkflow(t, patch);
+    assert.equal(result.verdict, 'NEEDS_FACTS', JSON.stringify(patch));
+    assert.equal(result.verification.action, 'RESOLVE_FACTS');
+    assert.deepEqual(result.verification.policy.blockers, ['FACTS_UNRESOLVED']);
+    assert.equal(result.cardPrefill, undefined, JSON.stringify(patch));
+    assert.equal(result.authorizesExecution, false);
+  }
+});
+test('C9 without the conclusion scope the same facts still need a second call', t => {
+  const { input, binding } = workflowFixture(t);
+  input.model.verification = 'assess';
+  input.verificationRequest = workflowVerification(input.context);
+  input.verificationRequest.facts.uncertainty = 'gaps';
+  const result = workflow.evaluateWorkflowDecision(input, binding);
+  assert.equal(result.verdict, 'NEEDS_FACTS');
+  assert.equal(result.verification.action, 'RESOLVE_FACTS');
+  assert.equal(result.cardPrefill, undefined);
+});
+
+// ── C1：advisor 裁决 → 一张开工卡（≤4 问、一次弹窗）──
+test('C1 the advisor prefill drops into one kickoff card and records an explicit tier', t => {
+  const { input, binding, f } = workflowFixture(t);
+  input.model.verification = 'assess';
+  input.verificationRequest = workflowVerification(input.context);
+  const result = workflow.evaluateWorkflowDecision(input, binding);
+  const kickoff = require('../scripts/kickoff-core.cjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kickoff-prefill-'));
+  const previous = process.env.KICKOFF_STATE_DIR;
+  process.env.KICKOFF_STATE_DIR = dir;
+  t.after(() => {
+    if (previous === undefined) delete process.env.KICKOFF_STATE_DIR; else process.env.KICKOFF_STATE_DIR = previous;
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  const context = kickoff.createKickoffContext({ sessionId: 'prefill-session', prompt: '跨模块重构权限校验并发布', cwd: f.dir, requestMessageId: 'msg-prefill' });
+  kickoff.writePending(context);
+  const card = {
+    schema: 1, bindingDigest: context.binding, taskId: 'workflow-task', profile: 'complex',
+    understanding: { goal: '修复权限并发布', object: '鉴权模块', scope: '后端与 hook', acceptance: '全量测试通过' },
+    steps: ['只读取证', '改鉴权', '跑全量'],
+    parallel: { mode: 'serial', reason: '本轮串行' },
+    documentation: { mode: 'update', target: 'README.md', recommend: true, reason: '交接需要' },
+    goal: { mode: 'create', title: '权限修复', recommend: true, reason: '跨多回合' },
+    verification: result.cardPrefill.verification,
+  };
+  const composed = kickoff.composeCard({ schema: 1, context, card }, context.binding);
+  assert.ok(composed.questions.length <= 4, 'questions=' + composed.questions.length);
+  assert.deepEqual(composed.questions.map(question => question.header), ['开工确认', '文档', '目标', '验证档']);
+  assert.deepEqual(composed.questions[3].options.map(option => option.value), ['light', 'standard', 'deep', 'manual']);
+  assert.ok(composed.questions[3].options[0].label.includes('推荐'));
+  kickoff.recordConfirmation({ schema: 1, context, cardDigest: composed.cardDigest, choice: 'proceed', selections: { documentation: 'update', goal: 'create', parallel: 'serial', verification: 'standard' } }, context.binding);
+  assert.equal(kickoff.readConfirmed('prefill-session').selections.verification, 'standard');
+});
+test('C1 a write-parallel plan prefills the card with serial as the safe default', t => {
+  const { input, binding, f } = workflowFixture(t);
+  input.model.parallel = 'assess';
+  input.parallelPlan = workflowPlan('write');
+  const result = workflow.evaluateWorkflowDecision(input, binding);
+  const kickoff = require('../scripts/kickoff-core.cjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kickoff-write-plan-'));
+  const previous = process.env.KICKOFF_STATE_DIR;
+  process.env.KICKOFF_STATE_DIR = dir;
+  t.after(() => {
+    if (previous === undefined) delete process.env.KICKOFF_STATE_DIR; else process.env.KICKOFF_STATE_DIR = previous;
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  const context = kickoff.createKickoffContext({ sessionId: 'write-plan-session', prompt: '跨模块重构权限校验并发布', cwd: f.dir, requestMessageId: 'msg-write-plan' });
+  kickoff.writePending(context);
+  const card = {
+    schema: 1, bindingDigest: context.binding, taskId: 'workflow-task', profile: 'complex',
+    understanding: { goal: '并行核对两个入口', object: '两个独立入口', scope: '只读取证后写入', acceptance: '两份证据可定位' },
+    steps: ['生成计划', '并行取证', '汇总写入'],
+    parallel: result.cardPrefill.parallel,
+    documentation: { mode: 'none', recommend: false, reason: '本轮不成文' },
+    goal: { mode: 'none', recommend: false, reason: '任务清单足够' },
+  };
+  const composed = kickoff.composeCard({ schema: 1, context, card }, context.binding);
+  assert.deepEqual(composed.questions[0].options.map(option => option.value), ['serial', 'parallel', 'adjust', 'cancel']);
+  assert.ok(composed.questions[0].options[0].label.includes('推荐'));
+  assert.equal(composed.questions.length, 3);
+  kickoff.recordConfirmation({ schema: 1, context, cardDigest: composed.cardDigest, choice: 'proceed', selections: { documentation: 'none', goal: 'none' } }, context.binding);
+  assert.equal(kickoff.readConfirmed('write-plan-session').selections.parallel, 'serial');
 });

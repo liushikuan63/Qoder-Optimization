@@ -60,6 +60,7 @@ function complexCard(context) {
     parallel: { mode: 'parallel', reason: '只读调查可并行，写入收敛为单会话' },
     documentation: { mode: 'update', target: 'README.md', recommend: true, reason: '交接需要' },
     goal: { mode: 'create', title: '权限修复与发布', recommend: true, reason: '跨多回合' },
+    verification: { tier: 'standard', reason: '跨模块改动，需回归与边界' },
   };
 }
 
@@ -116,23 +117,24 @@ check('简单卡只返回计划确认 1 问', () => {
   assert.strictEqual(result.questions[0].options[0].label.includes('推荐'), true);
   assert.ok(result.cardDigest);
 });
-check('复杂卡返回计划/文档/目标/并行 4 问', () => {
+check('复杂卡返回计划/文档/目标/验证档 4 问（并行折进计划问）', () => {
   const context = contextFor('跨模块重构权限校验并发布', 'sess-c2');
   core.writePending(context);
   const result = core.composeCard({ schema: 1, context, card: complexCard(context) }, context.binding);
   assert.strictEqual(result.questions.length, 4);
-  assert.deepStrictEqual(result.questions.slice(1).map(item => item.header), ['文档', '目标', '并行']);
+  assert.deepStrictEqual(result.questions.map(item => item.header), ['开工确认', '文档', '目标', '验证档']);
   assert.ok(result.questions[1].options[0].label.includes('推荐'));
   assert.ok(result.questions[2].options[0].label.includes('推荐'));
   assert.ok(result.questions[3].options[0].label.includes('推荐'));
 });
-check('复杂串行卡只问计划/文档/目标 3 问，不再单独问并行', () => {
+check('复杂串行卡同样 4 问，不再单独问并行', () => {
   const context = contextFor('跨模块重构权限校验并发布', 'sess-c2s');
   core.writePending(context);
   const card = { ...complexCard(context), parallel: { mode: 'serial', reason: '顺序依赖' } };
   const result = core.composeCard({ schema: 1, context, card }, context.binding);
-  assert.strictEqual(result.questions.length, 3);
-  assert.deepStrictEqual(result.questions.slice(1).map(item => item.header), ['文档', '目标']);
+  assert.strictEqual(result.questions.length, 4);
+  assert.deepStrictEqual(result.questions.map(item => item.header), ['开工确认', '文档', '目标', '验证档']);
+  assert.deepStrictEqual(result.questions[0].options.map(item => item.value), ['proceed', 'adjust', 'cancel']);
 });
 check('多种理解时列出 2–4 种供选择', () => {
   const context = contextFor('优化导出功能', 'sess-c2i');
@@ -147,7 +149,7 @@ check('多种理解时列出 2–4 种供选择', () => {
   };
   const result = core.composeCard({ schema: 1, context, card }, context.binding);
   const plan = result.questions[0];
-  assert.strictEqual(plan.question, '按哪种理解开工？');
+  assert.ok(plan.question.startsWith('按哪种理解开工？'), plan.question);
   assert.strictEqual(plan.options.length, 3);
   assert.ok(plan.options[0].label.includes('推荐'));
   assert.strictEqual(plan.options[2].label, '都不对，我来补充');
@@ -191,7 +193,7 @@ check('compose 后 pending 记录卡片摘要与模式', () => {
   const result = core.composeCard({ schema: 1, context, card: simpleCard(context) }, context.binding);
   const pending = core.readPending('sess-c7');
   assert.strictEqual(pending.cardDigest, result.cardDigest);
-  assert.deepStrictEqual(pending.modes, { documentation: 'none', goal: 'none', parallel: 'serial' });
+  assert.deepStrictEqual(pending.modes, { documentation: 'none', goal: 'none', parallel: 'serial', parallelOffered: false, verification: 'none' });
 });
 
 console.log('# record');
@@ -329,12 +331,18 @@ check('审阅并修改仍要开工卡', () => {
 
 console.log('# machine-readable selections');
 freshState();
-check('复杂卡选项带机读 value', () => {
+check('复杂卡选项带机读 value（含四档验证与并行）', () => {
   const context = contextFor(undefined, 'sess-sel1');
   core.writePending(context);
   const composed = core.composeCard({ schema: 1, context, card: complexCard(context) }, context.binding);
   const values = composed.questions.flatMap((question) => question.options.map((option) => option.value));
-  for (const value of ['proceed', 'update', 'create', 'none', 'parallel', 'serial']) assert.ok(values.includes(value), value);
+  for (const value of ['parallel', 'serial', 'adjust', 'cancel', 'update', 'create', 'none', 'light', 'standard', 'deep', 'manual']) assert.ok(values.includes(value), value);
+});
+check('串行卡的计划问仍给 proceed', () => {
+  const context = contextFor(undefined, 'sess-sel1s');
+  core.writePending(context);
+  const composed = core.composeCard({ schema: 1, context, card: simpleCard(context) }, context.binding);
+  assert.deepStrictEqual(composed.questions[0].options.map(item => item.value), ['proceed', 'adjust', 'cancel']);
 });
 check('复杂卡未显式选择文档与目标时拒绝记录', () => {
   const context = contextFor(undefined, 'sess-sel2');
@@ -346,8 +354,8 @@ check('复杂卡显式选择 none 按用户选择落账', () => {
   const context = contextFor(undefined, 'sess-sel3');
   core.writePending(context);
   const composed = core.composeCard({ schema: 1, context, card: complexCard(context) }, context.binding);
-  core.recordConfirmation({ schema: 1, context, cardDigest: composed.cardDigest, choice: 'proceed', selections: { documentation: 'none', goal: 'none', parallel: 'serial' } }, context.binding);
-  assert.deepStrictEqual(core.readConfirmed('sess-sel3').selections, { documentation: 'none', goal: 'none', parallel: 'serial' });
+  core.recordConfirmation({ schema: 1, context, cardDigest: composed.cardDigest, choice: 'proceed', selections: { documentation: 'none', goal: 'none', parallel: 'serial', verification: 'light' } }, context.binding);
+  assert.deepStrictEqual(core.readConfirmed('sess-sel3').selections, { documentation: 'none', goal: 'none', parallel: 'serial', verification: 'light' });
 });
 
 console.log('# request binding');
@@ -513,6 +521,172 @@ check('变异负对照：去掉 --from-file 分支后文件通道不再可用', 
 });
 fs.rmSync(C4_DIR, { recursive: true, force: true });
 
+// ── C1：三套确认合并为一张卡（弹窗 ≤1 次、问题 ≤4 个），写并行 opt-in 不被默认启用 ──
+console.log('# C1 one card, one dialog');
+freshState();
+process.env.KICKOFF_PREFERENCE_FILE = prefFile;
+const C1_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'kickoff-c1-'));
+function c1Context(session) {
+  const context = contextFor('跨模块重构权限校验并发布', session);
+  core.writePending(context);
+  return context;
+}
+function writeCard(context, overrides) {
+  return {
+    ...complexCard(context),
+    parallel: { mode: 'parallel', reason: '只读调查可并行', optInKind: 'worktree-write', planDigest: 'a'.repeat(64), planRef: 'D:/tmp/parallel-plan.md' },
+    ...overrides,
+  };
+}
+function mutantModule(name, anchor, replacement) {
+  const file = path.join(C1_DIR, name);
+  fs.writeFileSync(file, replaceOnce(fs.readFileSync(CLI_SCRIPT, 'utf8'), anchor, replacement));
+  return require(file);
+}
+check('复杂卡一次弹窗承载全部确认：≤4 问且不再单独问并行', () => {
+  const context = c1Context('sess-c1a');
+  const composed = core.composeCard({ schema: 1, context, card: writeCard(context) }, context.binding);
+  assert.ok(composed.questions.length <= 4, 'questions=' + composed.questions.length);
+  assert.deepStrictEqual(composed.questions.map(item => item.header), ['开工确认', '文档', '目标', '验证档']);
+  assert.strictEqual(composed.action, 'ASK_CONFIRMATION');
+});
+check('验证档四选项齐全、推荐置首、不隐藏低档', () => {
+  const context = c1Context('sess-c1b');
+  const composed = core.composeCard({ schema: 1, context, card: writeCard(context) }, context.binding);
+  const question = composed.questions[3];
+  assert.deepStrictEqual(question.options.map(item => item.value), ['standard', 'light', 'deep', 'manual']);
+  assert.ok(question.options[0].label.includes('推荐'));
+  assert.ok(question.options.every(item => item.description && item.description.length > 0));
+});
+check('推荐档为 manual 时仍保留其余三档', () => {
+  const context = c1Context('sess-c1b2');
+  const card = writeCard(context, { verification: { tier: 'manual', reason: '交由人工验证' } });
+  const composed = core.composeCard({ schema: 1, context, card }, context.binding);
+  assert.deepStrictEqual(composed.questions[3].options.map(item => item.value), ['manual', 'light', 'standard', 'deep']);
+});
+check('负对照：隐藏任一档的 options 被拒', () => {
+  const context = c1Context('sess-c1c');
+  const card = writeCard(context, { verification: { tier: 'deep', reason: '发布', options: ['light', 'standard', 'deep'].map(id => ({ optionId: id, description: '选项说明' })) } });
+  throwsCode(() => core.composeCard({ schema: 1, context, card }, context.binding), 'INVALID_KICKOFF_CARD');
+});
+check('负对照：非法验证档被拒', () => {
+  const context = c1Context('sess-c1d');
+  const card = writeCard(context, { verification: { tier: 'extreme', reason: '不存在的档' } });
+  throwsCode(() => core.composeCard({ schema: 1, context, card }, context.binding), 'INVALID_KICKOFF_CARD');
+});
+check('写并行：推荐默认是串行，opt-in 是独立选项', () => {
+  const context = c1Context('sess-c1e');
+  const composed = core.composeCard({ schema: 1, context, card: writeCard(context) }, context.binding);
+  const plan = composed.questions[0];
+  assert.deepStrictEqual(plan.options.map(item => item.value), ['serial', 'parallel', 'adjust', 'cancel']);
+  assert.ok(plan.options[0].label.includes('推荐'));
+  assert.ok(plan.options[1].label.includes('opt-in'));
+  assert.strictEqual(core.readPending('sess-c1e').modes.parallel, 'serial');
+});
+check('写并行：proceed 不带选择时落账串行，不默认启用并行', () => {
+  const context = c1Context('sess-c1f');
+  const composed = core.composeCard({ schema: 1, context, card: writeCard(context) }, context.binding);
+  core.recordConfirmation({ schema: 1, context, cardDigest: composed.cardDigest, choice: 'proceed', selections: { documentation: 'none', goal: 'none', verification: 'standard' } }, context.binding);
+  assert.strictEqual(core.readConfirmed('sess-c1f').selections.parallel, 'serial');
+});
+check('写并行：显式选中 opt-in 才落账 parallel', () => {
+  const context = c1Context('sess-c1g');
+  const composed = core.composeCard({ schema: 1, context, card: writeCard(context) }, context.binding);
+  core.recordConfirmation({ schema: 1, context, cardDigest: composed.cardDigest, choice: 'parallel', selections: { documentation: 'none', goal: 'none', verification: 'standard' } }, context.binding);
+  const confirmed = core.readConfirmed('sess-c1g');
+  assert.strictEqual(confirmed.choice, 'proceed');
+  assert.strictEqual(confirmed.selections.parallel, 'parallel');
+});
+check('读并行：推荐默认并行，serial 选项可直接回传', () => {
+  const context = c1Context('sess-c1h');
+  const card = writeCard(context, { parallel: { mode: 'parallel', reason: '只读调查', optInKind: 'read-only' } });
+  const composed = core.composeCard({ schema: 1, context, card }, context.binding);
+  assert.deepStrictEqual(composed.questions[0].options.map(item => item.value), ['parallel', 'serial', 'adjust', 'cancel']);
+  core.recordConfirmation({ schema: 1, context, cardDigest: composed.cardDigest, choice: 'serial', selections: { documentation: 'none', goal: 'none', verification: 'standard' } }, context.binding);
+  assert.strictEqual(core.readConfirmed('sess-c1h').selections.parallel, 'serial');
+});
+check('负对照：卡里没计划并行时拒绝 parallel 选择', () => {
+  const context = c1Context('sess-c1i');
+  const card = writeCard(context, { parallel: { mode: 'serial', reason: '顺序依赖' } });
+  const composed = core.composeCard({ schema: 1, context, card }, context.binding);
+  throwsCode(() => core.recordConfirmation({ schema: 1, context, cardDigest: composed.cardDigest, choice: 'proceed', selections: { documentation: 'none', goal: 'none', parallel: 'parallel', verification: 'standard' } }, context.binding), 'INVALID_KICKOFF_SELECTION');
+});
+check('负对照：带验证档却不显式选档时拒绝记录', () => {
+  const context = c1Context('sess-c1j');
+  const composed = core.composeCard({ schema: 1, context, card: writeCard(context) }, context.binding);
+  throwsCode(() => core.recordConfirmation({ schema: 1, context, cardDigest: composed.cardDigest, choice: 'proceed', selections: { documentation: 'none', goal: 'none' } }, context.binding), 'MISSING_KICKOFF_SELECTION');
+});
+check('简单卡带验证档只 2 问，仍须显式选档', () => {
+  const context = contextFor('修复登录按钮的文案', 'sess-c1k');
+  core.writePending(context);
+  const card = { ...simpleCard(context), verification: { tier: 'light', reason: '单文件小改动' } };
+  const composed = core.composeCard({ schema: 1, context, card }, context.binding);
+  assert.deepStrictEqual(composed.questions.map(item => item.header), ['开工确认', '验证档']);
+  throwsCode(() => core.recordConfirmation({ schema: 1, context, cardDigest: composed.cardDigest, choice: 'proceed' }, context.binding), 'MISSING_KICKOFF_SELECTION');
+  core.recordConfirmation({ schema: 1, context, cardDigest: composed.cardDigest, choice: 'proceed', selections: { verification: 'light' } }, context.binding);
+  assert.strictEqual(core.readConfirmed('sess-c1k').selections.verification, 'light');
+});
+check('验证档变化即换 cardDigest，旧确认被拒', () => {
+  const context = c1Context('sess-c1l');
+  const first = core.composeCard({ schema: 1, context, card: writeCard(context) }, context.binding);
+  const second = core.composeCard({ schema: 1, context, card: writeCard(context, { verification: { tier: 'deep', reason: '改为发布' } }) }, context.binding);
+  assert.notStrictEqual(first.cardDigest, second.cardDigest);
+  throwsCode(() => core.recordConfirmation({ schema: 1, context, cardDigest: first.cardDigest, choice: 'proceed', selections: { documentation: 'none', goal: 'none', verification: 'deep' } }, context.binding), 'STALE_KICKOFF_CARD');
+});
+check('advisor 预填推荐可直接落卡：policyDigest 与四项 options 原样承载', () => {
+  const context = c1Context('sess-c1m');
+  const policy = require('./verification-policy.cjs').evaluatePolicy({
+    schema: 1, taskId: 'task-complex', sessionId: context.sessionId, requestMessageId: context.requestMessageId,
+    workspaceKey: context.workspaceKey, environmentKey: 'isolated-test',
+    facts: { action: 'local', risk: 'low', impact: 'local', uncertainty: 'gaps', uncertaintyScope: 'conclusion', reversible: true, sensitive: false, sourceRefs: ['request:current'] },
+    modelSuggestedTier: 'standard',
+    checks: [{ id: 'syntax', fromTier: 'light', mandatory: true, evidenceType: 'static', requirementIds: ['r:syntax'], dependencies: [], preconditions: [], commandRef: 'command:syntax', expectedOutcomeRef: 'expected:syntax' }],
+    userCheckIds: [], baselineCheckIds: ['syntax'], baselineSourceRef: 'spec:baseline',
+  });
+  assert.deepEqual(policy.blockers, []);
+  const card = writeCard(context, {
+    verification: {
+      tier: policy.recommendedTier, reason: 'advisor 预填推荐', policyDigest: policy.policyDigest,
+      options: policy.options.map(item => ({ optionId: item.optionId, description: item.description })),
+    },
+  });
+  const composed = core.composeCard({ schema: 1, context, card }, context.binding);
+  assert.deepStrictEqual(composed.questions[3].options.map(item => item.value), ['standard', 'light', 'deep', 'manual']);
+  assert.ok(composed.questions[3].options[0].description.includes('项检查'));
+});
+check('变异负对照：把写并行默认改成 parallel 后安全默认消失', () => {
+  const mutant = mutantModule('write-default.cjs', "return card.parallel.optInKind === 'worktree-write' ? 'serial' : 'parallel';", "return 'parallel';");
+  const context = c1Context('sess-c1n');
+  const card = writeCard(context);
+  const real = core.composeCard({ schema: 1, context, card }, context.binding);
+  core.recordConfirmation({ schema: 1, context, cardDigest: real.cardDigest, choice: 'proceed', selections: { documentation: 'none', goal: 'none', verification: 'standard' } }, context.binding);
+  assert.strictEqual(core.readConfirmed('sess-c1n').selections.parallel, 'serial');
+  const badContext = c1Context('sess-c1n2');
+  const bad = mutant.composeCard({ schema: 1, context: badContext, card: writeCard(badContext) }, badContext.binding);
+  mutant.recordConfirmation({ schema: 1, context: badContext, cardDigest: bad.cardDigest, choice: 'proceed', selections: { documentation: 'none', goal: 'none', verification: 'standard' } }, badContext.binding);
+  assert.strictEqual(core.readConfirmed('sess-c1n2').selections.parallel, 'parallel');
+});
+check('变异负对照：删掉验证档问后复杂卡只剩 3 问', () => {
+  const mutant = mutantModule('no-verification.cjs',
+    '  // C1：验证档与文档/目标同卡一次问全（复杂卡最多 4 问），不再单独弹窗。\n  if (card.verification) questions.push(verificationQuestion(card));',
+    '  // mutant: verification question dropped');
+  const context = c1Context('sess-c1o');
+  const card = writeCard(context);
+  assert.strictEqual(core.composeCard({ schema: 1, context, card }, context.binding).questions.length, 4);
+  assert.strictEqual(mutant.composeCard({ schema: 1, context, card }, context.binding).questions.length, 3);
+});
+check('变异负对照：删掉 parallelOffered 守卫后凭空启用并行被放行', () => {
+  const mutant = mutantModule('no-offer-guard.cjs', "if (selections.parallel === 'parallel' && modes.parallelOffered !== true) {", 'if (false) {');
+  const context = c1Context('sess-c1p');
+  const card = writeCard(context, { parallel: { mode: 'serial', reason: '顺序依赖' } });
+  const composed = core.composeCard({ schema: 1, context, card }, context.binding);
+  const payload = { schema: 1, context, cardDigest: composed.cardDigest, choice: 'proceed', selections: { documentation: 'none', goal: 'none', parallel: 'parallel', verification: 'standard' } };
+  throwsCode(() => core.recordConfirmation(payload, context.binding), 'INVALID_KICKOFF_SELECTION');
+  const bad = mutant.composeCard({ schema: 1, context, card }, context.binding);
+  mutant.recordConfirmation({ ...payload, cardDigest: bad.cardDigest }, context.binding);
+  assert.strictEqual(core.readConfirmed('sess-c1p').selections.parallel, 'parallel');
+});
+fs.rmSync(C1_DIR, { recursive: true, force: true });
 delete process.env.KICKOFF_PREFERENCE_FILE;
 
 fs.rmSync(STATE, { recursive: true, force: true });
