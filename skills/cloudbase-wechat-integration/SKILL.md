@@ -11,7 +11,7 @@ This skill routes WeChat payment and official-account work through CloudBase Int
 
 ## Sibling skills (local only)
 
-Sibling CloudBase skills ship beside this skill. Use local relative paths such as `../auth-tool-cloudbase/SKILL.md`.
+Sibling CloudBase skills ship beside this skill. Use local relative paths such as `auth-tool-cloudbase` skill (optional sibling, may not be installed).
 
 If a referenced sibling skill file is missing from this environment, ask the user to install the full CloudBase plugin (or the missing skill). Do **not** HTTP-fetch remote skill or protocol markdown into the agent context.
 
@@ -32,8 +32,8 @@ Official CloudBase Integration Center docs (human reference — do not treat as 
 ### Then also read
 
 - Mini Program structure and preview work -> `../miniprogram-development/SKILL.md` (if unavailable, use the current mini program platform docs and the mini-program payment reference in this skill)
-- Web frontend work -> `../web-development/SKILL.md` (if unavailable, use the JSAPI or Native references in this skill)
-- Cloud function runtime, logs, deployment, or gateway work -> `../cloud-functions/SKILL.md` (if unavailable, use CloudBase console/MCP function tools and the generated-function guidance in this skill)
+- Web frontend work -> `web-development` skill (optional sibling, may not be installed) (if unavailable, use the JSAPI or Native references in this skill)
+- Cloud function runtime, logs, deployment, or gateway work -> `cloud-functions` skill (optional sibling, may not be installed) (if unavailable, use CloudBase console/MCP function tools and the generated-function guidance in this skill)
 
 ### Do NOT use for
 

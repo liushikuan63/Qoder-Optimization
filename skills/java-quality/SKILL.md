@@ -570,7 +570,7 @@ jobs:
 | Quality gate fails in CI | Different config locally | Commit config files |
 
 ## Related Skills
-- [SonarQube](../sonarqube/SKILL.md)
-- [JaCoCo](../jacoco/SKILL.md)
-- [Clean Code](../../best-practices/clean-code/SKILL.md)
-- [Java Security](../../security/java-security/SKILL.md)
+- SonarQube (`sonarqube` skill, not shipped in this package)
+- JaCoCo (`jacoco` skill, not shipped in this package)
+- Clean Code (`clean-code` skill, not shipped in this package)
+- Java Security (`java-security` skill, not shipped in this package)

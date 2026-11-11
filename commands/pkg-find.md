@@ -5,7 +5,7 @@ description: 从分享包索引按关键词检索技能 / 脚本 / 命令 / 插�
 
 # /pkg-find —— 从分享包索引检索并按需安装/更新
 
-入口薄壳：流程与判据见 `~/.qoder/skills/skills-router/SKILL.md` 及其 `references/route-commands.md`「包检索与安装更新」。
+入口薄壳：流程与判据见 `~/.qoder/skills/skills-router/SKILL.md` 及其 `skills/skills-router/references/route-commands.md`「包检索与安装更新」。
 
 ```bash
 node ~/.qoder/scripts/pkg-catalog.cjs search "$ARGUMENTS"

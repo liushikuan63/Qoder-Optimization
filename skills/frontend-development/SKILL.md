@@ -161,7 +161,6 @@ import type { Post } from '~types/post';
 - Use SuspenseLoader component (with fade animation)
 - Component structure: Props → Hooks → Handlers → Render → Export
 
-**[📖 Complete Guide: resources/component-patterns.md](resources/component-patterns.md)**
 
 ---
 
@@ -179,7 +178,6 @@ import type { Post } from '~types/post';
 - Centralized methods per feature
 - Route format: `/form/route` (NOT `/api/form/route`)
 
-**[📖 Complete Guide: resources/data-fetching.md](resources/data-fetching.md)**
 
 ---
 
@@ -200,7 +198,6 @@ features/
     types/        # TypeScript types
 ```
 
-**[📖 Complete Guide: resources/file-organization.md](resources/file-organization.md)**
 
 ---
 
@@ -221,7 +218,6 @@ features/
 <Grid xs={12} md={6}>             // ❌ Old syntax
 ```
 
-**[📖 Complete Guide: resources/styling-guide.md](resources/styling-guide.md)**
 
 ---
 
@@ -246,7 +242,6 @@ export const Route = createFileRoute('/my-route/')({
 });
 ```
 
-**[📖 Complete Guide: resources/routing-guide.md](resources/routing-guide.md)**
 
 ---
 
@@ -273,7 +268,6 @@ if (isLoading) {
 - NEVER `react-toastify`
 - TanStack Query `onError` callbacks
 
-**[📖 Complete Guide: resources/loading-and-error-states.md](resources/loading-and-error-states.md)**
 
 ---
 
@@ -286,7 +280,6 @@ if (isLoading) {
 - Debounced search (300-500ms)
 - Memory leak prevention (cleanup in useEffect)
 
-**[📖 Complete Guide: resources/performance.md](resources/performance.md)**
 
 ---
 
@@ -298,7 +291,6 @@ if (isLoading) {
 - Type imports: `import type { User } from '~types/user'`
 - Component prop interfaces with JSDoc
 
-**[📖 Complete Guide: resources/typescript-standards.md](resources/typescript-standards.md)**
 
 ---
 
@@ -311,7 +303,6 @@ if (isLoading) {
 - `useAuth` hook for current user
 - Mutation patterns with cache invalidation
 
-**[📖 Complete Guide: resources/common-patterns.md](resources/common-patterns.md)**
 
 ---
 
@@ -325,26 +316,12 @@ if (isLoading) {
 - Suspense + useSuspenseQuery
 - Form with validation
 
-**[📖 Complete Guide: resources/complete-examples.md](resources/complete-examples.md)**
 
 ---
 
 ## React-Specific Navigation Guide
 
-| Need to... | Read this resource |
-|------------|-------------------|
-| Create a React component | [component-patterns.md](resources/component-patterns.md) |
-| Fetch data with TanStack Query | [data-fetching.md](resources/data-fetching.md) |
-| Organize files/folders | [file-organization.md](resources/file-organization.md) |
-| Style with MUI v7 | [styling-guide.md](resources/styling-guide.md) |
-| Set up TanStack Router | [routing-guide.md](resources/routing-guide.md) |
-| Handle loading/errors | [loading-and-error-states.md](resources/loading-and-error-states.md) |
-| Optimize React performance | [performance.md](resources/performance.md) |
-| TypeScript types | [typescript-standards.md](resources/typescript-standards.md) |
-| Forms/Auth/DataGrid | [common-patterns.md](resources/common-patterns.md) |
-| See full React examples | [complete-examples.md](resources/complete-examples.md) |
-
-**Note:** Resources above are React-specific. For Vue/Svelte/Angular, see framework sections in this document.
+The per-topic deep-dive guides (`resources/*.md`) are **not shipped with this package**; only the inline guidance in each topic section above is available. For Vue/Svelte/Angular, see the framework sections in this document.
 
 ---
 
@@ -463,7 +440,7 @@ export const MyComponent: React.FC<MyComponentProps> = ({ id, onAction }) => {
 export default MyComponent;
 ```
 
-For complete examples, see [resources/complete-examples.md](resources/complete-examples.md)
+For complete examples, see the inline examples in this document (the separate complete-examples deep-dive guide is not shipped with this package).
 
 ---
 

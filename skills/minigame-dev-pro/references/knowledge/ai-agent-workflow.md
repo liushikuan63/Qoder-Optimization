@@ -221,4 +221,4 @@ Agent 提出方案 → 人确认 → Agent 执行
 | real-device.mjs | 真机预览 | 需人扫码 |
 | publish.mjs | 上传发布 | 需人确认 |
 
-详细调用规则见 [references/engine/execution-protocol.md](../references/engine/execution-protocol.md)
+详细调用规则见 [references/engine/execution-protocol.md](../engine/execution-protocol.md)

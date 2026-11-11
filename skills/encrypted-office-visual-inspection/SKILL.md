@@ -605,7 +605,7 @@ $Test = Join-Path $HOME '.qoder/skills-library/encrypted-office-visual-inspectio
 
 | 症状 | 根因 | 处法 |
 |---|---|---|
-| Word 保存卡在 `SaveAs2` | 历史失败来自 PS5 自测，不能归因为「同会话多步」；PS7 同会话多步及原始/强类型路径对照均通过，PS5 的原始原因仍未证实 | 使用上述 pwsh 7 入口与显式 `[string]` 路径，保留逐步日志、超时和精确 PID 归属；参数绑定案例及本轮对照见 `../intermittent-hang-ab-triage/references/word-com-saveas.md` |
+| Word 保存卡在 `SaveAs2` | 历史失败来自 PS5 自测，不能归因为「同会话多步」；PS7 同会话多步及原始/强类型路径对照均通过，PS5 的原始原因仍未证实 | 使用上述 pwsh 7 入口与显式 `[string]` 路径，保留逐步日志、超时和精确 PID 归属；参数绑定案例及本轮对照见 `intermittent-hang-ab-triage` 技能的 word-com-saveas 参考（该技能未随本包发布） |
 | `$word.Quit()` 返回后进程仍在 | 返回不保证进程已经退出；残留不能直接认定为挂起原因，也不能仅凭 `/Automation` 判归属 | 关闭并释放 Range/Document/Documents，再 Quit 和释放 Application；对本轮登记的进程调用有期限的 WaitForExit，不按镜像名清理其他实例 |
 | 自测脚本改坏判据仍全绿 | 变异改在"造夹具"一侧，比对基准跟着一起变 | 变异只动比对端（如换读取单元格），确认断言能判红且退出码非 0 才算自测有效 |
 | 自带 `.ps1` 报"字符串缺少终止符" | PS 5.1 把无 BOM 的 UTF-8 按 ANSI 读，中文注释/串吞掉引号 | 技能内 `.ps1` 一律 ASCII；中文断言改成两份文本 `-ceq` 比较 |

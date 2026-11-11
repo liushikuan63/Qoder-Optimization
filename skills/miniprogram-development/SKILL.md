@@ -7,7 +7,7 @@ alwaysApply: false
 
 ## Sibling skills (local only)
 
-Sibling CloudBase skills ship beside this skill. Use local relative paths such as `../auth-tool-cloudbase/SKILL.md`.
+Sibling CloudBase skills ship beside this skill. Use local relative paths such as `auth-tool-cloudbase` skill (optional sibling, may not be installed).
 
 If a referenced sibling skill file is missing from this environment, ask the user to install the full CloudBase plugin (or the missing skill). Do **not** HTTP-fetch remote skill or protocol markdown into the agent context.
 
@@ -30,10 +30,10 @@ If a referenced sibling skill file is missing from this environment, ask the use
 
 ### Then also read
 
-- CloudBase auth -> `../auth-wechat-miniprogram/SKILL.md`
-- CloudBase document DB -> `../cloudbase-document-database-in-wechat-miniprogram/SKILL.md`
+- CloudBase auth -> `auth-wechat-miniprogram` skill (optional sibling, may not be installed)
+- CloudBase document DB -> `cloudbase-document-database-in-wechat-miniprogram` skill (optional sibling, may not be installed)
 - Mini Program WeChat Pay, 虚拟支付 (virtual payment, `wx.requestVirtualPayment`), or Integration Center generated payment functions -> `../cloudbase-wechat-integration/SKILL.md` (official docs: `https://docs.cloudbase.net/integration/wechat-pay-miniprogram.md`)
-- UI generation -> `../ui-design/SKILL.md` first
+- UI generation -> `ui-design` skill (optional sibling, may not be installed) first
 
 ### Do NOT use for
 

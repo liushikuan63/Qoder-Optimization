@@ -135,4 +135,4 @@ If cache misses persist after adding `@Cacheable`:
 
 - [`../spring-boot-rest-api-standards`](../spring-boot-rest-api-standards/SKILL.md)
 - [`../spring-boot-test-patterns`](../spring-boot-test-patterns/SKILL.md)
-- [`../unit-test-caching`](../unit-test-caching/SKILL.md)
+- `unit-test-caching` skill (not shipped in this package)

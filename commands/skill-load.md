@@ -5,7 +5,7 @@ description: 按关键词检索技能索引并给出 SKILL.md 路径（分层路
 
 # /skill-load —— 按需检索技能
 
-入口薄壳：流程与判据见 `~/.qoder/skills/skills-router/SKILL.md` 及其 `references/route-commands.md`「按需检索」。
+入口薄壳：流程与判据见 `~/.qoder/skills/skills-router/SKILL.md` 及其 `skills/skills-router/references/route-commands.md`「按需检索」。
 
 ```bash
 node ~/.qoder/scripts/skill-load.cjs --record "$ARGUMENTS"
