@@ -1,11 +1,11 @@
 ---
 name: parallel-orchestration
-description: 主会话协调的多 agent 并行编排：多模块/跨端/多文件任务开工前必须判定能否并行，可并行时先生成计划文档并询问用户方案是否合适，确认后再启用只读子代理、独立 worktree 或后台会话派发，维护共享上下文与记忆召回，串行合并并重新验收。触发词：并行、多 agent、多agent、协调者、orchestrator、任务拆分、依赖图、worktree、并行编排、共享上下文、记忆召回、并行判断、多模块、跨模块、同时处理、分工、并发、子代理、前后端。
+description: 主会话协调的多 agent 并行编排：多模块/跨端/多文件任务开工前必须判定能否并行，可并行时先展示只读计划摘要并询问方案，确认后生成正式计划文档再启用只读子代理、独立 worktree 或后台会话派发，维护共享上下文与记忆召回，串行合并并重新验收。触发词：并行、多 agent、多agent、协调者、orchestrator、任务拆分、依赖图、worktree、并行编排、共享上下文、记忆召回、并行判断、多模块、跨模块、同时处理、分工、并发、子代理、前后端。
 ---
 
 # 并行编排
 
-主会话是唯一协调者。默认不自动派发 worker，但**多模块、跨端、多文件或用户明确要求并行/分工的任务，必须主动判定，不得以“默认顺序”为由跳过**。判定为可并行后，**必须先生成计划文档、再询问用户方案是否合适，确认后才取得启用授权**，不得静默跳过、也不得未确认先派发。并行不是“多开几个 agent”，而是**先判定、再生成计划文档、再确认、再共享上下文、再派发、最后统一验收**。
+主会话是唯一协调者。默认不自动派发 worker，但**多模块、跨端、多文件或用户明确要求并行/分工的任务，必须主动判定，不得以“默认顺序”为由跳过**。判定为可并行后，**必须先展示只读计划摘要、再询问用户方案是否合适，确认后生成正式计划文档才取得启用授权**，不得静默跳过、也不得未确认先派发。并行不是“多开几个 agent”，而是**先判定、再只读摘要、再确认、再正式计划文档、再共享上下文、再派发、最后统一验收**。
 
 ## 什么时候用
 
@@ -25,11 +25,11 @@ description: 主会话协调的多 agent 并行编排：多模块/跨端/多文�
 
 ## 硬规则
 
-- 由能力路由自动触发（`AUTO_USE`）时同样执行“判定 → 生成计划文档 → 确认”；自动触发不等于自动派发，未确认按顺序执行。
-- 判定为 `PARALLEL_READ`/`PARALLEL_WORKTREE` 后，必须先用 `--markdown .qoder/parallel-plans/<taskId>.md` 生成计划文档，再展示计划摘要（单元、波次、读写路径、worker 数、验收/证据、5–20 倍成本），最后用 `AskUserQuestion` 询问“方案是否合适”；未生成文档不得询问或派发，未获确认不得创建运行目录、上下文包或派发 worker。
-- 用户明确要求并行/分工时，不得以“用户已经要求”为由跳过计划文档和方案确认；只有用户已对同一份计划逐项确认，才不重复询问。
-- 计划确认与启用授权可以合并为同一次询问，但选项必须明确写出启用范围（只读并行 / worktree 写并行）；写并行还必须单独取得显式 opt-in，列出 worktree 隔离方式、`ownedPaths` 与成本。
-- 用户选择“调整计划”时，修改 JSON 并重跑校验器后再次展示；用户选择“顺序执行”/取消即按顺序继续并说明“未获并行授权”，不是什么都不做。
+- 由能力路由自动触发（`AUTO_USE`）时同样执行“判定 → 只读摘要 → 确认 → 正式计划文档”；自动触发不等于自动派发，未确认按顺序执行。
+- 判定为 `PARALLEL_READ`/`PARALLEL_WORKTREE` 后，先用 `--preview` 取得只读摘要（单元、波次、读写路径、worker 数、验收/证据、5–20 倍成本），把它并入开工确认卡的计划问询问“方案是否合适”；确认后才用 `--markdown .qoder/parallel-plans/<taskId>.md` 生成正式计划文档。确认前只用 --preview 展示只读计划摘要，确认后再生成正式计划文档；未答复或取消必须落账降级记录与覆盖缺口清单，不得静默降级、不得据此派发。未获确认不得创建运行目录、上下文包或派发 worker。
+- 用户明确要求并行/分工时，不得以“用户已经要求”为由跳过计划摘要展示和方案确认；只有用户已对同一份计划逐项确认，才不重复询问。
+- 计划确认与启用授权可以合并为同一次询问，但选项必须明确写出启用范围（只读并行 / worktree 写并行）；写并行还必须单独取得显式 opt-in，列出 worktree 隔离方式、`ownedPaths` 与成本，推荐默认恒为串行。
+- 用户选择“调整计划”时，修改 JSON 并重跑校验器后再次展示；用户选择“顺序执行”/取消/未答复即按顺序继续并说明“未获并行授权”，同时跑 `--record-downgrade <NO_ANSWER|CANCELLED|USER_CHOSE_SERIAL|PLAN_REJECTED> --state-dir <dir>` 落账 1 条降级记录与逐单元覆盖缺口清单（`downgrades.jsonl`，追加不覆盖），不是什么都不做、也不是静默降级。
 - 任务范围、单元或写路径变化时重新确认。`SEQUENTIAL_REQUIRED` 不提供并行开关，`BLOCKED_HUMAN` 只请人决定是否继续。
 - 最多 4 个 worker（默认 3）、8 个单元、2 轮；worker 只能一层，不得再嵌套委派。
 - 协调者唯一维护共享上下文 canonical；worker 只返回 delta，禁止直接改 `context.json` 或全局记忆。
@@ -49,13 +49,17 @@ description: 主会话协调的多 agent 并行编排：多模块/跨端/多文�
 
 先做一次记忆召回，再写计划 JSON：运行 `node ~/.qoder/scripts/parallel-context.cjs recall --query "<目标 + 模块/路径/错误码>" --out .qoder/parallel-plans/<taskId>.recall.json`。默认检索 `~/.qoder{,-cn}/memory` 与当前项目的 `projects/<slug>/memory`；自定义目录用 `--memory` 追加。把命中的硬约束/已知坑补进 `plan.constraints`；没有命中写“记忆无此项”。召回是证据，与当前代码冲突时以现场为准。
 
-写计划 JSON（模板见 [references/plan-schema.md](references/plan-schema.md)），然后运行：
+写计划 JSON（模板见 [references/plan-schema.md](references/plan-schema.md)），然后分两阶段运行：
 
 ```bash
+node ~/.qoder/scripts/parallel-plan.cjs <plan.json> --json --preview
 node ~/.qoder/scripts/parallel-plan.cjs <plan.json> --json --markdown .qoder/parallel-plans/<taskId>.md
+node ~/.qoder/scripts/parallel-plan.cjs <plan.json> --json --record-downgrade NO_ANSWER --state-dir .qoder/parallel-plans
 ```
 
-以上命令中的 `~/.qoder` 是默认客户端示例（Git Bash）。CN、自定义或迁移布局以本轮 hook 给出的已绑定客户端目录为准，将所有示例替换成该客户端 `scripts` 的绝对路径，不回退到另一侧 HOME；源码仓库才使用仓库的 `scripts` 目录。明确选装本技能会补齐 `parallel-plan.cjs`、`parallel-context.cjs` 和 `parallel-write.cjs`；缺失时先用主安装器修复依赖，不只复制技能目录。计划文档在用户确认前生成，属于待审计划，不是运行上下文。真实任务不得用 `--preview` 跳过计划文档；`--preview` 只用于测试或工具预演。
+第一条在**确认前**跑，只读、零写入，输出 `stage=PRE_CONFIRMATION_DRAFT` 与摘要，供开工确认卡的计划问展示；第二条在**确认后**跑，生成正式计划文档（`stage=FORMAL_PLAN_DOC`）；第三条只在未答复/取消/改串行时跑，追加 1 条降级记录与覆盖缺口清单到 `downgrades.jsonl`，不建运行目录、不派发。
+
+以上命令中的 `~/.qoder` 是默认客户端示例（Git Bash）。CN、自定义或迁移布局以本轮 hook 给出的已绑定客户端目录为准，将所有示例替换成该客户端 `scripts` 的绝对路径，不回退到另一侧 HOME；源码仓库才使用仓库的 `scripts` 目录。明确选装本技能会补齐 `parallel-plan.cjs`、`parallel-context.cjs` 和 `parallel-write.cjs`；缺失时先用主安装器修复依赖，不只复制技能目录。正式计划文档在用户确认后生成，属于已审计划，不是运行上下文。`--preview` 是确认前的只读预演，**不能替代正式计划文档**，也不得据其派发；跳过 `--markdown` 直接派发仍会被 `PLAN_DOC_REQUIRED` 与开工确认门禁拦下。
 
 退出码与动作：
 

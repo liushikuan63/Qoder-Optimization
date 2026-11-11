@@ -453,3 +453,48 @@ test('exported batch API rejects detached out and init still accepts an adjacent
   assert.equal(initialized.json.context.version, 2);
   assert.equal(cli(contextScript, ['check', '--run', f.runDir]).status, 0);
 });
+
+// ── T-14（C5）：规则口径逐字一致 + 未确认不得建运行目录 ──
+const CANONICAL_PARALLEL_RULE = '确认前只用 --preview 展示只读计划摘要，确认后再生成正式计划文档；未答复或取消必须落账降级记录与覆盖缺口清单，不得静默降级、不得据此派发。';
+const RETIRED_PARALLEL_RULE = '未生成文档不得询问或派发';
+const repoRoot = path.resolve(__dirname, '..');
+const SKILL_FILE = 'skills/parallel-orchestration/SKILL.md';
+const RULES_FILE = 'Qoder-AI编码通用规则.md';
+const PARALLEL_RULE_FILES = [SKILL_FILE, 'skills/parallel-orchestration/references/plan-schema.md', RULES_FILE];
+function ruleConflicts(texts) {
+  const problems = [];
+  for (const [name, text] of Object.entries(texts)) {
+    if (text.includes(RETIRED_PARALLEL_RULE)) problems.push(name + ': 仍含旧冲突句');
+  }
+  for (const name of [SKILL_FILE, RULES_FILE]) {
+    if (!texts[name].includes(CANONICAL_PARALLEL_RULE)) problems.push(name + ': 缺统一口径句');
+  }
+  return problems;
+}
+test('T-14 the plan-document rule reads verbatim the same in the skill and the global rules', () => {
+  const texts = Object.fromEntries(PARALLEL_RULE_FILES.map(file => [file, fs.readFileSync(path.join(repoRoot, file), 'utf8')]));
+  assert.deepEqual(ruleConflicts(texts), []);
+  assert.ok(ruleConflicts({ ...texts, [SKILL_FILE]: texts[SKILL_FILE].replace(CANONICAL_PARALLEL_RULE, '') }).length > 0);
+  assert.ok(ruleConflicts({ ...texts, [RULES_FILE]: texts[RULES_FILE].replace(CANONICAL_PARALLEL_RULE, '') }).length > 0);
+  assert.ok(ruleConflicts({ ...texts, [SKILL_FILE]: texts[SKILL_FILE] + RETIRED_PARALLEL_RULE }).length > 0);
+});
+test('T-14 the skill keeps plan approval, explicit write opt-in and worktree isolation', () => {
+  const text = fs.readFileSync(path.join(repoRoot, SKILL_FILE), 'utf8');
+  for (const phrase of ['requiresPlanApproval', 'requiresUserOptIn', '单独取得显式 opt-in', 'worktree', '未获确认不得创建运行目录、上下文包或派发 worker', '最多 4 个 worker', '推荐默认恒为串行', '--record-downgrade']) {
+    assert.ok(text.includes(phrase), phrase);
+  }
+});
+test('T-14 negative control: an unapproved write plan creates no run directory or worktree', t => {
+  const dir = fixture(t);
+  const planFile = path.join(dir, 'write-plan.json');
+  writeJson(planFile, writePlan(['src/a.js', 'src/b.js']));
+  const out = path.join(dir, 'run'), repo = path.join(dir, 'repo');
+  const writeScript = path.resolve(__dirname, '../scripts/parallel-write.cjs');
+  for (const extra of [[], ['--write-opt-in'], ['--approved-plan', 'f'.repeat(64)], ['--write-opt-in', '--approved-plan', 'f'.repeat(64)]]) {
+    const run = spawnSync(process.execPath, [writeScript, 'prepare', '--plan', planFile, '--repo', repo, '--out', out, ...extra], { encoding: 'utf8', timeout: 20000 });
+    assert.equal(run.status, 1, run.stdout + run.stderr);
+    assert.equal(JSON.parse(run.stderr).code, 'APPROVAL_REQUIRED');
+    assert.equal(fs.existsSync(out), false);
+  }
+  assert.equal(fs.existsSync(repo), false);
+});

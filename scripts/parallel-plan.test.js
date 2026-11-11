@@ -311,3 +311,179 @@ test('invalid plans never produce an approval document', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// ── T-14（C5）：确认前只读摘要 / 确认后正式文档 / 未答复降级显式落账 ──
+const DOWNGRADE_REASONS = ['NO_ANSWER', 'CANCELLED', 'USER_CHOSE_SERIAL', 'PLAN_REJECTED'];
+function downgradeCli(file, args) {
+  return spawnSync(process.execPath, [SCRIPT, file, '--json', ...args], { encoding: 'utf8', timeout: 15000 });
+}
+function readLedger(state) {
+  const file = path.join(state, 'downgrades.jsonl');
+  if (!fs.existsSync(file)) return [];
+  return fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line));
+}
+
+test('T-14 preview is a read-only pre-confirmation draft and writes nothing', () => {
+  const { dir, file } = writePlan(base());
+  try {
+    const before = fs.readdirSync(dir).sort();
+    const run = spawnSync(process.execPath, [SCRIPT, file, '--json', '--preview'], { encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+    const out = JSON.parse(run.stdout);
+    assert.equal(out.stage, 'PRE_CONFIRMATION_DRAFT');
+    assert.equal(out.planDoc, undefined);
+    assert.equal(out.requiresPlanApproval, true);
+    assert.match(out.previewNotice, /不得据此派发/);
+    assert.deepEqual(fs.readdirSync(dir).sort(), before);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('T-14 the formal document is a distinct post-confirmation stage', () => {
+  const { dir, file } = writePlan(base());
+  const doc = path.join(dir, '.qoder/parallel-plans/TASK-1.md');
+  try {
+    const run = spawnSync(process.execPath, [SCRIPT, file, '--json', '--markdown', doc], { encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+    const out = JSON.parse(run.stdout);
+    assert.equal(out.stage, 'FORMAL_PLAN_DOC');
+    assert.equal(out.planDoc, doc);
+    assert.equal(out.requiresPlanApproval, true);
+    assert.equal(out.previewNotice, undefined);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('T-14 an unanswered plan records one downgrade entry with a coverage gap list', () => {
+  const { dir, file } = writePlan(base());
+  const state = path.join(dir, 'state');
+  try {
+    const run = downgradeCli(file, ['--record-downgrade', 'NO_ANSWER', '--state-dir', state]);
+    assert.equal(run.status, 0, run.stdout + run.stderr);
+    const out = JSON.parse(run.stdout);
+    assert.equal(out.downgrade.reason, 'NO_ANSWER');
+    assert.equal(out.downgrade.dispatched, false);
+    assert.equal(out.downgrade.fallback, 'serial');
+    assert.equal(out.downgrade.taskId, 'TASK-1');
+    assert.equal(out.downgrade.planDigest, digestPlan(validatePlan(base())));
+    const records = readLedger(state);
+    assert.equal(records.length, 1);
+    assert.deepEqual(records[0].coverageGaps.map(gap => gap.unitId), ['U1', 'U2']);
+    assert.deepEqual(records[0].coverageGaps.map(gap => gap.readPaths), [['src/a'], ['src/b']]);
+    for (const gap of records[0].coverageGaps) {
+      assert.equal(gap.status, 'not-dispatched');
+      assert.ok(gap.acceptance.length > 0 && gap.evidence.length > 0);
+    }
+    // 只写台账：不建运行目录、不建 worktree、不派发。
+    assert.deepEqual(fs.readdirSync(state), ['downgrades.jsonl']);
+    assert.deepEqual(fs.readdirSync(dir).sort(), ['plan.json', 'state']);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('T-14 the downgrade ledger is append-only across reasons', () => {
+  const { dir, file } = writePlan(base());
+  const state = path.join(dir, 'state');
+  try {
+    for (const reason of ['NO_ANSWER', 'USER_CHOSE_SERIAL']) {
+      assert.equal(downgradeCli(file, ['--record-downgrade', reason, '--state-dir', state]).status, 0);
+    }
+    const records = readLedger(state);
+    assert.equal(records.length, 2);
+    assert.deepEqual(records.map(record => record.reason), ['NO_ANSWER', 'USER_CHOSE_SERIAL']);
+    assert.ok(records.every(record => record.coverageGaps.length === 2));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('T-14 a write plan keeps its opt-in and worktree requirements in the downgrade record', () => {
+  const plan = base({
+    units: [
+      { id: 'U1', kind: 'write', title: 'write a', ownedPaths: ['src/a.js'], readPaths: [], acceptance: ['a'], evidence: ['diff'] },
+      { id: 'U2', kind: 'write', title: 'write b', ownedPaths: ['src/b.js'], readPaths: [], acceptance: ['b'], evidence: ['diff'] },
+    ],
+    execution: { maxConcurrency: 2, isolation: 'worktree', workerTool: 'general-purpose' },
+  });
+  const { dir, file } = writePlan(plan);
+  const state = path.join(dir, 'state');
+  try {
+    const run = downgradeCli(file, ['--record-downgrade', 'NO_ANSWER', '--state-dir', state]);
+    assert.equal(run.status, 0, run.stdout + run.stderr);
+    const record = readLedger(state)[0];
+    assert.equal(record.optInKind, 'worktree-write');
+    assert.equal(record.requiresUserOptIn, true);
+    assert.equal(record.isolation, 'worktree');
+    assert.equal(record.dispatched, false);
+    assert.deepEqual(record.coverageGaps.map(gap => gap.ownedPaths), [['src/a.js'], ['src/b.js']]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('T-14 an unknown downgrade reason is rejected without writing a ledger', () => {
+  const { dir, file } = writePlan(base());
+  const state = path.join(dir, 'state');
+  try {
+    const run = downgradeCli(file, ['--record-downgrade', 'MAYBE_LATER', '--state-dir', state]);
+    assert.equal(run.status, 2);
+    assert.equal(JSON.parse(run.stdout).code, 'INVALID_DOWNGRADE_REASON');
+    assert.equal(fs.existsSync(state), false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('T-14 an invalid plan cannot be downgraded into a silent pass', () => {
+  const plan = base();
+  plan.units[1].ownedPaths = ['src/a.js'];
+  plan.units[0].ownedPaths = ['src/a.js'];
+  plan.units.forEach(unit => { unit.kind = 'write'; });
+  plan.execution = { maxConcurrency: 2, isolation: 'worktree', workerTool: 'general-purpose' };
+  const { dir, file } = writePlan(plan);
+  const state = path.join(dir, 'state');
+  try {
+    const run = downgradeCli(file, ['--record-downgrade', 'NO_ANSWER', '--state-dir', state]);
+    assert.equal(run.status, 1);
+    assert.equal(JSON.parse(run.stdout).verdict, 'INVALID_PLAN');
+    assert.equal(fs.existsSync(state), false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('T-14 every documented downgrade reason is accepted', () => {
+  const { dir, file } = writePlan(base());
+  const state = path.join(dir, 'state');
+  try {
+    for (const reason of DOWNGRADE_REASONS) {
+      assert.equal(downgradeCli(file, ['--record-downgrade', reason, '--state-dir', state]).status, 0, reason);
+    }
+    assert.deepEqual(readLedger(state).map(record => record.reason), DOWNGRADE_REASONS);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('T-14 mutation: dropping the coverage gap list is killed', () => {
+  const { dir, file } = writePlan(base());
+  const state = path.join(dir, 'state');
+  const mutant = path.join(dir, 'mutant.cjs');
+  try {
+    const source = fs.readFileSync(SCRIPT, 'utf8');
+    const anchor = 'coverageGaps: coverageGaps(plan),';
+    assert.equal(source.split(anchor).length - 1, 1);
+    fs.writeFileSync(mutant, source.replace(anchor, 'coverageGaps: [],'));
+    const real = downgradeCli(file, ['--record-downgrade', 'NO_ANSWER', '--state-dir', state]);
+    assert.equal(real.status, 0, real.stdout + real.stderr);
+    assert.equal(readLedger(state)[0].coverageGaps.length, 2);
+    const bad = spawnSync(process.execPath, [mutant, file, '--json', '--record-downgrade', 'NO_ANSWER', '--state-dir', path.join(dir, 'mutant-state')], { encoding: 'utf8' });
+    assert.equal(bad.status, 0, bad.stdout + bad.stderr);
+    assert.equal(readLedger(path.join(dir, 'mutant-state'))[0].coverageGaps.length, 0);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

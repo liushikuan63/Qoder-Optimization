@@ -92,7 +92,7 @@
 }
 ```
 
-预期：退出 0，`PARALLEL_WORKTREE`，`requiresUserOptIn: true`；用户显式 opt-in 后才派发。校验时加 `--markdown .qoder/parallel-plans/<taskId>.md` 生成待审计划文档，文档必须包含单元/依赖/写入路径/验收、波次、审批状态和 vibecoding 映射；未生成文档不得询问或派发。真实任务不得用 `--preview` 跳过文档；它只用于测试或工具预演。
+预期：退出 0，`PARALLEL_WORKTREE`，`requiresUserOptIn: true`；用户显式 opt-in 后才派发。确认前用 `--preview` 取只读摘要（`stage=PRE_CONFIRMATION_DRAFT`，零写入）供开工确认卡展示；确认后加 `--markdown .qoder/parallel-plans/<taskId>.md` 生成正式计划文档（`stage=FORMAL_PLAN_DOC`），文档必须包含单元/依赖/写入路径/验收、波次、审批状态和 vibecoding 映射；未生成正式文档不得派发。`--preview` 不能替代正式文档；未答复/取消/改串行用 `--record-downgrade <reason> --state-dir <dir>` 追加降级记录与覆盖缺口清单。
 
 ## 判定与退出码
 

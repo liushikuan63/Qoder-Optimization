@@ -917,7 +917,7 @@
    "name": "parallel-orchestration",
    "status": "shipped",
    "tier": "library",
-   "description": "主会话协调的多 agent 并行编排：多模块/跨端/多文件任务开工前必须判定能否并行，可并行时先生成计划文档并询问用户方案是否合适，确认后再启用只读子代理、独立 worktree 或后台会话派发，维护共享上下文与记忆召回，串行合并并重新验收。触发词：并行、多 agent、多agent、协调者、orchestrator、任务拆分、依赖图、worktree、并行编排、共享上下文、记忆召回、并行判断、多模块、跨模块、同时处理、分工、并发、子代理、前后端。",
+   "description": "主会话协调的多 agent 并行编排：多模块/跨端/多文件任务开工前必须判定能否并行，可并行时先展示只读计划摘要并询问方案，确认后生成正式计划文档再启用只读子代理、独立 worktree 或后台会话派发，维护共享上下文与记忆召回，串行合并并重新验收。触发词：并行、多 agent、多agent、协调者、orchestrator、任务拆分、依赖图、worktree、并行编排、共享上下文、记忆召回、并行判断、多模块、跨模块、同时处理、分工、并发、子代理、前后端。",
    "source": "skills/parallel-orchestration",
    "install": {
     "mode": "copy-skill",
@@ -2922,7 +2922,8 @@
     "mode": "copy-file"
    },
    "dependencies": [
-    "script:kickoff-core.cjs"
+    "script:kickoff-core.cjs",
+    "script:verification-policy.cjs"
    ]
   },
   {

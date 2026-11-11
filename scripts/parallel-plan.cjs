@@ -293,6 +293,43 @@ function evaluatePlan(input) {
   };
 }
 
+// T-14（C5）：确认前只读预演，确认后正式文档；未答复/取消必须显式落账，不得静默降级。
+const DOWNGRADE_REASONS = ['NO_ANSWER', 'CANCELLED', 'USER_CHOSE_SERIAL', 'PLAN_REJECTED'];
+const PREVIEW_NOTICE = '确认前只读预演：本摘要不是正式计划文档，不得据此派发 worker 或创建运行目录；确认后必须用 --markdown 生成正式计划文档。';
+
+function coverageGaps(plan) {
+  return plan.units.map(unit => ({
+    unitId: unit.id,
+    kind: unit.kind,
+    title: unit.title,
+    ownedPaths: unit.ownedPaths,
+    readPaths: unit.readPaths,
+    acceptance: unit.acceptance,
+    evidence: unit.evidence,
+    status: 'not-dispatched',
+    gap: '计划未获确认即降级为串行：本单元的验收与证据须顺序补足，否则记为覆盖缺口。',
+  }));
+}
+
+function recordDowngrade(input, reason, { stateDir, at = new Date().toISOString() } = {}) {
+  if (!DOWNGRADE_REASONS.includes(reason)) fail('INVALID_DOWNGRADE_REASON', 'reason must be one of ' + DOWNGRADE_REASONS.join(', '));
+  const result = evaluatePlan(input);
+  if (result.verdict === 'INVALID_PLAN') return { result, downgrade: null, ledger: null };
+  const plan = validatePlan(input);
+  const record = {
+    schema: SCHEMA, at, taskId: plan.taskId, planDigest: result.planDigest, reason,
+    verdict: result.verdict, fallback: 'serial', dispatched: false,
+    optInKind: result.optInKind, requiresUserOptIn: result.requiresUserOptIn,
+    isolation: plan.execution.isolation,
+    coverageGaps: coverageGaps(plan),
+  };
+  const dir = path.resolve(stateDir || path.join('.qoder', 'parallel-plans'));
+  const ledger = path.join(dir, 'downgrades.jsonl');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.appendFileSync(ledger, JSON.stringify(record) + '\n');
+  return { result, downgrade: record, ledger };
+}
+
 function render(result) {
   const lines = [
     'verdict: ' + result.verdict,
@@ -370,7 +407,7 @@ function renderPlanMarkdown(plan, result) {
 
 function main(argv) {
   const args = [...argv];
-  let json = false, markdown = null, preview = false;
+  let json = false, markdown = null, preview = false, downgrade = null, stateDir = null;
   const files = [];
   for (let index = 0; index < args.length; index++) {
     const arg = args[index];
@@ -384,10 +421,18 @@ function main(argv) {
       const next = args[++index];
       if (!next || next.startsWith('-') || markdown !== null) { files.push('--markdown'); break; }
       markdown = next;
+    } else if (arg === '--record-downgrade') {
+      const next = args[++index];
+      if (!next || next.startsWith('-') || downgrade !== null) { files.push('--record-downgrade'); break; }
+      downgrade = next;
+    } else if (arg === '--state-dir') {
+      const next = args[++index];
+      if (!next || next.startsWith('-') || stateDir !== null) { files.push('--state-dir'); break; }
+      stateDir = next;
     } else files.push(arg);
   }
-  if (files.length !== 1 || files[0].startsWith('-')) {
-    const message = '用法：node scripts/parallel-plan.cjs <plan.json> [--json] [--markdown <file>] [--preview]';
+  if (files.length !== 1 || files[0].startsWith('-') || (stateDir !== null && downgrade === null)) {
+    const message = '用法：node scripts/parallel-plan.cjs <plan.json> [--json] [--markdown <file>] [--preview] [--record-downgrade <NO_ANSWER|CANCELLED|USER_CHOSE_SERIAL|PLAN_REJECTED> --state-dir <dir>]';
     if (json) console.log(JSON.stringify({ ok: false, code: 'USAGE', message }));
     else console.error(message);
     process.exitCode = 2;
@@ -412,12 +457,31 @@ function main(argv) {
     process.exitCode = 1;
     return;
   }
+  if (downgrade !== null) {
+    try {
+      const recorded = recordDowngrade(input, downgrade, { stateDir });
+      if (!recorded.downgrade) {
+        console.log(json ? JSON.stringify(recorded.result, null, 2) : render(recorded.result));
+        process.exitCode = recorded.result.exitCode;
+        return;
+      }
+      const output = { ...recorded.result, stage: 'DOWNGRADED', downgrade: recorded.downgrade, ledger: recorded.ledger };
+      console.log(json ? JSON.stringify(output, null, 2) : render(recorded.result) + '\n降级已落账：' + recorded.ledger + '（' + recorded.downgrade.reason + '，缺口 ' + recorded.downgrade.coverageGaps.length + ' 项，未派发）');
+      process.exitCode = 0;
+    } catch (error) {
+      const code = error.code || 'DOWNGRADE_ERROR';
+      if (json) console.log(JSON.stringify({ ok: false, code, message: error.message }));
+      else console.error(code + ': ' + error.message);
+      process.exitCode = 2;
+    }
+    return;
+  }
   const result = evaluatePlan(input);
   if (result.requiresPlanApproval && !markdown && !preview) {
     const failure = {
       ok: false,
       code: 'PLAN_DOC_REQUIRED',
-      message: '需要用户确认的并行计划必须先带 --markdown 生成计划文档；--preview 仅用于工具或测试。',
+      message: '需要用户确认的并行计划：确认前用 --preview 展示只读摘要，确认后必须带 --markdown 生成正式计划文档；--preview 不是正式文档，不得据此派发。',
       verdict: result.verdict,
       planDigest: result.planDigest,
       requiresPlanApproval: true,
@@ -439,9 +503,11 @@ function main(argv) {
       result.exitCode = 1;
     }
   }
+  result.stage = result.planDoc ? 'FORMAL_PLAN_DOC' : (preview ? 'PRE_CONFIRMATION_DRAFT' : 'EVALUATION');
+  if (result.stage === 'PRE_CONFIRMATION_DRAFT') result.previewNotice = PREVIEW_NOTICE;
   console.log(json ? JSON.stringify(result, null, 2) : render(result));
   process.exitCode = result.exitCode;
 }
 
-module.exports = { validatePlan, evaluatePlan, digestPlan, topologicalWaves, stable, renderPlanMarkdown };
+module.exports = { validatePlan, evaluatePlan, digestPlan, topologicalWaves, stable, renderPlanMarkdown, recordDowngrade, coverageGaps, DOWNGRADE_REASONS, PREVIEW_NOTICE };
 if (require.main === module) main(process.argv.slice(2));
