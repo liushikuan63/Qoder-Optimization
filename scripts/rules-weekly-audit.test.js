@@ -444,6 +444,70 @@ fs.copyFileSync(path.join(__dirname, 'client-root.js'), path.join(H, 'scripts', 
 r = audit(['--no-fix']);
 check('V35 单端跑巡检后另一侧目录仍不存在（0 个凭空创建）', !fs.existsSync(C), `exists=${fs.existsSync(C)} exit=${r.code}`);
 
+// ── T-12 / A6：evidence-audit 接线（判红逻辑本身已存在，这里只验「真的被调用」）──
+function installEvidenceAudit() {
+  fs.copyFileSync(path.join(__dirname, 'evidence-audit.cjs'), path.join(H, 'scripts', 'evidence-audit.cjs'));
+}
+function evidenceReport(label, tamperRunId) {
+  const crypto = require('crypto');
+  const dir = path.join(H, 'tmp', 'evidence-audit');
+  fs.mkdirSync(dir, { recursive: true });
+  const runId = 'run-' + label;
+  const mk = (name, exitCode, stdout, rid) => {
+    const value = { schema: 1, runId: rid || runId, cwd: SB, level: 'runtime', termination: 'completed', exitCode, stdout, stderr: '' };
+    const buf = Buffer.from(JSON.stringify(value, null, 1));
+    fs.writeFileSync(path.join(dir, name), buf);
+    return { file: name, sha256: crypto.createHash('sha256').update(buf).digest('hex'), expect: { exitCode, stdoutIncludes: [stdout] } };
+  };
+  const positive = mk('pos.json', 0, 'PASS');
+  const negative = mk('neg.json', 1, 'FAIL', tamperRunId ? 'other-run' : runId);
+  const plan = {
+    schema: 1, task: '接线负对照', runId, cwd: SB,
+    checks: [{ id: 'c1', claim: '测试全绿', requiredLevel: 'runtime', status: 'verified', changedVariable: 'x', positive, negative }],
+  };
+  const file = path.join(dir, label + '.json');
+  fs.writeFileSync(file, JSON.stringify(plan, null, 1));
+  return file;
+}
+
+buildSandbox();
+installEvidenceAudit();
+r = audit(['--no-fix']);
+check('V36 无证据报告 → INFO 提示而不是静默', /证据审计 — 尚无证据报告可核对/.test(r.out) && !/证据审计 — .*结论/.test(r.out), `exit=${r.code}`);
+
+buildSandbox();
+installEvidenceAudit();
+evidenceReport('pass');
+r = audit(['--no-fix']);
+check('V37 对照组：真实 PASS 报告 → 周检记 INFO 且零告警', r.code === 0 && /证据审计 — pass\.json 结论 PASS/.test(r.out), `exit=${r.code}`);
+if (r.code !== 0) console.log('     实际输出片段：' + r.out.replace(/\n/g, ' | ').slice(0, 300));
+
+buildSandbox();
+installEvidenceAudit();
+evidenceReport('tampered', true);
+r = audit(['--no-fix']);
+check('V38 接线负对照：主张已验证但证据不属本轮 → 周检必须判红',
+  r.code === 1 && /证据审计 — tampered\.json 结论 FAIL/.test(r.out), `exit=${r.code}`);
+if (!/证据审计 — tampered\.json 结论 FAIL/.test(r.out)) console.log('     实际输出片段：' + r.out.replace(/\n/g, ' | ').slice(0, 400));
+
+// 变异负对照：摘掉 checkEvidenceAudit() 调用后，同一份篡改报告必须不再产生证据审计告警
+{
+  const source = fs.readFileSync(AUDIT, 'utf8');
+  const mutant = source.replace('  checkEvidenceAudit();\n', '');
+  check('V39 变异命中调用点', mutant !== source && !mutant.includes('  checkEvidenceAudit();'));
+  const mutantFile = path.join(__dirname, 'rules-weekly-audit.mutant.tmp.js');
+  fs.writeFileSync(mutantFile, mutant);
+  const mr = spawnSync(NODE, [mutantFile, '--no-fix'], { encoding: 'utf8', env: { ...process.env, HOME: SB, USERPROFILE: SB, HOOK_CRASH_LOG: path.join(SB, 'sandbox-hooks-crash.log') }, timeout: 120000 });
+  const mout = (mr.stdout || '') + (mr.stderr || '');
+  check('V39b 变异负对照：摘掉接线后同一篡改报告不再被判红（证明告警确由接线产生）',
+    !/证据审计 —/.test(mout), `exit=${mr.status}`);
+  fs.unlinkSync(mutantFile);
+}
+
+buildSandbox();
+r = audit(['--no-fix']);
+check('V40 未装 evidence-audit → INFO 跳过、不判红', r.code === 0 && /证据审计 — evidence-audit\.cjs 不在本机客户端 scripts 目录，跳过/.test(r.out), `exit=${r.code}`);
+
 fs.rmSync(SB, { recursive: true, force: true });
 console.log(fail === 0 ? '\nALL PASS' : `\n${fail} FAILURE(S)`);
 process.exit(fail === 0 ? 0 : 1);

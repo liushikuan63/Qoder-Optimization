@@ -8,7 +8,7 @@
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 133,
-  "script": 162,
+  "script": 164,
   "command": 11,
   "agent": 2
  },
@@ -1980,6 +1980,30 @@
    ]
   },
   {
+   "id": "script:audit-coverage-ledger.cjs",
+   "category": "script",
+   "name": "audit-coverage-ledger.cjs",
+   "status": "shipped",
+   "source": "scripts/audit-coverage-ledger.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": []
+  },
+  {
+   "id": "script:audit-coverage-ledger.test.js",
+   "category": "script",
+   "name": "audit-coverage-ledger.test.js",
+   "status": "shipped",
+   "source": "scripts/audit-coverage-ledger.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:audit-coverage-ledger.cjs"
+   ]
+  },
+  {
    "id": "script:auth-lock-core.js",
    "category": "script",
    "name": "auth-lock-core.js",
@@ -3308,6 +3332,7 @@
    "dependencies": [
     "script:client-root.js",
     "script:disk-sweeper.js",
+    "script:evidence-audit.cjs",
     "script:hook-crash-guard.js",
     "script:stop-gate.js",
     "script:sync-global-config.sh",
@@ -3327,6 +3352,7 @@
    "dependencies": [
     "script:client-root.js",
     "script:config-doctor.cjs",
+    "script:evidence-audit.cjs",
     "script:rules-weekly-audit.js",
     "script:skills-doctor.cjs",
     "script:sync-global-config.sh"

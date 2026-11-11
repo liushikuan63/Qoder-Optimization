@@ -619,6 +619,37 @@ function checkLiveDoctors() {
   }
 }
 
+// ── 9. 证据审计接线（T-12 / A6）──────────────────────────────────────────────
+// evidence-audit.cjs 的 4 级 4 态与四态裁决早已实现且有自测，缺的只是**有人调用它**。
+// 这里只读核对最近一份证据报告，不重写它的判定语义、不执行报告里的命令。
+const EVIDENCE_REPORT_DIR = path.join(A, 'tmp', 'evidence-audit');
+
+function checkEvidenceAudit() {
+  const script = path.join(SCRIPTS, 'evidence-audit.cjs');
+  if (!fs.existsSync(script)) {
+    add('info', '证据审计', 'evidence-audit.cjs 不在本机客户端 scripts 目录，跳过', '装上后本项自动生效');
+    return;
+  }
+  let reports = [];
+  try { reports = fs.readdirSync(EVIDENCE_REPORT_DIR).filter(f => f.endsWith('.json')).map(f => path.join(EVIDENCE_REPORT_DIR, f)); }
+  catch (e) { reports = []; }
+  if (!reports.length) {
+    add('info', '证据审计', `尚无证据报告可核对（${toPosix(EVIDENCE_REPORT_DIR)} 为空）`, '收尾时把报告落到该目录，周检才会核对主张与证据');
+    return;
+  }
+  reports.sort((x, y) => fs.statSync(y).mtimeMs - fs.statSync(x).mtimeMs);
+  const latest = reports[0];
+  const r = runNode(script, [toPosix(latest)], 30000);
+  const verdict = /EVIDENCE_AUDIT (\w+)/.exec(r.out);
+  const label = path.basename(latest);
+  if (r.code === 0 && verdict && verdict[1] === 'PASS') {
+    add('info', '证据审计', `${label} 结论 PASS（退出码 0）`, '无需处理');
+  } else {
+    add('warn', '证据审计', `${label} 结论 ${verdict ? verdict[1] : 'UNKNOWN'}（退出码 ${r.code}）：${r.out.split('\n').filter(l => /^(ERROR|REJECTED|INCOMPLETE)/.test(l)).slice(0, 4).join(' | ').slice(0, 300)}`,
+      '主张与证据对不上就改主张或补证据；静态/模拟记录不能证明真实行为，排除项只算 PARTIAL');
+  }
+}
+
 function main() {
   if (!QUIET) console.log('=== 全局规则周体检 ===\n');
   checkConsistency();
@@ -629,6 +660,7 @@ function main() {
   checkDisk();
   checkHookCrashes();
   checkLiveDoctors();
+  checkEvidenceAudit();
 
   const warns = findings.filter(f => f.level === 'warn');
   const fixed = findings.filter(f => f.level === 'fixed');
