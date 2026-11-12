@@ -8,12 +8,36 @@ const { spawnSync } = require('node:child_process');
 const root = path.resolve(__dirname, '..');
 const marker = '【当前任务能力建议】';
 
+// 沙箱脚本清单＝rules-reminder.js 的「无条件 require」传递闭包 ＋ 本文件有意加载的可选依赖。
+// 硬编码清单会在 hook 新增顶层 require 时整套判红（漏拷 evolution-signal-core.js → 9 红），
+// 所以清单从源码推导；可选依赖写成单行 `try { x = require('./y'); } catch {}`，缺失时 fail-open，不进闭包。
+function unguardedRequires(file) {
+  const names = new Set();
+  for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+    if (/try\s*\{/.test(line)) continue;
+    for (const m of line.matchAll(/require\(['"]\.\/([^'"]+)['"]\)/g)) names.add(m[1]);
+  }
+  return [...names];
+}
+function reminderScripts() {
+  const seen = new Set(), stack = ['rules-reminder.js'];
+  while (stack.length) {
+    const name = stack.pop();
+    if (seen.has(name)) continue;
+    seen.add(name);
+    const file = path.join(root, 'scripts', name);
+    assert.ok(fs.existsSync(file), '沙箱依赖在仓库中不存在：' + name);
+    for (const dep of unguardedRequires(file)) stack.push(dep);
+  }
+  return [...new Set([...seen, 'recheck-protocol.cjs'])].sort();
+}
+
 function fixture(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'capability-trigger-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const client = path.join(dir, 'client'), scripts = path.join(dir, 'hook'), pkg = path.join(dir, 'package');
   for (const folder of [path.join(client, 'scripts'), scripts, pkg]) fs.mkdirSync(folder, { recursive: true });
-  for (const name of ['rules-reminder.js', 'client-root.js', 'capability-roots.cjs', 'hook-crash-guard.js', 'goal-candidate-core.js', 'verification-trigger-core.js', 'recheck-protocol.cjs']) fs.copyFileSync(path.join(root, 'scripts', name), path.join(scripts, name));
+  for (const name of reminderScripts()) fs.copyFileSync(path.join(root, 'scripts', name), path.join(scripts, name));
   const write = (file, value) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, typeof value === 'string' ? value : JSON.stringify(value)); };
   // A deterministic advisor boundary keeps these tests about the hook, not a
   // second copy of catalog matching. Actual advisor semantics have their own suite.
@@ -374,4 +398,24 @@ test('installer/advisor capability asks enter existing R10 and quoted examples s
   }
   assert.doesNotMatch(stopReplay(f, 'echo "node scripts/capability-advisor.cjs task"', 'NEXT_ACTION: ASK_USE'), /R10-next-action-not-asked/);
   assert.doesNotMatch(stopReplay(f, 'node --eval "console.log(\'capability-advisor.cjs\')"', 'NEXT_ACTION: ASK_USE'), /R10-next-action-not-asked/);
+});
+
+test('sandbox list covers every unconditional require and a missing one really breaks the hook', t => {
+  const f = fixture(t);
+  const listed = reminderScripts();
+  const unguarded = unguardedRequires(path.join(root, 'scripts/rules-reminder.js'));
+  // 扫描口径自身要能失败：一个无条件 require 都没扫到，说明正则或 try/catch 口径失效。
+  assert.ok(unguarded.length >= 5, '扫描口径失效，只找到 ' + unguarded.length + ' 个无条件 require');
+  for (const name of unguarded) assert.ok(listed.includes(name), '清单漏了无条件依赖 ' + name);
+  const victim = unguarded.find(name => name !== 'rules-reminder.js');
+  assert.ok(victim, '没有可抽取的无条件依赖，负对照无法构造');
+  const file = path.join(f.scripts, victim), bytes = fs.readFileSync(file);
+  const payload = JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: '修复浏览器页面', session_id: 'negative-control' });
+  fs.rmSync(file);
+  const broken = spawnSync(process.execPath, [path.join(f.scripts, 'rules-reminder.js')], { env: f.env, cwd: f.dir, input: payload, encoding: 'utf8', timeout: 20000 });
+  assert.notEqual(broken.status, 0, '抽掉 ' + victim + ' 后 hook 仍然退出 0，说明清单是摆设');
+  assert.match(broken.stderr, /Cannot find module/);
+  fs.writeFileSync(file, bytes);
+  const restored = spawnSync(process.execPath, [path.join(f.scripts, 'rules-reminder.js')], { env: f.env, cwd: f.dir, input: payload, encoding: 'utf8', timeout: 20000 });
+  assert.equal(restored.status, 0, restored.stdout + restored.stderr);
 });
