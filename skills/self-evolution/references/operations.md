@@ -135,3 +135,24 @@ cat ~/.qoder/evolution/control.json                             # enabled=false 
 - `sources.inbox.status=missing` 或 `records=0`：先核对两侧 `settings.json` 的 Stop 组是否同时含 `stop-gate.js` 与 `evolution-capture.cjs`，再看心跳；只取证汇报，不静默补接线。
 - `control.json` 的 `enabled` 非布尔＝配置非法，停下报告，**不重置、不改写**。
 - 采集 hook 永远 `exit 0`（fail-open），不替代平台权限，也不会因为采集失败挡住收尾。
+- 心跳里的 `pending=N` 表示本轮生成了 N 条待弹建议；`ASKED … pending=cleared` 表示本轮已就建议弹窗、状态已消费。只有 `CAPTURE … pending=0` 而用户抱怨"没弹窗"时，先看是不是重复证据、经验族、已拒绝主题或单次能力缺口（都不够格）。
+
+## 收尾建议弹窗与拒绝登记（Stop 门禁 R19）
+
+采集写候选，门禁负责"必须把建议交给用户拍板"。两者共用判据核 `evolution-signal-core.js`（`popupWorthy` / `isEvolutionAsk`），不各抄一份。
+
+```bash
+node ~/.qoder/scripts/evolution-capture.cjs --report                  # 只读汇总：byKind / 跨会话主题 / pending 会话数 / declined 主题数
+node ~/.qoder/scripts/evolution-capture.cjs --report --json           # 同上，机器可读
+node ~/.qoder/scripts/evolution-capture.cjs --dry-run --transcript <path> [--session <id>] [--cwd <dir>]
+node ~/.qoder/scripts/evolution-capture.cjs --decline <主题> [--decline <另一个主题>]
+```
+
+- 待弹状态：`~/.qoder/tmp/evolution-capture/pending-<会话前8位>.json`，最多 6 条、**24 小时过期**（过期即不再拦）。`--dry-run` 输出 `writes: 0`、`askedEvolution` 与 `wouldPopup`，**零写入**。
+- 够格才弹：用户明确的长期偏好 / 明确沉淀 / 重复纠正一次即可；能力缺口、重复失败需 `occurrences ≥ 2` 或跨 ≥2 会话；助手 `已否证：`/`验证结论：` 经验族只进报告不弹窗；重复证据与已拒绝主题不再弹；**本轮已弹过建议卡就不再追加**（每轮最多问一次）。
+- 门禁 `R19-evolution-suggestion-not-asked`：有未过期 pending 且本轮没弹过建议卡 → `decision: block`，reason 列出主题、证据次数、推荐载体与摘录。只读 / 仅交接 / 禁记忆 / 已暂停的轮次放行。
+- 满足条件＝本轮调用过 `AskUserQuestion` 且卡面文本含「自进化 / 沉淀 / 候选 / 载体 / 采纳 / 学到的」之一。开工确认卡、临时文件清理卡**不算**（测试有对照）。
+- 三个真实选项：采纳并落到推荐载体（推荐）/ 改写后采纳 / 本轮跳过。**采纳才动载体**，且仍走 `carrier-preflight` → 备份 → 最小差异 → 实际验证 → `evolution.js record`；弹窗不是授权。
+- 跳过登记：`--decline <主题>` 写 `~/.qoder/evolution/suggestions-declined.json`，并把这些主题从所有 pending 撤下（撤空即删文件）。输出 `declined=N removed_from_pending=M total=K`；缺主题参数退出 2。**只过滤弹窗，inbox 证据保留**，月报仍能看到；要恢复弹窗就手工删拒绝表里的对应主题。
+- 兜底：R19 在 30 分钟滑动窗口内最多拦 2 次（整会话所有规则合计上限 3 次），超限写 `R19-…-SUPPRESSED` 台账后**可见放行**，不静默摘守卫；台账在 `~/.qoder/tmp/stop-gate/violations.log`。
+- 自测：`node ~/.qoder/scripts/evolution-capture.test.js`、`node ~/.qoder/scripts/stop-gate.test.js`、`node ~/.qoder/scripts/evolution-loop.test.js`（真实两个 hook 串跑的闭环，含"改坏采集→门禁放行"的可失败对照）。

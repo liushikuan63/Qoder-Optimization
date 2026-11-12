@@ -1,6 +1,6 @@
 ---
 name: self-evolution
-description: 将用户明确的长期偏好、重复纠正、验证过的复用经验和持续能力缺口转为有证据的规则、技能或工具配置更新；也用于查看、暂停、恢复与回退自动调整。触发词：自进化、学到的规则、暂停自动调整、恢复自进化、撤销最近学到的、查看学到的规则、经验沉淀、证据门槛。不用于：单次临时指令和普通成功任务。
+description: 将用户明确的长期偏好、重复纠正、验证过的复用经验和持续能力缺口转为有证据的规则、技能、MCP 或 hook 更新；每轮 Stop 自动把问题与习惯采集成 inbox 候选，收尾用弹窗给推荐建议、由用户决定是否新增或更改，定期扫描给出载体路由；也用于查看、暂停、恢复与回退自动调整。触发词：自进化、学到的规则、暂停自动调整、恢复自进化、撤销最近学到的、查看学到的规则、经验沉淀、证据门槛、采集候选、候选报告、记录用户习惯、收尾建议弹窗、采纳建议、跳过这条建议。不用于：单次临时指令和普通成功任务。
 ---
 
 # 任务驱动的自进化
@@ -65,6 +65,32 @@ description: 将用户明确的长期偏好、重复纠正、验证过的复用�
 
 若修改后验证失败，只撤销本次能确认的差异；不覆盖新出现的其他会话改动。
 
+## 每轮确定性采集（Stop hook）
+
+提醒只解决「想得起来」，采集解决「被掐断也留得下」。`scripts/evolution-capture.cjs` 挂在 Stop，与 `stop-gate.js` 并列，把本轮的问题与用户习惯写成候选：
+
+- 落点只有 `~/.qoder/evolution/inbox.jsonl`（超过 4MB 轮转为 `inbox.archive-*.jsonl`）与心跳 `tmp/evolution-capture/heartbeat.log`。**绝不写规则、技能、hook、MCP、记忆或 settings.json**，永远 `exit 0`（fail-open），不挡收尾。
+- 判据来自共享信号核 `evolution-signal-core.js`，与每轮提醒同一真源；采集层用 `extended` 加宽召回，提醒层与门禁仍用历史判据（模式隔离，非触发轮注入逐字节不变）。
+- 采集范围：长期偏好 / 明确沉淀 / 重复纠正、用户指出的问题、工具失败里的能力缺口、同一错误重复失败、助手行首 `已否证：` / `验证结论：` 笔记。只存脱敏摘录（≤240 字符），不存完整对话；`system-reminder`、工具结果、元提及与规则引用不入库。
+- 每条候选带 `carriers`（建议载体）、`session`、`task`（工作目录名代理）、`verified: false`、`status: candidate`；同会话同任务同主题去重，单轮上限 8 条。
+- 只读、仅交接、禁止记忆的轮次不写候选；`evolution/control.json` 的 `enabled=false` 即暂停，字段非布尔则停写并报告，不重置。
+- 只读查看：`node ~/.qoder/scripts/evolution-capture.cjs --report`；试跑不落盘：`--dry-run --transcript <path>`。
+
+**候选不是载体。** Stop 门禁 `R18-sedimentation-claim-without-evidence` 会拦下「已沉淀为规则/已落成技能」这类完成态主张却没有本轮成功写入证据的收尾；如实说「已记录候选，待授权晋升」即可放行。
+
+## 收尾建议弹窗（R19，由用户拍板）
+
+用户 2026-11-12 要求：**每轮收尾把自进化建议做成弹窗，给出推荐落点，由用户决定是否新增/更改**。分工不变——采集 hook 只写候选与待弹状态、永远不拦；强制弹窗只由 Stop 门禁承担。
+
+- 采集在写入**本轮新候选**后，把够格的条目写进 `tmp/evolution-capture/pending-<会话前8位>.json`（最多 6 条、24 小时过期）。够格＝用户明确的长期偏好/明确沉淀/重复纠正（一次即可），或能力缺口/重复失败满足 `occurrences ≥ 2` 或跨 ≥2 会话；助手 `已否证：`/`验证结论：` 经验族**只进报告不弹窗**。重复证据、被拒绝过的主题不再弹。
+- **每轮最多问一次**：本轮已经弹过自进化建议卡，就不再追加 pending，避免「刚问完又被拦」。
+- Stop 门禁 `R19-evolution-suggestion-not-asked`：存在未过期 pending 且本轮没问过建议卡 → 拦下收尾，reason 里列出主题、证据次数、推荐载体与摘录。只读、仅交接、禁记忆、已暂停的轮次一律放行。
+- 弹窗用 `AskUserQuestion`，卡面必须出现「自进化/沉淀/候选/载体/采纳/学到的」之一（门禁按这些词识别，清理卡与开工卡不算）；三个真实选项＝**采纳并落到推荐载体（推荐）** / 改写后采纳 / 本轮跳过。
+- **采纳才动载体**，且仍需当轮授权与证据门槛：先 `carrier-preflight` 查重、按备份纪律留回滚点、最小差异修改、实际验证，再用 `evolution.js record` 留证据。弹窗本身不是授权，用户没选就不写任何规则/技能/MCP/hook/记忆。
+- **跳过要登记**：`node ~/.qoder/scripts/evolution-capture.cjs --decline <主题>`（可一次给多个）。拒绝表 `evolution/suggestions-declined.json` 只过滤后续弹窗，**inbox 证据保留**，周期报告仍能看到。
+- 兜底与可观测：R19 在 30 分钟滑动窗口内最多拦 2 次，超限写 `R19-...-SUPPRESSED` 台账后**可见放行**（不静默摘守卫）；hook 全链 fail-open，不替代平台权限。
+- 只读查看：`--report`（含 `pending` 会话数与 `declined` 主题数）、`--dry-run --transcript <path>`（输出 `wouldPopup`，零写入）。
+
 ## 周期性证据晋升
 
 定期（建议每月）运行本地候选扫描，把「观察很多、晋升靠人想」补成可核对清单：
@@ -75,11 +101,12 @@ description: 将用户明确的长期偏好、重复纠正、验证过的复用�
 node ~/.qoder/scripts/evolution-candidates.cjs --days 30 --write
 ```
 
-- 数据源：`memory/*.md` 的 feedback、`tmp/stop-gate/violations.log`、`evolution/records/*.json`。
+- 数据源四个：`memory/*.md` 的 feedback、`tmp/stop-gate/violations.log`、`evolution/records/*.json`、`evolution/inbox.jsonl`（含轮转归档）。任一源缺失只降级该源并写 warnings。
 - 四类输出：`promote-global`（未覆盖且有跨会话/高频证据）、`promote-local`（单会话或部分覆盖，按项目/技术栈/技能沉淀）、`observe`（证据不足）、`covered`（已有载体）。
+- inbox 候选的晋升判据：长期要求/纠正需**同时**跨 ≥2 会话与 ≥2 工作目录才建议全局；能力缺口需 ≥2 会话或 ≥2 目录；单轮内重复失败只算 `observe`；助手经验跨会话也只建议局部。每条都带「目录名不等于独立任务」的核对提醒，建议落点按 `carriers` 路由到记忆 / rules / AGENTS / 技能 / hook / MCP / 脚本，并提示先跑 `carrier-preflight`。
 - 报告在 `~/.qoder/evolution/candidates/YYYY-MM-DD.{md,json}`。覆盖检测是关键词初筛，处理前逐条核对用户原话、现有载体与反例——不要因为出现在 promote 里就直接采纳。
-- 报告不是授权：不自动改规则、技能、hook、权限。处理按本文证据门槛与「更新落点与边界」执行，每项验证后用 `record` 留证据；待批准或证据不足的保持 `observe`。
-- 无候选时明确说「无候选」，不新建技能、不写假记录。定时任务只生成报告并汇报候选；自动晋升需要另行授权。
+- 报告不是授权：不自动改规则、技能、hook、MCP、权限。处理按本文证据门槛与「更新落点与边界」执行，每项验证后用 `record` 留证据；待批准或证据不足的保持 `observe`。
+- 无候选时明确说「无候选」，不新建技能、不写假记录。定时任务只生成报告、汇报候选并做采集链路存活取证（inbox 末几条、心跳、两侧 Stop 接线、暂停开关）；自动晋升需要另行授权。
 
 ## 查看、暂停、纠正和回退
 

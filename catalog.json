@@ -8,7 +8,7 @@
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 133,
-  "script": 171,
+  "script": 172,
   "command": 12,
   "agent": 2
  },
@@ -1285,7 +1285,7 @@
    "name": "self-evolution",
    "status": "shipped",
    "tier": "library",
-   "description": "将用户明确的长期偏好、重复纠正、验证过的复用经验和持续能力缺口转为有证据的规则、技能或工具配置更新；也用于查看、暂停、恢复与回退自动调整。触发词：自进化、学到的规则、暂停自动调整、恢复自进化、撤销最近学到的、查看学到的规则、经验沉淀、证据门槛。不用于：单次临时指令和普通成功任务。",
+   "description": "将用户明确的长期偏好、重复纠正、验证过的复用经验和持续能力缺口转为有证据的规则、技能、MCP 或 hook 更新；每轮 Stop 自动把问题与习惯采集成 inbox 候选，收尾用弹窗给推荐建议、由用户决定是否新增或更改，定期扫描给出载体路由；也用于查看、暂停、恢复与回退自动调整。触发词：自进化、学到的规则、暂停自动调整、恢复自进化、撤销最近学到的、查看学到的规则、经验沉淀、证据门槛、采集候选、候选报告、记录用户习惯、收尾建议弹窗、采纳建议、跳过这条建议。不用于：单次临时指令和普通成功任务。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -2604,7 +2604,9 @@
     "mode": "copy-file"
    },
    "dependencies": [
-    "script:client-root.js"
+    "script:client-root.js",
+    "script:evolution-signal-core.js",
+    "script:parallel-context-redact.cjs"
    ]
   },
   {
@@ -2617,7 +2619,8 @@
     "mode": "copy-file"
    },
    "dependencies": [
-    "script:evolution-candidates.cjs"
+    "script:evolution-candidates.cjs",
+    "script:evolution-signal-core.js"
    ]
   },
   {
@@ -2654,6 +2657,27 @@
    ]
   },
   {
+   "id": "script:evolution-loop.test.js",
+   "category": "script",
+   "name": "evolution-loop.test.js",
+   "status": "shipped",
+   "source": "scripts/evolution-loop.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:evolution-capture.cjs",
+    "script:stop-gate.js",
+    "script:stop-gate-text.js",
+    "script:evolution-signal-core.js",
+    "script:client-root.js",
+    "script:hook-crash-guard.js",
+    "script:parallel-context-redact.cjs",
+    "script:kickoff-core.cjs",
+    "script:capability-roots.cjs"
+   ]
+  },
+  {
    "id": "script:evolution-signal-core.test.js",
    "category": "script",
    "name": "evolution-signal-core.test.js",
@@ -2663,7 +2687,9 @@
     "mode": "copy-file"
    },
    "dependencies": [
-    "script:evolution-signal-core.js"
+    "script:evolution-capture.cjs",
+    "script:evolution-signal-core.js",
+    "script:stop-gate.js"
    ]
   },
   {
@@ -3736,6 +3762,7 @@
    "source": "scripts/stop-gate.js",
    "dependencies": [
     "script:client-root.js",
+    "script:evolution-signal-core.js",
     "script:hook-crash-guard.js",
     "script:kickoff-core.cjs",
     "script:stop-gate-text.js",
