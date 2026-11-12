@@ -10,6 +10,11 @@ const { spawnSync } = require('node:child_process');
 
 const LEVELS = new Set(['static', 'simulation', 'runtime', 'artifact']);
 const SCHEME = /^[a-z][a-z0-9+.-]*:/i;
+// Windows 盘符绝对路径（`D:/…`、`D:\…`）会被 SCHEME 命中——单字母 + 冒号长得就像 URI scheme。
+// 若按 scheme 跳过存在性核对，「全部标已审 + 证据指向不存在的 D:/…」就能凭空造出满覆盖
+// （2026-11-12 本机实测：709 个文件全部伪登记 → COVERAGE FULL / unaudited=0 / --check exit 0）。
+// 现实里没有单字母的 URI scheme，所以盘符一律按路径核存在。
+const DRIVE_PATH = /^[a-zA-Z]:/;
 const COMMIT_HEADER = /^([0-9a-f]{40})\t(\d+)$/;
 const MAX_BUFFER = 256 * 1024 * 1024;
 
@@ -72,7 +77,8 @@ function loadRecords(file, repo, windowFiles) {
     if (!LEVELS.has(entry.level)) { reject('level 必须是 static|simulation|runtime|artifact'); continue; }
     if (typeof entry.evidenceRef !== 'string' || !entry.evidenceRef.trim()) { reject('缺少 evidenceRef，不得标已审'); continue; }
     // 无 scheme 的 evidenceRef 按路径处理，必须真实存在——否则「全部标已审」就能凭空造出满覆盖
-    if (!SCHEME.test(entry.evidenceRef)) {
+    // 盘符绝对路径虽然命中 SCHEME，仍必须按路径核存在（见 DRIVE_PATH 注释）
+    if (DRIVE_PATH.test(entry.evidenceRef) || !SCHEME.test(entry.evidenceRef)) {
       const target = path.isAbsolute(entry.evidenceRef) ? entry.evidenceRef : path.resolve(repo, entry.evidenceRef);
       if (!fs.existsSync(target)) { reject('evidenceRef 指向的文件不存在: ' + entry.evidenceRef); continue; }
     }

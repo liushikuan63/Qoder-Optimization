@@ -174,6 +174,43 @@ function paths(ledger) { return ledger.files.map(item => item.path); }
   const scheme = buildLedger({ repo: dir, ...WINDOW, records: recordsFile });
   check('带 scheme 的 evidenceRef 按锚点处理（不当路径核存在）',
     scheme.invalidRecords.length === 0 && scheme.auditedCount === 2 && scheme.files.find(item => item.path === 'a.txt').level === 'artifact', JSON.stringify(scheme.invalidRecords));
+
+  write([{ path: 'a.txt', level: 'artifact', evidenceRef: 'https://example.com/read-log.md' }, good[1]]);
+  const urlScheme = buildLedger({ repo: dir, ...WINDOW, records: recordsFile });
+  check('多字母 scheme（https:）仍按锚点处理，不被盘符判据误伤', urlScheme.invalidRecords.length === 0 && urlScheme.auditedCount === 2, JSON.stringify(urlScheme.invalidRecords));
+
+  // ── 负对照③：Windows 盘符绝对路径长得像 scheme（`D:` 命中 /^[a-z][a-z0-9+.-]*:/），
+  //    若按 scheme 跳过存在性核对，「全部标已审 + 指向不存在的 D:/… 」就能凭空造出满覆盖。
+  //    本机实测：709 个文件全部伪登记 → COVERAGE FULL / unaudited=0 / --check exit 0。
+  const driveMissing = path.resolve(dir, 'evidence', 'no-such-drive-evidence.md');
+  const driveForms = [driveMissing, driveMissing.replace(/\\/g, '/'), 'Q:/qo-coverage-definitely-missing.md'];
+  for (const ref of driveForms) {
+    write(good.map(entry => ({ ...entry, evidenceRef: ref })));
+    const driveFake = buildLedger({ repo: dir, ...WINDOW, records: recordsFile });
+    check('负对照：盘符绝对路径伪证据被拒（' + ref.slice(0, 24) + '…）',
+      driveFake.coverage === 'PARTIAL' && driveFake.unauditedCount === 2 && driveFake.invalidRecords.length === 2
+      && driveFake.invalidRecords.every(item => /不存在/.test(item.reason)), JSON.stringify(driveFake.invalidRecords));
+    const driveRun = cli(['--repo', dir, '--since', WINDOW.since, '--until', WINDOW.until, '--records', recordsFile, '--check']);
+    check('负对照：盘符伪证据 --check exit 1 且不得输出全量已覆盖', driveRun.code === 1 && !driveRun.out.includes('全量已覆盖') && /INVALID_RECORD/.test(driveRun.out), 'exit=' + driveRun.code);
+  }
+
+  // 正向对照：真实存在的盘符绝对路径必须照常接受（证明修的是误分类，不是把绝对路径一律拒掉）
+  const driveReal = path.resolve(dir, 'evidence', 'read-log.md');
+  write(good.map(entry => ({ ...entry, evidenceRef: driveReal })));
+  const driveOk = buildLedger({ repo: dir, ...WINDOW, records: recordsFile });
+  check('正向对照：存在的盘符绝对路径证据被接受且 coverage=FULL', driveOk.invalidRecords.length === 0 && driveOk.coverage === 'FULL' && driveOk.auditedCount === 2, JSON.stringify(driveOk.invalidRecords));
+
+  // 变异负对照：把盘符守卫摘掉，同一份伪登记必须重新变成满覆盖——证明上面的红确实由该守卫产生
+  const mutant = path.join(root, 'ledger-mutant-drive.cjs');
+  const original = fs.readFileSync(SCRIPT, 'utf8');
+  const guard = 'if (DRIVE_PATH.test(entry.evidenceRef) || !SCHEME.test(entry.evidenceRef)) {';
+  const hits = original.split(guard).length - 1;
+  check('变异命中调用点（盘符守卫存在且唯一）', hits === 1, 'hits=' + hits);
+  fs.writeFileSync(mutant, original.replace(guard, 'if (!SCHEME.test(entry.evidenceRef)) {'));
+  write(good.map(entry => ({ ...entry, evidenceRef: driveForms[0] })));
+  const mutRun = spawnSync(process.execPath, [mutant, '--repo', dir, '--since', WINDOW.since, '--until', WINDOW.until, '--records', recordsFile, '--check'], { encoding: 'utf8' });
+  check('变异负对照：摘掉盘符守卫后同一伪登记又变满覆盖（判据能失败）',
+    mutRun.status === 0 && /COVERAGE FULL/.test(mutRun.stdout) && /全量已覆盖/.test(mutRun.stdout), 'exit=' + mutRun.status);
 }
 
 // ── 已删文件与两个「现存」口径 ──
