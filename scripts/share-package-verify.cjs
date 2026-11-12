@@ -166,11 +166,28 @@ function selftest() {
   assert(r.status === 0 && r.stdout.includes('VERDICT=CLEAN'), '干净包应判绿');
   console.log('  [正例] exit=' + r.status);
 
+  // 正例 2/3：解码后恰好 300 字符，quoted 与 unquoted 必须同结论（T-01 边界）。
+  // 旧裸正则把引号算进长度 ⇒ quoted 300 被误判 exit 2、unquoted 300 exit 0，同一描述两种结论。
+  const q300 = path.join(tmp, 'quoted300'); base(q300); mk(q300, 'ok-skill', '"' + 'x'.repeat(300) + '"');
+  r = run(q300);
+  assert(r.status === 0 && r.stdout.includes('VERDICT=CLEAN'), 'quoted 解码后 300 应判绿');
+  console.log('  [正例·quoted300] exit=' + r.status);
+  const u300 = path.join(tmp, 'unquoted300'); base(u300); mk(u300, 'ok-skill', 'x'.repeat(300));
+  r = run(u300);
+  assert(r.status === 0 && r.stdout.includes('VERDICT=CLEAN'), 'unquoted 300 应判绿');
+  console.log('  [正例·unquoted300] exit=' + r.status);
+
   // 负例 1：超长描述
   const longD = path.join(tmp, 'long'); base(longD); mk(longD, 'long-skill', 'x'.repeat(301));
   r = run(longD);
   assert(r.status === 2 && r.stdout.includes('long-skill'), '超 300 应判红并点名');
   console.log('  [负例·超长] exit=' + r.status);
+
+  // 负例 1b：quoted 301（剥引号后仍超限）——与正例 2 只差一个字符，判据必须能失败。
+  const q301 = path.join(tmp, 'quoted301'); base(q301); mk(q301, 'long-skill', '"' + 'x'.repeat(301) + '"');
+  r = run(q301);
+  assert(r.status === 2 && r.stdout.includes('long-skill'), 'quoted 解码后 301 应判红');
+  console.log('  [负例·quoted301] exit=' + r.status);
 
   // 负例 2：垃圾文件
   const junk = path.join(tmp, 'junk'); base(junk); mk(junk, 'ok-skill', '短描述');
@@ -207,7 +224,7 @@ function selftest() {
   console.log('  [负例·依赖] exit=' + r.status);
 
   fs.rmSync(tmp, { recursive: true, force: true });
-  console.log(bad ? `SELFTEST=FAIL (${bad})` : 'SELFTEST=PASS (1 正例 / 6 负例)');
+  console.log(bad ? `SELFTEST=FAIL (${bad})` : 'SELFTEST=PASS (3 正例 / 7 负例)');
   return bad ? 2 : 0;
 }
 

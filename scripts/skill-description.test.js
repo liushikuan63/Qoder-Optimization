@@ -2,7 +2,9 @@
 // T-01 / F1 / A3 / A4: single description parser + differential criterion.
 'use strict';
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const { spawnSync } = require('child_process');
 const { parseDescription } = require('./skill-description.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -78,6 +80,72 @@ for (const d of dirs) {
   if (v.length > (caps[d] || 300)) over++;
 }
 check('按载体上限无超限描述', over === 0, `over=${over}`);
+
+// ---- T-01 补：astral 字符（契约口径＝String.length，即 UTF-16 码元，不是码点数）----
+const astral = parseDescription(fm('description: "a\\ud83d\\ude00b"'));
+const astralWant = 'a' + String.fromCodePoint(0x1F600) + 'b';
+check('astral \\uD83D\\uDE00 正确解码', astral === astralWant, JSON.stringify(astral));
+check('astral 长度按 UTF-16 计＝4（码点数是 3，口径不能混）', astral.length === 4, 'len=' + astral.length);
+
+// ---- T-01 补：多行 description 三处同一结论（契约＝折叠拼接；不是拒绝、也不是取首行）----
+// 三处＝执行器 share-package-verify、生产者 pack-share-extras、碰撞扫描 skill-collisions。
+// 判别力来自 M2：首行 299 字符、折叠后 301 ⇒ 取首行的实现会判绿，折叠的实现必须判红。
+const extras = require('./pack-share-extras.cjs');
+const VERIFY = path.join(ROOT, 'scripts', 'share-package-verify.cjs');
+const COLL = path.join(ROOT, 'scripts', 'skill-collisions.cjs');
+const tmp3 = fs.mkdtempSync(path.join(os.tmpdir(), 'desc-threeway-'));
+const SK = 'probe-skill';
+const skillMd = (l1, l2) => `---\nname: ${SK}\ndescription: ${l1}\n  ${l2}\nversion: 1.0.0\n---\n\n# body\n`;
+function verifyPkg(tag, text) {
+  const dir = path.join(tmp3, tag);
+  fs.mkdirSync(path.join(dir, 'skills', SK), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'skills', SK, 'SKILL.md'), text);
+  for (const f of ['VERSION', 'README-安装说明.md', 'Qoder-AI编码通用规则.md', 'INDEX.md']) fs.writeFileSync(path.join(dir, f), 'x\n');
+  fs.writeFileSync(path.join(dir, 'skills-manifest.json'), JSON.stringify({ total: 1, skills: [] }));
+  fs.writeFileSync(path.join(dir, 'catalog.json'), JSON.stringify({ counts: { skill: 1, command: 0, agent: 0, script: 0 }, entries: [] }));
+  return spawnSync(process.execPath, [VERIFY, dir], { encoding: 'utf8' });
+}
+function collisionsLen(text) {
+  // 沙箱 HOME：只放这一个技能，于是 sum(cn) = desc.length + name.length + 4 可反解出解析长度。
+  const home = path.join(tmp3, 'home-' + Math.random().toString(36).slice(2, 8));
+  for (const side of ['.qoder', '.qoder-cn']) {
+    const d = path.join(home, side, 'skills', SK);
+    fs.mkdirSync(d, { recursive: true });
+    fs.writeFileSync(path.join(d, 'SKILL.md'), text);
+  }
+  const r = spawnSync(process.execPath, [COLL], { encoding: 'utf8', env: Object.assign({}, process.env, { HOME: home, USERPROFILE: home }) });
+  const m = /CN 侧当前每轮注入≈(\d+) 字符/.exec(r.stdout || '');
+  return m ? Number(m[1]) - SK.length - 4 : null;
+}
+const M1 = skillMd('x'.repeat(298), 'y');   // 折叠后 300
+const M2 = skillMd('x'.repeat(299), 'y');   // 首行 299、折叠后 301
+const want1 = 'x'.repeat(298) + ' y';
+const want2 = 'x'.repeat(299) + ' y';
+const f1 = path.join(tmp3, 'm1.md'); fs.writeFileSync(f1, M1);
+const f2 = path.join(tmp3, 'm2.md'); fs.writeFileSync(f2, M2);
+check('多行 M1：生产者给出折叠值（精确比对，不只比长度）', extras.descriptionOf(f1) === want1, 'len=' + String(extras.descriptionOf(f1) || '').length);
+check('多行 M1：碰撞扫描解析长度＝300', collisionsLen(M1) === 300, 'got=' + collisionsLen(M1));
+check('多行 M1：执行器判绿 exit 0', verifyPkg('m1', M1).status === 0);
+check('多行 M2：生产者折叠后＝301（不是取首行 299）', String(extras.descriptionOf(f2) || '').length === 301, 'len=' + String(extras.descriptionOf(f2) || '').length);
+check('多行 M2：碰撞扫描解析长度＝301', collisionsLen(M2) === 301, 'got=' + collisionsLen(M2));
+const m2r = verifyPkg('m2', M2);
+check('多行 M2：执行器判红 exit 2（取首行的实现会在这里假绿）', m2r.status === 2, 'exit=' + m2r.status);
+check('多行三处结论一致（M1 全绿 / M2 全红）', want1.length === 300 && want2.length === 301);
+fs.rmSync(tmp3, { recursive: true, force: true });
+
+// ---- T-01 补：余量 ≤5 字符的技能逐个复核仍合规 ----
+const tight = [];
+for (const d of dirs) {
+  const f = path.join(ROOT, 'skills', d, 'SKILL.md');
+  if (!fs.existsSync(f)) continue;
+  let v; try { v = parseDescription(fs.readFileSync(f, 'utf8')); } catch (e) { continue; }
+  const cap = caps[d] || 300;
+  const head = cap - v.length;
+  if (head <= 5) tight.push({ skill: d, cap, len: v.length, head });
+}
+tight.sort((a, b) => a.head - b.head);
+check('余量 ≤5 的技能全部仍合规（headroom ≥ 0）', tight.every((t) => t.head >= 0), 'count=' + tight.length);
+console.log('TIGHT_HEADROOM=' + tight.length + ' ' + JSON.stringify(tight));
 
 console.log(fail ? `\nskill-description FAIL ${fail}` : '\nskill-description ALL PASS');
 process.exitCode = fail ? 1 : 0;
