@@ -456,7 +456,14 @@ function evidenceReport(label, tamperRunId) {
   const mk = (name, exitCode, stdout, rid) => {
     const value = { schema: 1, runId: rid || runId, cwd: SB, level: 'runtime', termination: 'completed', exitCode, stdout, stderr: '' };
     const buf = Buffer.from(JSON.stringify(value, null, 1));
-    fs.writeFileSync(path.join(dir, name), buf);
+    const record = path.join(dir, name);
+    fs.writeFileSync(record, buf);
+    // 周检按 mtime 选「最近一份报告」。真实布局里记录落在 records/ 子目录、不会与计划竞争；
+    // 本夹具把两者平铺在同一目录，若三次写入落在同一个 mtime 刻度内，稳定排序会退回 readdir
+    // 字母序而选中 neg.json（记录不是计划）→ 判 ERROR，V37/V38 随机器快慢假红。
+    // 把记录时间显式拨旧，让计划文件无歧义地最新；判定语义与断言均不变。
+    const older = new Date(Date.now() - 60000);
+    fs.utimesSync(record, older, older);
     return { file: name, sha256: crypto.createHash('sha256').update(buf).digest('hex'), expect: { exitCode, stdoutIncludes: [stdout] } };
   };
   const positive = mk('pos.json', 0, 'PASS');
