@@ -101,17 +101,28 @@ function fmtBytes(n) {
   return n + 'B'
 }
 
-/** 隔离区回收：删除 <root>/.trash 下超过保留期的批次；隔离区本身永不进入扫描清单。 */
+/** 隔离区回收：只删除**本脚本自己按 ISO 时间戳命名**且超过保留期的批次。
+ *  旧实现按 mtime 匹配 `.trash` 下任意条目并永久删除，两个后果都实测到了：
+ *  ① 用户手工放进隔离区的东西 9 天后被静默永久删除（匹配型删除越界，红线）；
+ *  ② 批次目录 mtime 被刷新后永不回收，隔离区无限堆积。
+ *  时间戳就是批次出生时间，比 mtime 更可靠；非批次名一律不动。 */
+const TRASH_BATCH_RE = /^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z$/
+function batchBornMs(name) {
+  const m = TRASH_BATCH_RE.exec(String(name))
+  if (!m) return null
+  const t = Date.parse(m[1] + 'T' + m[2] + ':' + m[3] + ':' + m[4] + '.' + m[5] + 'Z')
+  return Number.isFinite(t) ? t : null
+}
 function purgeTrash(root, now) {
   const dir = path.join(root, '.trash')
   let list
   try { list = fs.readdirSync(dir, { withFileTypes: true }) } catch (e) { return 0 }
   let removed = 0
   for (const e of list) {
+    const born = batchBornMs(e.name)
+    if (born === null) continue
+    if (now - born < TRASH_RETENTION_MS) continue
     const full = path.join(dir, e.name)
-    let st
-    try { st = fs.statSync(full) } catch (err) { continue }
-    if (now - st.mtimeMs < TRASH_RETENTION_MS) continue
     try {
       fs.rmSync(full, { recursive: e.isDirectory(), force: true })
       removed += 1
@@ -321,8 +332,14 @@ function main() {
   const registeredEvidence = collectRegisteredEvidence(opts.evidenceDocs)
   const isRegistered = (full) => {
     if (!registeredEvidence.size) return false
-    const forms = [String(full).replace(/\\/g, '/').toLowerCase(), String(full).toLowerCase()]
+    const norm = String(full).replace(/\\/g, '/').toLowerCase()
+    const forms = [norm, String(full).toLowerCase()]
     for (const f of forms) if (registeredEvidence.has(f)) return true
+    // 文档登记的常常是目录**内部**的某个文件（如 …/qo-t15-evidence/readlogs/read-R01.md）。
+    // 只比顶层条目全等 ⇒ 登记等于没登记，整棵证据目录照删（2026-11-12 实测父目录被删）。
+    // 前缀带 '/' 保证按路径段匹配：evidence-parent-2 不会被 evidence-parent/ 误保护。
+    const prefix = norm + '/'
+    for (const p of registeredEvidence) if (p.startsWith(prefix)) return true
     return false
   }
   const keepCache = new Map()

@@ -145,13 +145,26 @@ fs.mkdirSync(shareNoTrash, { recursive: true });
 fs.writeFileSync(path.join(shareNoTrash, 'pkg.tgz'), 'p');
 scan(['--since', String(since), '--apply', '--include-share-package', '--no-trash']);
 check('--no-trash 永久删除包产物', fs.existsSync(shareNoTrash), false);
-const oldBatch = path.join(trashDir, 'old-batch');
+// 批次名必须是产品真会造出来的 ISO 时间戳（旧夹具用 'old-batch'，那不是任何真实批次的名字）。
+const batchStamp = (t) => new Date(t).toISOString().replace(/[:.]/g, '-');
+const oldBatch = path.join(trashDir, batchStamp(Date.now() - 8 * 86400000));
 fs.mkdirSync(oldBatch, { recursive: true });
 fs.writeFileSync(path.join(oldBatch, 'x.log'), 'x');
 const oldBatchT = new Date(Date.now() - 8 * 86400000);
 fs.utimesSync(oldBatch, oldBatchT, oldBatchT);
+// 负对照：用户手工放进隔离区的东西不是本脚本的批次，超期也不许永久删除。
+const userPlaced = path.join(trashDir, 'user-placed-evidence');
+fs.mkdirSync(userPlaced, { recursive: true });
+fs.writeFileSync(path.join(userPlaced, 'precious.bin'), 'p'.repeat(16));
+fs.utimesSync(userPlaced, oldBatchT, oldBatchT);
+// 负对照：批次时间戳超期但 mtime 被刷新过 ⇒ 仍按时间戳回收（否则隔离区无限堆积）。
+const staleStampFreshMtime = path.join(trashDir, batchStamp(Date.now() - 9 * 86400000));
+fs.mkdirSync(staleStampFreshMtime, { recursive: true });
+fs.writeFileSync(path.join(staleStampFreshMtime, 'y.log'), 'y');
 scan(['--since', String(since), '--apply', '--json']);
 check('隔离区回收超过 7 天的批次', fs.existsSync(oldBatch), false);
+check('隔离区不永久删除非批次的未知条目', fs.existsSync(path.join(userPlaced, 'precious.bin')), true);
+check('回收按批次时间戳而非 mtime', fs.existsSync(staleStampFreshMtime), false);
 
 const after = scan(['--since', String(since)]);
 check('复扫无默认可清条目', after.recommended.clean.length, 0);
@@ -280,6 +293,34 @@ fs.mkdirSync(path.join(b3, '.last-cleanup'), { recursive: true });
 const b3r = runIn(b3, [...sinceArg, '--apply', '--force']);
 check('文本模式台账失败：退出码非 0', b3r.status, 1);
 check('文本模式台账失败：打印可归因的提示', /清理台账写入失败/.test(b3r.stdout), true);
+
+// ---- C10 续：文档登记目录内部文件 ⇒ 父目录整棵保留；标签只算真证据 ----
+const c1 = caseRoot('reg-c1', ['docreg-parent', 'docreg-parent-2', 'unrelated']);
+fs.mkdirSync(path.join(c1, 'docreg-parent', 'nested'), { recursive: true });
+const c1child = path.join(c1, 'docreg-parent', 'nested', 'read-R01.md');
+fs.writeFileSync(c1child, '# 通读记录\n');
+const c1docs = path.join(c1, 'docs');
+fs.mkdirSync(c1docs, { recursive: true });
+fs.writeFileSync(path.join(c1docs, '审计证据.md'), '证据：`' + c1child.replace(/\\/g, '/') + '` 已登记。\n');
+const c1r = runIn(c1, [...sinceArg, '--apply', '--force', '--evidence-docs', c1docs, '--json']);
+const c1j = JSON.parse(c1r.stdout);
+check('登记目录内部文件 ⇒ 父目录整棵保留', fs.existsSync(path.join(c1, 'docreg-parent')), true);
+check('父目录进入 registeredEvidence 清单', c1j.registeredEvidence.some((p) => p.endsWith('docreg-parent')), true);
+check('负对照：前缀相似的兄弟目录不被误保护', fs.existsSync(path.join(c1, 'docreg-parent-2')), false);
+check('负对照：未登记目录照常清理', fs.existsSync(path.join(c1, 'unrelated')), false);
+
+const c3 = caseRoot('reg-c3', ['junk']);
+const c3docs = path.join(c3, 'docs');
+fs.mkdirSync(c3docs, { recursive: true });
+fs.writeFileSync(path.join(c3docs, 'e.md'),
+  '台账 `' + path.join(c3, '.last-cleanup').replace(/\\/g, '/') + '`；'
+  + '否决 `' + path.join(c3, '.git', 'config').replace(/\\/g, '/') + '`；'
+  + '证据 `' + path.join(c3, 'junk').replace(/\\/g, '/') + '`。\n');
+const c3r = runIn(c3, [...sinceArg, '--apply', '--force', '--evidence-docs', c3docs, '--json']);
+const c3list = JSON.parse(c3r.stdout).registeredEvidence;
+check('台账不算「已登记证据」', c3list.some((p) => p.endsWith('.last-cleanup')), false);
+check('硬否决路径不算「已登记证据」', c3list.some((p) => p.includes('.git')), false);
+check('负对照：真证据目录仍在清单里', c3list.some((p) => p.endsWith('junk')), true);
 
 console.log(results.join('\n'));
 const failed = results.filter((x) => x.startsWith('FAIL')).length;
