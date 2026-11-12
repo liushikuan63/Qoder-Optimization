@@ -32,8 +32,12 @@ function check(name, payload, expect, env = {}) {
       reason = j.permissionDecisionReason || '';
     } catch (e) { decision = 'PARSE_FAIL: ' + out.slice(0, 80); }
   }
-  const ok = decision === expect && (expect !== 'deny' || reason.length > 20);
-  console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}  → ${decision}${reason ? '  「' + reason.slice(0, 48) + '…」' : ''}`);
+  // 守卫崩掉时 stdout 也是空的 —— 只看「输出空＝allow」会让**全部 allow 侧负对照恒绿**
+  // （实测：把 GUARD 换成 exit 1 + stderr 的死脚本，旧断言仍有 23 条 PASS）。
+  // 所以退出码与 stderr 必须一起断言：守卫必须活着、且没报错，判定才算数。
+  const alive = r.status === 0 && !(r.stderr || '').trim();
+  const ok = alive && decision === expect && (expect !== 'deny' || reason.length > 20);
+  console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}  → ${decision}${alive ? '' : '  「守卫异常 exit=' + r.status + ' stderr=' + (r.stderr || '').trim().slice(0, 40) + '」'}${reason ? '  「' + reason.slice(0, 48) + '…」' : ''}`);
   ok ? pass++ : fail++;
 }
 
@@ -103,6 +107,27 @@ check('head -n 20：放行（上界有效）', pre('Bash', { command: 'head -n 2
 check('git log -n 20：放行（非 head/tail，判据不外扩）', pre('Bash', { command: 'git log -n 20' }), 'allow');
 check('cat 大文件 > out.txt：放行（重定向是契约内限流器）', pre('Bash', { command: 'cat 收口清单.md > /tmp/out.txt' }), 'allow');
 check('cat 大文件 | wc -l：放行（管道是限流器）', pre('Bash', { command: 'cat 收口清单.md | wc -l' }), 'allow');
+
+// C11 第二轮（修一处扫一片）：上界判据的四个残留缺口，每条都先跑出过红。
+// ① 管道/末段：失效上界在**最后一段**时，`|` 不能救回放行；② 旧式 `head -<数>`；
+// ③ `tail -n +K`（输出到末尾，实质无界）；④ `-c700` 与 `-c 700` 必须同判。
+console.log('— C11 上界判据的残留缺口 —');
+check('cat 大文件 | head -n 999999：拦（末段失效，管道救不回）',
+  pre('Bash', { command: 'cat 收口清单.md | head -n 999999' }), 'deny', { HOG_MODE: 'deny' });
+check('head -n 999999 | grep foo：拦（末段无界）',
+  pre('Bash', { command: 'head -n 999999 收口清单.md | grep foo' }), 'deny', { HOG_MODE: 'deny' });
+check('head -999999（旧式无字母选项）：拦', pre('Bash', { command: 'head -999999 收口清单.md' }), 'deny');
+check('tail -999999（旧式）：拦', pre('Bash', { command: 'tail -999999 收口清单.md' }), 'deny');
+check('tail -n +1（从头输出到末尾）：拦', pre('Bash', { command: 'tail -n +1 收口清单.md' }), 'deny');
+check('tail -n +999999：拦', pre('Bash', { command: 'tail -n +999999 收口清单.md' }), 'deny');
+check('head -c700（无空格）：放行（700 字节，与 -c 700 同判）', pre('Bash', { command: 'head -c700 收口清单.md' }), 'allow');
+check('head -c 700：放行（上一条的负对照，两者必须同结果）', pre('Bash', { command: 'head -c 700 收口清单.md' }), 'allow');
+check('head -n 999999 | wc -l：放行（末段真的限住了输出）', pre('Bash', { command: 'head -n 999999 收口清单.md | wc -l' }), 'allow');
+check('cat | head -n 999999 | head -20：放行（末段上界有效）', pre('Bash', { command: 'cat 收口清单.md | head -n 999999 | head -20' }), 'allow');
+check('head -n 999999 > 文件：放行（重定向的输出不进上下文）', pre('Bash', { command: 'head -n 999999 收口清单.md > /tmp/out.txt' }), 'allow');
+check('tail -n +2 | head -20：放行（跳表头后仍被限流）', pre('Bash', { command: 'tail -n +2 收口清单.md | head -20' }), 'allow');
+check('head -601（旧式刚过阈值）：拦', pre('Bash', { command: 'head -601 收口清单.md' }), 'deny');
+check('head -600（旧式边界）：放行', pre('Bash', { command: 'head -600 收口清单.md' }), 'allow');
 
 console.log('— 内联脚本里的反引号（会被 bash 先执行） —');
 check('node -e "…" 里带反引号：拦（那串会被当命令跑）',

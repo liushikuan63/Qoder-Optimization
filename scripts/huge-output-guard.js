@@ -141,18 +141,25 @@ function oversizedHeadTail(cmd) {
   const c = String(cmd || '');
   for (const m of c.matchAll(/\b(?:head|tail)\b([^|;&]*)/g)) {
     const seg = m[1];
-    const n = /(?:-[cn]\s*|--(?:bytes|lines)=?\s*)(\d+)/.exec(seg);
+    // `tail -n +K` 是「从第 K 行一路输出到末尾」，与「取 K 行」相反 ⇒ 实质无界。
+    if (/-n\s*\+\s*\d+|--lines=\s*\+\s*\d+/.test(seg)) return true;
+    // `-c700` 与 `-c 700` 必须同判：旧写法 `/-c\b/` 在 `-c700` 上没有词边界，
+    // 于是 700 字节被当成 700 行去比 600 阈值 → 误拦（实测同一语义两种结果）。
+    const isBytes = /-c(?![A-Za-z])|--bytes/.test(seg);
+    // 显式上界三种写法 + 旧式 `head -999999`（无字母选项，同样是上界，旧实现整族漏判）。
+    const n = /(?:-[cn]\s*|--(?:bytes|lines)=?\s*)(\d+)/.exec(seg) || /(?:^|\s)-(\d+)(?:\s|$)/.exec(seg);
     if (!n) continue;                       // 无显式上界＝默认 10 行，有效
     const v = Number(n[1]);
-    const isBytes = /-c\b|--bytes/.test(seg);
     if (isBytes ? v > READ_BYTES : v > READ_LINES) return true;
   }
   return false;
 }
 const N_LIMITER = /-n\s*\d+/;    // git log -n 20 / head -n 20（head/tail 上界失效时不算有效，见 checkBash）
+const PIPE_LIMITER = /\|/;
+const REDIRECT_LIMITER = />\s*\S/;
 const LIMITERS = [
-  /\|/,                        // 任何管道（head/tail/grep/wc/sort…）都算限流
-  />\s*\S/,                    // 重定向到文件
+  PIPE_LIMITER,                // 任何管道（head/tail/grep/wc/sort…）都算限流
+  REDIRECT_LIMITER,            // 重定向到文件
   HEAD_TAIL_LIMITER,           // 直接 head/tail（上界有效性另行判定）
   // 短参簇里带 l 或 c 就算限流/计数：-l、-c、-rl、-lc、-rL 都要认。
   // （自测抓到过：旧写法 /-l\b/ 匹配不到 `grep -rl`，因为那三个字符是 `-`、`r`、`l`，压根没有 `-l` 子串。）
@@ -211,6 +218,16 @@ function checkInlineBacktick(cmd) {
     + '或把 -e 的参数改用单引号。'
     + '理由不是洁癖：本轮实测一次误触发全量构建、一次让恒真的去重键把四条记忆全丢掉。';
 }
+// 最后一段管道是否真的限住了输出。`||` 是逻辑或、不是管道，不能当分隔符（前后都排除）。
+function finalStageBounds(cmd) {
+  const stages = String(cmd || '').split(/(?<!\|)\|(?!\|)/);
+  const last = stages[stages.length - 1];
+  if (oversizedHeadTail(last)) return false;      // 末段自己就是失效上界
+  if (/\bwc\b/.test(last)) return true;           // 计数
+  if (HEAD_TAIL_LIMITER.test(last)) return true;  // 上界有效的 head/tail（失效的已被上一行排除）
+  if (SHORT_LC_LIMITER.test(last)) return true;   // grep -c / -l
+  return /-m\s|--count|\bawk\b|sed\s+-n/.test(last);
+}
 function checkBash(toolInput) {
   const cmd = String(toolInput.command || '');
   if (!cmd.trim()) return null;
@@ -221,7 +238,14 @@ function checkBash(toolInput) {
   // `-n` 同理：上界失效时通用 `/-n\s*\d+/` 也不能救回放行——实测 `head -n 999999 big` 曾 allow，
   // 而语义等价的 `head --lines=999999 big` 却 deny，同一判据两种结果（C11 残留缺口）。
   const skip = new Set([HEAD_TAIL_LIMITER, SHORT_LC_LIMITER]);
-  if (oversized) skip.add(N_LIMITER);
+  if (oversized) {
+    skip.add(N_LIMITER);
+    // 管道能不能救回失效上界，取决于**最后一段**是否真的限住了输出：
+    // `cat big | head -n 999999` 的输出直接进上下文（救不回）；
+    // `head -n 999999 big | wc -l` 的最终输出被 wc 限住（可以放行）。
+    // 重定向不受此限：`> 文件` 的输出根本不进上下文。
+    if (!finalStageBounds(cmd)) skip.add(PIPE_LIMITER);
+  }
   if (LIMITERS.some((re) => !skip.has(re) && re.test(cmd))) return null;
   if (!oversized && (HEAD_TAIL_LIMITER.test(cmd) || SHORT_LC_LIMITER.test(cmd))) return null;
   for (const v of VERBOSE) {
