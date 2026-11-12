@@ -301,8 +301,10 @@ function mutant(label, transform, defectVisible) {
   if (changed === original) { check(`㊶ 变异 ${label} 命中源码`, false, '替换未生效，判据无效'); return; }
   fs.writeFileSync(target, changed, 'utf8');
   const { result, data } = scanWith(dir);
-  check(`㊶ 改坏必红：${label}`, Boolean(data) && defectVisible(data),
-    data ? '缺陷未显现（断言太弱）' : `exit=${result.status} ${(result.stderr || '').split('\n')[0]}`);
+  const visible = Boolean(data) && defectVisible(data);
+  check(`㊶ 改坏必红：${label}`, visible,
+    visible ? '缺陷已显现（判据可失败）'
+      : data ? '缺陷未显现（断言太弱）' : `exit=${result.status} ${(result.stderr || '').split('\n')[0]}`);
 }
 const inboxCount = (data) => (data.candidates || []).filter((c) => c.source === 'inbox').length;
 mutant('drop-inbox-source', (s) => s.replace('    ...inbox.items,\n', ''), (data) => inboxCount(data) === 0);
