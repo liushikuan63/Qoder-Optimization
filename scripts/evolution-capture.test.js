@@ -235,6 +235,77 @@ check('⑪ --dry-run 演算出候选但零写入', dryRun.status === 0 && dryJso
 const dryNoArg = spawnSync(process.execPath, [SCRIPT, '--dry-run'], { encoding: 'utf8', timeout: 20000, env: CHILD_ENV });
 check('⑪ --dry-run 缺参数报错退出 2', dryNoArg.status === 2);
 
+// ⑭ 收尾建议 pending：只有本轮**新增且够格**的候选才形成弹窗建议（用户 2026-11-12 明确要求）
+const pendingPath = session => path.join(STATE, `pending-${session}.json`);
+const pendingOf = session => { try { return JSON.parse(fs.readFileSync(pendingPath(session), 'utf8')); } catch { return null; } };
+const askLine = (id, input) => JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id, name: 'AskUserQuestion', input }] } });
+const EVOLUTION_CARD = { questions: [{ question: '这条自进化候选要不要采纳并落到 rules？', header: '自进化', options: [{ label: '采纳并落到推荐载体（推荐）' }, { label: '本轮跳过' }] }] };
+const KICKOFF_CARD = { questions: [{ question: '开工确认：理解 / 步骤 / 并行是否合适？', header: '开工确认', options: [{ label: '按此执行' }, { label: '调整' }] }] };
+const gapOnce = [userLine('这个命令跑不了'), toolUseLine('g1', 'Bash'), toolResultLine('g1', 'command not found: pwsh', true)];
+const gapTwice = [...gapOnce, toolUseLine('g2', 'Bash'), toolResultLine('g2', 'command not found: pwsh', true)];
+const SESSION_A = 'aaaaaaaa-1111-2222-3333-444444444444';
+const SESSION_B = 'bbbbbbbb-1111-2222-3333-444444444444';
+const SESSION_C = 'cccccccc-1111-2222-3333-444444444444';
+
+reset();
+runHook(stopInput(transcript(POSITIVE_TURN)));
+const firstPending = pendingOf('aaaaaaaa');
+check('⑭ 新候选形成收尾建议', !!firstPending && firstPending.items.length >= 2, JSON.stringify(firstPending && firstPending.items.map(i => i.topic)));
+check('⑭ 建议带推荐载体与片段', !!firstPending && firstPending.items.every(i => Array.isArray(i.carriers) && i.carriers.length > 0 && typeof i.excerpt === 'string'));
+check('⑭ 助手自述经验不弹窗（只进月报）', !!firstPending && !firstPending.items.some(i => i.kind === 'disproven-prescription' || i.kind === 'verified-conclusion'));
+check('⑭ 建议带 askKey 与会话/任务标识', !!firstPending && !!firstPending.askKey && firstPending.task === 'project-alpha' && firstPending.session === SESSION_A);
+check('⑭ 心跳记录 pending 数', /pending=[1-9]/.test(heartbeatText()), heartbeatText().trim().slice(-120));
+const pendingDupBefore = sha(pendingPath('aaaaaaaa'));
+runHook(stopInput(transcript(POSITIVE_TURN)));
+check('⑭ 重复证据不刷新建议（不重复打扰）', sha(pendingPath('aaaaaaaa')) === pendingDupBefore);
+runHook(stopInput(transcript([...POSITIVE_TURN, askLine('a1', EVOLUTION_CARD)])));
+check('⑭ 本轮已弹自进化卡 → 建议消费掉', !fs.existsSync(pendingPath('aaaaaaaa')) && heartbeatText().includes('ASKED'));
+reset();
+runHook(stopInput(transcript([...POSITIVE_TURN, askLine('a2', KICKOFF_CARD)])));
+check('⑭ 开工确认卡不冒充建议弹窗', !!pendingOf('aaaaaaaa'));
+reset();
+runHook(stopInput(transcript(gapOnce)));
+check('⑭ 单次缺口只进 inbox 不弹窗', records().length >= 1 && !pendingOf('aaaaaaaa'), `records=${records().length}`);
+runHook(stopInput(transcript(gapOnce), SESSION_B));
+check('⑭ 跨会话同主题够格弹窗', !!pendingOf('bbbbbbbb'), JSON.stringify(pendingOf('bbbbbbbb')));
+reset();
+runHook(stopInput(transcript(gapTwice)));
+const gapPending = pendingOf('aaaaaaaa');
+check('⑭ 同一错误 2 次够格弹窗', !!gapPending && gapPending.items.some(i => i.kind === 'capability-gap' && i.evidence.occurrences >= 2));
+reset();
+runHook(stopInput(transcript([userLine('以后一律用简体中文回复'), assistantLine('已否证：改执行策略 × 本机 A/B 对照无效')])));
+const expPending = pendingOf('aaaaaaaa');
+check('⑭ 只有助手经验时不弹窗', records().length >= 1 && (!expPending || !expPending.items.some(i => i.kind === 'disproven-prescription')));
+check('⑭ 明确长期偏好一次即够格', !!expPending && expPending.items.some(i => i.kind === 'long-term-preference'));
+reset();
+runHook(stopInput(transcript([userLine('以后一律用中文。密码=SuperSecret123，服务器 10.1.2.3')])));
+const secretPending = JSON.stringify(pendingOf('aaaaaaaa') || {});
+check('⑭ 建议片段同样脱敏', !secretPending.includes('SuperSecret123') && !secretPending.includes('10.1.2.3'));
+reset();
+runHook(stopInput(transcript([...POSITIVE_TURN, askLine('a1', EVOLUTION_CARD)])));
+check('⑭ 本轮已弹过卡 → 新候选也不追加建议（每轮最多问一次）', records().length >= 4 && !fs.existsSync(pendingPath('aaaaaaaa')));
+reset();
+runHook(stopInput(transcript(POSITIVE_TURN)));
+const declinedTopic = pendingOf('aaaaaaaa').items[0].topic;
+const declineRun = spawnSync(process.execPath, [SCRIPT, '--decline', declinedTopic], { encoding: 'utf8', timeout: 20000, env: CHILD_ENV });
+check('⑭ --decline 登记用户拒绝', declineRun.status === 0 && /declined=1/.test(declineRun.stdout || ''), (declineRun.stdout || declineRun.stderr || '').trim().slice(0, 120));
+const afterDecline = pendingOf('aaaaaaaa');
+check('⑭ 已拒绝主题从 pending 撤下', !afterDecline || !afterDecline.items.some(i => i.topic === declinedTopic));
+check('⑭ 拒绝只影响弹窗，inbox 原始证据保留', records().length >= 4, `records=${records().length}`);
+runHook(stopInput(transcript(POSITIVE_TURN), SESSION_C));
+const pendingC = pendingOf('cccccccc');
+check('⑭ 已拒绝主题在新会话不再弹', !pendingC || !pendingC.items.some(i => i.topic === declinedTopic), JSON.stringify(pendingC && pendingC.items.map(i => i.topic)));
+const declineNoArg = spawnSync(process.execPath, [SCRIPT, '--decline'], { encoding: 'utf8', timeout: 20000, env: CHILD_ENV });
+check('⑭ --decline 缺主题退出 2', declineNoArg.status === 2);
+const reportPending = spawnSync(process.execPath, [SCRIPT, '--report', '--json'], { encoding: 'utf8', timeout: 20000, env: CHILD_ENV });
+let reportPendingJson = {};
+try { reportPendingJson = JSON.parse(reportPending.stdout); } catch {}
+check('⑭ --report 暴露 pending 与已拒绝数', reportPending.status === 0 && reportPendingJson.declined >= 1 && Array.isArray(reportPendingJson.pending));
+const dryPopup = spawnSync(process.execPath, [SCRIPT, '--dry-run', '--transcript', transcript(gapTwice), '--session', 'dry-2', '--cwd', path.join(SB, 'project-alpha')], { encoding: 'utf8', timeout: 20000, env: CHILD_ENV });
+let dryPopupJson = {};
+try { dryPopupJson = JSON.parse(dryPopup.stdout); } catch {}
+check('⑭ --dry-run 预告弹窗主题且零写入', dryPopup.status === 0 && dryPopupJson.writes === 0 && Array.isArray(dryPopupJson.wouldPopup) && dryPopupJson.wouldPopup.length >= 1 && !fs.existsSync(pendingPath('dry-2')));
+
 // ⑫ 变异对照：改坏关键判据必须变红（证明上面的绿不是假绿）
 const MUT = path.join(SB, 'mutant');
 fs.mkdirSync(MUT, { recursive: true });
@@ -273,6 +344,54 @@ mutant('去掉单轮上限', 'return unique.slice(0, ctx.maxPerTurn);', 'return 
   write(CONFIG, JSON.stringify({ maxPerTurn: 2 }));
   runHook(stopInput(transcript(POSITIVE_TURN)), mutFile);
   return records().length > 2;
+});
+// 收尾建议判据的变异对照：⑭ 的绿必须能变红
+mutant('去掉够格判定（单次缺口也弹）',
+  '.filter(c => signal.popupWorthy(c, sessions.get(c.topic) ? sessions.get(c.topic).size : 1))\n    .map(c => ({ kind: c.kind, topic: c.topic, carriers: c.carriers, excerpt: c.excerpt, evidence: c.evidence || {} }));',
+  '.filter(c => true)\n    .map(c => ({ kind: c.kind, topic: c.topic, carriers: c.carriers, excerpt: c.excerpt, evidence: c.evidence || {} }));', () => {
+    runHook(stopInput(transcript(gapOnce)), mutFile);
+    return !!pendingOf('aaaaaaaa');
+  });
+mutant('去掉已弹窗消费', 'if (turn.askedEvolution && clearPending(ctx.session))', 'if (false && clearPending(ctx.session))', () => {
+  runHook(stopInput(transcript(POSITIVE_TURN)), mutFile);
+  const existed = fs.existsSync(pendingPath('aaaaaaaa'));
+  runHook(stopInput(transcript([...POSITIVE_TURN, askLine('a1', EVOLUTION_CARD)])), mutFile);
+  return existed && fs.existsSync(pendingPath('aaaaaaaa'));
+});
+mutant('去掉拒绝过滤', 'function writePending(session, ctx, fresh, sessions) {\n  const declined = readDeclined();', 'function writePending(session, ctx, fresh, sessions) {\n  const declined = new Set();', () => {
+  runHook(stopInput(transcript(POSITIVE_TURN)), mutFile);
+  const topic = pendingOf('aaaaaaaa').items[0].topic;
+  spawnSync(process.execPath, [mutFile, '--decline', topic], { encoding: 'utf8', timeout: 20000, env: CHILD_ENV });
+  runHook(stopInput(transcript(POSITIVE_TURN), SESSION_C), mutFile);
+  const value = pendingOf('cccccccc');
+  return !!value && value.items.some(i => i.topic === topic);
+});
+mutant('重复证据也刷新建议', 'const suggestion = result.written && !turn.askedEvolution ? writePending(ctx.session, ctx, result.fresh, result.sessions) : { pending: 0 };', 'const suggestion = writePending(ctx.session, ctx, candidates, result.sessions);', () => {
+  const file = transcript(POSITIVE_TURN);
+  runHook(stopInput(file), mutFile);
+  const first = sha(pendingPath('aaaaaaaa'));
+  runHook(stopInput(file), mutFile);
+  return sha(pendingPath('aaaaaaaa')) !== first;
+});
+const mutCore = path.join(MUT, 'evolution-signal-core.js');
+const coreSource = fs.readFileSync(mutCore, 'utf8');
+function coreMutant(label, from, to, probe) {
+  if (!coreSource.includes(from)) { check(`⑫ 核心变异体可构造 :: ${label}`, false, '锚点未命中'); return; }
+  fs.writeFileSync(mutCore, coreSource.replace(from, to), 'utf8');
+  reset();
+  const outcome = probe();
+  check(`⑫ 改坏必红 :: ${label}`, outcome === true, String(outcome));
+  fs.writeFileSync(mutCore, coreSource, 'utf8');
+}
+coreMutant('把任意弹窗当已问建议', 'try { return EVOLUTION_ASK.test(JSON.stringify(input || {})); } catch { return false; }', 'try { return true; } catch { return false; }', () => {
+  runHook(stopInput(transcript(POSITIVE_TURN)), mutFile);
+  const existed = fs.existsSync(pendingPath('aaaaaaaa'));
+  runHook(stopInput(transcript([...POSITIVE_TURN, askLine('a2', KICKOFF_CARD)])), mutFile);
+  return existed && !fs.existsSync(pendingPath('aaaaaaaa'));
+});
+mutant('去掉本轮已问守卫', 'const suggestion = result.written && !turn.askedEvolution ? writePending', 'const suggestion = result.written ? writePending', () => {
+  runHook(stopInput(transcript([...POSITIVE_TURN, askLine('a1', EVOLUTION_CARD)])), mutFile);
+  return fs.existsSync(pendingPath('aaaaaaaa'));
 });
 // 变异 harness 负对照：未改动的副本必须与原件行为一致（红来自变异，不是 harness 恒红）。
 reset();

@@ -3,7 +3,10 @@
 // 三个消费方共用同一套判据，避免"提醒说一套、采集记一套、门禁拦一套"的漂移：
 //   ① rules-reminder.js  → preferenceNote()：每轮注入的采集提示（正文与 2026-11-02 版逐字节一致）
 //   ② evolution-capture.cjs → classifyPreference() / classifyProblem()：Stop 时确定性采集候选
-//   ③ stop-gate.js       → classifyPreference() + captureScope()：明确纠正/长期偏好未沉淀时拦
+//   ③ stop-gate.js       → EVOLUTION_ASK / popupWorthy 同源；范围判据仍是门禁自己的 taskScope
+//                          （含 kickoffCore 覆写），其兜底正则与本文件 READ_ONLY/HANDOFF_ONLY/NO_MEMORY
+//                          逐字一致，由 evolution-signal-core.test.js 的漂移断言看住。
+//   ④ 收尾建议弹窗        → isEvolutionAsk() + popupWorthy()：采集层写 pending，门禁 R19 强制弹给用户拍板
 //
 // 边界：纯函数、无 fs、无副作用、不联网、不写状态、不改变任何权限。
 // 信号只是"值得核对的候选"，不是用户偏好本身，更不是采纳授权；
@@ -124,6 +127,28 @@ function suggestCarriers(kind) {
   return CARRIER_ROUTE[kind] ? CARRIER_ROUTE[kind].slice() : ['memory'];
 }
 
+// —— 收尾建议弹窗（2026-11-12 用户明确要求）：采集层写 pending，门禁 R19 强制弹 ——
+// 只认"问的是自进化建议"的弹窗：开工确认卡 / 清理卡也用 AskUserQuestion，不能拿它们冒充已问过建议。
+const EVOLUTION_ASK = /自进化|沉淀|候选|载体|采纳|学到的/;
+function isEvolutionAsk(name, input) {
+  if (name !== 'AskUserQuestion') return false;
+  try { return EVOLUTION_ASK.test(JSON.stringify(input || {})); } catch { return false; }
+}
+
+// 哪些候选值得当轮弹窗（其余只进月报，避免每轮打扰）：
+//   · 用户明确信号（长期偏好 / 显式沉淀 / 重复纠正）一次即可；
+//   · 过程问题（能力缺口 / 重复失败）要同一错误 ≥2 次，或同主题跨 ≥2 会话；
+//   · 助手自述的"已否证 / 验证结论"是技术经验候选，不弹窗（verified 一律 false，只进报告）。
+function popupWorthy(candidate, sessionCount) {
+  if (!candidate || candidate.family === 'experience') return false;
+  const occurrences = Number(candidate.evidence && candidate.evidence.occurrences) || 1;
+  const sessions = Number(sessionCount) || 1;
+  if (sessions >= 2) return true;
+  if ([KINDS.LONG_TERM, KINDS.EXPLICIT, KINDS.REPEAT].includes(candidate.kind)) return true;
+  if ([KINDS.TOOL_GAP, KINDS.REPEATED_FAILURE].includes(candidate.kind)) return occurrences >= 2;
+  return false;
+}
+
 // 稳定 topic：同一主题在同一任务内重复出现只算一条候选；不同主题不互相吞并。
 // 去掉全部空白后再 slug，保证「以后   一律用」与「以后一律用」是同一条候选。
 function topicFor(signal) {
@@ -135,7 +160,8 @@ function topicFor(signal) {
 module.exports = {
   LONG_TERM, LONG_TERM_BROAD, EXPLICIT, REPEAT, META, RULE_QUOTE,
   TOOL_GAP, REPEATED_FAILURE, READ_ONLY, HANDOFF_ONLY, NO_MEMORY,
-  PREFERENCE_NOTE, KINDS, CARRIER_ROUTE,
+  PREFERENCE_NOTE, KINDS, CARRIER_ROUTE, EVOLUTION_ASK,
   normalize, isMetaOrQuote, classifyPreference, preferenceNote,
   classifyProblem, classifyAssistantNote, captureScope, suggestCarriers, topicFor,
+  isEvolutionAsk, popupWorthy,
 };

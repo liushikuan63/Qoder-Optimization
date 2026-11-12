@@ -320,13 +320,213 @@ const corr = '又停了？跟你说过不要停止任务，直接给弹窗让我
 const r4 = '上面两个点等你确认后我再动手，这里先收尾。';
 const trR4bad = transcript([user(corr), tool('Bash', { command: 'ls' }), asst(r4)]);
 const r4okText = '你这条要求已经写进记忆和规则了，我接着做上一格没做完的部分。';
+// 对照组必须给**真实存在**的落盘证据：占位路径既证不了记忆写入，也证不了载体写入（R18 会判红）。
+const r4MemoryFile = path.join(ROOT, 'r4', 'memory', 'feedback-x.md');
+fs.mkdirSync(path.dirname(r4MemoryFile), { recursive: true });
+fs.writeFileSync(r4MemoryFile, '# feedback-x\n\n这条要求已落盘，供 R4 / R18 对照组取证。\n', 'utf8');
 const trR4ok = transcript([
   user(corr),
-  tool('Write', { file_path: '<用户目录>/x/.qoder/memory/feedback-x.md' }),
+  tool('Write', { file_path: r4MemoryFile.replace(/\\/g, '/') }),
   asst(r4okText),
 ]);
 check('R4 违规必须拦', run({ last_assistant_message: r4, transcript_path: trR4bad, session_id: 'd1' }, 'd1').decision, 'block');
 check('R4 对照组：本轮已写记忆则放行', run({ transcript_path: trR4ok, session_id: 'd2' }, 'd2').decision, 'allow');
+
+// R18 声称已沉淀载体但零写入证据（自进化假绿）。窄条件：完成态主张 + 载体名词 + 本轮无载体落盘。
+const r18claim = '这条判据已沉淀为规则，后续会自动生效，本轮到此结束。';
+const r18claim2 = '我已经把这个流程落成技能，下次直接调用即可。';
+const r18ruleFile = path.join(ROOT, 'r18', 'rules', 'agent-engineering.md');
+const r18skillFile = path.join(ROOT, 'r18', 'skills', 'demo-flow', 'SKILL.md');
+const r18plainFile = path.join(ROOT, 'r18', 'src', 'app.ts');
+for (const f of [r18ruleFile, r18skillFile, r18plainFile]) {
+  fs.mkdirSync(path.dirname(f), { recursive: true });
+  fs.writeFileSync(f, '# 载体正文\n\n判据与反例都已写在这里，非空文件。\n', 'utf8');
+}
+const r18pos = (tools) => transcript([user('把这条判据沉淀下来'), ...tools, asst(r18claim)]);
+const r18run = (label, tr, want, session) => {
+  const got = run({ transcript_path: tr, session_id: session }, session);
+  check(label, got.decision, want);
+  return got;
+};
+const r18bad = r18run('R18 违规必须拦：声称沉淀为规则但零写入', r18pos([tool('Bash', { command: 'ls' })]), 'block', 'r18a');
+check('R18 归因必须是 R18（不被其他规则顶包）',
+  r18bad.out.includes('R18-sedimentation-claim-without-evidence') ? 'yes' : 'no', 'yes');
+r18run('R18 违规必须拦：声称落成技能但只跑了无关命令',
+  transcript([user('整理成技能'), tool('Bash', { command: 'git status' }), asst(r18claim2)]), 'block', 'r18b');
+r18run('R18 对照组：真写 rules 文件则放行',
+  r18pos([tool('Write', { file_path: r18ruleFile.replace(/\\/g, '/') })]), 'allow', 'r18c');
+r18run('R18 对照组：真写 skills/SKILL.md 则放行',
+  r18pos([tool('Edit', { file_path: r18skillFile.replace(/\\/g, '/') })]), 'allow', 'r18d');
+r18run('R18 对照组：真跑 evolution.js record 则放行',
+  r18pos([tool('Bash', { command: 'node ~/.qoder/skills/self-evolution/scripts/evolution.js record --json "{}"' }, '{"ok":true}')]), 'allow', 'r18e');
+r18run('R18 写盘失败不算证据',
+  r18pos([tool('Write', { file_path: r18ruleFile.replace(/\\/g, '/') }, 'permission denied', true)]), 'block', 'r18f');
+r18run('R18 只写普通源码不算载体证据',
+  r18pos([tool('Write', { file_path: r18plainFile.replace(/\\/g, '/') })]), 'block', 'r18g');
+r18run('R18 空文件不算证据', (() => {
+  const empty = path.join(ROOT, 'r18', 'rules', 'empty.md');
+  fs.writeFileSync(empty, '', 'utf8');
+  return r18pos([tool('Write', { file_path: empty.replace(/\\/g, '/') })]);
+})(), 'block', 'r18h');
+// 负对照：只读 / 禁止记忆 / 否定前缀 / 待授权 / 权限被拒 / 无载体名词 / 候选措辞，一律放行。
+r18run('R18 负对照：只读任务不要求写入',
+  transcript([user('只读审阅，不要修改任何文件'), tool('Bash', { command: 'ls' }), asst(r18claim)]), 'allow', 'r18i');
+r18run('R18 负对照：禁止记忆时不要求写入',
+  transcript([user('不要写入记忆，只给结论'), tool('Bash', { command: 'ls' }), asst(r18claim)]), 'allow', 'r18j');
+r18run('R18 负对照：尚未写入不算主张',
+  transcript([user('沉淀一下'), tool('Bash', { command: 'ls' }), asst('这条判据尚未写入规则，等授权后再落盘。')]), 'allow', 'r18k');
+r18run('R18 负对照：待授权不算主张',
+  transcript([user('沉淀一下'), tool('Bash', { command: 'ls' }), asst('待授权后沉淀为技能，本轮只给方案。')]), 'allow', 'r18l');
+r18run('R18 负对照：权限被拒且如实报告',
+  transcript([user('沉淀一下'), tool('Write', { file_path: r18ruleFile.replace(/\\/g, '/') }, 'permission denied', true),
+    asst('已尝试写入规则但被权限拒绝，未沉淀，需要你批准后才能落盘。')]), 'allow', 'r18m');
+r18run('R18 负对照：无载体名词的口头承诺不拦（宁窄勿滥）',
+  transcript([user('记住'), tool('Bash', { command: 'ls' }), asst('已记住这个偏好，本轮继续推进。')]), 'allow', 'r18n');
+r18run('R18 负对照：只说记录候选不算沉淀载体',
+  transcript([user('记录一下'), tool('Bash', { command: 'ls' }), asst('已记录候选到 inbox，待授权晋升，本轮不改载体。')]), 'allow', 'r18o');
+// 改坏必红：摘掉 R18 判据 → 上面的违规必须变放行；抹掉证据检查 → 对照组必须变拦。
+const R18_MUT = path.join(ROOT, 'r18-mut');
+const R18_DEPS = ['stop-gate.js', 'stop-gate-text.js', 'client-root.js', 'hook-crash-guard.js', 'kickoff-core.cjs', 'capability-roots.cjs'];
+function r18Mutant(label, from, to, tr, want) {
+  const dir = path.join(R18_MUT, label);
+  fs.mkdirSync(dir, { recursive: true });
+  for (const name of R18_DEPS) {
+    const src = path.join(__dirname, name);
+    if (fs.existsSync(src)) fs.copyFileSync(src, path.join(dir, name));
+  }
+  const target = path.join(dir, 'stop-gate.js');
+  const original = fs.readFileSync(target, 'utf8');
+  if (!original.includes(from)) { check('R18 变异 ' + label + ' 命中源码', 'miss', 'hit'); return; }
+  fs.writeFileSync(target, original.replace(from, to), 'utf8');
+  const session = 'r18mut-' + label;
+  let out = '';
+  try {
+    out = execFileSync(process.execPath, [target], {
+      input: JSON.stringify({ cwd: ROOT, task_id: 'stopgate-test', transcript_path: tr, session_id: session }),
+      encoding: 'utf8',
+      env: Object.assign({}, process.env, {
+        HOME: ROOT, USERPROFILE: ROOT, HOOK_CRASH_LOG: path.join(ROOT, 'crash.log'),
+        STOP_GATE_STATE_DIR: path.join(ROOT, 'state-' + session),
+        TEMP: path.join(ROOT, 'temp'), TMP: path.join(ROOT, 'temp'), TMPDIR: path.join(ROOT, 'temp'),
+        LOCALAPPDATA: path.join(ROOT, 'la'),
+      }),
+    });
+  } catch (e) { out = (e.stdout || '') + ''; }
+  let decision = 'allow';
+  try { if (JSON.parse(out.trim().split('\n').filter(Boolean).pop() || '{}').decision === 'block') decision = 'block'; } catch {}
+  check('R18 改坏必红：' + label, decision, want);
+}
+r18Mutant('claim-neutered', 'if (!SEDIMENT_CLAIM.test(text)) return false;', 'if (true) return false;',
+  r18pos([tool('Bash', { command: 'ls' })]), 'allow');
+r18Mutant('evidence-ignored', 'return !carrierWritten(ctx) && !memoryWritten(ctx);', 'return true;',
+  r18pos([tool('Write', { file_path: r18ruleFile.replace(/\\/g, '/') })]), 'block');
+
+// R19 收尾自进化建议未弹窗（用户 2026-11-12 明确要求：每轮收尾把建议弹窗给用户拍板）。
+// 采集 hook 只写 pending 且永不拦截，"一定会弹"由本规则保证；这里证明它既能拦、也不误拦。
+const R19_STATE = path.join(ROOT, 'r19-capture-state');
+const r19Text = '这一格按你说的口径改好了，细节都在上面的 diff 里。';
+const r19Items = [
+  { kind: 'long-term-preference', topic: 'long-term-preference:以后一律用中文', carriers: ['memory', 'rules', 'agents'], excerpt: '以后一律用简体中文回复', evidence: {} },
+  { kind: 'capability-gap', topic: 'capability-gap:command-not-found', carriers: ['mcp', 'skill', 'script'], excerpt: 'command not found: pwsh', evidence: { tool: 'Bash', occurrences: 2 } },
+];
+const R19_EVOLUTION_CARD = { questions: [{ question: '这条自进化候选要不要采纳并落到 rules？', header: '自进化', options: [{ label: '采纳并落到推荐载体（推荐）' }, { label: '本轮跳过' }] }] };
+const R19_KICKOFF_CARD = { questions: [{ question: '开工确认：理解 / 步骤 / 并行是否合适？', header: '开工确认', options: [{ label: '按此执行' }, { label: '调整' }] }] };
+const R19_CLEAN_CARD = { questions: [{ question: '本轮临时文件清理范围？', header: '临时清理', options: [{ label: '清理本轮产物' }, { label: '保留' }] }] };
+let r19Seq = 0;
+function r19Setup(opts = {}) {
+  const id = 'r19c' + String(++r19Seq).padStart(4, '0');
+  const session = id + '-1111-2222-3333-444444444444';
+  fs.mkdirSync(R19_STATE, { recursive: true });
+  if (opts.items !== null) {
+    fs.writeFileSync(path.join(R19_STATE, `pending-${id}.json`), JSON.stringify({
+      schema: 1, session, task: 'project-alpha', cwd: ROOT,
+      at: opts.at || new Date().toISOString(), askKey: 'fixture', items: opts.items || r19Items,
+    }), 'utf8');
+  }
+  if (opts.foreign) {
+    fs.writeFileSync(path.join(R19_STATE, 'pending-zzzzzzzz.json'), JSON.stringify({
+      schema: 1, session: 'zzzzzzzz-1111', task: 'other', cwd: ROOT, at: new Date().toISOString(), askKey: 'foreign', items: r19Items,
+    }), 'utf8');
+  }
+  const tr = transcript([user(opts.userText || '以后一律用简体中文回复'), ...(opts.tools || [tool('Bash', { command: 'ls' })]), asst(opts.text || r19Text)]);
+  const got = run({ transcript_path: tr, session_id: session, last_assistant_message: opts.text || r19Text }, session, { EVOLUTION_CAPTURE_STATE_DIR: R19_STATE });
+  return { got, session, id };
+}
+const r19check = (label, opts, want) => { const r = r19Setup(opts); check(label, r.got.decision, want); return r; };
+const r19bad = r19check('R19 违规必须拦：有收尾建议但没弹窗', {}, 'block');
+check('R19 归因必须是 R19（不被其他规则顶包）', r19bad.got.out.includes('R19-evolution-suggestion-not-asked') ? 'yes' : 'no', 'yes');
+check('R19 拦截理由给出推荐落点与主题',
+  r19bad.got.out.includes('rules') && r19bad.got.out.includes('long-term-preference') ? 'yes' : 'no', 'yes');
+check('R19 拦截理由给出拒绝登记命令', r19bad.got.out.includes('--decline') ? 'yes' : 'no', 'yes');
+r19check('R19 对照组：本轮已弹自进化建议卡则放行', { tools: [tool('AskUserQuestion', R19_EVOLUTION_CARD, '{"answers":{"选":"采纳"}}')] }, 'allow');
+r19check('R19 对照组：弹窗后真写载体也放行', { tools: [tool('AskUserQuestion', R19_EVOLUTION_CARD, '{"answers":{"选":"采纳"}}'), tool('Write', { file_path: r18ruleFile.replace(/\\/g, '/') })] }, 'allow');
+r19check('R19 负对照：开工确认卡不冒充建议弹窗', { tools: [tool('AskUserQuestion', R19_KICKOFF_CARD, '{"answers":{"选":"按此执行"}}')] }, 'block');
+r19check('R19 负对照：临时清理卡不冒充建议弹窗', { tools: [tool('AskUserQuestion', R19_CLEAN_CARD, '{"answers":{"选":"保留"}}')] }, 'block');
+r19check('R19 负对照：弹窗失败不算已问', { tools: [tool('AskUserQuestion', R19_EVOLUTION_CARD, 'permission denied', true)] }, 'block');
+r19check('R19 负对照：没有 pending 就不拦', { items: null }, 'allow');
+r19check('R19 负对照：pending  items 为空不拦', { items: [] }, 'allow');
+r19check('R19 负对照：超过 24 小时的陈年建议不拦', { at: new Date(Date.now() - 25 * 3600 * 1000).toISOString() }, 'allow');
+r19check('R19 负对照：只读轮不要求弹窗', { userText: '只读审阅这个方案，不要修改任何文件' }, 'allow');
+r19check('R19 负对照：仅交接轮不要求弹窗', { userText: '只给我开工提示词，我自己新开会话' }, 'allow');
+r19check('R19 负对照：禁记忆轮不要求弹窗', { userText: '本轮不要写入记忆，只给结论' }, 'allow');
+r19check('R19 负对照：别的会话的建议不影响本会话', { items: null, foreign: true }, 'allow');
+// 滑动窗上限：同会话同规则最多拦 2 次，超限**可见**放行并落 -SUPPRESSED 台账。
+const r19CapSession = 'r19cap01-1111-2222-3333-444444444444';
+fs.writeFileSync(path.join(R19_STATE, 'pending-r19cap01.json'), JSON.stringify({
+  schema: 1, session: r19CapSession, task: 'project-alpha', cwd: ROOT, at: new Date().toISOString(), askKey: 'cap', items: r19Items,
+}), 'utf8');
+const r19CapTr = transcript([user('以后一律用简体中文回复'), tool('Bash', { command: 'ls' }), asst(r19Text)]);
+const r19CapDecisions = [1, 2, 3].map(() => run({ transcript_path: r19CapTr, session_id: r19CapSession, last_assistant_message: r19Text }, r19CapSession, { EVOLUTION_CAPTURE_STATE_DIR: R19_STATE }).decision);
+check('R19 滑动窗：同会话前两次拦', JSON.stringify(r19CapDecisions.slice(0, 2)), '["block","block"]');
+check('R19 滑动窗：第三次放行（防死循环）', r19CapDecisions[2], 'allow');
+check('R19 超限放行必须留痕',
+  fs.readFileSync(path.join(ROOT, 'state-' + r19CapSession, 'violations.log'), 'utf8').includes('R19-evolution-suggestion-not-asked-SUPPRESSED') ? 'yes' : 'no', 'yes');
+// 改坏必红：摘掉 pending 判据 / 抹掉已弹窗检查 / 忽略有效期 / 忽略只读范围，对应场景必须变样。
+const R19_MUT = path.join(ROOT, 'r19-mut');
+const R19_DEPS = R18_DEPS.concat(['evolution-signal-core.js']);
+let r19MutSeq = 0;
+function r19Mutant(label, from, to, opts, want) {
+  const dir = path.join(R19_MUT, label);
+  fs.mkdirSync(dir, { recursive: true });
+  for (const name of R19_DEPS) {
+    const src = path.join(__dirname, name);
+    if (fs.existsSync(src)) fs.copyFileSync(src, path.join(dir, name));
+  }
+  const target = path.join(dir, 'stop-gate.js');
+  const original = fs.readFileSync(target, 'utf8');
+  if (!original.includes(from)) { check('R19 变异 ' + label + ' 命中源码', 'miss', 'hit'); return; }
+  fs.writeFileSync(target, original.replace(from, to), 'utf8');
+  const id = 'r19m' + String(++r19MutSeq).padStart(4, '0');
+  const session = id + '-1111-2222-3333-444444444444';
+  fs.mkdirSync(R19_STATE, { recursive: true });
+  fs.writeFileSync(path.join(R19_STATE, `pending-${id}.json`), JSON.stringify({
+    schema: 1, session, task: 'project-alpha', cwd: ROOT, at: opts.at || new Date().toISOString(), askKey: 'mut', items: opts.items || r19Items,
+  }), 'utf8');
+  const tr = transcript([user(opts.userText || '以后一律用简体中文回复'), ...(opts.tools || [tool('Bash', { command: 'ls' })]), asst(r19Text)]);
+  let out = '';
+  try {
+    out = execFileSync(process.execPath, [target], {
+      input: JSON.stringify({ cwd: ROOT, task_id: 'stopgate-test', transcript_path: tr, session_id: session, last_assistant_message: r19Text }),
+      encoding: 'utf8',
+      env: Object.assign({}, process.env, {
+        HOME: ROOT, USERPROFILE: ROOT, HOOK_CRASH_LOG: path.join(ROOT, 'crash.log'),
+        STOP_GATE_STATE_DIR: path.join(ROOT, 'state-' + session), EVOLUTION_CAPTURE_STATE_DIR: R19_STATE,
+        TEMP: path.join(ROOT, 'temp'), TMP: path.join(ROOT, 'temp'), TMPDIR: path.join(ROOT, 'temp'),
+        LOCALAPPDATA: path.join(ROOT, 'la'),
+      }),
+    });
+  } catch (e) { out = (e.stdout || '') + ''; }
+  let decision = 'allow';
+  try { if (JSON.parse(out.trim().split('\n').filter(Boolean).pop() || '{}').decision === 'block') decision = 'block'; } catch {}
+  check('R19 改坏必红：' + label, decision, want);
+}
+r19Mutant('pending-ignored', 'if (!pendingSuggestion(ctx)) return false;', 'if (true) return false;', {}, 'allow');
+r19Mutant('asked-check-neutered', 'return !askedAbout(ctx, evolutionSignal.EVOLUTION_ASK);', 'return true;',
+  { tools: [tool('AskUserQuestion', R19_EVOLUTION_CARD, '{"answers":{"选":"采纳"}}')] }, 'block');
+r19Mutant('ttl-ignored', 'if (!Number.isFinite(at) || Date.now() - at > PENDING_TTL_MS) return null;', 'if (!Number.isFinite(at)) return null;',
+  { at: new Date(Date.now() - 25 * 3600 * 1000).toISOString() }, 'block');
+r19Mutant('scope-ignored', 'if (ctx.scope.readOnly || ctx.scope.handoffOnly || ctx.scope.noMemory) return false;\n      if (!evolutionSignal) return false;', 'if (false) return false;\n      if (!evolutionSignal) return false;',
+  { userText: '只读审阅这个方案，不要修改任何文件' }, 'block');
 
 // R5 无主张踢皮球（窄条件：踢皮球句式 + 无主张词）
 const r5a = '两个方案各有优劣，看你要哪个。';

@@ -476,6 +476,27 @@ function memoryWritten(ctx) {
   });
 }
 
+// 自进化载体落盘证据（R18 用）：规则 / 技能 / hook / 命令 / agent / AGENTS / 经验记录 / 记忆。
+// 只认执行面：真写盘且文件非空，或真跑过 evolution.js record|commit。
+// 命令字符串里提到载体名字不算证据（引用≠动手），写盘失败也不算。
+const CARRIER_TARGET = /[\\/](?:rules|skills|skills-library|hooks|commands|agents|memory)[\\/]|[\\/]AGENTS\.md$|[\\/]evolution[\\/]records[\\/][^\\/]+\.json$/i;
+function carrierWritten(ctx) {
+  return ctx.turnTools.some((tool) => {
+    if (!tool.success) return false;
+    const name = toolName(tool);
+    if (['Write', 'Edit', 'NotebookEdit'].includes(name)) {
+      const target = tool.input.file_path || tool.input.notebook_path;
+      if (typeof target !== 'string' || !CARRIER_TARGET.test(target)) return false;
+      try {
+        const st = fs.statSync(target);
+        return st.isFile() && st.size > 0;
+      } catch { return false; }
+    }
+    if (name === 'Bash') return /evolution\.js['"]?\s+(?:record|commit)\b/.test(String(tool.input.command || ''));
+    return false;
+  });
+}
+
 function handoffRecorded(ctx) {
   return ctx.turnTools.some((tool) => {
     const file = tool.input.file_path;
@@ -919,6 +940,48 @@ function cleanupReported(text) {
       || /(?:无|没有|零)[^\n]{0,12}(?:临时产物|可清条目|新增)/.test(t));
 }
 
+// R18 主张词：完成态 + 载体名词，二者同句共现才算"声称已沉淀"。
+// 宁窄勿滥：只认载体名词，不认"已记住这个偏好"这类无载体的口头承诺（那属 R8/记忆纪律）。
+const SEDIMENT_CLAIM = /已(?:经)?(?:沉淀|固化|落成|记住|写进|写入|记入|落到)[^。；\n]{0,20}?(?:规则|技能|hooks?|AGENTS|agents\.md|记忆|经验|登记簿|载体|rules|skills)|已(?:经)?(?:把|将)[^。；\n]{0,40}?(?:写进|写入|记入|落到|沉淀到|固化到|沉淀为|固化为|落成|沉淀|固化|记到|写到)[^。；\n]{0,16}?(?:规则|技能|hooks?|AGENTS|agents\.md|记忆|经验记录|登记簿|载体|rules|skills)/i;
+// 否定/待批准前缀出现在同一小句时不拦（"尚未写入规则"、"待授权后沉淀"）。
+const SEDIMENT_NEGATED = /(?:未|尚未|还没|没有|不会|不能|无法|待|需(?:要)?(?:批准|授权)|无权|不(?:打算|准备))[^。；\n]{0,16}?(?:沉淀|固化|落成|写进|写入|记入|记住|落到)/;
+
+// —— R19：收尾自进化建议必须弹窗给用户拍板（2026-11-12 用户明确要求）——
+// 采集 hook 只写 pending（它永不拦截），"一定会弹"由本规则保证：命中条件且本轮没有
+// **就自进化建议**的 AskUserQuestion 证据就 block 续跑。开工卡 / 清理卡不算已问过建议。
+let evolutionSignal = null;
+try { evolutionSignal = require('./evolution-signal-core.js'); } catch {}
+const CAPTURE_STATE_DIR = process.env.EVOLUTION_CAPTURE_STATE_DIR || path.join(CLIENT_ROOT, 'tmp', 'evolution-capture');
+const PENDING_TTL_MS = 24 * 60 * 60 * 1000; // 与 evolution-capture.cjs 同口径：陈年建议作废
+
+function pendingSuggestion(ctx) {
+  const session = String(ctx.sessionId || 'unknown').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 8);
+  const value = json(path.join(CAPTURE_STATE_DIR, `pending-${session}.json`));
+  if (!value || !Array.isArray(value.items) || !value.items.length) return null;
+  const at = Date.parse(value.at);
+  if (!Number.isFinite(at) || Date.now() - at > PENDING_TTL_MS) return null;
+  return value;
+}
+
+const CARRIER_LABEL = { memory: '记忆', rules: 'rules 领域规则', agents: 'AGENTS.md', skill: '技能', hook: 'hook 机制', mcp: 'MCP', script: '脚本' };
+
+function suggestionReason(ctx) {
+  const pending = pendingSuggestion(ctx) || { items: [] };
+  const lines = pending.items.slice(0, 6).map((item) => {
+    const carriers = (Array.isArray(item.carriers) ? item.carriers : []).map(c => CARRIER_LABEL[c] || c).join(' → ');
+    const times = item.evidence && Number(item.evidence.occurrences) >= 2 ? `（本轮同一错误 ${item.evidence.occurrences} 次）` : '';
+    return `· ${item.topic}${times} → 推荐落点：${carriers || '记忆'}；片段：${String(item.excerpt || '').slice(0, 80)}`;
+  });
+  return '本轮自进化采集到值得沉淀的新候选，但没有用 AskUserQuestion 把建议交用户拍板。'
+    + '按用户 2026-11-12 的明确要求：每轮收尾要把自进化建议弹窗给出推荐，由用户决定是否新增/更改。\n'
+    + lines.join('\n')
+    + '\n现在用 AskUserQuestion 弹一张卡（问题正文含「自进化」字样），每条候选给真实备选：'
+    + '「采纳并落到推荐载体（推荐）」/「改写后采纳」/「本轮跳过」，并写清收益与代价。'
+    + '用户选采纳才动载体：先 carrier-preflight，再备份、最小差异修改、验证、evolution.js record；'
+    + '选跳过就运行 `node ~/.qoder/scripts/evolution-capture.cjs --decline <topic>` 登记，同主题不再重复弹。'
+    + '候选只是待核对材料（verified 一律 false），不是授权；只读 / 仅交接 / 禁记忆轮不要求弹窗。';
+}
+
 const RULES = [
   {
     id: 'R6-open-work-queue',
@@ -1121,6 +1184,42 @@ const RULES = [
     test: (t, ctx) => needsMemory(ctx) && !memoryWritten(ctx),
     reason:
       '本轮明确要求保存记忆或声称记忆已写入，但缺少成功工具结果、非空目标文件及索引引用。只读审阅、临时纠正和普通重试不强制记忆；被权限拒绝时报告阻塞，不得绕过。',
+  },
+  {
+    id: 'R18-sedimentation-claim-without-evidence',
+    // 窄条件：只在"声称已把经验/偏好落成载体"且本轮零载体写入证据时拦。
+    // 与 R8 分工：R8 管记忆的成功结果+索引证据，R18 管规则/技能/hook/经验记录这类载体。
+    // 采集 hook 写的是候选（inbox），不是载体；"已记录候选"不在本规则的主张词里。
+    test: (t, ctx) => {
+      if (ctx.scope.readOnly || ctx.scope.handoffOnly || ctx.scope.noMemory) return false;
+      const text = ctx.lastAssistantText;
+      if (!SEDIMENT_CLAIM.test(text)) return false;
+      if (SEDIMENT_NEGATED.test(text)) return false;
+      // 权限被拒时如实报告阻塞不算违规（与 needsMemory 同口径）。
+      if (/权限|审批|授权|拒绝/.test(text)
+        && ctx.turnTools.some((tool) => !tool.success && /permission|denied|CONFIRMATION_REQUIRED|权限|拒绝/i.test(JSON.stringify(tool.result || '')))) return false;
+      return !carrierWritten(ctx) && !memoryWritten(ctx);
+    },
+    reason:
+      '本轮声称已把经验/偏好沉淀成载体（规则 / 技能 / hook / AGENTS / 经验记录 / 记忆），但没有本轮成功写入证据。'
+      + '自进化采集 hook 写进 inbox 的只是**候选**，不等于载体已落地。'
+      + '要么现在按授权真写进最窄载体并给出文件路径与验证结果，要么把结论改成「已记录候选，待授权晋升」/「未沉淀 + 原因」；'
+      + '只读、仅交接或禁止记忆时不要求写入，被权限拒绝时如实报告阻塞。',
+  },
+  {
+    id: 'R19-evolution-suggestion-not-asked',
+    tailOnly: false,
+    needsText: false,
+    // 窄条件：采集层本轮写下了够格的收尾建议（pending），而本轮没有就自进化建议弹过窗。
+    // 与 R10/R11 同构（那两条管能力安装与部署询问），本条管"经验/习惯要不要落成载体"。
+    // 上限沿用滑动窗：每规则 30 分钟内最多拦 2 次，超限写 -SUPPRESSED 台账后可见放行。
+    test: (t, ctx) => {
+      if (ctx.scope.readOnly || ctx.scope.handoffOnly || ctx.scope.noMemory) return false;
+      if (!evolutionSignal) return false;
+      if (!pendingSuggestion(ctx)) return false;
+      return !askedAbout(ctx, evolutionSignal.EVOLUTION_ASK);
+    },
+    reason: suggestionReason,
   },
   {
     id: 'R5-no-stance-punt',

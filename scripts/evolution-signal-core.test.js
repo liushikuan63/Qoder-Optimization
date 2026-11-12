@@ -111,6 +111,21 @@ function assertions(mod) {
   const sigX = mod.classifyPreference('以后一律用简体中文回复').signals[0];
   const sigY = mod.classifyPreference('以后   一律用简体中文回复').signals[0];
   add('空白差异不改变 topic', Boolean(sigX) && Boolean(sigY) && mod.topicFor(sigX) === mod.topicFor(sigY), `${mod.topicFor(sigX)} vs ${mod.topicFor(sigY)}`);
+  // —— 收尾建议弹窗判据（采集层写 pending、门禁 R19 读；2026-11-12 用户明确要求）——
+  const popupPref = { kind: mod.KINDS.LONG_TERM, family: 'preference', evidence: {} };
+  const popupGap1 = { kind: mod.KINDS.TOOL_GAP, family: 'problem', evidence: { occurrences: 1 } };
+  const popupGap2 = { kind: mod.KINDS.TOOL_GAP, family: 'problem', evidence: { occurrences: 2 } };
+  const popupExp = { kind: mod.KINDS.DISPROVEN, family: 'experience', evidence: {} };
+  add('弹窗够格：明确长期偏好一次即可', mod.popupWorthy(popupPref, 1) === true);
+  add('弹窗不够格：单次能力缺口且单会话', mod.popupWorthy(popupGap1, 1) === false);
+  add('弹窗够格：同一错误 2 次', mod.popupWorthy(popupGap2, 1) === true);
+  add('弹窗够格：跨 2 会话的单次缺口', mod.popupWorthy(popupGap1, 2) === true);
+  add('弹窗不够格：助手自述经验只进月报', mod.popupWorthy(popupExp, 3) === false);
+  add('弹窗判据空输入不抛错', mod.popupWorthy(null, 1) === false && mod.popupWorthy(undefined) === false);
+  add('自进化卡算已问建议', mod.isEvolutionAsk('AskUserQuestion', { questions: [{ question: '这条自进化候选要不要采纳？' }] }) === true);
+  add('开工卡不冒充建议弹窗', mod.isEvolutionAsk('AskUserQuestion', { questions: [{ question: '开工确认：理解与步骤是否合适？' }] }) === false);
+  add('清理卡不冒充建议弹窗', mod.isEvolutionAsk('AskUserQuestion', { questions: [{ question: '本轮临时文件清理范围？' }] }) === false);
+  add('非弹窗工具不算已问建议', mod.isEvolutionAsk('Bash', { command: 'echo 自进化' }) === false);
   return list;
 }
 
@@ -192,6 +207,23 @@ mutate('rule-quote-exclusion-removed', 'return META.test(text) || RULE_QUOTE.tes
 mutate('broad-recall-neutered', 'const LONG_TERM_BROAD = /(?:以后', 'const LONG_TERM_BROAD = /(?!)(?:以后', '采集加宽召回命中');
 mutate('extended-flag-ignored', 'const extended = Boolean(options && options.extended);', 'const extended = false;', '采集加宽召回命中');
 mutate('topic-whitespace-unstable', ".replace(/\\s+/g, '');", '.trim();', '空白差异不改变 topic');
+mutate('popup-threshold-neutered', 'if ([KINDS.TOOL_GAP, KINDS.REPEATED_FAILURE].includes(candidate.kind)) return occurrences >= 2;', 'if ([KINDS.TOOL_GAP, KINDS.REPEATED_FAILURE].includes(candidate.kind)) return true;', '弹窗不够格：单次能力缺口且单会话');
+mutate('experience-popup-allowed', "if (!candidate || candidate.family === 'experience') return false;", 'if (!candidate) return false;', '弹窗不够格：助手自述经验只进月报');
+mutate('evolution-ask-too-wide', 'try { return EVOLUTION_ASK.test(JSON.stringify(input || {})); } catch { return false; }', 'try { return true; } catch { return false; }', '开工卡不冒充建议弹窗');
+
+// —— 跨文件漂移断言：核声明"与门禁同源"就必须真的逐字一致，且这条断言要能失败 ——
+const gateSrc = fs.readFileSync(path.join(__dirname, 'stop-gate.js'), 'utf8');
+const captureSrc = fs.readFileSync(path.join(__dirname, 'evolution-capture.cjs'), 'utf8');
+const scopeBlock = gateSrc.slice(gateSrc.indexOf('function taskScope('), gateSrc.indexOf('function toolName('));
+for (const [key, re] of [['readOnly', core.READ_ONLY], ['handoffOnly', core.HANDOFF_ONLY], ['noMemory', core.NO_MEMORY]]) {
+  check(`门禁 taskScope 兜底与核 ${key} 逐字同源`, scopeBlock.includes(re.source));
+}
+check('漂移断言能失败（改一个字就不认）', !scopeBlock.replace('不要记住', '不要记得').includes(core.NO_MEMORY.source));
+check('门禁 R19 复用核的 EVOLUTION_ASK（不另抄一份）', gateSrc.includes('R19-evolution-suggestion-not-asked') && gateSrc.includes('askedAbout(ctx, evolutionSignal.EVOLUTION_ASK)'));
+const stateDirExpr = "process.env.EVOLUTION_CAPTURE_STATE_DIR || path.join(CLIENT_ROOT, 'tmp', 'evolution-capture')";
+check('采集与门禁的 pending 目录解析口径一致', captureSrc.includes(stateDirExpr) && gateSrc.includes(stateDirExpr));
+check('采集与门禁的 pending 有效期一致（24h）', captureSrc.includes('PENDING_TTL_MS = 24 * 60 * 60 * 1000') && gateSrc.includes('PENDING_TTL_MS = 24 * 60 * 60 * 1000'));
+check('采集 hook 自己永不拦截（强制弹窗只由门禁承担）', !/decision\s*:\s*['"]block/.test(captureSrc));
 
 // 变异自检本身的负对照：未改动的副本必须全绿（证明红来自变异，不是harness恒红）。
 const cleanCopy = path.join(SB, 'clean-copy.js');

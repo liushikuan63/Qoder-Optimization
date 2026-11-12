@@ -6,8 +6,8 @@
 // 这个 hook 把"过程中的问题与用户习惯"在每次 Stop 时确定性地落成候选，交给晋升扫描与人工采纳。
 //
 // 边界（写死，改这些需要用户明确批准）：
-//   · 只写 <客户端>/evolution/inbox.jsonl 与机制心跳；绝不写规则/技能/settings/memory/MCP 配置。
-//   · 永不拦截：hook 模式下总是 exit 0、不输出 decision，fail-open。
+//   · 只写 <客户端>/evolution/inbox.jsonl、机制心跳与收尾建议 pending 状态；绝不写规则/技能/settings/memory/MCP 配置。
+//   · 永不拦截：hook 模式下总是 exit 0、不输出 decision，fail-open。强制弹窗由 stop-gate R19 承担（本脚本只写 pending）。
 //   · 只读轮 / 仅交接轮 / 明确禁记忆轮：不写候选（只留不含正文的心跳）。
 //   · 暂停开关（evolution/control.json 的 enabled）关闭时不采集；开关损坏时停止采集并告警，不重置。
 //   · 入库前脱敏（复用 parallel-context-redact.cjs），只存片段，不存完整对话、不存工具原始输出。
@@ -17,7 +17,8 @@
 //   Stop hook（读 stdin JSON）: node evolution-capture.cjs
 //   只读体检:                   node evolution-capture.cjs --report [--json]
 //   隔离演算（零写入）:          node evolution-capture.cjs --dry-run --transcript <file> [--session id] [--cwd dir]
-if (process.argv[2] !== '--report' && process.argv[2] !== '--dry-run') require('./hook-crash-guard.js').install('evolution-capture');
+//   登记用户拒绝（不再重复弹）:   node evolution-capture.cjs --decline <topic> [--decline <topic> ...]
+if (!['--report', '--dry-run', '--decline'].includes(process.argv[2])) require('./hook-crash-guard.js').install('evolution-capture');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -33,6 +34,12 @@ const CONTROL = path.join(EVOLUTION_DIR, 'control.json');
 const CONFIG = path.join(CLIENT_ROOT, 'evolution-capture.json');
 const STATE_DIR = process.env.EVOLUTION_CAPTURE_STATE_DIR || path.join(CLIENT_ROOT, 'tmp', 'evolution-capture');
 const HEARTBEAT = path.join(STATE_DIR, 'heartbeat.log');
+// 收尾建议 pending：采集层写、门禁 R19 读。放机制状态目录，不与 inbox（证据数据）混在一起。
+const DECLINED = path.join(EVOLUTION_DIR, 'suggestions-declined.json');
+const PENDING_TTL_MS = 24 * 60 * 60 * 1000; // 超过 24 小时没问出口的建议作废，避免陈年候选突然弹窗
+const MAX_PENDING_ITEMS = 6;
+const sessionKey = session => String(session || 'unknown').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 8);
+const pendingFile = session => path.join(STATE_DIR, `pending-${sessionKey(session)}.json`);
 
 const DEFAULTS = { enabled: true, tailBytes: 1024 * 1024, maxPerTurn: 8, rotateBytes: 4 * 1024 * 1024, excerptChars: 240 };
 const SHA = value => crypto.createHash('sha256').update(value).digest('hex');
@@ -72,7 +79,7 @@ function heartbeat(line) {
 // 比 stop-gate 的 scanTranscript 窄：门禁要完整工具台账与成功判定，采集只要"值得核对的信号"。
 // 两者共用的是判据（evolution-signal-core.js），不是这段 IO。
 function readTurn(file, tailBytes) {
-  const out = { exists: false, userText: '', assistantTexts: [], failures: [], parsed: 0 };
+  const out = { exists: false, userText: '', assistantTexts: [], failures: [], askedEvolution: false, parsed: 0 };
   if (!file) return out;
   let st;
   try { st = fs.statSync(file); } catch { return out; }
@@ -115,6 +122,7 @@ function readTurn(file, tailBytes) {
         out.userText = text;
         out.assistantTexts = [];
         out.failures = [];
+        out.askedEvolution = false;
         uses.clear();
       }
     } else if (role === 'assistant') {
@@ -122,7 +130,12 @@ function readTurn(file, tailBytes) {
       else if (Array.isArray(content)) {
         const text = content.filter(x => x && x.type === 'text' && x.text).map(x => x.text).join('\n');
         if (text.trim()) out.assistantTexts.push(text);
-        for (const item of content) if (item && item.type === 'tool_use') uses.set(item.id, { name: item.name });
+        for (const item of content) {
+          if (!item || item.type !== 'tool_use') continue;
+          uses.set(item.id, { name: item.name });
+          // 本轮已经就自进化建议弹过窗 → 收尾建议视为已交用户拍板（开工卡/清理卡不算）。
+          if (signal.isEvolutionAsk(item.name, item.input)) out.askedEvolution = true;
+        }
       }
     }
     out.parsed++;
@@ -223,6 +236,7 @@ function withIdentity(candidate, ctx) {
 
 function readInboxKeys(files) {
   const keys = new Set();
+  const sessions = new Map(); // topic → Set(session)，用于"跨会话才够格弹窗"的判定
   let records = 0;
   for (const file of files) {
     let text;
@@ -233,10 +247,77 @@ function readInboxKeys(files) {
         const record = JSON.parse(line);
         records++;
         if (record && record.dedupKey) keys.add(record.dedupKey);
+        if (record && record.topic && record.session) {
+          if (!sessions.has(record.topic)) sessions.set(record.topic, new Set());
+          sessions.get(record.topic).add(record.session);
+        }
       } catch {}
     }
   }
-  return { keys, records };
+  return { keys, records, sessions };
+}
+
+// —— 收尾建议 pending（采集写、门禁 R19 读；本脚本自己永不拦截）——
+function readDeclined() {
+  const value = readJson(DECLINED, null);
+  const list = value && Array.isArray(value.declined) ? value.declined : [];
+  return new Set(list.map(x => (typeof x === 'string' ? x : x && x.topic)).filter(x => typeof x === 'string' && x));
+}
+
+function readPending(session) {
+  const value = readJson(pendingFile(session), null);
+  if (!value || !Array.isArray(value.items) || !value.items.length) return null;
+  const at = Date.parse(value.at);
+  if (!Number.isFinite(at) || Date.now() - at > PENDING_TTL_MS) return null; // 过期作废，不弹陈年候选
+  return value;
+}
+
+function clearPending(session) {
+  try { fs.unlinkSync(pendingFile(session)); return true; } catch { return false; }
+}
+
+// 只把"够格当轮弹"的新候选写成建议；已拒绝的主题不再提，助手自述经验只进月报。
+function writePending(session, ctx, fresh, sessions) {
+  const declined = readDeclined();
+  const items = fresh
+    .filter(c => !declined.has(c.topic))
+    .filter(c => signal.popupWorthy(c, sessions.get(c.topic) ? sessions.get(c.topic).size : 1))
+    .map(c => ({ kind: c.kind, topic: c.topic, carriers: c.carriers, excerpt: c.excerpt, evidence: c.evidence || {} }));
+  if (!items.length) return { pending: 0 };
+  const previous = readPending(session);
+  const merged = new Map();
+  for (const item of (previous ? previous.items : []).concat(items)) merged.set(item.topic, item);
+  const list = [...merged.values()].slice(0, MAX_PENDING_ITEMS);
+  const payload = {
+    schema: 1, session: ctx.session, task: ctx.task, cwd: ctx.cwd,
+    at: new Date().toISOString(),
+    askKey: SHA(ctx.session + '|' + list.map(x => x.topic).sort().join('|')).slice(0, 16),
+    items: list,
+  };
+  try {
+    fs.mkdirSync(STATE_DIR, { recursive: true });
+    fs.writeFileSync(pendingFile(session), JSON.stringify(payload, null, 2));
+    return { pending: list.length, askKey: payload.askKey };
+  } catch { return { pending: 0 }; }
+}
+
+// 用户选"跳过/不采纳"时登记：同主题不再重复弹（inbox 里的原始证据保留，可查可恢复）。
+function declineTopics(topics) {
+  const current = readJson(DECLINED, null);
+  const list = current && Array.isArray(current.declined) ? current.declined.slice() : [];
+  const known = new Set(list.map(x => (typeof x === 'string' ? x : x && x.topic)));
+  const added = [];
+  for (const topic of topics) {
+    if (typeof topic !== 'string' || !topic.trim() || known.has(topic)) continue;
+    known.add(topic);
+    added.push(topic);
+    list.push({ topic, at: new Date().toISOString() });
+  }
+  if (added.length) {
+    fs.mkdirSync(EVOLUTION_DIR, { recursive: true });
+    fs.writeFileSync(DECLINED, JSON.stringify({ schema: 1, declined: list }, null, 2));
+  }
+  return added;
 }
 
 function acquireLock() {
@@ -263,8 +344,8 @@ function inboxFiles() {
 
 // 写盘：仅 inbox.jsonl（超阈值先轮转成归档，保证采集不会因体积上限静默停摆）。
 function appendCandidates(candidates, cfg) {
-  if (!candidates.length) return { written: 0, duplicates: 0 };
-  if (!acquireLock()) return { written: 0, duplicates: 0, reason: 'LOCK_BUSY' };
+  if (!candidates.length) return { written: 0, duplicates: 0, fresh: [], sessions: new Map() };
+  if (!acquireLock()) return { written: 0, duplicates: 0, fresh: [], sessions: new Map(), reason: 'LOCK_BUSY' };
   try {
     let size = 0;
     try { size = fs.statSync(INBOX).size; } catch {}
@@ -272,10 +353,15 @@ function appendCandidates(candidates, cfg) {
       const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
       fs.renameSync(INBOX, path.join(EVOLUTION_DIR, `inbox.archive-${stamp}.jsonl`));
     }
-    const { keys } = readInboxKeys(inboxFiles());
+    const { keys, sessions } = readInboxKeys(inboxFiles());
     const fresh = candidates.filter(c => !keys.has(c.dedupKey));
     if (fresh.length) fs.appendFileSync(INBOX, fresh.map(c => JSON.stringify(c)).join('\n') + '\n');
-    return { written: fresh.length, duplicates: candidates.length - fresh.length };
+    // 本轮新写入的主题也要计入会话数：同一主题第一次出现在第二个会话时，本轮就该够格弹窗。
+    for (const c of fresh) {
+      if (!sessions.has(c.topic)) sessions.set(c.topic, new Set());
+      sessions.get(c.topic).add(c.session);
+    }
+    return { written: fresh.length, duplicates: candidates.length - fresh.length, fresh, sessions };
   } finally {
     try { fs.unlinkSync(LOCK); } catch {}
   }
@@ -293,6 +379,20 @@ function contextFrom(input, cfg) {
 }
 
 // —— 只读体检：给周检与人工用，不写任何文件 ——
+function pendingSessions() {
+  let names = [];
+  try { names = fs.readdirSync(STATE_DIR); } catch { return []; }
+  const out = [];
+  for (const name of names) {
+    if (!/^pending-.*\.json$/.test(name)) continue;
+    const value = readJson(path.join(STATE_DIR, name), null);
+    if (!value || !Array.isArray(value.items) || !value.items.length) continue;
+    const at = Date.parse(value.at);
+    out.push({ session: value.session, task: value.task, items: value.items.length, expired: !Number.isFinite(at) || Date.now() - at > PENDING_TTL_MS });
+  }
+  return out;
+}
+
 function report(asJson) {
   const files = inboxFiles();
   const { keys, records } = readInboxKeys(files);
@@ -318,11 +418,14 @@ function report(asJson) {
     byKind, crossSessionTopics: crossSession.sort((a, b) => b.sessions - a.sessions).slice(0, 20),
     topTopics: [...topics.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20).map(([topic, count]) => ({ topic, count })),
     capture: captureEnabled(),
+    declined: readDeclined().size,
+    pending: pendingSessions(),
   };
   if (asJson) console.log(JSON.stringify(result, null, 2));
   else {
     console.log(`inbox=${INBOX}`);
     console.log(`files=${result.files} records=${records} unique=${keys.size} capture=${result.capture.ok ? 'ENABLED' : result.capture.reason}`);
+    console.log(`待弹窗建议=${result.pending.length} 个会话；已拒绝主题=${result.declined}`);
     for (const [kind, count] of Object.entries(byKind)) console.log(`  ${kind}: ${count}`);
     if (crossSession.length) console.log(`跨会话主题（≥2 会话，晋升候选）: ${crossSession.length}`);
     else console.log('跨会话主题（≥2 会话，晋升候选）: 0');
@@ -333,6 +436,32 @@ function report(asJson) {
 function main() {
   const args = process.argv.slice(2);
   if (args.includes('--report')) { report(args.includes('--json')); return 0; }
+
+  if (args.includes('--decline')) {
+    const topics = [];
+    for (let i = 0; i < args.length; i++) if (args[i] === '--decline' && args[i + 1]) topics.push(args[i + 1]);
+    if (!topics.length) { console.error('DECLINE_NEEDS_TOPIC'); return 2; }
+    let added;
+    try { added = declineTopics(topics); } catch (error) { console.error('DECLINE_FAILED ' + String((error && error.message) || error)); return 2; }
+    // 已拒绝的主题从 pending 撤下；撤空就删文件，门禁不再为已拒绝的建议拦人。
+    let removed = 0;
+    try {
+      for (const name of fs.readdirSync(STATE_DIR)) {
+        if (!/^pending-.*\.json$/.test(name)) continue;
+        const file = path.join(STATE_DIR, name);
+        const value = readJson(file, null);
+        if (!value || !Array.isArray(value.items)) continue;
+        const kept = value.items.filter(x => !topics.includes(x.topic));
+        if (kept.length === value.items.length) continue;
+        removed += value.items.length - kept.length;
+        if (kept.length) fs.writeFileSync(file, JSON.stringify({ ...value, items: kept }, null, 2));
+        else fs.unlinkSync(file);
+      }
+    } catch {}
+    console.log(`declined=${added.length} removed_from_pending=${removed} total=${readDeclined().size}`);
+    for (const topic of added) console.log(`  - ${topic}`);
+    return 0;
+  }
 
   const cfg = config();
   if (args.includes('--dry-run')) {
@@ -349,7 +478,13 @@ function main() {
     const turn = readTurn(path.resolve(file), cfg.tailBytes);
     const scope = signal.captureScope(turn.userText);
     const candidates = candidatesFromTurn(turn, ctx).map(c => withIdentity(c, ctx));
-    console.log(JSON.stringify({ dryRun: true, writes: 0, exists: turn.exists, scope, candidates }, null, 2));
+    const { sessions } = readInboxKeys(inboxFiles());
+    const declined = readDeclined();
+    const popup = candidates
+      .filter(c => !declined.has(c.topic))
+      .filter(c => signal.popupWorthy(c, sessions.get(c.topic) ? sessions.get(c.topic).size : 1))
+      .map(c => c.topic);
+    console.log(JSON.stringify({ dryRun: true, writes: 0, exists: turn.exists, scope, askedEvolution: turn.askedEvolution, wouldPopup: popup, candidates }, null, 2));
     return 0;
   }
 
@@ -375,11 +510,16 @@ function main() {
   }
 
   const candidates = candidatesFromTurn(turn, ctx).map(c => withIdentity(c, ctx));
+  // 本轮已就自进化建议弹过窗 → 建议已交用户拍板，清掉 pending（门禁 R19 随之放行）。
+  if (turn.askedEvolution && clearPending(ctx.session)) heartbeat(`ASKED session=${shortSession} pending=cleared`);
   if (!candidates.length) { heartbeat(`NO_SIGNAL session=${shortSession} failures=${turn.failures.length}`); return 0; }
   const result = appendCandidates(candidates, cfg);
   if (result.reason) { heartbeat(`SKIP_${result.reason} session=${shortSession} candidates=${candidates.length}`); return 0; }
+  // 只有**本轮新增**且够格的候选才形成收尾建议；重复证据不再弹，助手自述经验只进月报。
+  // 本轮已经弹过建议卡就不再追加（每轮最多问一次），避免"刚问完又拦一次"。
+  const suggestion = result.written && !turn.askedEvolution ? writePending(ctx.session, ctx, result.fresh, result.sessions) : { pending: 0 };
   const kinds = [...new Set(candidates.map(c => c.kind))].join(',');
-  heartbeat(`CAPTURE session=${shortSession} task=${ctx.task} written=${result.written} dup=${result.duplicates} kinds=${kinds}`);
+  heartbeat(`CAPTURE session=${shortSession} task=${ctx.task} written=${result.written} dup=${result.duplicates} kinds=${kinds} pending=${suggestion.pending}`);
   return 0;
 }
 
