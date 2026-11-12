@@ -87,7 +87,7 @@ function heartbeat(line) {
 // 只认 role=user 会整条漏读（本会话 6450 行里只认出 1 条指令，真实插话在第 1698 行）。
 // 注入件前缀与正文清洗统一由 signal-core 提供，避免两处口径漂移。
 function userInstructionOf(entry) {
-  if (!entry || entry.isCompactSummary === true) return '';
+  if (!entry || entry.isCompactSummary === true || entry.isSidechain === true) return '';
   const queued = signal.queuedUserTextOf(entry);
   if (queued) return queued;
   const msg = entry.message || entry;
@@ -170,6 +170,11 @@ function readTurn(file, tailBytes, backtrackBytes) {
     let entry;
     try { entry = JSON.parse(line); } catch { continue; }
     const msg = entry.message || entry;
+    // 子代理（sidechain）条目整条不算本轮：与 continuity.cjs selected() 同口径。否则子代理提示词会被
+    // 当用户指令（含"只读"就整轮 SKIP_READ_ONLY），它的失败工具与笔记也会算到本轮名下。
+    // 诚实边界：本会话真实 transcript 8810 行实测 sidechainUser=0（宿主把子代理提示词写在 Agent 入参里），
+    // 这是防御性对齐，不是已复现的现役缺陷；判据由合成夹具的正例/负对照保证能失败。
+    if (entry.isSidechain === true || msg.isSidechain === true) continue;
     const role = msg.role || entry.type;
     const content = msg.content;
     if (role === 'user') {
@@ -232,7 +237,10 @@ function safeExcerpt(text, limit) {
 }
 
 function failureSignature(text) {
-  return String(text || '').replace(/\d+/g, '#').replace(/\s+/g, ' ').trim().slice(0, 120).toLowerCase();
+  // 签名也要脱敏：它被写进 inbox 的 evidence.signature，只把数字换成 # 会让 token / 内网地址 /
+  // URL 查询参数原样入库（2026-11-12 第二轮对抗审查实测：findSensitive 命中 CREDENTIAL+URL）。
+  // 先脱敏再归一化，分组键因此也更稳（只差凭据取值的同一错误会归到一组）。
+  return redact(String(text || '')).replace(/\d+/g, '#').replace(/\s+/g, ' ').trim().slice(0, 120).toLowerCase();
 }
 
 // —— 候选生成（纯计算，不写盘）——
@@ -358,7 +366,12 @@ function writePending(session, ctx, fresh, sessions) {
   if (!items.length) return { pending: 0 };
   const previous = readPending(session);
   const merged = new Map();
-  for (const item of (previous ? previous.items : []).concat(items)) merged.set(item.topic, item);
+  // 新项优先：旧项先入 Map 时插入序＝旧项在前，slice(0,6) 会把本轮新候选全截掉 ——
+  // 满 6 条后新建议永久饿死，而 at 每轮刷新让 TTL 也清不掉旧项（2026-11-12 第二轮对抗审查实测）。
+  // 同主题以本轮的新片段/新证据为准，旧项只填余位。
+  for (const item of items.concat(previous ? previous.items : [])) {
+    if (!merged.has(item.topic)) merged.set(item.topic, item);
+  }
   const list = [...merged.values()].slice(0, MAX_PENDING_ITEMS);
   const payload = {
     schema: 1, session: ctx.session, task: ctx.task, cwd: ctx.cwd,

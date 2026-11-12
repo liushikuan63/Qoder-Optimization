@@ -125,6 +125,14 @@ function assertions(mod) {
   add('自进化卡算已问建议', mod.isEvolutionAsk('AskUserQuestion', { questions: [{ question: '这条自进化候选要不要采纳？' }] }) === true);
   add('开工卡不冒充建议弹窗', mod.isEvolutionAsk('AskUserQuestion', { questions: [{ question: '开工确认：理解与步骤是否合适？' }] }) === false);
   add('清理卡不冒充建议弹窗', mod.isEvolutionAsk('AskUserQuestion', { questions: [{ question: '本轮临时文件清理范围？' }] }) === false);
+  // 真实清理卡正文含「可清理候选 N 项」——旧判据 /候选|载体|采纳/ 会把它当成已问过建议，
+  // 于是 R19 放行并清掉 pending。上面那条负对照卡面没有「候选」二字，所以恒绿（假绿）。
+  const CLEANUP_CARD_REAL = { questions: [{ question: '本轮临时产物清理范围？可清理候选 142 项（含日志与探针），保留已登记证据 104 项', header: '清理', options: [{ label: '清理本轮产物（推荐）' }, { label: '全部保留' }] }] };
+  add('清理卡（真实卡面含「候选」）不冒充建议弹窗', mod.isEvolutionAsk('AskUserQuestion', CLEANUP_CARD_REAL) === false);
+  add('只提候选/载体/采纳但无自进化专有词的卡不算', mod.isEvolutionAsk('AskUserQuestion', { questions: [{ question: '这些候选载体要不要采纳？' }] }) === false);
+  add('沉淀卡算已问建议', mod.isEvolutionAsk('AskUserQuestion', { questions: [{ question: '要不要把这条经验沉淀成规则？' }] }) === true);
+  // 非空转证明：旧判据确实会误认这张真实清理卡（这条比的是旧正则文本，不是实现）。
+  add('负对照非空转：旧判据确实会误认真实清理卡', /自进化|沉淀|候选|载体|采纳|学到的/.test(JSON.stringify(CLEANUP_CARD_REAL)) === true);
   add('非弹窗工具不算已问建议', mod.isEvolutionAsk('Bash', { command: 'echo 自进化' }) === false);
   // —— 运行中插话：真实用户指令的第二种宿主形态（2026-11-12 现役实测，attachment/queued_command）——
   const q = (text, mode = 'prompt') => ({

@@ -11,6 +11,8 @@ const { spawnSync } = require('child_process');
 
 const SCRIPT = path.join(__dirname, 'evolution-capture.cjs');
 const DEPS = ['evolution-capture.cjs', 'evolution-signal-core.js', 'client-root.js', 'hook-crash-guard.js', 'parallel-context-redact.cjs'];
+// 用真实脱敏识别器当判据（不是自己另写一套正则），避免"测试与实现同错"。
+const { findSensitive } = require('./parallel-context-redact.cjs');
 const SB = fs.mkdtempSync(path.join(os.tmpdir(), 'evo-cap-'));
 const HOME = path.join(SB, 'home');
 const CLIENT = path.join(HOME, '.qoder');
@@ -523,6 +525,68 @@ runHook(stopInput(transcript([
 check('⑱h 助手正文引用的同形 JSON 不算插话', records().length === 0 && /SKIP_NO_USER_TEXT/.test(heartbeatText()),
   `records=${records().length} heart=${heartbeatText().trim().slice(-90)}`);
 
+// ⑲ 第二轮独立对抗审查（2026-11-12，全新上下文只读子代理审最终 diff）报出的三处真实缺陷。
+// ⑲a 失败签名绕过脱敏：evidence.signature 由 failureSignature() 生成，旧实现只把数字换成 #，
+//     token / 内网地址 / URL 查询参数原样进 inbox —— 违反"凭据与内网地址脱敏后才写候选"。
+//     判据注意：数字已被换成 #，所以断言明文 `SuperSecret123` 会恒真（假绿）；必须比字母词干
+//     与 findSensitive() 的识别结果。
+const SECRET_FAIL = 'curl http://10.1.2.3:8080/api?token=SuperSecret123 失败：401 Unauthorized';
+const secretFailTurn = [
+  userLine('这个接口一直调不通'),
+  toolUseLine('s1', 'Bash'), toolResultLine('s1', SECRET_FAIL, true),
+  toolUseLine('s2', 'Bash'), toolResultLine('s2', SECRET_FAIL, true),
+];
+reset();
+runHook(stopInput(transcript(secretFailTurn)));
+const sigRecords = records().filter(r => r.evidence && typeof r.evidence.signature === 'string');
+check('⑲a 夹具确实产出带 signature 的候选（判据非空转）', sigRecords.length >= 1, `records=${records().length} withSig=${sigRecords.length}`);
+const sigBlob = sigRecords.map(r => r.evidence.signature).join(' | ');
+check('⑲a 失败签名不含凭据词干', !/supersecret/i.test(sigBlob), sigBlob.slice(0, 160));
+check('⑲a 失败签名不再被敏感识别器命中', sigRecords.every(r => findSensitive(r.evidence.signature).length === 0),
+  JSON.stringify(sigRecords.map(r => findSensitive(r.evidence.signature))));
+check('⑲a 失败签名不含未脱敏的查询取值', !/token=(?!\[redacted\])/i.test(sigBlob), sigBlob.slice(0, 160));
+// 诚实边界：共享脱敏器先替换 IP/凭据、再匹配 URL，URL 正则会在自己产物的 `]` 处截断，
+// 于是路径与参数**名**（不是取值）会残留。这是 parallel-context-redact.cjs 的既有行为，
+// 不在本批授权改动面 → 登记为候选 A31 交用户拍板。此处只断言"内网地址确被替换成占位符"
+// （不是只断言"没有明文 IP"——数字已被换成 #，那条会恒真）。
+check('⑲a 内网地址被替换成脱敏占位符', /\[redacted_url\]|\[redacted_ip\]/i.test(sigBlob), sigBlob.slice(0, 160));
+check('⑲a 整个 inbox 无明文秘密', !readLines(INBOX).join('\n').includes('SuperSecret123'), '');
+
+// ⑲b pending 满 6 条后新候选被永久饿死：旧实现把 previous.items 先塞进 Map 再 slice(0,6)，
+//     插入序＝旧项在前，新项永远落在截断之外；而 at 每轮刷新 → TTL 也不会把旧项清掉。
+//     这直接打掉用户要的"每轮收尾把新建议弹窗"。修法＝新项优先，旧项只填余位。
+reset();
+const OLD_TOPICS = Array.from({ length: 6 }, (_, i) => `old-topic-${i + 1}`);
+write(pendingPath('aaaaaaaa'), JSON.stringify({
+  schema: 1, session: SESSION_A, task: 'project-alpha', cwd: path.join(SB, 'project-alpha'),
+  at: new Date().toISOString(), askKey: '0000000000000000',
+  items: OLD_TOPICS.map(topic => ({ kind: 'long-term-preference', topic, carriers: ['memory'], excerpt: '旧候选片段', evidence: {} })),
+}, null, 2));
+check('⑲b 夹具确实先塞满 6 条旧建议', pendingOf('aaaaaaaa').items.length === 6, '');
+runHook(stopInput(transcript([userLine('以后一律用简体中文回复，别再用英文。')])));
+const freshTopic = (records().find(r => r.kind === 'long-term-preference') || {}).topic;
+const afterFull = pendingOf('aaaaaaaa');
+check('⑲b 本轮确实产生了新候选（判据非空转）', typeof freshTopic === 'string' && !OLD_TOPICS.includes(freshTopic), String(freshTopic));
+check('⑲b 满 6 条时新候选仍进得了建议', !!afterFull && afterFull.items.some(i => i.topic === freshTopic),
+  JSON.stringify(afterFull && afterFull.items.map(i => i.topic)));
+check('⑲b 上限仍是 6（不是靠放开上限掩盖）', !!afterFull && afterFull.items.length === 6, String(afterFull && afterFull.items.length));
+check('⑲b 挤掉的是旧项而不是新项', !!afterFull && afterFull.items.filter(i => OLD_TOPICS.includes(i.topic)).length === 5,
+  JSON.stringify(afterFull && afterFull.items.map(i => i.topic)));
+check('⑲b askKey 随新建议变化', !!afterFull && afterFull.askKey !== '0000000000000000', String(afterFull && afterFull.askKey));
+
+// ⑲c 子代理正文（isSidechain）不是用户指令：与 continuity.cjs 的 selected() 同口径。
+//     诚实边界：本会话真实 transcript 8810 行实测 sidechainUser=0（宿主把子代理提示词写在
+//     Agent 工具入参里，不写成 user 条目），所以这是**防御性对齐**，不是已复现的现役缺陷。
+const sidechainUserLine = text => JSON.stringify({ type: 'user', isSidechain: true, message: { role: 'user', content: text } });
+reset();
+runHook(stopInput(transcript([userLine('以后一律用简体中文回复。'), sidechainUserLine('只读审阅这个方案，不要修改任何文件')])));
+check('⑲c 子代理的只读提示词不把整轮判成只读', records().length >= 1 && !/SKIP_READ_ONLY/.test(heartbeatText()),
+  `records=${records().length} heart=${heartbeatText().trim().slice(-90)}`);
+reset();
+runHook(stopInput(transcript([sidechainUserLine('以后一律用简体中文回复。')])));
+check('⑲c 负对照：只有子代理正文时诚实跳过，不把它当用户偏好入库', records().length === 0 && /SKIP_NO_USER_TEXT/.test(heartbeatText()),
+  `records=${records().length} heart=${heartbeatText().trim().slice(-90)}`);
+
 // ⑫ 变异对照：改坏关键判据必须变红（证明上面的绿不是假绿）
 const MUT = path.join(SB, 'mutant');
 fs.mkdirSync(MUT, { recursive: true });
@@ -541,6 +605,47 @@ mutant('去掉脱敏', 'const value = redact(cleaned)', 'const value = (cleaned)
   runHook(stopInput(transcript(secretTurn)), mutFile);
   return readLines(INBOX).join('\n').includes('SuperSecret123');
 });
+// ⑲a 的变异对照：签名绕过脱敏必须重现（证明 ⑲a 的绿不是假绿）。
+mutant('签名绕过脱敏（重现第二轮审查缺陷）',
+  "return redact(String(text || '')).replace(/\\d+/g, '#')",
+  "return String(text || '').replace(/\\d+/g, '#')", () => {
+    runHook(stopInput(transcript(secretFailTurn)), mutFile);
+    const sigs = records().filter(r => r.evidence && typeof r.evidence.signature === 'string').map(r => r.evidence.signature);
+    return sigs.length > 0 && sigs.some(s => /supersecret/i.test(s));
+  });
+// ⑲b 的变异对照：旧项优先必须重现"新候选饿死"。
+mutant('旧建议优先（重现新候选饿死）',
+  '  for (const item of items.concat(previous ? previous.items : [])) {\n    if (!merged.has(item.topic)) merged.set(item.topic, item);\n  }',
+  '  for (const item of (previous ? previous.items : []).concat(items)) merged.set(item.topic, item);', () => {
+    write(pendingPath('aaaaaaaa'), JSON.stringify({
+      schema: 1, session: SESSION_A, task: 'project-alpha', cwd: path.join(SB, 'project-alpha'),
+      at: new Date().toISOString(), askKey: '0000000000000000',
+      items: OLD_TOPICS.map(topic => ({ kind: 'long-term-preference', topic, carriers: ['memory'], excerpt: '旧候选片段', evidence: {} })),
+    }, null, 2));
+    runHook(stopInput(transcript([userLine('以后一律用简体中文回复，别再用英文。')])), mutFile);
+    const topic = (records().find(r => r.kind === 'long-term-preference') || {}).topic;
+    const p = pendingOf('aaaaaaaa');
+    return typeof topic === 'string' && !!p && p.items.length === 6 && !p.items.some(i => i.topic === topic);
+  });
+// ⑲c 的变异对照：sidechain 有两层防御（整条跳过 + recognizer），单摘一层仍绿＝纵深防御有效；
+// 两层同时摘掉必须重现"子代理只读提示词把整轮判成只读"。
+{
+  const oneLayer = mutSource.replace('    if (entry.isSidechain === true || msg.isSidechain === true) continue;\n', '');
+  check('⑲c 单摘一层仍可构造（锚点命中）', oneLayer !== mutSource, '');
+  fs.writeFileSync(mutFile, oneLayer, 'utf8');
+  reset();
+  runHook(stopInput(transcript([userLine('以后一律用简体中文回复。'), sidechainUserLine('只读审阅这个方案，不要修改任何文件')])), mutFile);
+  check('⑲c 纵深防御：只摘整条跳过时 recognizer 仍挡住', records().length >= 1 && !/SKIP_READ_ONLY/.test(heartbeatText()),
+    `records=${records().length} heart=${heartbeatText().trim().slice(-90)}`);
+  const bothLayers = oneLayer.replace("if (!entry || entry.isCompactSummary === true || entry.isSidechain === true) return '';", "if (!entry || entry.isCompactSummary === true) return '';");
+  check('⑲c 两层变异体可构造（第二处锚点也命中）', bothLayers !== oneLayer, '');
+  fs.writeFileSync(mutFile, bothLayers, 'utf8');
+  reset();
+  runHook(stopInput(transcript([userLine('以后一律用简体中文回复。'), sidechainUserLine('只读审阅这个方案，不要修改任何文件')])), mutFile);
+  check('⑫ 改坏必红 :: 把子代理正文当用户指令（两层同时摘掉）', records().length === 0 && /SKIP_READ_ONLY/.test(heartbeatText()),
+    `records=${records().length} heart=${heartbeatText().trim().slice(-90)}`);
+  fs.writeFileSync(mutFile, mutSource, 'utf8');
+}
 mutant('去掉只读跳过', 'if (scope.readOnly || scope.handoffOnly || scope.noMemory) {', 'if (false) {', () => {
   runHook(stopInput(transcript([userLine('只读审阅这个方案，不要修改任何文件'), ...POSITIVE_TURN.slice(1)])), mutFile);
   return records().length > 0;
@@ -610,7 +715,7 @@ mutant('去掉本轮已问守卫', 'const suggestion = result.written && !turn.a
   runHook(stopInput(transcript([...POSITIVE_TURN, askLine('a1', EVOLUTION_CARD)])), mutFile);
   return fs.existsSync(pendingPath('aaaaaaaa'));
 });
-mutant('把压缩摘要当用户指令（复现现役缺陷）', "if (!entry || entry.isCompactSummary === true) return '';", "if (!entry) return '';", () => {
+mutant('把压缩摘要当用户指令（复现现役缺陷）', "if (!entry || entry.isCompactSummary === true || entry.isSidechain === true) return '';", "if (!entry) return '';", () => {
   runHook(stopInput(transcript(COMPACT_TURN)), mutFile);
   return records().length === 0 && /SKIP_READ_ONLY/.test(heartbeatText());
 });

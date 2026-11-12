@@ -145,6 +145,10 @@ function scanTranscript(file, tailBytes) {
         continue;
       }
       const msg = j.message || j;
+      // 子代理（sidechain）条目整条不算本轮：与 evolution-capture.cjs / continuity.cjs 同口径。
+      // 否则子代理提示词会被当本轮指令（含"只读"就把 taskScope 判成只读），R19 等按 scope 放行的
+      // 判据整轮静默失效；它的工具台账也会混进本轮。真实 transcript 未出现该形态，属防御性对齐。
+      if (j.isSidechain === true || msg.isSidechain === true) continue;
       const role = msg.role || j.type;
       const c = msg.content;
       if (role === 'user') {

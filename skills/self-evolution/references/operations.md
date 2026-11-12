@@ -144,6 +144,8 @@ cat ~/.qoder/evolution/control.json                             # enabled=false 
 - **宿主什么时候才派发 Stop**：正常交互轮会（实测当天 61 次真实 Stop，含一次完整调用采集并写心跳）；**目标连续续跑期间不产生回合边界事件**（实测 90 分钟零 Stop / 零 UserPromptSubmit，同期 PreToolUse 579 次）。所以"每轮收尾弹窗"在连续续跑里要等运行真正收尾才出现。取证口径：`stop-gate.js` 的 `diag()` 无条件写 `tmp/stop-gate/last-invocation.json`，它的 mtime 就是"最后一次被宿主调用"的硬证据；宿主日志里搜 `"hookEvent":"Stop"` 可数真实派发次数。
 - 尾窗与回溯块都**按行边界切字节**（0x0A 不会出现在多字节 UTF-8 序列内部）。按固定字节切再用字符串拼，缝落在汉字中间时两侧各得一个 U+FFFD，而 `JSON.parse` 仍成功 → 关键词静默失配：偏好漏采、只读误判，心跳看起来却正常。`evolution-capture.test.js` 的 ⑯ 组把缝精确造在关键词内部（夹具按**对齐后**的窗口起点解析求填充长度），并带"改回字符串拼必红""尾窗不对齐必红"两条变异对照。
 - 门禁侧同口径：`stop-gate.js` 的 `scanTranscript` 也排除 `isCompactSummary`（顶层与 `message` 两处标记都认）。否则摘要会把 `taskScope` 判成只读轮，R19 整轮静默失效——用户要求的收尾弹窗再也不弹。`stop-gate.test.js` 的 `compact-summary-accepted` 变异对照看住这条。
+- **子代理正文（`isSidechain`）整条不算本轮**：采集与门禁都在读 transcript 时整条跳过（与 `continuity.cjs` 的 `selected()` 同口径），采集侧另有 recognizer 二层防御。否则子代理提示词会被当用户指令（含「只读」就整轮 `SKIP_READ_ONLY`），它的失败工具与笔记也会算到本轮名下。**诚实边界**：本会话真实转录 8810 行实测 `sidechainUser=0`（宿主把子代理提示词写在 `Agent` 工具入参里，不写成 user 条目），所以这是防御性对齐、不是已复现的现役缺陷；判据由合成夹具正例/负对照与「两层同时摘掉必红」的变异对照保证能失败。
+- **失败签名同样脱敏**：`evidence.signature` 由 `failureSignature()` 生成，先 `redact()` 再把数字归一为 `#`。早期实现只归一数字，token / 内网地址 / URL 查询取值会原样进 inbox（`findSensitive` 命中 `CREDENTIAL`+`URL`）。已知边界：共享脱敏器先替换 IP/凭据再匹配 URL，URL 正则会在自己产物的 `]` 处截断，路径与参数**名**（不是取值）会残留——属 `parallel-context-redact.cjs` 既有行为，改动需单独授权。
 
 ## 收尾建议弹窗与拒绝登记（Stop 门禁 R19）
 
@@ -156,10 +158,10 @@ node ~/.qoder/scripts/evolution-capture.cjs --dry-run --transcript <path> [--ses
 node ~/.qoder/scripts/evolution-capture.cjs --decline <主题> [--decline <另一个主题>]
 ```
 
-- 待弹状态：`~/.qoder/tmp/evolution-capture/pending-<会话前8位>.json`，最多 6 条、**24 小时过期**（过期即不再拦）。`--dry-run` 输出 `writes: 0`、`askedEvolution` 与 `wouldPopup`，**零写入**。
+- 待弹状态：`~/.qoder/tmp/evolution-capture/pending-<会话前8位>.json`，最多 6 条、**24 小时过期**（过期即不再拦）。合并时**本轮新候选优先**、旧项只填余位（旧项先入表会让满 6 条后新建议永久饿死，而 `at` 每轮刷新使 TTL 也清不掉旧项）；同主题以本轮的新片段/新证据为准。`--dry-run` 输出 `writes: 0`、`askedEvolution` 与 `wouldPopup`，**零写入**。
 - 够格才弹：用户明确的长期偏好 / 明确沉淀 / 重复纠正一次即可；能力缺口、重复失败需 `occurrences ≥ 2` 或跨 ≥2 会话；助手 `已否证：`/`验证结论：` 经验族只进报告不弹窗；重复证据与已拒绝主题不再弹；**本轮已弹过建议卡就不再追加**（每轮最多问一次）。
 - 门禁 `R19-evolution-suggestion-not-asked`：有未过期 pending 且本轮没弹过建议卡 → `decision: block`，reason 列出主题、证据次数、推荐载体与摘录。只读 / 仅交接 / 禁记忆 / 已暂停的轮次放行。
-- 满足条件＝本轮调用过 `AskUserQuestion` 且卡面文本含「自进化 / 沉淀 / 候选 / 载体 / 采纳 / 学到的」之一。开工确认卡、临时文件清理卡**不算**（测试有对照）。
+- 满足条件＝本轮调用过 `AskUserQuestion` 且卡面文本含「自进化 / 进化建议 / 沉淀 / 学到的」之一。**判据只用自进化专有词**：真实清理卡正文含「可清理候选 N 项」，早期判据里的「候选 / 载体 / 采纳」会把清理卡当成已问过建议 → R19 放行并清掉 pending，用户永远看不到建议（2026-11-12 第二轮对抗审查实测复现，负对照卡面已换成真实清理卡文本）。开工确认卡、临时文件清理卡**不算**。
 - 三个真实选项：采纳并落到推荐载体（推荐）/ 改写后采纳 / 本轮跳过。**采纳才动载体**，且仍走 `carrier-preflight` → 备份 → 最小差异 → 实际验证 → `evolution.js record`；弹窗不是授权。
 - 跳过登记：`--decline <主题>` 写 `~/.qoder/evolution/suggestions-declined.json`，并把这些主题从所有 pending 撤下（撤空即删文件）。输出 `declined=N removed_from_pending=M total=K`；缺主题参数退出 2。**只过滤弹窗，inbox 证据保留**，月报仍能看到；要恢复弹窗就手工删拒绝表里的对应主题。
 - 兜底：R19 在 30 分钟滑动窗口内最多拦 2 次（整会话所有规则合计上限 3 次），超限写 `R19-…-SUPPRESSED` 台账后**可见放行**，不静默摘守卫；台账在 `~/.qoder/tmp/stop-gate/violations.log`。

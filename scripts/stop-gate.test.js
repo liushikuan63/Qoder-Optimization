@@ -431,7 +431,9 @@ const r19Items = [
 ];
 const R19_EVOLUTION_CARD = { questions: [{ question: '这条自进化候选要不要采纳并落到 rules？', header: '自进化', options: [{ label: '采纳并落到推荐载体（推荐）' }, { label: '本轮跳过' }] }] };
 const R19_KICKOFF_CARD = { questions: [{ question: '开工确认：理解 / 步骤 / 并行是否合适？', header: '开工确认', options: [{ label: '按此执行' }, { label: '调整' }] }] };
-const R19_CLEAN_CARD = { questions: [{ question: '本轮临时文件清理范围？', header: '临时清理', options: [{ label: '清理本轮产物' }, { label: '保留' }] }] };
+// 清理卡用**真实卡面**：正文含「可清理候选 N 项」。旧判据 /候选|载体|采纳/ 会把它当成已问过建议，
+// 而原来这张卡面没有「候选」二字 → 负对照恒绿（假绿）。2026-11-12 第二轮对抗审查实测。
+const R19_CLEAN_CARD = { questions: [{ question: '本轮临时产物清理范围？可清理候选 142 项（含日志与探针），保留已登记证据 104 项', header: '临时清理', options: [{ label: '清理本轮产物' }, { label: '保留' }] }] };
 // 压缩续接摘要：宿主注入的 user 角色消息（isCompactSummary），不是本轮指令。
 // 2026-11-12 实测：8 条真实摘要里有 1 条被 kickoffCore.isReadOnlyRequest 判成只读（摘要引用了规则原文
 // "先只读预览命中范围"）→ taskScope.readOnly=true → R19 整轮静默失效，用户要求的收尾弹窗再也不弹。
@@ -439,6 +441,11 @@ const R19_COMPACT_TEXT = 'Summary: 授权边界：按匹配定位的风险操作
 const compactSummary = (text, onMessage) => JSON.stringify(onMessage
   ? { type: 'user', message: { role: 'user', isCompactSummary: true, content: text } }
   : { type: 'user', isCompactSummary: true, message: { role: 'user', content: text } });
+// 子代理（sidechain）正文：与 continuity.cjs selected() 同口径整条排除。真实 transcript 未出现该形态
+// （8810 行实测 sidechainUser=0），属防御性对齐；判据由合成夹具的正例/负对照保证能失败。
+const sidechainUser = (text, onMessage) => JSON.stringify(onMessage
+  ? { type: 'user', message: { role: 'user', isSidechain: true, content: text } }
+  : { type: 'user', isSidechain: true, message: { role: 'user', content: text } });
 let r19Seq = 0;
 // 运行中插话：宿主写成 attachment/queued_command(commandMode=prompt)，没有 role=user 条目。
 // 形态照抄 2026-11-12 现役实测（本会话第 1698 行）；同形态的 task-notification 是系统通知。
@@ -463,7 +470,7 @@ function r19Setup(opts = {}) {
       schema: 1, session: 'zzzzzzzz-1111', task: 'other', cwd: ROOT, at: new Date().toISOString(), askKey: 'foreign', items: r19Items,
     }), 'utf8');
   }
-  const tr = transcript([...(opts.noUser ? [] : [user(opts.userText || '以后一律用简体中文回复')]), ...(opts.compact ? [compactSummary(opts.compact, opts.compactOnMessage)] : []), ...(opts.queued ? [queuedPrompt(opts.queued, opts.queuedMode)] : []), ...(opts.tools || [tool('Bash', { command: 'ls' })]), asst(opts.text || r19Text)]);
+  const tr = transcript([...(opts.noUser ? [] : [user(opts.userText || '以后一律用简体中文回复')]), ...(opts.compact ? [compactSummary(opts.compact, opts.compactOnMessage)] : []), ...(opts.sidechain ? [sidechainUser(opts.sidechain, opts.sidechainOnMessage)] : []), ...(opts.queued ? [queuedPrompt(opts.queued, opts.queuedMode)] : []), ...(opts.tools || [tool('Bash', { command: 'ls' })]), asst(opts.text || r19Text)]);
   const got = run({ transcript_path: tr, session_id: session, last_assistant_message: opts.text || r19Text }, session, { EVOLUTION_CAPTURE_STATE_DIR: R19_STATE });
   return { got, session, id };
 }
@@ -492,6 +499,12 @@ r19check('R19 摘要标记打在 message 上同样排除', { compact: R19_COMPAC
 r19check('R19 负对照：真实只读指令优先于不含只读标记的摘要', { userText: '只读审阅这个方案，不要修改任何文件', compact: 'Summary: 本轮继续推进实施。' }, 'allow');
 const r19OnlyCompact = r19check('R19 尾窗只有摘要时不臆造只读范围（有 pending 仍要求弹窗）', { noUser: true, compact: R19_COMPACT_TEXT }, 'block');
 check('R19 只有摘要场景归因仍是 R19', r19OnlyCompact.got.out.includes('R19-evolution-suggestion-not-asked') ? 'yes' : 'no', 'yes');
+// 子代理（sidechain）正文不是本轮指令：与 evolution-capture / continuity 同口径整条排除。
+const R19_SIDECHAIN_RO = '只读审阅这个方案，不要修改任何文件';
+const r19Sidechain = r19check('R19 子代理只读提示词不算指令：仍按真实指令拦截', { sidechain: R19_SIDECHAIN_RO }, 'block');
+check('R19 子代理场景归因仍是 R19', r19Sidechain.got.out.includes('R19-evolution-suggestion-not-asked') ? 'yes' : 'no', 'yes');
+r19check('R19 sidechain 标记打在 message 上同样排除', { sidechain: R19_SIDECHAIN_RO, sidechainOnMessage: true }, 'block');
+r19check('R19 负对照：真实只读指令仍放行（不是把只读守卫关掉）', { userText: R19_SIDECHAIN_RO, sidechain: '本轮继续推进实施，以后一律用中文。' }, 'allow');
 // 运行中插话（attachment/queued_command）同样是本轮指令：漏认它 → scope 停在旧指令上，
 // R19 该拦不拦、不该拦乱拦（2026-11-12 现役实测：采集侧因此整轮零候选）。
 const R19_RO = '只读审阅这个方案，不要修改任何文件';
@@ -535,7 +548,7 @@ function r19Mutant(label, from, to, opts, want) {
   fs.writeFileSync(path.join(R19_STATE, `pending-${id}.json`), JSON.stringify({
     schema: 1, session, task: 'project-alpha', cwd: ROOT, at: opts.at || new Date().toISOString(), askKey: 'mut', items: opts.items || r19Items,
   }), 'utf8');
-  const tr = transcript([...(opts.noUser ? [] : [user(opts.userText || '以后一律用简体中文回复')]), ...(opts.compact ? [compactSummary(opts.compact, opts.compactOnMessage)] : []), ...(opts.queued ? [queuedPrompt(opts.queued, opts.queuedMode)] : []), ...(opts.tools || [tool('Bash', { command: 'ls' })]), asst(r19Text)]);
+  const tr = transcript([...(opts.noUser ? [] : [user(opts.userText || '以后一律用简体中文回复')]), ...(opts.compact ? [compactSummary(opts.compact, opts.compactOnMessage)] : []), ...(opts.sidechain ? [sidechainUser(opts.sidechain, opts.sidechainOnMessage)] : []), ...(opts.queued ? [queuedPrompt(opts.queued, opts.queuedMode)] : []), ...(opts.tools || [tool('Bash', { command: 'ls' })]), asst(r19Text)]);
   let out = '';
   try {
     out = execFileSync(process.execPath, [target], {
@@ -562,6 +575,8 @@ r19Mutant('scope-ignored', 'if (ctx.scope.readOnly || ctx.scope.handoffOnly || c
   { userText: '只读审阅这个方案，不要修改任何文件' }, 'block');
 r19Mutant('compact-summary-accepted', '!j.isCompactSummary && !msg.isCompactSummary && ', '',
   { compact: R19_COMPACT_TEXT }, 'allow');
+r19Mutant('sidechain-accepted', '      if (j.isSidechain === true || msg.isSidechain === true) continue;\n', '',
+  { sidechain: R19_SIDECHAIN_RO }, 'allow');
 r19Mutant('queued-prompt-ignored', '        const qtxt = queuedUserText(j);', "        const qtxt = '';",
   { userText: R19_RO, queued: R19_IMPL }, 'allow');
 

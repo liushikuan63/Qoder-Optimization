@@ -137,7 +137,7 @@ function cleanUserText(raw) {
 }
 
 function queuedUserTextOf(entry) {
-  if (!entry || entry.isCompactSummary === true || entry.isMeta === true) return '';
+  if (!entry || entry.isCompactSummary === true || entry.isMeta === true || entry.isSidechain === true) return '';
   const msg = entry.message || {};
   if (msg.role === 'assistant') return ''; // 助手正文里引用的同形 JSON 不是用户插话
   const att = entry.attachment;
@@ -161,7 +161,10 @@ function suggestCarriers(kind) {
 
 // —— 收尾建议弹窗（2026-11-12 用户明确要求）：采集层写 pending，门禁 R19 强制弹 ——
 // 只认"问的是自进化建议"的弹窗：开工确认卡 / 清理卡也用 AskUserQuestion，不能拿它们冒充已问过建议。
-const EVOLUTION_ASK = /自进化|沉淀|候选|载体|采纳|学到的/;
+// 判据只用自进化专有词：真实清理卡正文含「可清理候选 N 项」，旧判据里的 /候选|载体|采纳/ 会把它当成
+// 已问过建议 → R19 放行并清掉 pending，用户永远看不到建议（2026-11-12 第二轮对抗审查实测复现）。
+// 与 R19 提示文案同口径：卡片问题正文必须含「自进化」（或沉淀/学到的这类同义专有词）。
+const EVOLUTION_ASK = /自进化|进化建议|沉淀|学到的/;
 function isEvolutionAsk(name, input) {
   if (name !== 'AskUserQuestion') return false;
   try { return EVOLUTION_ASK.test(JSON.stringify(input || {})); } catch { return false; }
