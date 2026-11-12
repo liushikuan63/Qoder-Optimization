@@ -395,6 +395,72 @@ const d11r = runIn(d11, [...sinceArg, '--apply=true', '--force', '--json']);
 check('布尔开关带值 --apply=true：退 2（不静默忽略）', d11r.status, 2);
 check('布尔开关带值 --apply=true：不删', fs.existsSync(path.join(d11, 'target')), true);
 
+// ---- E 隔离区回收不得越出本次范围，且回收必须可归因 ----
+// 修前实测（probe-f71 P1/P2）：--only 只指定自己的目录，别人 8 天前的隔离批次照样被永久回收；
+// 台账只记 deleted/trashed，不记回收了哪些批次 ⇒ 删了别人的隔离副本无法归因。
+const stamp = (ms) => new Date(ms).toISOString().replace(/[:.]/g, '-');
+function trashCase(tag, names) {
+  const root = caseRoot(tag, names);
+  const old = path.join(root, '.trash', stamp(Date.now() - 8 * 86400000));
+  fs.mkdirSync(path.join(old, 'theirs-8d8de525'), { recursive: true });
+  fs.writeFileSync(path.join(old, 'theirs-8d8de525', 'payload.bin'), 'y'.repeat(16));
+  const fresh = path.join(root, '.trash', stamp(Date.now() - 86400000));
+  fs.mkdirSync(path.join(fresh, 'recent-keep'), { recursive: true });
+  fs.writeFileSync(path.join(fresh, 'recent-keep', 'payload.bin'), 'z'.repeat(16));
+  return { root, old, fresh };
+}
+const ledgerOf = (root) => JSON.parse(fs.readFileSync(path.join(root, '.last-cleanup'), 'utf8'));
+// 判据要能红，不能靠崩溃：修前脚本没有这些字段，取值一律先判类型再比，
+// 否则 TypeError 会把整轮输出打掉，「校验器崩溃」就冒充了「判到红」。
+const jsonOf = (r) => { try { return JSON.parse(r.stdout) || {}; } catch (e) { return {}; } };
+const pathsOf = (v) => (Array.isArray(v) ? v : []);
+
+const e1 = trashCase('purge-e1', ['target', 'bystander']);
+const e1r = runIn(e1.root, [...sinceArg, '--apply', '--force', '--only', path.join(e1.root, 'target'), '--json']);
+const e1j = jsonOf(e1r);
+const e1l = ledgerOf(e1.root);
+check('--only 限定：退 0', e1r.status, 0);
+check('--only 限定：不回收隔离区（purgedTrash=0）', e1j.purgedTrash, 0);
+check('--only 限定：跳过原因可见', e1j.trashPurgeSkipped, 'scope-limited');
+check('--only 限定：别人的超期批次仍在', fs.existsSync(e1.old), true);
+check('--only 限定：指定项照常清理', fs.existsSync(path.join(e1.root, 'target')), false);
+check('--only 限定：台账记下范围与跳过原因', e1l.trashPurgeSkipped === 'scope-limited'
+  && pathsOf(e1l.only).length === 1 && e1l.purgedTrash === 0, true);
+
+const e2 = trashCase('purge-e2', ['mine-c988bddc', 'theirs-8d8de525']);
+const e2r = runIn(e2.root, [...sinceArg, '--apply', '--force', '--session', 'c988bddc', '--json']);
+const e2j = jsonOf(e2r);
+check('--session 限定：不回收隔离区', e2j.purgedTrash, 0);
+check('--session 限定：别人的超期批次仍在', fs.existsSync(e2.old), true);
+check('--session 限定：本会话产物照常清理', fs.existsSync(path.join(e2.root, 'mine-c988bddc')), false);
+check('--session 限定：台账记下 session', ledgerOf(e2.root).session, 'c988bddc');
+
+// 负对照：不限定范围时回收必须照常，否则就是「修成永不回收」——隔离区会无限堆积。
+const e3 = trashCase('purge-e3', ['junk']);
+const e3r = runIn(e3.root, [...sinceArg, '--apply', '--force', '--json']);
+const e3j = jsonOf(e3r);
+check('负对照：无限定仍回收超期批次', e3j.purgedTrash, 1);
+check('负对照：无限定回收后超期批次消失', fs.existsSync(e3.old), false);
+check('负对照：未超期批次任何情况都不回收', fs.existsSync(e3.fresh), true);
+check('负对照：无限定不带跳过标记', e3j.trashPurgeSkipped, null);
+check('回收批次路径进 JSON（可归因）', pathsOf(e3j.purgedTrashPaths).length === 1
+  && path.resolve(e3j.purgedTrashPaths[0]) === path.resolve(e3.old), true);
+const e3l = ledgerOf(e3.root);
+check('回收批次路径进台账（可归因）', e3l.purgedTrash === 1 && pathsOf(e3l.purgedTrashPaths).length === 1
+  && path.resolve(e3l.purgedTrashPaths[0]) === path.resolve(e3.old), true);
+
+// 负对照：用户手工放进隔离区的非批次名条目，无限定回收也不许动（匹配型删除越界红线）。
+const e4 = trashCase('purge-e4', ['junk']);
+const e4manual = path.join(e4.root, '.trash', 'manual-keep');
+fs.mkdirSync(e4manual, { recursive: true });
+fs.writeFileSync(path.join(e4manual, 'note.txt'), '手工放的');
+const e4r = runIn(e4.root, [...sinceArg, '--apply', '--force', '--json']);
+check('负对照：非批次名的手工条目不被回收', jsonOf(e4r).purgedTrash === 1 && fs.existsSync(e4manual), true);
+
+const e5 = trashCase('purge-e5', ['target']);
+const e5r = runIn(e5.root, [...sinceArg, '--apply', '--force', '--only', path.join(e5.root, 'target')]);
+check('文本模式：跳过回收要说明原因（不静默）', e5r.status === 0 && /跳过隔离区超期回收/.test(e5r.stdout), true);
+
 console.log(results.join('\n'));
 const failed = results.filter((x) => x.startsWith('FAIL')).length;
 console.log(`\n=== tmp-round-scan 自测：通过 ${n - failed}，失败 ${failed} ===`);

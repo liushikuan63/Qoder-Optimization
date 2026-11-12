@@ -83,6 +83,7 @@ function parseArgs(argv) {
       console.log('--apply 要求 since 在 7 天内且 root 为 canonicalRoot；越界需 --force。--session 只自动删名字含该令牌的本会话产物。')
       console.log('--only 可重复，只处理临时根的直接子条目；并行会话共用 D:/tmp 时用它按精确路径清理本任务产物。')
       console.log('删除默认移入 <root>/.trash（7 天后自动回收），--no-trash 才永久删除；每次 --apply 写 <root>/.last-cleanup 台账。');
+      console.log('带 --only/--session 时跳过隔离区超期回收（批次无法归属到指定范围）；台账记录 purgedTrash/purgedTrashPaths/trashPurgeSkipped。');
       console.log('--evidence-docs <目录> 可重复：扫描其中 .md，被登记为证据路径的条目即使无 .keep/.evidence.json 也保留。');
       console.log('--mark-evidence <目录> 可重复：把用户的「保留」答复落成目录内 .evidence.json（只写不删，不与 --apply 同批）。');
       console.log('  必须三字段齐：--task <任务ID> --session <会话id> --doc <登记文档路径>（--doc 可重复）；已有标记一律不改写。');
@@ -137,7 +138,7 @@ function batchBornMs(name) {
   const t = Date.parse(m[1] + 'T' + m[2] + ':' + m[3] + ':' + m[4] + '.' + m[5] + 'Z')
   return Number.isFinite(t) ? t : null
 }
-function purgeTrash(root, now) {
+function purgeTrash(root, now, pathsOut) {
   const dir = path.join(root, '.trash')
   let list
   try { list = fs.readdirSync(dir, { withFileTypes: true }) } catch (e) { return 0 }
@@ -150,6 +151,8 @@ function purgeTrash(root, now) {
     try {
       fs.rmSync(full, { recursive: e.isDirectory(), force: true })
       removed += 1
+      // 回收也是删除：批次路径必须进台账，否则「谁删了隔离副本」无法归因（C10 的同一条理由）。
+      if (Array.isArray(pathsOut)) pathsOut.push(full)
     } catch (err) {}
   }
   return removed
@@ -424,6 +427,8 @@ function main() {
   const failed = []
   const trashed = []
   let purgedTrash = 0
+  const purgedTrashPaths = []
+  let trashPurgeSkipped = null
   let cleanupLedgerError = null
   if (opts.apply) {
     const batchDir = useTrash ? trashBatchDir(root, now) : null
@@ -442,12 +447,21 @@ function main() {
         failed.push({ path: e.path, error: String((err && err.message) || err) })
       }
     }
-    purgedTrash = purgeTrash(root, now)
+    // 隔离区回收是**整根**动作：批次按时间戳命名，无法归属到某个 --only 路径或会话令牌。
+    // 范围受限时回收会把别的会话/任务的隔离副本一起永久删掉（2026-11-12 probe-f71 P1/P2 修前红：
+    // --only 只指定自己的目录，别人的超期批次照样被purge）。受限即跳过，保留期顺延，绝不越界。
+    if (opts.only.length || opts.session) {
+      trashPurgeSkipped = 'scope-limited'
+    } else {
+      purgedTrash = purgeTrash(root, now, purgedTrashPaths)
+    }
     const ledgerError = writeCleanupLedger(root, { schema: 1, at: new Date(now).toISOString(),
       since: new Date(opts.since).toISOString(), root,
       includeSharePackage: opts.includeSharePackage, trash: useTrash,
+      only: opts.only, session: opts.session,
       deleted: deleted.length, trashed: trashed.length, failed: failed.length,
       preserved: preserved.length, registeredEvidence: registeredList.length,
+      purgedTrash, purgedTrashPaths: purgedTrashPaths.slice(0, 200), trashPurgeSkipped,
       paths: deleted.slice(0, 200) })
     heartbeat('ROUND-' + (opts.includeSharePackage ? 'APPLY-SHARE' : 'APPLY')
       + ' root=' + root + ' since=' + new Date(opts.since).toISOString()
@@ -470,7 +484,7 @@ function main() {
       modified: modifiedKept.map((e) => e.path),
       sessionSkipped: sessionSkipped.map((e) => e.path),
     },
-    guards, trashed, purgedTrash, deleted, failed, registeredEvidence: registeredList,
+    guards, trashed, purgedTrash, purgedTrashPaths, trashPurgeSkipped, deleted, failed, registeredEvidence: registeredList,
     ledgerError: cleanupLedgerError }
 
   if (opts.json) {
@@ -501,7 +515,9 @@ function main() {
     if (useTrash && trashed.length) {
       console.log('已移入隔离区 ' + path.dirname(trashed[0].to) + '（' + trashed.length + ' 项，7 天后自动回收）。')
     }
-    if (purgedTrash) console.log('隔离区回收超期批次 ' + purgedTrash + ' 个。')
+    if (purgedTrash) console.log('隔离区回收超期批次 ' + purgedTrash + ' 个（路径已记入 .last-cleanup 的 purgedTrashPaths）。')
+    if (trashPurgeSkipped) console.log('本次范围受限（' + (opts.only.length ? '--only ' : '') + (opts.session ? '--session ' : '')
+      + '），跳过隔离区超期回收：批次无法归属到指定路径/会话，整根回收会带走别人的隔离副本。')
     if (protectedEntries.length) {
       console.log('保留受保护/分享包产物 ' + protectedEntries.length + ' 项：'
         + protectedEntries.slice(0, 5).map((e) => e.path).join('、') + '。')
