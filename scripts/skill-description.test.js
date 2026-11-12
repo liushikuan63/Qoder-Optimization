@@ -123,14 +123,23 @@ const want1 = 'x'.repeat(298) + ' y';
 const want2 = 'x'.repeat(299) + ' y';
 const f1 = path.join(tmp3, 'm1.md'); fs.writeFileSync(f1, M1);
 const f2 = path.join(tmp3, 'm2.md'); fs.writeFileSync(f2, M2);
-check('多行 M1：生产者给出折叠值（精确比对，不只比长度）', extras.descriptionOf(f1) === want1, 'len=' + String(extras.descriptionOf(f1) || '').length);
-check('多行 M1：碰撞扫描解析长度＝300', collisionsLen(M1) === 300, 'got=' + collisionsLen(M1));
-check('多行 M1：执行器判绿 exit 0', verifyPkg('m1', M1).status === 0);
-check('多行 M2：生产者折叠后＝301（不是取首行 299）', String(extras.descriptionOf(f2) || '').length === 301, 'len=' + String(extras.descriptionOf(f2) || '').length);
-check('多行 M2：碰撞扫描解析长度＝301', collisionsLen(M2) === 301, 'got=' + collisionsLen(M2));
-const m2r = verifyPkg('m2', M2);
-check('多行 M2：执行器判红 exit 2（取首行的实现会在这里假绿）', m2r.status === 2, 'exit=' + m2r.status);
-check('多行三处结论一致（M1 全绿 / M2 全红）', want1.length === 300 && want2.length === 301);
+// 每处只跑一次，结果留变量：既避免重复 spawn，也让「三处一致」能拿真实判定来比。
+const e1 = extras.descriptionOf(f1), e2 = extras.descriptionOf(f2);
+const c1 = collisionsLen(M1), c2 = collisionsLen(M2);
+const r1 = verifyPkg('m1', M1), r2 = verifyPkg('m2', M2);
+check('多行 M1：生产者给出折叠值（精确比对，不只比长度）', e1 === want1, 'len=' + String(e1 || '').length);
+check('多行 M1：碰撞扫描解析长度＝300', c1 === 300, 'got=' + c1);
+check('多行 M1：执行器判绿 exit 0', r1.status === 0, 'exit=' + r1.status);
+check('多行 M2：生产者折叠后精确等于 want2（301 字符，不是取首行 299）', e2 === want2, 'len=' + String(e2 || '').length);
+check('多行 M2：碰撞扫描解析长度＝301', c2 === 301, 'got=' + c2);
+check('多行 M2：执行器判红 exit 2（取首行的实现会在这里假绿）', r2.status === 2, 'exit=' + r2.status);
+// 三处一致＝把三处对同一夹具的「是否合规」归一成布尔后必须相同。
+// 旧写法比的是 want1.length===300 && want2.length===301，那是我自己算的常数，恒真、无判别力。
+const compliant = (e, c, r) => [String(e || '').length <= 300, c !== null && c <= 300, r.status === 0];
+const v1 = compliant(e1, c1, r1), v2 = compliant(e2, c2, r2);
+check('多行三处判定一致（M1 三处同判合规 / M2 三处同判超限）',
+  v1.every((x) => x === true) && v2.every((x) => x === false),
+  'M1=' + JSON.stringify(v1) + ' M2=' + JSON.stringify(v2));
 fs.rmSync(tmp3, { recursive: true, force: true });
 
 // ---- T-01 补：余量 ≤5 字符的技能逐个复核仍合规 ----
@@ -144,7 +153,7 @@ for (const d of dirs) {
   if (head <= 5) tight.push({ skill: d, cap, len: v.length, head });
 }
 tight.sort((a, b) => a.head - b.head);
-check('余量 ≤5 的技能全部仍合规（headroom ≥ 0）', tight.every((t) => t.head >= 0), 'count=' + tight.length);
+check('余量 ≤5 的技能全部仍合规（headroom ≥ 0，且清单非空以免空集恒真）', tight.length > 0 && tight.every((t) => t.head >= 0), 'count=' + tight.length);
 console.log('TIGHT_HEADROOM=' + tight.length + ' ' + JSON.stringify(tight));
 
 console.log(fail ? `\nskill-description FAIL ${fail}` : '\nskill-description ALL PASS');
