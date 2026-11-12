@@ -136,6 +136,8 @@ cat ~/.qoder/evolution/control.json                             # enabled=false 
 - `control.json` 的 `enabled` 非布尔＝配置非法，停下报告，**不重置、不改写**。
 - 采集 hook 永远 `exit 0`（fail-open），不替代平台权限，也不会因为采集失败挡住收尾。
 - 心跳里的 `pending=N` 表示本轮生成了 N 条待弹建议；`ASKED … pending=cleared` 表示本轮已就建议弹窗、状态已消费。只有 `CAPTURE … pending=0` 而用户抱怨"没弹窗"时，先看是不是重复证据、经验族、已拒绝主题或单次能力缺口（都不够格）。
+- 心跳 `SKIP_READ_ONLY` 但本轮明明在实施：多半是**上下文压缩摘要**被当成了用户指令（摘要里引用了"只读预览"这类规则原文）。采集已按宿主的 `isCompactSummary` 标记排除摘要，并在尾窗取不到真实指令时按 `backtrackBytes`（默认 8MB）有界回溯；仍出现时先用 `--dry-run --transcript <真实转录>` 看 `scope`，再核对真实指令距文件末尾的字节数是否超了回溯上限。**不要靠放宽只读正则来"修"它**——真只读轮必须继续零采集。
+- 心跳 `SKIP_NO_TRANSCRIPT … exists=true`：尾窗与回溯范围内都没有真实用户指令（全是工具回执 / 注入件 / 压缩摘要）。这是诚实跳过，不是故障；不臆造指令、不拿摘要顶替。
 
 ## 收尾建议弹窗与拒绝登记（Stop 门禁 R19）
 

@@ -41,7 +41,7 @@ const MAX_PENDING_ITEMS = 6;
 const sessionKey = session => String(session || 'unknown').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 8);
 const pendingFile = session => path.join(STATE_DIR, `pending-${sessionKey(session)}.json`);
 
-const DEFAULTS = { enabled: true, tailBytes: 1024 * 1024, maxPerTurn: 8, rotateBytes: 4 * 1024 * 1024, excerptChars: 240 };
+const DEFAULTS = { enabled: true, tailBytes: 1024 * 1024, backtrackBytes: 8 * 1024 * 1024, maxPerTurn: 8, rotateBytes: 4 * 1024 * 1024, excerptChars: 240 };
 const SHA = value => crypto.createHash('sha256').update(value).digest('hex');
 const sleepSync = ms => { try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); } catch {} };
 
@@ -78,7 +78,57 @@ function heartbeat(line) {
 // —— 转录读取：只取本轮需要的三样东西（用户正文 / 助手前缀笔记 / 失败工具）。
 // 比 stop-gate 的 scanTranscript 窄：门禁要完整工具台账与成功判定，采集只要"值得核对的信号"。
 // 两者共用的是判据（evolution-signal-core.js），不是这段 IO。
-function readTurn(file, tailBytes) {
+
+// 一条 transcript 行是不是"用户本轮的指令"。注入件、工具回执、压缩续接摘要都不算。
+// isCompactSummary 是宿主给压缩摘要打的标记（与 continuity.cjs 同一口径）：它是**上下文摘要**，
+// 不是用户指令。2026-11-12 现役实测：摘要里引用了规则原文"先只读预览命中范围"，被 READ_ONLY 命中
+// → 整个压缩后会话判成只读轮、零采集（SKIP_READ_ONLY），而真实指令在 7.2MB 之外。
+const INJECTED_PREFIX = /^\[stop-gate\b|^\[continuity\b|^Base directory for this skill:|^Note: The file|^\[SYSTEM NOTIFICATION - NOT USER INPUT\]/;
+function userInstructionOf(entry) {
+  if (!entry || entry.isCompactSummary === true) return '';
+  const msg = entry.message || entry;
+  if (msg.isCompactSummary === true) return '';
+  const role = msg.role || entry.type;
+  if (role !== 'user') return '';
+  const content = msg.content;
+  if (Array.isArray(content) && content.some(x => x && x.type === 'tool_result')) return '';
+  const raw = typeof content === 'string' ? content
+    : Array.isArray(content) ? content.filter(x => x && x.type === 'text').map(x => x.text || '').join('\n') : '';
+  const text = raw.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '').trim();
+  if (!text || entry.isMeta || msg.isMeta || INJECTED_PREFIX.test(text)) return '';
+  return text;
+}
+
+// 尾窗里没有真实指令时（长回合、刚压缩过），有界回溯找**最后一条**真实用户指令：
+// 它就是当前仍在生效的那条指令，不是"上一轮的旧话"。分块从后往前读，命中即停；
+// 跨块半行用 carry 拼回，尾窗丢弃的首行碎片也接进来，边界上不丢消息。
+const BACKTRACK_CHUNK = 512 * 1024;
+function lastUserTextBefore(file, end, headFragment, limit) {
+  const floor = Math.max(0, end - limit);
+  let carry = headFragment || '';
+  let stop = end;
+  const fd = (() => { try { return fs.openSync(file, 'r'); } catch { return null; } })();
+  if (fd === null) return '';
+  try {
+    while (stop > floor) {
+      const from = Math.max(floor, stop - BACKTRACK_CHUNK);
+      const buf = Buffer.alloc(stop - from);
+      fs.readSync(fd, buf, 0, buf.length, from);
+      const lines = (buf.toString('utf8') + carry).split('\n');
+      carry = from > floor ? lines.shift() : '';
+      for (let i = lines.length - 1; i >= 0; i--) {
+        let entry;
+        try { entry = JSON.parse(lines[i]); } catch { continue; }
+        const text = userInstructionOf(entry);
+        if (text) return text;
+      }
+      stop = from;
+    }
+  } catch { return ''; } finally { try { fs.closeSync(fd); } catch {} }
+  return '';
+}
+
+function readTurn(file, tailBytes, backtrackBytes) {
   const out = { exists: false, userText: '', assistantTexts: [], failures: [], askedEvolution: false, parsed: 0 };
   if (!file) return out;
   let st;
@@ -93,7 +143,8 @@ function readTurn(file, tailBytes) {
     fs.closeSync(fd);
     lines = buf.toString('utf8').split('\n').filter(x => x.trim());
   } catch { return out; }
-  if (start > 0) lines.shift(); // 首行可能被截断
+  let headFragment = '';
+  if (start > 0) headFragment = lines.shift(); // 首行可能被截断
   const uses = new Map();
   for (const line of lines) {
     let entry;
@@ -113,12 +164,8 @@ function readTurn(file, tailBytes) {
           if (failed) out.failures.push({ name: use.name, excerpt: String(body || '').slice(0, 600) });
         }
       }
-      const raw = typeof content === 'string' ? content
-        : Array.isArray(content) ? content.filter(x => x && x.type === 'text').map(x => x.text || '').join('\n') : '';
-      const text = raw.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '').trim();
-      const toolReturn = Array.isArray(content) && content.some(x => x && x.type === 'tool_result');
-      if (text && !toolReturn && !entry.isMeta && !msg.isMeta
-        && !/^\[stop-gate\b|^\[continuity\b|^Base directory for this skill:|^Note: The file|^\[SYSTEM NOTIFICATION - NOT USER INPUT\]/.test(text)) {
+      const text = userInstructionOf(entry);
+      if (text) {
         out.userText = text;
         out.assistantTexts = [];
         out.failures = [];
@@ -140,6 +187,9 @@ function readTurn(file, tailBytes) {
     }
     out.parsed++;
   }
+  // 尾窗只有工具回执 / 注入件 / 压缩摘要时，回溯取仍在生效的那条真实指令；
+  // 只补 userText，本轮的助手笔记与失败工具仍来自尾窗（不清空、不重置）。
+  if (!out.userText && start > 0) out.userText = lastUserTextBefore(file, start, headFragment, backtrackBytes);
   return out;
 }
 
@@ -475,7 +525,7 @@ function main() {
       cwd: cwdAt >= 0 ? args[cwdAt + 1] : process.cwd(),
     };
     const ctx = contextFrom(input, cfg);
-    const turn = readTurn(path.resolve(file), cfg.tailBytes);
+    const turn = readTurn(path.resolve(file), cfg.tailBytes, cfg.backtrackBytes);
     const scope = signal.captureScope(turn.userText);
     const candidates = candidatesFromTurn(turn, ctx).map(c => withIdentity(c, ctx));
     const { sessions } = readInboxKeys(inboxFiles());
@@ -499,7 +549,7 @@ function main() {
   const enabled = captureEnabled();
   if (!enabled.ok) { heartbeat(`SKIP_${enabled.reason} session=${shortSession}`); return 0; }
 
-  const turn = readTurn(input.transcript_path || input.transcriptPath, cfg.tailBytes);
+  const turn = readTurn(input.transcript_path || input.transcriptPath, cfg.tailBytes, cfg.backtrackBytes);
   if (!turn.exists || !turn.userText) { heartbeat(`SKIP_NO_TRANSCRIPT session=${shortSession} exists=${turn.exists}`); return 0; }
 
   const scope = signal.captureScope(turn.userText);

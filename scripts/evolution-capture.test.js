@@ -306,6 +306,63 @@ let dryPopupJson = {};
 try { dryPopupJson = JSON.parse(dryPopup.stdout); } catch {}
 check('⑭ --dry-run 预告弹窗主题且零写入', dryPopup.status === 0 && dryPopupJson.writes === 0 && Array.isArray(dryPopupJson.wouldPopup) && dryPopupJson.wouldPopup.length >= 1 && !fs.existsSync(pendingPath('dry-2')));
 
+// ⑮ 压缩续接摘要不是用户指令（2026-11-12 现役实测缺陷）：宿主把上下文摘要作为 user 角色消息写进
+//    transcript 并打 isCompactSummary:true。摘要里引用了规则原文"先只读预览命中范围"，被 READ_ONLY
+//    命中 → 整个压缩后会话判成只读轮、零采集。修法与 continuity.cjs 同口径：摘要不算指令；
+//    尾窗没有真实指令时有界回溯取仍在生效的那条。下面三组负对照保证不是"把只读守卫关掉"。
+const compactLine = text => JSON.stringify({ type: 'user', isCompactSummary: true, message: { role: 'user', content: text } });
+const COMPACT_TEXT = 'This session is being continued from a previous conversation that ran out of context.\n'
+  + 'Summary:\n授权边界：按匹配定位的风险操作先只读预览命中范围并做负对照；只读审阅零写入。';
+const COMPACT_TURN = [
+  userLine('以后一律用简体中文回复。还有，找不到对应的 MCP 工具。'),
+  compactLine(COMPACT_TEXT),
+  toolUseLine('t1', 'Bash'),
+  toolResultLine('t1', 'command not found: pwsh', true),
+  toolUseLine('t2', 'Bash'),
+  toolResultLine('t2', 'command not found: pwsh', true),
+  assistantLine('已否证：改执行策略 × 本机 A/B 对照无效'),
+];
+reset();
+const compactRun = runHook(stopInput(transcript(COMPACT_TURN)));
+check('⑮ 摘要在尾窗内仍照常采集', compactRun.status === 0 && records().length >= 3, `exit=${compactRun.status} records=${records().length}`);
+check('⑮ 不再误判只读（心跳无 SKIP_READ_ONLY）', /CAPTURE session=aaaaaaaa/.test(heartbeatText()) && !/SKIP_READ_ONLY/.test(heartbeatText()), heartbeatText().trim().slice(-120));
+check('⑮ 摘要后的失败工具仍被采集', kindsOf(records()).includes('repeated-failure'), kindsOf(records()).join(','));
+check('⑮ 真实指令的偏好仍被采集', kindsOf(records()).includes('long-term-preference'), kindsOf(records()).join(','));
+
+// ⑮b 真实指令被挤出尾窗 → 有界回溯取回（不是 SKIP_NO_TRANSCRIPT）
+reset(); write(CONFIG, JSON.stringify({ tailBytes: 512 }));
+const padded = [
+  userLine('以后一律用简体中文回复。'),
+  ...Array.from({ length: 14 }, (_, i) => assistantLine('中间过程说明第 ' + i + ' 段，用来把真实指令挤出尾窗。')),
+  compactLine(COMPACT_TEXT),
+];
+const paddedFile = transcript(padded);
+check('⑮b 夹具确实把真实指令挤出尾窗', fs.statSync(paddedFile).size > 512 && !fs.readFileSync(paddedFile, 'utf8').slice(-512).includes('以后一律用简体中文'), `size=${fs.statSync(paddedFile).size}`);
+runHook(stopInput(paddedFile));
+check('⑮b 回溯取回真实指令并采集', records().length >= 1 && kindsOf(records()).includes('long-term-preference'), `records=${records().length} heart=${heartbeatText().trim().slice(-90)}`);
+check('⑮b 回溯不触发只读误判', !/SKIP_READ_ONLY|SKIP_NO_TRANSCRIPT/.test(heartbeatText()), heartbeatText().trim().slice(-90));
+
+// ⑮c 负对照：真实用户说的只读仍然跳过（守卫没被削弱）
+reset();
+runHook(stopInput(transcript([userLine('只读审阅这个方案，不要修改任何文件'), compactLine(COMPACT_TEXT), ...POSITIVE_TURN.slice(1)])));
+check('⑮c 真只读轮仍零采集', records().length === 0 && /SKIP_READ_ONLY/.test(heartbeatText()), `records=${records().length} heart=${heartbeatText().trim().slice(-90)}`);
+
+// ⑮d 负对照：全程没有真实指令 → 不臆造、不拿摘要当指令
+reset();
+runHook(stopInput(transcript([compactLine(COMPACT_TEXT), ...POSITIVE_TURN.slice(1)])));
+check('⑮d 无真实指令时零采集', records().length === 0 && /SKIP_NO_TRANSCRIPT/.test(heartbeatText()), `records=${records().length} heart=${heartbeatText().trim().slice(-90)}`);
+
+// ⑮e 负对照：超出回溯上限 → 诚实跳过（有界，不把整个大会话读穿）
+reset(); write(CONFIG, JSON.stringify({ tailBytes: 512, backtrackBytes: 2048 }));
+const farFile = transcript([
+  userLine('以后一律用简体中文回复。'),
+  ...Array.from({ length: 40 }, (_, i) => assistantLine('远端过程说明第 ' + i + ' 段，把真实指令推到回溯上限之外。')),
+  compactLine(COMPACT_TEXT),
+]);
+check('⑮e 夹具确实超出回溯上限', fs.statSync(farFile).size - 512 > 2048, `size=${fs.statSync(farFile).size}`);
+runHook(stopInput(farFile));
+check('⑮e 超上限时零采集且记 SKIP_NO_TRANSCRIPT', records().length === 0 && /SKIP_NO_TRANSCRIPT/.test(heartbeatText()), `records=${records().length} heart=${heartbeatText().trim().slice(-90)}`);
+
 // ⑫ 变异对照：改坏关键判据必须变红（证明上面的绿不是假绿）
 const MUT = path.join(SB, 'mutant');
 fs.mkdirSync(MUT, { recursive: true });
@@ -392,6 +449,15 @@ coreMutant('把任意弹窗当已问建议', 'try { return EVOLUTION_ASK.test(JS
 mutant('去掉本轮已问守卫', 'const suggestion = result.written && !turn.askedEvolution ? writePending', 'const suggestion = result.written ? writePending', () => {
   runHook(stopInput(transcript([...POSITIVE_TURN, askLine('a1', EVOLUTION_CARD)])), mutFile);
   return fs.existsSync(pendingPath('aaaaaaaa'));
+});
+mutant('把压缩摘要当用户指令（复现现役缺陷）', "if (!entry || entry.isCompactSummary === true) return '';", "if (!entry) return '';", () => {
+  runHook(stopInput(transcript(COMPACT_TURN)), mutFile);
+  return records().length === 0 && /SKIP_READ_ONLY/.test(heartbeatText());
+});
+mutant('去掉有界回溯', '  if (!out.userText && start > 0) out.userText = lastUserTextBefore(file, start, headFragment, backtrackBytes);\n', '', () => {
+  write(CONFIG, JSON.stringify({ tailBytes: 512 }));
+  runHook(stopInput(paddedFile), mutFile);
+  return records().length === 0 && /SKIP_NO_TRANSCRIPT/.test(heartbeatText());
 });
 // 变异 harness 负对照：未改动的副本必须与原件行为一致（红来自变异，不是 harness 恒红）。
 reset();
