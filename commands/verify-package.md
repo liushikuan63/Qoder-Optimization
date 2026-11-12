@@ -15,7 +15,7 @@ node ~/.qoder/scripts/share-package-verify.cjs "D:/tmp/Qoder-Optimization-0.0.2"
 # 额外校验规则文档第一节是否与 AGENTS.md 逐字节一致
 node ~/.qoder/scripts/share-package-verify.cjs "<包目录>" --agents ~/.qoder/AGENTS.md
 
-# 校验器自身自测（1 正例 / 4 负例）
+# 校验器自身自测（39 条：11 正例 / 28 负例）
 node ~/.qoder/scripts/share-package-verify.cjs --selftest
 ```
 
@@ -26,7 +26,7 @@ node ~/.qoder/scripts/share-package-verify.cjs --selftest
 3. 无零字节文件。
 4. 必需件齐全：`VERSION` / `catalog.json` / `skills-manifest.json` / 规则文档 / `README-安装说明.md` / `INDEX.md`。
 5. `catalog.counts` 与目录实际数量一致（skill / command / agent / script）。
-6. 可选：规则文档「一、全局开发规则」与 `AGENTS.md` 正文逐字节一致。
+6. 可选：规则文档「一、全局开发规则」与 `AGENTS.md` 正文逐字节一致。**缺分节标记、第一节为空、`AGENTS.md` 剥掉标题与版本行后为空，一律判红**——空对空不算一致（否则这道校验会静默变成摆设）。
 
 ## 与体检的分工
 

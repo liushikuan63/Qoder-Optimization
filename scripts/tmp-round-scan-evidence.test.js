@@ -172,6 +172,80 @@ check('格5 登记证据目录被跳过（目录仍在）', fs.existsSync(path.j
 check('格5 人读输出点名「文档登记证据」并给出路径（不是静默保留）',
   /文档登记证据/.test(r.out) && r.out.includes('registered-hint'), r.out.split('\n').filter(l => /registered-hint|文档登记/.test(l)).join(' | ').slice(0, 240));
 
+// 11. F84：证据登记扫描**不完整**必须报出来，且 --apply 失败关闭（一个都不删）。
+// 修前：depth>6 直接 return、readdirSync 失败静默跳过 ⇒ 登记保护整片失效，证据被删且退 0
+//（2026-11-12 probe-f83-85 A/C/G 实测）。深度上限是相对**传入的文档根**算的，所以夹具必须传外层根。
+function f84Fixture(tag, depth) {
+  const root = path.join(SB, 'f84-' + tag);
+  const evidence = path.join(root, 'evidence-' + tag);
+  fs.mkdirSync(evidence, { recursive: true });
+  fs.writeFileSync(path.join(evidence, '结论.md'), '被文档登记的证据\n');
+  const scratch = path.join(root, 'plain-scratch');
+  fs.mkdirSync(scratch, { recursive: true });
+  fs.writeFileSync(path.join(scratch, 'x.bin'), 'x');
+  const docsOuter = path.join(root, 'docs');
+  let docs = docsOuter;
+  fs.mkdirSync(docs, { recursive: true });
+  for (let i = 0; i < depth; i++) { docs = path.join(docs, 'd' + (i + 1)); fs.mkdirSync(docs, { recursive: true }); }
+  fs.writeFileSync(path.join(docs, '登记.md'), `证据目录：${evidence.replace(/\\/g, '/')}\n`);
+  return { root, evidence, scratch, docsOuter, docs };
+}
+const f84Args = (f, docs, extra = []) => ['--since', since, '--root', f.root, '--force', '--evidence-docs', docs, '--json', ...extra];
+const inc = (r) => (r.json && r.json.evidenceScan && r.json.evidenceScan.incomplete) || [];
+
+const deep = f84Fixture('deep', 7);
+r = run(f84Args(deep, deep.docsOuter, ['--apply']));
+check('F84 第 7 层登记 + --apply：失败关闭 exit 2', r.code === 2, `code=${r.code} ${r.out.slice(0, 160)}`);
+check('F84 第 7 层登记：证据与普通目录都还在，deleted=0',
+  fs.existsSync(deep.evidence) && fs.existsSync(deep.scratch) && ((r.json || {}).deleted || []).length === 0,
+  JSON.stringify((r.json || {}).deleted || []));
+check('F84 不完整可见（evidenceScan.incomplete 点名 depth-cap）',
+  inc(r).some(x => x.kind === 'depth-cap' && x.path.includes('d7')), JSON.stringify(inc(r)).slice(0, 200));
+check('F84 拒绝时 recommended.clean 为空（数据层也不许给出删除清单）',
+  !!r.json && r.json.refused === 'evidence-scan-incomplete' && r.json.recommended.clean.length === 0
+  && r.json.refusedCandidates.length > 0, JSON.stringify(r.json && r.json.recommended));
+
+const d6 = f84Fixture('depth6', 6);
+r = run(f84Args(d6, d6.docsOuter, ['--apply']));
+check('F84 负对照 第 6 层仍在保护范围内：exit 0 + 证据保住 + 无 incomplete',
+  r.code === 0 && fs.existsSync(d6.evidence) && inc(r).length === 0
+  && ((r.json || {}).registeredEvidence || []).some(p => p.endsWith('evidence-depth6')),
+  `code=${r.code} registered=${JSON.stringify((r.json || {}).registeredEvidence || [])}`);
+check('F84 负对照 第 6 层：未登记的普通目录仍被清理（保护没被扩大成"什么都不删"）',
+  !fs.existsSync(d6.scratch), `code=${r.code}`);
+
+const fileRoot = f84Fixture('fileroot', 0);
+const notDir = path.join(fileRoot.root, 'not-a-dir.md');
+fs.writeFileSync(notDir, `证据目录：${fileRoot.evidence.replace(/\\/g, '/')}\n`);
+r = run(f84Args(fileRoot, notDir, ['--apply']));
+check('F84 文档根是文件：exit 2 + 证据保住 + 报 unreadable-dir',
+  r.code === 2 && fs.existsSync(fileRoot.evidence) && inc(r).some(x => x.kind === 'unreadable-dir'),
+  `code=${r.code} incomplete=${JSON.stringify(inc(r)).slice(0, 160)}`);
+
+const missing = f84Fixture('missing', 0);
+r = run(f84Args(missing, path.join(missing.root, 'no-such-docs'), ['--apply']));
+check('F84 负对照 文档根不存在：口径不变（exit 0 + 照常清理 + missingRoots 可见）',
+  r.code === 0 && !fs.existsSync(missing.evidence) && !fs.existsSync(missing.scratch)
+  && ((r.json.evidenceScan || {}).missingRoots || []).length === 1 && inc(r).length === 0,
+  `code=${r.code} scan=${JSON.stringify(r.json && r.json.evidenceScan).slice(0, 200)}`);
+
+const ro = f84Fixture('readonly', 7);
+r = run(f84Args(ro, ro.docsOuter));
+check('F84 只读扫描：不完整要可见但不阻塞（exit 0 + 不删）',
+  r.code === 0 && inc(r).length > 0 && fs.existsSync(ro.evidence) && fs.existsSync(ro.scratch), `code=${r.code}`);
+
+const human = f84Fixture('human', 7);
+r = run(['--since', since, '--root', human.root, '--force', '--evidence-docs', human.docsOuter, '--apply']);
+check('F84 人读输出：点名「扫描不完整」并给出拒绝理由与改法',
+  r.code === 2 && /扫描不完整/.test(r.out) && /已拒绝清理/.test(r.out) && /--evidence-docs/.test(r.out),
+  r.out.split('\n').filter(l => /扫描不完整|已拒绝清理|改法/.test(l)).join(' | ').slice(0, 260));
+
+const shallow = f84Fixture('shallow', 0);
+r = run(f84Args(shallow, shallow.docsOuter, ['--apply']));
+check('F84 负对照 浅层登记：exit 0 + 证据保住 + 扫描完整（mdFiles>0）',
+  r.code === 0 && fs.existsSync(shallow.evidence) && inc(r).length === 0 && r.json.evidenceScan.mdFiles > 0,
+  `code=${r.code} scan=${JSON.stringify(r.json && r.json.evidenceScan).slice(0, 200)}`);
+
 fs.rmSync(SB, { recursive: true, force: true });
 console.log(fail ? `\nT18 FAIL ${fail}` : '\nT18 ALL PASS');
 process.exitCode = fail ? 1 : 0;

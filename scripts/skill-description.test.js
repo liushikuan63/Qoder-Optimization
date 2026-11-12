@@ -46,15 +46,21 @@ for (const d of dirs) {
   compared++;
   if (e.description !== value) drift.push({ skill: d, catalogLen: e.description.length, parsedLen: value.length });
 }
-check('全量语料 catalog 与统一解析一致（差分判据）', drift.length === 0, `compared=${compared} drift=${JSON.stringify(drift.slice(0, 6))}`);
+// F85：空语料时 drift=[] 恒真 ⇒ 差分判据形同不存在（2026-11-12 probe-f83-85 A 修前：compared=0 仍 PASS）。
+// compared>0 是这条判据的前置：没比过任何一条就不许判绿。
+check('全量语料 catalog 与统一解析一致（差分判据）', compared > 0 && drift.length === 0, `compared=${compared} drift=${JSON.stringify(drift.slice(0, 6))}`);
 
 // ---- differential: the enforcer's own descOf must equal the unified parser ----
+// F85：只查「源码里出现过 skill-description.cjs」＝注释里提一句也算共用真源（假绿）。
+// 这里要求真的有 require 调用；行为层面的证据是下面 M1/M2 的三处一致差分（那才是判据本体）。
+const requiresRealSource = (src) => /require\(\s*['"][^'"]*skill-description\.cjs['"]\s*\)/.test(src);
+check('共用真源判据可失败：只在注释里提路径不算 require', !requiresRealSource('// 详见 skill-description.cjs\nconst x = 1;\n'));
 const verifySrc = fs.readFileSync(path.join(ROOT, 'scripts/share-package-verify.cjs'), 'utf8');
-check('执行器已改为共用真源（不再自带裸正则）', /skill-description\.cjs/.test(verifySrc) && !/t\.match\(\/\^description:\\s\*\(\.\+\)\$\/m\)/.test(verifySrc));
+check('执行器已改为共用真源（真的 require，且不再自带裸正则）', requiresRealSource(verifySrc) && !/t\.match\(\/\^description:\\s\*\(\.\+\)\$\/m\)/.test(verifySrc));
 const extrasSrc = fs.readFileSync(path.join(ROOT, 'scripts/pack-share-extras.cjs'), 'utf8');
-check('生产者已改为共用真源', /skill-description\.cjs/.test(extrasSrc));
+check('生产者已改为共用真源（真的 require）', requiresRealSource(extrasSrc));
 const collSrc = fs.readFileSync(path.join(ROOT, 'scripts/skill-collisions.cjs'), 'utf8');
-check('碰撞扫描已改为共用真源', /skill-description\.cjs/.test(collSrc));
+check('碰撞扫描已改为共用真源（真的 require）', requiresRealSource(collSrc));
 
 // ---- mutation control: the OLD enforcer regex must disagree on the quoted corpus ----
 const oldEnforcer = (text) => (text.match(/^description:\s*(.+)$/m) || [])[1] || null;

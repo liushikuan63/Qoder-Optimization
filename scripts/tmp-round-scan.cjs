@@ -163,21 +163,28 @@ function trashBatchDir(root, now) {
   return path.join(root, '.trash', stamp)
 }
 
-/** C10：扫描指定文档目录里的 .md，收集被登记为证据的绝对路径（正斜杠与反斜杠两种写法都认）。 */
+/** C10：扫描指定文档目录里的 .md，收集被登记为证据的绝对路径（正斜杠与反斜杠两种写法都认）。
+ *  F84：扫描**不完整**必须报出来。旧实现 depth>6 直接 return、readdirSync/readFileSync 失败静默跳过，
+ *  于是「文档登记证据」这层保护悄悄失效，--apply 照删证据（2026-11-12 probe-f83-85 A/C/G 修前实测被删）。
+ *  现在返回 { found, scan }：scan.incomplete 非空 ⇒ 调用方在 --apply 时失败关闭，一个都不删。
+ *  文档根**不存在**是另一回事（口径＝无登记、正常清理），只记 missingRoots 供提示，不算 incomplete。 */
 function collectRegisteredEvidence(docRoots) {
   const found = new Set()
-  if (!Array.isArray(docRoots) || !docRoots.length) return found
+  const scan = { roots: [], mdFiles: 0, truncatedDirs: [], unreadableDirs: [], unreadableFiles: [], missingRoots: [], incomplete: [] }
+  const why = (e) => String((e && (e.code || e.message)) || e)
+  if (!Array.isArray(docRoots) || !docRoots.length) return { found, scan }
   const walk = (dir, depth) => {
-    if (depth > 6) return
+    if (depth > 6) { scan.truncatedDirs.push(dir); return }
     let list = []
-    try { list = fs.readdirSync(dir, { withFileTypes: true }) } catch (e) { return }
+    try { list = fs.readdirSync(dir, { withFileTypes: true }) } catch (e) { scan.unreadableDirs.push({ path: dir, error: why(e) }); return }
     for (const e of list) {
       if (e.name === 'node_modules' || e.name === '.git') continue
       const full = path.join(dir, e.name)
       if (e.isDirectory()) { walk(full, depth + 1); continue }
       if (!/\.md$/i.test(e.name)) continue
       let text = ''
-      try { text = fs.readFileSync(full, 'utf8') } catch (err) { continue }
+      try { text = fs.readFileSync(full, 'utf8') } catch (err) { scan.unreadableFiles.push({ path: full, error: why(err) }); continue }
+      scan.mdFiles++
       for (const m of text.matchAll(/[A-Za-z]:[\\/][^\s`'")\]，。；]+/g)) {
         const raw = m[0].replace(/[.,;:]+$/, '')
         found.add(raw.replace(/\\/g, '/').toLowerCase())
@@ -185,8 +192,17 @@ function collectRegisteredEvidence(docRoots) {
       }
     }
   }
-  for (const r of docRoots) walk(r, 0)
-  return found
+  for (const r of docRoots) {
+    scan.roots.push(r)
+    if (!fs.existsSync(r)) { scan.missingRoots.push(r); continue }
+    walk(r, 0)
+  }
+  scan.incomplete = [
+    ...scan.truncatedDirs.map((p) => ({ kind: 'depth-cap', path: p, detail: '超过 6 层深度上限，这一支没扫' })),
+    ...scan.unreadableDirs.map((x) => ({ kind: 'unreadable-dir', path: x.path, detail: x.error })),
+    ...scan.unreadableFiles.map((x) => ({ kind: 'unreadable-file', path: x.path, detail: x.error })),
+  ]
+  return { found, scan }
 }
 
 /** C10：清理台账。没有它就无法归因「谁删了证据」——本项目已实际踩到。
@@ -356,7 +372,9 @@ function main() {
   // 事故背景：用户选「全部保留」后，未加标记的证据目录仍被普通自动清理永久删除且无副本可恢复。
   const useTrash = opts.trash === null ? true : opts.trash
   // C10：被仓库文档以路径形式登记为证据的目录，即使没有 .keep/.evidence.json 也保留。
-  const registeredEvidence = collectRegisteredEvidence(opts.evidenceDocs)
+  const evidenceResult = collectRegisteredEvidence(opts.evidenceDocs)
+  const registeredEvidence = evidenceResult.found
+  const evidenceScan = evidenceResult.scan
   const isRegistered = (full) => {
     if (!registeredEvidence.size) return false
     const norm = String(full).replace(/\\/g, '/').toLowerCase()
@@ -430,7 +448,14 @@ function main() {
   const purgedTrashPaths = []
   let trashPurgeSkipped = null
   let cleanupLedgerError = null
-  if (opts.apply) {
+  // F84：登记扫描不完整 ⇒ **失败关闭**，一个都不删（连未登记的普通目录也不删）。
+  // 不完整的扫描意味着「文档登记证据」这层保护可能整片失效，此时删除等于拿证据赌运气。
+  const evidenceRefusal = opts.apply && evidenceScan.incomplete.length > 0
+  if (evidenceRefusal) {
+    heartbeat('ROUND-REFUSE root=' + root + ' reason=evidence-scan-incomplete'
+      + ' incomplete=' + evidenceScan.incomplete.length + ' candidates=' + candidates.length)
+  }
+  if (opts.apply && !evidenceRefusal) {
     const batchDir = useTrash ? trashBatchDir(root, now) : null
     for (const e of candidates) {
       try {
@@ -479,21 +504,29 @@ function main() {
     staleNote: 'reference-only: the overdue list may come from another machine or package config; verify existence, ownership and references locally before cleanup',
     protected: protectedEntries.map((e) => e.path),
     recommended: {
-      clean: candidates.map((e) => e.path),
-      preserve: preserved.map((e) => e.path),
+      clean: evidenceRefusal ? [] : candidates.map((e) => e.path),
+      preserve: (evidenceRefusal ? scoped : preserved).map((e) => e.path),
       modified: modifiedKept.map((e) => e.path),
       sessionSkipped: sessionSkipped.map((e) => e.path),
     },
     guards, trashed, purgedTrash, purgedTrashPaths, trashPurgeSkipped, deleted, failed, registeredEvidence: registeredList,
+    evidenceScan, refused: evidenceRefusal ? 'evidence-scan-incomplete' : null,
+    refusedCandidates: evidenceRefusal ? candidates.map((e) => e.path) : [],
     ledgerError: cleanupLedgerError }
 
   if (opts.json) {
     console.log(JSON.stringify(result))
-    return failed.length || cleanupLedgerError ? 1 : 0
+    return evidenceRefusal ? 2 : (failed.length || cleanupLedgerError ? 1 : 0)
   }
   console.log('本轮临时根：' + root + '（since ' + new Date(opts.since).toISOString() + '）')
   if (opts.session) console.log('仅自动清理名字含会话令牌 ' + opts.session + ' 的条目；--only 指定项不受限制。')
   if (useTrash) console.log('分享包产物将移入 ' + path.join(root, '.trash') + '（保留 7 天）。')
+  if (evidenceScan.roots.length) {
+    console.log('证据登记扫描：文档根 ' + evidenceScan.roots.length + ' 个，读到 .md ' + evidenceScan.mdFiles
+      + ' 份，登记路径 ' + registeredEvidence.size + ' 条。')
+    for (const p of evidenceScan.missingRoots) console.log('  文档根不存在（按无登记处理，不影响正常清理）：' + p)
+    for (const x of evidenceScan.incomplete) console.log('  扫描不完整 [' + x.kind + ']：' + x.path + '（' + x.detail + '）')
+  }
   if (opts.only.length) {
     console.log('仅处理指定路径 ' + opts.only.length + ' 项'
       + (unmatchedOnly.length ? '（其中 ' + unmatchedOnly.length + ' 项本轮未命中）' : '') + '。')
@@ -510,6 +543,13 @@ function main() {
   }
   console.log('超期件（仅供参考，可能与本机现状不一致）：' + (stale.length ? stale.length + ' 项（' + stale.slice(0, 5).map((f) => f.path).join('、') + '）' : '无'))
   if (opts.apply) {
+    if (evidenceRefusal) {
+      console.log('已拒绝清理（exit 2）：证据登记扫描不完整 ' + evidenceScan.incomplete.length
+        + ' 处，「文档登记证据」这层保护可能整片失效，此时删除等于拿证据赌运气。'
+        + '本次一个都没删（原待清理 ' + candidates.length + ' 项已全部转为保留）。')
+      console.log('改法：把 --evidence-docs 指到登记文件真正所在的目录（深度上限 6 层），或修好不可读的目录/文件后重跑。')
+      return 2
+    }
     console.log((opts.only.length ? '已按指定路径' : '已按推荐范围') + '清理本轮条目 ' + deleted.length + ' 项'
       + (failed.length ? '，失败 ' + failed.length + ' 项' : '') + '。')
     if (useTrash && trashed.length) {

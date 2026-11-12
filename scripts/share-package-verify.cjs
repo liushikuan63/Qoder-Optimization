@@ -143,10 +143,21 @@ function verify(pkgDir, agentsPath) {
     try {
       const doc = fs.readFileSync(path.join(pkgDir, 'Qoder-AI编码通用规则.md'), 'utf8').replace(/\r\n/g, '\n');
       const agents = fs.readFileSync(agentsPath, 'utf8').replace(/\r\n/g, '\n').replace(/^# .*\n+/, '').replace(/^> 版本：.*\n+/, '').trim();
-      const i = doc.indexOf('## 一、全局开发规则');
-      const j = doc.indexOf('## 二、领域规则');
-      const sec = i >= 0 && j > i ? doc.slice(i + '## 一、全局开发规则'.length, j).trim() : '';
-      sec === agents ? passes.push('规则文档第一节 == AGENTS.md') : fails.push('规则文档第一节与 AGENTS.md 不一致');
+      const H1 = '## 一、全局开发规则';
+      const H2 = '## 二、领域规则';
+      const i = doc.indexOf(H1);
+      const j = doc.indexOf(H2);
+      const sec = i >= 0 && j > i ? doc.slice(i + H1.length, j).trim() : '';
+      // F83：空对空不算一致。旧写法在「文档没有分节标记」或「AGENTS 剥掉标题/版本行后为空」时
+      // 两边都得到 ''，`'' === ''` 恒真 ⇒ 这道校验静默变成摆设（2026-11-12 probe-f83-85 A/B/C 修前判绿）。
+      // 缺标记、任一侧为空都必须判红并点名原因，只有两侧都非空且逐字相等才算比过。
+      const reasons = [];
+      if (i < 0 || j <= i) reasons.push(`规则文档缺少分节标记（需「${H1}」在「${H2}」之前）`);
+      if (!sec) reasons.push('规则文档第一节为空');
+      if (!agents) reasons.push('AGENTS.md 去掉标题与版本行后为空');
+      if (reasons.length) fails.push('规则文档第一节与 AGENTS.md 不一致（空对空/缺标记都不算一致）：' + reasons.join('；'));
+      else if (sec === agents) passes.push('规则文档第一节 == AGENTS.md');
+      else fails.push('规则文档第一节与 AGENTS.md 不一致');
     } catch (e) {
       fails.push('文档一致性校验失败: ' + e.message.split('\n')[0]);
     }
@@ -278,6 +289,21 @@ function selftest() {
   expectCase('负例', 'F78 未知开关', run(docPkg, '--agentsx'), 2, '未知开关应失败关闭');
   expectCase('负例', 'F78 值位置是开关', run(docPkg, '--agents', '--selftest'), 2, '--agents 后跟开关应判红');
   expectCase('负例', 'F78 路径不存在', run(docPkg, '--agents', path.join(tmp, 'nope.md')), 2, '--agents 指向不存在文件应判红');
+
+  // F83：空对空不算一致。缺分节标记、任一侧为空都必须判红；但「不带 --agents」这道校验本就可选，不许被拖红。
+  // 修前这三条全绿（`'' === ''` 恒真），是 2026-11-12 probe-f83-85 A/B/C 实测出来的。
+  const agentsTitleOnly = path.join(tmp, 'AGENTS-title.md');
+  fs.writeFileSync(agentsTitleOnly, '# 标题\n');
+  const agentsVersionOnly = path.join(tmp, 'AGENTS-version.md');
+  fs.writeFileSync(agentsVersionOnly, '# 标题\n\n> 版本：2026-11-12\n');
+  const noSecPkg = withFiles('f83-nosec', { 'Qoder-AI编码通用规则.md': '没有分节标记的正文\n' });
+  const emptySecPkg = withFiles('f83-emptysec', { 'Qoder-AI编码通用规则.md': '## 一、全局开发规则\n\n## 二、领域规则\n\nx\n' });
+  expectCase('负例', 'F83 缺标记+AGENTS 空', run(noSecPkg, '--agents', agentsTitleOnly), 2, '两边都空不许判绿', '空对空');
+  expectCase('负例', 'F83 第一节空+AGENTS 空', run(emptySecPkg, '--agents', agentsTitleOnly), 2, '第一节为空不许判绿', '空对空');
+  expectCase('负例', 'F83 缺标记+AGENTS 只剩版本行', run(noSecPkg, '--agents', agentsVersionOnly), 2, '剥掉版本行后为空也要判红', '空对空');
+  expectCase('负例', 'F83 第一节空+AGENTS 有正文', run(emptySecPkg, '--agents', agentsGood), 2, '单侧为空同样判红', '空对空');
+  expectCase('负例', 'F83 标记顺序颠倒', run(withFiles('f83-rev', { 'Qoder-AI编码通用规则.md': '## 二、领域规则\n\nx\n\n## 一、全局开发规则\n\n规则正文一行\n' }), '--agents', agentsGood), 2, '第二节在第一节之前不算有效分节', '空对空');
+  expectCase('正例', 'F83 缺标记但不带 --agents', run(noSecPkg), 0, '可选校验不许扩大范围', 'VERDICT=CLEAN');
 
   // F79：.bak 必须带右边界——正常文档 notes.bakery.md 不许被误判，真备份的各种历史命名仍要拦。
   expectCase('正例', 'F79 bakery.md', run(withFiles('f79-bakery', { 'notes.bakery.md': '正常文档\n' })), 0,

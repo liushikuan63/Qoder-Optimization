@@ -33,11 +33,20 @@ const DOCS = [
       { script: 'huge-output-guard.test.js', reSrc: 'huge-output-guard\\.test\\.js`（\\*\\*(\\d+) 条\\*\\*' },
     ],
   },
+  {
+    // F87：同一族过期计数第三处——verify-package.md 写「1 正例 / 4 负例」，实跑已是 11 正例 / 28 负例。
+    // 这份文档的自测要带 --selftest 才有条数（不带参数只打用法并退 2），所以 claim 支持 args。
+    rel: 'commands/verify-package.md',
+    applyGuard: false,
+    claims: [
+      { script: 'share-package-verify.cjs', args: ['--selftest'], reSrc: '校验器自身自测（(\\d+) 条' },
+    ],
+  },
 ];
 
 /** 实跑一个自测并取回真实条数；退出码非 0 直接失败（不拿崩溃冒充条数）。 */
-function measuredTally(script) {
-  const r = spawnSync(process.execPath, [path.join(root, 'scripts', script)], { encoding: 'utf8', timeout: 300000 });
+function measuredTally(script, args = []) {
+  const r = spawnSync(process.execPath, [path.join(root, 'scripts', script), ...args], { encoding: 'utf8', timeout: 300000 });
   const out = String(r.stdout || '') + String(r.stderr || '');
   assert.equal(r.status, 0, script + ' 必须全绿才谈得上比对条数：\n' + out.slice(-1500));
   const m = out.match(/通过 (\d+)，失败 (\d+)/);
@@ -53,6 +62,14 @@ function measuredTally(script) {
     assert.ok(Number(h[1]) > 0, script + ' 一条 PASS 都没有（空集会让比对恒真）');
     return Number(h[1]);
   }
+  // share-package-verify 自测收尾打 `SELFTEST=PASS (N 正例 / M 负例)`：条数＝两者之和。
+  const p = out.match(/SELFTEST=PASS \((\d+) 正例 \/ (\d+) 负例\)/);
+  if (p) {
+    const total = Number(p[1]) + Number(p[2]);
+    assert.ok(total > 0, script + ' 一个用例都没有（空集会让比对恒真）');
+    assert.ok(Number(p[2]) > 0, script + ' 一个负对照都没有（只跑正例的自测抓不住回归）');
+    return total;
+  }
   // evidence 自测只打 PASS/FAIL 行 + 收尾标记：数 PASS 行，并要求标记存在且非空集。
   assert.match(out, /T18 ALL PASS/, script + ' 缺少收尾标记 T18 ALL PASS');
   const passes = [...out.matchAll(/^PASS\s/gm)].length;
@@ -61,9 +78,10 @@ function measuredTally(script) {
 }
 
 const actual = new Map();
-const tallyOf = (script) => {
-  if (!actual.has(script)) actual.set(script, measuredTally(script));
-  return actual.get(script);
+const tallyOf = (script, args = []) => {
+  const key = script + '|' + args.join(' ');
+  if (!actual.has(key)) actual.set(key, measuredTally(script, args));
+  return actual.get(key);
 };
 
 /** 文档里对某个自测声明的条数；命中次数必须恰好 1，否则「没写」会被当成「写对」。 */
@@ -103,8 +121,8 @@ for (const cfg of DOCS) {
     for (const claim of cfg.claims) {
       const c = claimOf(docText, claim);
       assert.equal(c.hits, 1, `${claim.script} 的条数声明在 ${cfg.rel} 里应恰好出现 1 次，实测 ${c.hits} 次`);
-      assert.equal(c.claimed, tallyOf(claim.script),
-        `${claim.script} 文档写 ${c.claimed} 条，实跑 ${tallyOf(claim.script)} 条`);
+      assert.equal(c.claimed, tallyOf(claim.script, claim.args),
+        `${claim.script} 文档写 ${c.claimed} 条，实跑 ${tallyOf(claim.script, claim.args)} 条`);
     }
   });
 
@@ -113,7 +131,7 @@ for (const cfg of DOCS) {
     for (const claim of cfg.claims) {
       const c = claimOf(docText, claim);
       assert.equal(c.hits, 1);
-      const real = tallyOf(claim.script);
+      const real = tallyOf(claim.script, claim.args);
       const wrong = docText.replace(new RegExp(claim.reSrc), (m0, n) => m0.replace(n, String(real - 1)));
       assert.notEqual(wrong, docText, '负对照必须真的改到文档副本：' + claim.script);
       const wc = claimOf(wrong, claim);
@@ -168,4 +186,12 @@ test('负对照：省略脚本名的 --apply 简写必须被认出，而名词�
   assert.equal(old.length, 0, '旧判据本应漏掉它（否则这条负对照没有鉴别力）');
   // 名词提及不是命令：文档里 8 处单独的 `--apply` 不该被判红。
   assert.equal(applyCommands('本文所有 `--apply` 命令都带它；`tmp-round-scan --apply` 同理。').length, 0);
+});
+
+test('F87：claim.args 真的被传给脚本（校验器不带 --selftest 只打用法并退 2，给不出条数）', () => {
+  const withArgs = DOCS.flatMap((d) => d.claims).filter((c) => Array.isArray(c.args) && c.args.length);
+  assert.ok(withArgs.length > 0, '没有任何带 args 的声明，这条判据会恒真');
+  const bare = spawnSync(process.execPath, [path.join(root, 'scripts', 'share-package-verify.cjs')], { encoding: 'utf8', timeout: 60000 });
+  assert.equal(bare.status, 2, '不带参数的校验器应打用法并退 2（所以忽略 args 的实现根本取不到条数）');
+  for (const c of withArgs) assert.ok(tallyOf(c.script, c.args) > 0, c.script + ' 带 args 实跑必须给出正条数');
 });
