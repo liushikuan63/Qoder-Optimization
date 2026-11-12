@@ -6,16 +6,30 @@ const os = require('node:os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-test('share-package-verify 自测全过（3 正例 / 7 负例）', () => {
-  const r = spawnSync(process.execPath, [path.join(__dirname, 'share-package-verify.cjs'), '--selftest'], { encoding: 'utf8', timeout: 60000 });
+// 自测条数不写死：写死的数字会随判据增加而过期（同族缺陷已在 clean-temp.md 与 README-rule-enforcement.md 上咬过）。
+// 这里的判据是「自报条数 == 实际打出的用例标签数」，两边都能失败：漏跑用例或虚报条数都会判红。
+function selftestTally(stdout) {
+  const m = /SELFTEST=PASS \((\d+) 正例 \/ (\d+) 负例\)/.exec(stdout);
+  assert.ok(m, '自测必须打出 SELFTEST=PASS (N 正例 / M 负例)：\n' + stdout);
+  const labels = [...stdout.matchAll(/\[(正例|负例)·[^\]]+\] exit=\d+/g)].map((x) => x[1]);
+  const pos = labels.filter((k) => k === '正例').length;
+  const neg = labels.filter((k) => k === '负例').length;
+  assert.ok(pos > 0 && neg > 0, '正例与负例都必须非空（空集会让比对恒真）');
+  assert.equal(Number(m[1]), pos, `自报正例 ${m[1]} 条，实际打出 ${pos} 条`);
+  assert.equal(Number(m[2]), neg, `自报负例 ${m[2]} 条，实际打出 ${neg} 条`);
+  return { pos, neg };
+}
+
+test('share-package-verify 自测全过（自报条数＝实际用例数）', () => {
+  const r = spawnSync(process.execPath, [path.join(__dirname, 'share-package-verify.cjs'), '--selftest'], { encoding: 'utf8', timeout: 120000 });
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.match(r.stdout, /SELFTEST=PASS/);
-  assert.match(r.stdout, /SELFTEST=PASS \(3 正例 \/ 7 负例\)/);
+  selftestTally(r.stdout);
 });
 
 // T-01 变异负对照：把执行器的 descOf 改回「裸正则取原始行」后，
 // 解码后恰好 300 的 quoted 边界用例必须判红（exit 2）；
-// 负对照＝unquoted 300 与其余 7 个负例的结论必须一字不变，否则说明变异打歪了。
+// 负对照＝unquoted 300 与其余全部负例的结论必须一字不变，否则说明变异打歪了。
 // 变异只发生在临时沙箱副本里，仓库文件零写入；selftest 的子进程用 __filename 启动，
 // 所以必须整份复制（含 skill-description.cjs / skills-doctor.cjs）才能让子进程也吃到变异。
 test('mutant: bare-regex descOf must fail the quoted 300 boundary and leave every negative control intact', t => {
@@ -56,9 +70,12 @@ test('mutant: bare-regex descOf must fail the quoted 300 boundary and leave ever
 
   // 负对照：变异只该打到 quoted 边界，其余结论必须与真源完全一致
   assert.equal(mutantExits['正例·unquoted300'], 0, '负对照：unquoted 300 不受变异影响');
-  assert.equal(mutantExits['正例'], 0, '负对照：短描述正例不受变异影响');
+  assert.equal(mutantExits['正例·干净包'], 0, '负对照：短描述正例不受变异影响');
   const negatives = Object.keys(realExits).filter(k => k.startsWith('负例'));
-  assert.equal(negatives.length, 7, `负例数量应为 7，实测 ${negatives.length}`);
+  // 负例条数取自真源实跑（不写死）：新增负例时这里自动跟上，漏跑用例则条数对不上而判红。
+  const expectedNeg = selftestTally(real.stdout).neg;
+  assert.equal(negatives.length, expectedNeg, `负例数量应为 ${expectedNeg}，实测 ${negatives.length}`);
+  assert.equal(Object.keys(mutantExits).length, Object.keys(realExits).length, '变异后用例数不得减少（少跑＝对照失效）');
   for (const k of negatives) {
     assert.equal(realExits[k], 2, `真源负例 ${k} 应判红`);
     assert.equal(mutantExits[k], 2, `负对照：变异后 ${k} 仍应判红`);
