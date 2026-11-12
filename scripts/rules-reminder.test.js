@@ -145,9 +145,16 @@ check('⑭ 否定句不触发复核模式', r14.status === 0 && !ctx14.includes(
 // ⑮⑯ 变异对照：摘掉复核调用后触发提示必须消失；非触发轮输出必须与变异体逐字节一致
 const MUT_DIR = path.join(SB, 'mutated');
 fs.mkdirSync(MUT_DIR, { recursive: true });
-for (const name of ['rules-reminder.js', 'client-root.js', 'hook-crash-guard.js', 'goal-candidate-core.js', 'recheck-protocol.cjs', 'verification-trigger-core.js']) {
+for (const name of ['rules-reminder.js', 'client-root.js', 'hook-crash-guard.js', 'goal-candidate-core.js', 'recheck-protocol.cjs', 'verification-trigger-core.js', 'evolution-signal-core.js']) {
   fs.copyFileSync(path.join(__dirname, name), path.join(MUT_DIR, name));
 }
+// 依赖完整性：变异体缺任何一个**加载期** require 都会 MODULE_NOT_FOUND，
+// 表现为"变异对照假红"。这里显式核对，新增顶层依赖漏拷时给出可读原因。
+// 函数内 try/catch 懒加载依赖（capability-advisor / kickoff-core 等）缺失时优雅降级，
+// 基线就是不拷的，不能一并要求，否则会改变变异体行为。
+const loadTimeDeps = [...fs.readFileSync(path.join(__dirname, 'rules-reminder.js'), 'utf8').matchAll(/^const\s+\w+\s*=\s*require\('\.\/([^']+)'\)/gm)].map(m => m[1]);
+const missingDeps = loadTimeDeps.filter(name => !fs.existsSync(path.join(MUT_DIR, name)));
+check('⑮ 变异体加载期依赖完整（新增顶层 require 必须同步拷贝清单）', missingDeps.length === 0, missingDeps.join(','));
 const mutFile = path.join(MUT_DIR, 'rules-reminder.js');
 const mutSource = fs.readFileSync(mutFile, 'utf8');
 const mutText = mutSource.replace('+ recheckNoteFor(prompt)', "+ ''");
@@ -201,7 +208,7 @@ check('㉖ 空 stdin 静态第 10 条仍注入', ctx.includes('自进化采集')
 // ㉗–㉙ 变异对照：移除 evolutionNote 调用后正例提示必须消失；负例与原件逐字节一致
 const EVO_MUT_DIR = path.join(SB, 'mutated-evolution');
 fs.mkdirSync(EVO_MUT_DIR, { recursive: true });
-for (const name of ['rules-reminder.js', 'client-root.js', 'hook-crash-guard.js', 'goal-candidate-core.js', 'recheck-protocol.cjs', 'verification-trigger-core.js']) {
+for (const name of ['rules-reminder.js', 'client-root.js', 'hook-crash-guard.js', 'goal-candidate-core.js', 'recheck-protocol.cjs', 'verification-trigger-core.js', 'evolution-signal-core.js']) {
   fs.copyFileSync(path.join(__dirname, name), path.join(EVO_MUT_DIR, name));
 }
 const evoMutFile = path.join(EVO_MUT_DIR, 'rules-reminder.js');
@@ -248,7 +255,7 @@ check('㉟ 决策日志记录判定且不含请求原文', /\|TRIGGER\|/.test(vL
 // ㊱–㊳ B05 变异对照：移除 verificationNote 调用后正例提示消失；负例与原件逐字节一致
 const B05_MUT_DIR = path.join(SB, 'mutated-b05');
 fs.mkdirSync(B05_MUT_DIR, { recursive: true });
-for (const name of ['rules-reminder.js', 'client-root.js', 'hook-crash-guard.js', 'goal-candidate-core.js', 'recheck-protocol.cjs', 'verification-trigger-core.js']) {
+for (const name of ['rules-reminder.js', 'client-root.js', 'hook-crash-guard.js', 'goal-candidate-core.js', 'recheck-protocol.cjs', 'verification-trigger-core.js', 'evolution-signal-core.js']) {
   fs.copyFileSync(path.join(__dirname, name), path.join(B05_MUT_DIR, name));
 }
 const b05MutFile = path.join(B05_MUT_DIR, 'rules-reminder.js');
@@ -339,7 +346,7 @@ check('工具获取边界断言可失败', !toolingBoundaries.every(value => too
 
 const TOOL_MUT_DIR = path.join(SB, 'mutated-tooling');
 fs.mkdirSync(TOOL_MUT_DIR, { recursive: true });
-for (const name of ['rules-reminder.js', 'client-root.js', 'hook-crash-guard.js', 'goal-candidate-core.js', 'recheck-protocol.cjs', 'verification-trigger-core.js']) {
+for (const name of ['rules-reminder.js', 'client-root.js', 'hook-crash-guard.js', 'goal-candidate-core.js', 'recheck-protocol.cjs', 'verification-trigger-core.js', 'evolution-signal-core.js']) {
   fs.copyFileSync(path.join(__dirname, name), path.join(TOOL_MUT_DIR, name));
 }
 const toolMutFile = path.join(TOOL_MUT_DIR, 'rules-reminder.js');

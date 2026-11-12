@@ -33,6 +33,7 @@ const crypto = require('crypto');
 const { clientRoot } = require('./client-root.js');
 const { goalCandidateNote } = require('./goal-candidate-core.js');
 const { classifyVerificationTrigger, buildTriggerNote } = require('./verification-trigger-core.js');
+const evolutionSignal = require('./evolution-signal-core.js');
 const CLIENT_ROOT = clientRoot();
 require('./hook-crash-guard.js').install('rules-reminder'); // 崩溃可见化：仍 fail-open，但写进 hooks-crash.log 供周检
 // 复核协议是可选增强：模块缺失或检测异常时只丢这段提示，不影响静态提醒与请求回注。
@@ -168,24 +169,13 @@ function recheckNoteFor(promptText) {
   }
 }
 
-// 自进化采集触发（2026-11-02）：只做语义初筛，不拦截、不写状态。
-// 正向三族：长期要求 / 显式沉淀 / 重复纠正；元提及与引用规则原文排除。
-// 单次任务约束（"不要修改文件"）不含长期词，天然不命中——不要为它加正向词。
-const EVOLUTION_LONG_TERM = /(?:以后|今后|下次|从现在开始|每次|一律|永远|总是).{0,24}(?:都|要|别|不要|必须|记得|记住|用|按)/;
-const EVOLUTION_EXPLICIT = /(?:记住|记一下|写进记忆|写入记忆|沉淀|固化成规则)/;
-const EVOLUTION_REPEAT = /(?:你又|怎么又|说了(?:多少|几)次|重复(?:犯|出现)|还是没|一直没|每次都)/;
-const EVOLUTION_META = /(?:当我说|如果我说|比如我说|这句话|这个词|举个例子).{0,24}(?:触发|处理|怎么|如何|会怎样|是否)/;
-const EVOLUTION_RULE_QUOTE = /(?:规则|AGENTS|提示词|文档).{0,16}(?:说|写着|要求|规定)/;
-const EVOLUTION_NOTE = '\n【自进化采集 · 本轮疑似纠正/长期偏好】检测到纠正或长期要求。收尾前按 self-evolution 证据门槛判断：用户明确长期偏好一次即可采纳；推断习惯需 ≥3 个独立任务、跨 ≥2 会话；单次任务约束只作用本轮。采纳则落到最窄载体并说明作用范围；临时要求明确说明不沉淀。';
+// 自进化采集触发（2026-11-02；2026-11-12 判据与正文移入 evolution-signal-core.js 单一真源）：
+// 只做语义初筛，不拦截、不写状态。采集层 evolution-capture.cjs 与 stop-gate 共用同一核，
+// 三处判据不再各写一份。正向三族与排除项的语义见核内注释；单次任务约束天然不命中。
+// EVOLUTION_META 仍供 toolResearchNote 复用，保持该段行为不变。
+const EVOLUTION_META = evolutionSignal.META;
 
-function evolutionNote(promptText) {
-  const text = typeof promptText === 'string' ? promptText.replace(/\s+/g, ' ').trim() : '';
-  if (!text) return '';
-  if (EVOLUTION_META.test(text) || EVOLUTION_RULE_QUOTE.test(text)) return '';
-  return EVOLUTION_LONG_TERM.test(text) || EVOLUTION_EXPLICIT.test(text) || EVOLUTION_REPEAT.test(text)
-    ? EVOLUTION_NOTE
-    : '';
-}
+const evolutionNote = evolutionSignal.preferenceNote;
 
 function toolResearchNote(promptText) {
   if (typeof promptText !== 'string') return '';
