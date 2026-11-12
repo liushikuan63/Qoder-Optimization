@@ -114,7 +114,7 @@ Edit 回显 849KB、Bash 无上限输出 454KB、子代理报告 382KB。
 
 | 层 | 入口 | 行为 | 怎么验 |
 |---|---|---|---|
-| PreToolUse 守卫 | `~/.qoder/scripts/huge-output-guard.js`（两侧 settings.json 已挂） | ① `Read` 大文件（>40KB 或 >600 行）且没带 offset/limit → **deny**；② `Bash` 命中 `cat`/`grep`/`git log`/`mvn`/`npm test`/`find`/`ls -R` 等形态且无任何限流（管道 / 重定向 / head / tail / `-l` / `-c` / `-m` / `--oneline`）→ **deny**；③ `Agent` 提示词末尾追加"只回结论、≤300 字"硬约束（**改输入而不是拒绝**，子代理本身是必要的） | `node scripts/huge-output-guard.test.js`（**23 条**：该拦的拦、该放的放；含两条自测抓出来的真问题：`/-l\b/` 匹配不到 `grep -rl` 的组合短参、`find` 带 `-name` 仍可能上千行） |
+| PreToolUse 守卫 | `~/.qoder/scripts/huge-output-guard.js`（两侧 settings.json 已挂） | ① `Read` 大文件（>40KB 或 >600 行；**末行无换行也算一行**，单行 300KB 的压缩 JSON 同样拦）且没带 offset/limit → **deny**；② `Bash` 命中 `cat`/`grep`/`git log`/`mvn`/`npm test`/`find`/`ls -R` 等形态且无任何**有效**限流（管道 / 重定向 / head / tail / `-l` / `-c` / `-m` / `--oneline`）→ 默认**自动追加 `\| head -100` 后放行**（只读查询语义不变；要恢复"拦下让我改命令"用 `HOG_MODE=deny` 或配置 `hogMode`）；head/tail 上界失效不算限流：`-c 5M`/`-c 5MB`/`-n 2K` 按后缀换算，`-n +K`/`-c +K` 是"一路输出到末尾"，认不出的后缀按无界处理；③ 双引号内联脚本（`node -e` / `python -c` / `bash -c` …）里出现反引号 → **deny**（带引号 heredoc 的**正文**豁免，正文之外照拦）；④ `Agent` 提示词末尾追加"只回结论、≤300 字"硬约束（**改输入而不是拒绝**，子代理本身是必要的） | `node scripts/huge-output-guard.test.js`（**90 条**：该拦的拦、该放的放，每处漏判都配负对照；含自测抓出来的真问题：`/-l\b/` 匹配不到 `grep -rl` 的组合短参、`find` 带 `-name` 仍可能上千行、单行大文件被算成 0 行、`head -c 5M` 被读成 5 字节、heredoc 豁免被整条命令借走）。条数由 `node --test .github/doc-test-tally.test.js` 实跑比对，写过期会判红 |
 | 会话体积哨兵 | `stop-gate.js` 规则 **R7**（Stop hook） | 会话 transcript ≥ 25MB（`STOP_GATE_SESSION_MB` 可调）时拦停，要求先交接（队列 + 台账 + 明说"建议开新会话"） | `node stop-gate.test.js`（27/27）+ R7 专项两端自检（26MB 拦 / 小会话放行） |
 | **阻塞过期复核** | `stop-gate.js` 规则 **R6b**（Stop hook） | 队列里 `- [~] … 阻塞：` 若**声称某文件正脏/被持有**，收尾前实测这些文件（`git ls-files` 解析 → `git status --porcelain`）：全部干净 ⇒ 判"这条阻塞已过期"并拦停——现在开工，或换成新的真实条件。**三道保守闸门**：① 只判含脏态词（脏/持有/在途/未提交/正被/并行会话）的条目，"等数据产出/等关卡"这类与文件无关的不判；② 含 git 查不了的条件（凭据/端口/上游规格/真机/模拟器/mvn）整条跳过；③ 提到的文件有一个在版本清单里找不到就整条不判（**不许把"查不到"当"已过期"**）。git 跑不动 ⇒ fail-open | `node stop-gate.test.js`（44/44，含 6 条 R6b：过期必拦 2 条 + 确实脏/无脏态声明/文件查不到/含凭据 各放行对照）；真队列冒烟：V03-d 那条"heroes=0"过期阻塞被拦出、修文案后静默 |
 | 规则层 | `AGENTS.md` §任务处理 | 写清"上下文体积是回合的生死线"+ 正误对照 | `sync-global-config.sh --check`（12 文件逐字节一致） |
@@ -130,7 +130,11 @@ bash 会**先做命令替换**再交给解释器，所以文本里的 `` `xxx` `
 现场代价（同一会话实测两次）：一次误触发了一次全量 `<历史脚本>/build.sh`；另一次把替换结果（空串）写进脚本，
 让"防重复写"的判断键变成空串 ⇒ `includes('')` 恒真 ⇒ 四条记忆全部报"已写过"而实际一条都没落盘。
 正解：文本走带引号的 heredoc（`<<'EOF'`）落成文件，脚本落成 `.cjs` 再 `node` 跑。
-自测：`node --test huge-output-guard.test.js` 里这组有 5 条（拦 2 / 放行 3），植入一条反向期望后汇总变 `27 PASS / 1 FAIL` 且退 1。
+自测：`node scripts/huge-output-guard.test.js`（**不是** `node --test`：它是自带汇总的普通脚本，收尾打 `N PASS / M FAIL`）。
+2026-09-21 当时这组 5 条（拦 2 / 放行 3），植入一条反向期望后汇总变 `27 PASS / 1 FAIL` 且退 1（历史读数，非本轮）。
+2026-11-12 补了三处漏判共 **31 条**（单行大文件 6 / head-tail 后缀与 `+K` 15 / heredoc 豁免范围与 `bash -c` 10），全套 **59 → 90 条**；
+其中 heredoc 豁免**只覆盖正文**：`node -e "…\`x\`…" <<'EOF'` 这种"顺手挂个 heredoc 借豁免"的写法照拦，
+而反引号只出现在 `<<'EOF'` 正文里的安全写法仍放行（两条负对照都在自测里）。
 
 **关掉 / 调松**：`~/.qoder/huge-output-guard.json` 写 `{"disabled":true}`（守卫立即静默）；阈值用环境变量
 `HOG_READ_BYTES` / `HOG_READ_LINES`（默认 40KB / 600 行）、会话线 `STOP_GATE_SESSION_MB`（默认 25）。

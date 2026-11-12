@@ -161,6 +161,55 @@ console.log('— Agent —');
 console.log('— 其它事件不该被这条守卫管 —');
 check('非 PreToolUse 事件：静默放行', { hook_event_name: 'Stop', tool_name: 'Read', tool_input: { file_path: BIG } }, 'allow');
 
+// ---- F73-F75 ----
+// 2026-11-12 第七段通读实测出的三处漏判（probe-f73-75-hog.cjs 修前 12 条红、19 条负对照绿）。
+// 每处都配"该放行的必须放行"的负对照：守卫拦得太多，我会把它关掉，那比没有它还糟。
+console.log('— F73 单行大文件（只数 \\n 会把 300KB 算成 0 行） —');
+const ONELINE = path.join(TMP, 'oneline-300k.txt');
+const ONELINE_NL = path.join(TMP, 'oneline-300k-nl.txt');
+fs.writeFileSync(ONELINE, 'a'.repeat(300 * 1024));            // 无结尾换行
+fs.writeFileSync(ONELINE_NL, 'a'.repeat(300 * 1024) + '\n');  // 有结尾换行
+check('整读 300KB 单行无换行文件：拦', pre('Read', { file_path: ONELINE }), 'deny');
+check('同体积但带一个换行：拦（对照，证明差别只在换行）', pre('Read', { file_path: ONELINE_NL }), 'deny');
+check('单行大文件 limit=999999（实质无界）：拦', pre('Read', { file_path: ONELINE, limit: 999999 }), 'deny');
+check('负对照：小文件整读放行', pre('Read', { file_path: SMALL }), 'allow');
+check('负对照：单行大文件带 limit=100（显式有界）放行', pre('Read', { file_path: ONELINE, limit: 100 }), 'allow');
+check('负对照：单行大文件只带 offset 放行（既有豁免不被扩大）', pre('Read', { file_path: ONELINE, offset: 1 }), 'allow');
+
+console.log('— F74 head/tail 的 +K 形与 K/M 后缀 —');
+check('tail -c +1（从第 1 字节到末尾）：拦', pre('Bash', { command: 'tail -c +1 big.log' }), 'deny');
+check('tail --bytes=+1：拦', pre('Bash', { command: 'tail --bytes=+1 big.log' }), 'deny');
+check('head -c 5M（1024 进制 ≈5MB）：拦', pre('Bash', { command: 'head -c 5M big.log' }), 'deny');
+check('head -c 5MB（1000 进制 ≈5MB）：拦', pre('Bash', { command: 'head -c 5MB big.log' }), 'deny');
+check('head -n 2K（2048 行 > 600）：拦', pre('Bash', { command: 'head -n 2K big.log' }), 'deny');
+check('head -n 1K（1024 行 > 600）：拦', pre('Bash', { command: 'head -n 1K big.log' }), 'deny');
+check('head -c 5X（认不出的后缀按无界处理）：拦', pre('Bash', { command: 'head -c 5X big.log' }), 'deny');
+check('对照：head -c 5000000 同语义：拦', pre('Bash', { command: 'head -c 5000000 big.log' }), 'deny');
+check('对照：tail -n +1：拦', pre('Bash', { command: 'tail -n +1 big.log' }), 'deny');
+check('负对照：head -c 100 放行', pre('Bash', { command: 'head -c 100 big.log' }), 'allow');
+check('负对照：tail -c 2K（2048 字节）放行', pre('Bash', { command: 'tail -c 2K big.log' }), 'allow');
+check('负对照：head -n 512（512 行 ≤ 600）放行', pre('Bash', { command: 'head -n 512 big.log' }), 'allow');
+check('负对照：head -c 5M … | wc -l（末段真限流）放行', pre('Bash', { command: 'head -c 5M big.log | wc -l' }), 'allow');
+check('负对照：tail -c +1 … | head -5（末段真限流）放行', pre('Bash', { command: 'tail -c +1 big.log | head -5' }), 'allow');
+check('负对照：head -c 5M … > 文件（输出不进上下文）放行', pre('Bash', { command: 'head -c 5M big.log > /tmp/out.txt' }), 'allow');
+
+console.log('— F75 heredoc 豁免只覆盖正文 + shell -c 也是内联解释器 —');
+check('node -e "…`date`…" 后挂 <<\'EOF\'：拦（豁免不能被整条命令借走）',
+  pre('Bash', { command: 'node -e "console.log(`date`)" <<\'EOF\'\n无关正文\nEOF' }), 'deny');
+check('heredoc 正文安全、正文之外另有内联反引号：拦',
+  pre('Bash', { command: 'node -e "console.log(`date`)"; cat > /tmp/y.cjs <<\'EOF\'\n// `safe`\nEOF' }), 'deny');
+check('bash -c "echo `date`"：拦', pre('Bash', { command: 'bash -c "echo `date`"' }), 'deny');
+check('sh -c "echo `date`"：拦', pre('Bash', { command: 'sh -c "echo `date`"' }), 'deny');
+check('对照：不带引号的 heredoc（bash 会替换）+ 内联反引号：拦',
+  pre('Bash', { command: 'node -e "console.log(`date`)" <<EOF\n无关正文\nEOF' }), 'deny');
+check('负对照：反引号只在带引号 heredoc 正文里：放行（安全写法本身）',
+  pre('Bash', { command: 'cat > /tmp/x.cjs <<\'EOF\'\n// 文档里写 node -e "跑 `date`"\nEOF' }), 'allow');
+check('负对照：<<- 缩进结束标记的 heredoc 正文里有反引号：放行',
+  pre('Bash', { command: 'cat > /tmp/x.cjs <<-\'EOF\'\n\t// node -e "跑 `date`"\n\tEOF' }), 'allow');
+check('负对照：bash -c 单引号里有反引号：放行', pre('Bash', { command: "bash -c 'echo `date`'" }), 'allow');
+check('负对照：bash -c 双引号里没有反引号：放行', pre('Bash', { command: 'bash -c "echo hello"' }), 'allow');
+check('负对照：node -e 双引号里没有反引号：放行', pre('Bash', { command: 'node -e "console.log(1)"' }), 'allow');
+
 console.log(`\n${pass} PASS / ${fail} FAIL`);
 try { fs.rmSync(TMP, { recursive: true, force: true }); } catch (e) {}
 process.exit(fail === 0 ? 0 : 1);

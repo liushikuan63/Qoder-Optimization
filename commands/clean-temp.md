@@ -67,4 +67,4 @@ description: 清理我方临时产物（截图 / 探针脚本 / 日志）——�
 - **收尾门禁校验**：`--apply` 命令必须带 `--json`；stop-gate 会解析结果里的 `deleted / recommended.preserve / failed`，要求本轮探测到的条目全部被删除或保留、`failed=0`，且 `--since` 与本轮用户消息时间相差不超过 10 分钟。
 - 守卫自身要先自证会咬：`node ~/.qoder/scripts/tmp-sweeper.test.js`（40 条，含"新鲜文件不许被列、
   不许被删"的对照组）、`node ~/.qoder/scripts/tmp-round-scan.test.js`（142 条，含分享包/证据/超期件保护、`--only`、`--session`、未来/超期 since、非 canonicalRoot `--root`、隔离区负对照、等号形开关与未知参数失败关闭、范围受限时不回收隔离区与回收归因）与 `node ~/.qoder/scripts/tmp-round-scan-evidence.test.js`（31 条，含 `.trash` 整棵还原逐文件 sha256 比对、`--mark-evidence` 三字段与"不改写他人标记"负对照、文档登记保护与去标记必删负对照）。
-  这三个数字由 `node .github/clean-temp-doc.test.js` 实跑比对（同时校验本文每条 `--apply` 命令都带 `--evidence-docs`），加了判据忘改文档会判红，不会再悄悄过期。
+  这三个数字由 `node --test .github/doc-test-tally.test.js` 实跑比对（同时校验本文每条 `--apply` 命令都带 `--evidence-docs`），加了判据忘改文档会判红，不会再悄悄过期。

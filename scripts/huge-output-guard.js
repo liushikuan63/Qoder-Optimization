@@ -90,9 +90,13 @@ function fileStats(p) {
   try {
     const st = fs.statSync(p);
     if (!st.isFile()) return null;
-    let lines = 0;
     const buf = fs.readFileSync(p);
-    for (let i = 0; i < buf.length; i++) if (buf[i] === 10) lines++;
+    let newlines = 0;
+    for (let i = 0; i < buf.length; i++) if (buf[i] === 10) newlines++;
+    // 末行没有换行符也算一行。旧写法只数 \n：300KB 的**单行**文件（压缩 JSON、base64、
+    // 一行日志）被算成 0 行 ⇒ effLines × avgBytes = 0 ⇒ 整读放行，判据被乘法吃掉
+    // （2026-11-12 probe-f73-75 F73-A/E 修前红：exit 0 且 decision=allow）。
+    const lines = newlines + (buf.length > 0 && buf[buf.length - 1] !== 10 ? 1 : 0);
     return { bytes: st.size, lines };
   } catch (e) {
     return null;
@@ -123,8 +127,10 @@ function checkRead(toolInput) {
   if (toolInput.offset !== undefined && toolInput.limit === undefined) return null;
   const effLines = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, st.lines) : st.lines;
   const avgBytes = st.lines > 0 ? st.bytes / st.lines : st.bytes;
-  if (effLines <= READ_LINES && effLines * avgBytes <= READ_BYTES) return null;
-  const mb = (Math.min(effLines * avgBytes, st.bytes) / 1024).toFixed(0);
+  // 兜底投影：行数一旦为 0，乘积就是 0，任何阈值都拦不住。行数不可知时按整文件体积算。
+  const projected = effLines > 0 ? effLines * avgBytes : st.bytes;
+  if (effLines <= READ_LINES && projected <= READ_BYTES) return null;
+  const mb = (Math.min(projected, st.bytes) / 1024).toFixed(0);
   return `整读会把 ${mb} KB / ${effLines} 行一次性灌进上下文（本项目实测：` +
     `单条 >20KB 的返回共 81 条，最大的几条正是这类整读）。改法二选一：` +
     `① 先 Grep 定位（\`grep -n "关键词" 文件\` 或 Grep 工具）再 Read 带 offset/limit 只读那一段；` +
@@ -137,19 +143,40 @@ function checkRead(toolInput) {
 const HEAD_TAIL_LIMITER = /\bhead\b|\btail\b/;
 const SHORT_LC_LIMITER = /(^|\s)-[A-Za-z]*[lc][A-Za-z]*(\s|$)/;
 // head/tail 的数值上界超过阈值就不算有效限流（`head -c 999999` ≈ 1MB 照样进上下文）。
+// 后缀口径按 GNU coreutils：K/M/G/T 是 1024 进制，KB/MB/GB/TB 是 1000 进制，b=512、c=1、w=2。
+// 旧实现只认纯数字：`head -c 5M` 被读成 **5 字节** ⇒ 放行，而语义等价的 `head -c 5000000` 却拦
+// （2026-11-12 probe-f73-75 F74-C/C2/L/M 修前红）。
+const COUNT_SUFFIX = {
+  b: 512, c: 1, w: 2,
+  k: 1024, m: 1024 ** 2, g: 1024 ** 3, t: 1024 ** 4,
+  kb: 1000, mb: 1000 ** 2, gb: 1000 ** 3, tb: 1000 ** 4,
+};
+function parseCount(text) {
+  const m = /^(\d+(?:\.\d+)?)([A-Za-z]{0,2})$/.exec(String(text || ''));
+  if (!m) return null;
+  const unit = m[2].toLowerCase();
+  if (!unit) return Number(m[1]);
+  const mul = COUNT_SUFFIX[unit];
+  // 认不出的后缀按**无界**处理：宁可多拦一次让人改命令，也不能把 `5X` 当 5 放行——
+  // 那正是这条判据被绕过的形状（fail-closed，与本守卫"拦不住就等于没有"的理由一致）。
+  return mul === undefined ? Infinity : Number(m[1]) * mul;
+}
 function oversizedHeadTail(cmd) {
   const c = String(cmd || '');
   for (const m of c.matchAll(/\b(?:head|tail)\b([^|;&]*)/g)) {
     const seg = m[1];
-    // `tail -n +K` 是「从第 K 行一路输出到末尾」，与「取 K 行」相反 ⇒ 实质无界。
-    if (/-n\s*\+\s*\d+|--lines=\s*\+\s*\d+/.test(seg)) return true;
+    // `tail -n +K` / `tail -c +K` 是「从第 K 行/字节一路输出到末尾」，与「取 K 个」相反 ⇒ 实质无界。
+    // 旧写法只覆盖 -n/--lines：`tail -c +1`、`tail --bytes=+1` 整族漏判（F74-A/B 修前红）。
+    if (/(?:-[cn]\s*|--(?:bytes|lines)=?\s*)\+\s*\d+/.test(seg)) return true;
     // `-c700` 与 `-c 700` 必须同判：旧写法 `/-c\b/` 在 `-c700` 上没有词边界，
     // 于是 700 字节被当成 700 行去比 600 阈值 → 误拦（实测同一语义两种结果）。
     const isBytes = /-c(?![A-Za-z])|--bytes/.test(seg);
-    // 显式上界三种写法 + 旧式 `head -999999`（无字母选项，同样是上界，旧实现整族漏判）。
-    const n = /(?:-[cn]\s*|--(?:bytes|lines)=?\s*)(\d+)/.exec(seg) || /(?:^|\s)-(\d+)(?:\s|$)/.exec(seg);
+    // 显式上界三种写法 + 旧式 `head -999999`（无字母选项，同样是上界，旧实现整族漏判）；数值可带后缀。
+    const n = /(?:-[cn]\s*|--(?:bytes|lines)=?\s*)(\d+(?:\.\d+)?[A-Za-z]{0,2})/.exec(seg)
+      || /(?:^|\s)-(\d+(?:\.\d+)?[A-Za-z]{0,2})(?:\s|$)/.exec(seg);
     if (!n) continue;                       // 无显式上界＝默认 10 行，有效
-    const v = Number(n[1]);
+    const v = parseCount(n[1]);
+    if (v === null) continue;
     if (isBytes ? v > READ_BYTES : v > READ_LINES) return true;
   }
   return false;
@@ -205,13 +232,35 @@ function rewritable(cmd) {
 // 2026-09-21 实测两次：`node -e "...一段带 `scripts/build.sh` 的注释..."` 当场真的跑了一次全量构建，
 // 另一次把替换结果（空串）写进了配置文本，让"去重判断"恒真、四份记忆其实一条都没落盘。
 // 这条与输出体积无关，所以放在 LIMITERS 早退**之前**。
-const INLINE_CODE = /\b(?:node|python\d*|perl|ruby|php)\s+(?:-e|--eval|-c|--input-type=\w+)\s+"/;
+const INLINE_CODE = /\b(?:node|python\d*|perl|ruby|php|bash|sh|zsh|dash|ksh)\s+(?:-e|--eval|-c|--input-type=\w+)\s+"/;
+// 只摘掉**带引号 heredoc 的正文**，而不是"整条命令里出现过 <<'EOF' 就豁免"。
+// 旧写法按整条命令判豁免：`node -e "…`x`…" <<'EOF'` 只要顺手挂一个 heredoc 就能把豁免借走，
+// 反引号照样被 bash 执行（2026-11-12 probe-f73-75 F75-A/G 修前红）。
+// 返回去掉正文后的命令文本；heredoc 的起始行与结束标记行保留（豁免只针对正文）。
+function stripQuotedHeredocBodies(cmd) {
+  const lines = String(cmd || '').split('\n');
+  const drop = new Set();
+  for (let i = 0; i < lines.length; i++) {
+    const m = /<<(-?)[ \t]*["']([A-Za-z_][A-Za-z0-9_]*)["']/.exec(lines[i]);
+    if (!m) continue;
+    const tag = m[2];                                    // 标签只含字母数字下划线，无需转义
+    const endRe = m[1] === '-' ? new RegExp('^\\t*' + tag + '\\r?$') : new RegExp('^' + tag + '\\r?$');
+    let j = i + 1;
+    while (j < lines.length && !endRe.test(lines[j])) j++;
+    // 没有结束标记 ⇒ 正文一直到命令末尾（bash 会报错，但守卫不能因此放行）。
+    for (let k = i + 1; k < j; k++) drop.add(k);
+    i = j;                                               // 跳过整段：正文里的 <<'X' 不是新的 heredoc
+  }
+  if (!drop.size) return String(cmd || '');
+  return lines.filter((_, idx) => !drop.has(idx)).join('\n');
+}
 function checkInlineBacktick(cmd) {
-  if (!INLINE_CODE.test(cmd)) return null;
-  if (!cmd.includes('`')) return null;
-  // 带引号的 heredoc（<<'EOF' / <<"EOF"）里 bash **不做命令替换**，那是安全写法本身：
+  const outside = stripQuotedHeredocBodies(cmd);
+  if (!INLINE_CODE.test(outside)) return null;
+  if (!outside.includes('`')) return null;
+  // 带引号的 heredoc（<<'EOF' / <<"EOF"）正文里 bash **不做命令替换**，那是安全写法本身：
   // 2026-09-21 上线当天就误伤过一次——把这条规则的说明文字写进 <<'PATCHEOF' 时被拦。
-  if (/<<-?[ \t]*["'][A-Za-z_][A-Za-z0-9_]*["']/.test(cmd)) return null;
+  // 现在这层豁免只覆盖正文（上面已摘掉），正文之外的反引号照拦。
   return '双引号包住的内联脚本里出现了反引号：bash 会先做命令替换，'
     + '那段文本里的 `xxx` 会被**当成命令执行**，而不是原样写进目标文件。'
     + "改法：文本走带引号的 heredoc（<<'EOF'）落成文件，脚本落成 .cjs 再跑；"
