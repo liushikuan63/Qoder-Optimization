@@ -137,7 +137,11 @@ cat ~/.qoder/evolution/control.json                             # enabled=false 
 - 采集 hook 永远 `exit 0`（fail-open），不替代平台权限，也不会因为采集失败挡住收尾。
 - 心跳里的 `pending=N` 表示本轮生成了 N 条待弹建议；`ASKED … pending=cleared` 表示本轮已就建议弹窗、状态已消费。只有 `CAPTURE … pending=0` 而用户抱怨"没弹窗"时，先看是不是重复证据、经验族、已拒绝主题或单次能力缺口（都不够格）。
 - 心跳 `SKIP_READ_ONLY` 但本轮明明在实施：多半是**上下文压缩摘要**被当成了用户指令（摘要里引用了"只读预览"这类规则原文）。采集已按宿主的 `isCompactSummary` 标记排除摘要，并在尾窗取不到真实指令时按 `backtrackBytes`（默认 8MB）有界回溯；仍出现时先用 `--dry-run --transcript <真实转录>` 看 `scope`，再核对真实指令距文件末尾的字节数是否超了回溯上限。**不要靠放宽只读正则来"修"它**——真只读轮必须继续零采集。
-- 心跳 `SKIP_NO_TRANSCRIPT … exists=true`：尾窗与回溯范围内都没有真实用户指令（全是工具回执 / 注入件 / 压缩摘要）。这是诚实跳过，不是故障；不臆造指令、不拿摘要顶替。
+- 心跳 `SKIP_NO_TRANSCRIPT`：**transcript 文件真不存在**（路径错 / 会话还没落盘）。核对 `transcript_path` 与 `~/.qoder/projects/<项目目录>/<会话>.jsonl` 是否存在。
+- 心跳 `SKIP_NO_USER_TEXT … parsed=N tail=… back=…`：文件在，但尾窗与有界回溯范围内都没有真实用户指令（全是工具回执 / 注入件 / 压缩摘要 / 后台通知）。这是诚实跳过，不是故障；不臆造指令、不拿摘要顶替。读数用来分辨"窗口太小"还是"真没有指令"。
+- **运行中插话也算真实指令**：用户在 Agent 运行中插话的提示被宿主写成 `attachment.queued_command`（`commandMode:"prompt"`），**没有 `role=user` 条目**。识别器 `queuedUserTextOf` 在共享核 `evolution-signal-core.js` 里，采集与门禁都调它。排错要点：`commandMode:"task-notification"` 是后台通知不是指令（判据是 `commandMode`，不是 `<task-notification>` 前缀黑名单）；助手正文里引用的同形 JSON 不算（`message.role==='assistant'` 早退）。若怀疑漏读，用 `--dry-run --transcript <真实转录>` 看 `userTextLen` 是否 >0——**为 0 时后面所有 scope / 候选判据都是空转**。
+- **指令与证据的窗口不对称**：指令可由 `backtrackBytes`（默认 8MB）回溯取到，但**证据（助手正文 / 失败工具）只从 `tailBytes`（默认 1MB）尾窗累积**。超长单轮里早期证据滑出尾窗 → 诚实 `NO_SIGNAL`（实测同一份 12MB 转录：1MB→0 候选、4MB→2 候选，`userTextLen` 恒 49）。要覆盖长单轮就调大 `~/.qoder/evolution-capture.json` 的 `tailBytes`，别误判成识别缺陷。
+- **宿主什么时候才派发 Stop**：正常交互轮会（实测当天 61 次真实 Stop，含一次完整调用采集并写心跳）；**目标连续续跑期间不产生回合边界事件**（实测 90 分钟零 Stop / 零 UserPromptSubmit，同期 PreToolUse 579 次）。所以"每轮收尾弹窗"在连续续跑里要等运行真正收尾才出现。取证口径：`stop-gate.js` 的 `diag()` 无条件写 `tmp/stop-gate/last-invocation.json`，它的 mtime 就是"最后一次被宿主调用"的硬证据；宿主日志里搜 `"hookEvent":"Stop"` 可数真实派发次数。
 - 尾窗与回溯块都**按行边界切字节**（0x0A 不会出现在多字节 UTF-8 序列内部）。按固定字节切再用字符串拼，缝落在汉字中间时两侧各得一个 U+FFFD，而 `JSON.parse` 仍成功 → 关键词静默失配：偏好漏采、只读误判，心跳看起来却正常。`evolution-capture.test.js` 的 ⑯ 组把缝精确造在关键词内部（夹具按**对齐后**的窗口起点解析求填充长度），并带"改回字符串拼必红""尾窗不对齐必红"两条变异对照。
 - 门禁侧同口径：`stop-gate.js` 的 `scanTranscript` 也排除 `isCompactSummary`（顶层与 `message` 两处标记都认）。否则摘要会把 `taskScope` 判成只读轮，R19 整轮静默失效——用户要求的收尾弹窗再也不弹。`stop-gate.test.js` 的 `compact-summary-accepted` 变异对照看住这条。
 
