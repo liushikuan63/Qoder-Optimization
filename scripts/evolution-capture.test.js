@@ -363,6 +363,71 @@ check('⑮e 夹具确实超出回溯上限', fs.statSync(farFile).size - 512 > 2
 runHook(stopInput(farFile));
 check('⑮e 超上限时零采集且记 SKIP_NO_TRANSCRIPT', records().length === 0 && /SKIP_NO_TRANSCRIPT/.test(heartbeatText()), `records=${records().length} heart=${heartbeatText().trim().slice(-90)}`);
 
+// ⑯ UTF-8 块缝（2026-11-12 对抗审查 + 只读探针实测缺陷）：按固定字节切块再用**字符串** carry 拼接，
+//    缝落在汉字中间时两侧各得一个 U+FFFD，而 JSON.parse 仍然成功 → 关键词静默失配：
+//    偏好不采集、只读判定失效（比报错更危险，因为心跳看起来正常）。
+//    夹具把缝精确推进关键词内部，且该关键词是判据的**唯一**触发词（无其他只读标记兜底）。
+const SEAM_CHUNK = 512 * 1024;
+// 夹具按**对齐后的**窗口起点解析求填充长度，而不是按 size-tailBytes：
+// 尾窗对齐会把起点推到下一行边界，回溯首块缝随之移动；按未对齐的起点造缝会造出"缝不在关键词里"的假夹具
+// （2026-11-12 实测：那样造出来的夹具连变异体都绿，等于没测）。
+function seamFixture(keyword, instrText, mode) {
+  const instr = userLine(instrText);
+  const instrBytes = Buffer.byteLength(instr);
+  const kwOffset = Buffer.from(instr).indexOf(Buffer.from(keyword));
+  if (kwOffset < 0) return null;
+  const head = assistantLine('head') + '\n';
+  const H = Buffer.byteLength(head);
+  const compactBytes = Buffer.byteLength(compactLine(COMPACT_TEXT) + '\n');
+  const overhead = Buffer.byteLength(assistantLine('')) + 1; // 空填充行的字节数（含换行）
+  const kwStart = H + kwOffset;
+  const target = kwStart + 1; // 缝落在关键词第 2 个字节上
+  const instrEnd = H + instrBytes + 1;
+  let n; let tailBytes;
+  if (mode === 'backtrack') {
+    // 尾窗只含填充行尾部 + 摘要行 ⇒ 对齐后起点 = size - compactBytes，缝 = size - compactBytes - CHUNK
+    n = target + SEAM_CHUNK - instrEnd - overhead;
+    tailBytes = compactBytes + 64;
+  } else {
+    // 尾窗起点直接落在关键词内部 ⇒ rawStart = size - tailBytes = target
+    n = 0;
+    tailBytes = instrEnd + overhead + compactBytes - target;
+  }
+  if (n < 0 || tailBytes <= 0) return null;
+  const body = head + instr + '\n' + assistantLine('y'.repeat(n)) + '\n' + compactLine(COMPACT_TEXT) + '\n';
+  const size = Buffer.byteLength(body);
+  const alignedStart = mode === 'backtrack' ? size - compactBytes : instrEnd;
+  const seam = mode === 'backtrack' ? alignedStart - SEAM_CHUNK : size - tailBytes;
+  if (!(seam > kwStart && seam < kwStart + Buffer.byteLength(keyword))) return null;
+  if (mode === 'backtrack' && !(alignedStart > instrEnd)) return null; // 指令必须真的在尾窗之外
+  const file = path.join(SB, `seam-${++fixtureSeq}.jsonl`);
+  write(file, body);
+  return { file, size, seam, kwStart, kwBytes: Buffer.byteLength(keyword), tailBytes, mode };
+}
+const SEAM_RO_TEXT = '只读复核这个方案';       // 「只读」是 READ_ONLY 的唯一触发词
+const SEAM_PREF_TEXT = '以后用简体中文回复';   // 「以后」是长期偏好的唯一触发词
+const seamBackRO = seamFixture('只读', SEAM_RO_TEXT, 'backtrack');
+const seamBackPref = seamFixture('以后', SEAM_PREF_TEXT, 'backtrack');
+const seamTailRO = seamFixture('只读', SEAM_RO_TEXT, 'tail');
+const seamTailPref = seamFixture('以后', SEAM_PREF_TEXT, 'tail');
+check('⑯ 夹具构造成功且缝真的在关键词内部', [seamBackRO, seamBackPref, seamTailRO, seamTailPref].every(f => f && f.seam > f.kwStart && f.seam < f.kwStart + f.kwBytes),
+  [seamBackRO, seamBackPref, seamTailRO, seamTailPref].map(f => f ? `seam=${f.seam} kw=[${f.kwStart},${f.kwStart + f.kwBytes})` : 'null').join(' | '));
+function runSeam(f) {
+  reset(); write(CONFIG, JSON.stringify({ tailBytes: f.tailBytes, backtrackBytes: 8 * 1024 * 1024 }));
+  const started = Date.now();
+  const r = runHook(stopInput(f.file));
+  return { r, ms: Date.now() - started, list: records(), heart: heartbeatText(), raw: readLines(INBOX).join('\n') };
+}
+const sbRO = runSeam(seamBackRO);
+check('⑯a 回溯块缝：只读判定不被汉字切裂吃掉', sbRO.r.status === 0 && sbRO.list.length === 0 && /SKIP_READ_ONLY/.test(sbRO.heart), `exit=${sbRO.r.status} records=${sbRO.list.length} heart=${sbRO.heart.trim().slice(-90)}`);
+const sbPref = runSeam(seamBackPref);
+check('⑯a 回溯块缝：偏好候选照常采集且原文无 U+FFFD', sbPref.r.status === 0 && kindsOf(sbPref.list).includes('long-term-preference') && !sbPref.raw.includes('\ufffd') && sbPref.list.some(c => String(c.excerpt || '').includes(SEAM_PREF_TEXT)), `kinds=${kindsOf(sbPref.list).join(',')} fffd=${sbPref.raw.includes('\ufffd')}`);
+check('⑯a 块缝回溯在超时内完成（防死循环：缝正好是块末字节时 stop 必须前进）', sbPref.r.status === 0 && sbPref.ms < 15000, `ms=${sbPref.ms} exit=${sbPref.r.status}`);
+const stRO = runSeam(seamTailRO);
+check('⑯b 尾窗块缝：只读判定不被汉字切裂吃掉', stRO.r.status === 0 && stRO.list.length === 0 && /SKIP_READ_ONLY/.test(stRO.heart), `exit=${stRO.r.status} records=${stRO.list.length} heart=${stRO.heart.trim().slice(-90)}`);
+const stPref = runSeam(seamTailPref);
+check('⑯b 尾窗块缝：偏好候选照常采集且原文无 U+FFFD', stPref.r.status === 0 && kindsOf(stPref.list).includes('long-term-preference') && !stPref.raw.includes('\ufffd') && stPref.list.some(c => String(c.excerpt || '').includes(SEAM_PREF_TEXT)), `kinds=${kindsOf(stPref.list).join(',')} fffd=${stPref.raw.includes('\ufffd')}`);
+
 // ⑫ 变异对照：改坏关键判据必须变红（证明上面的绿不是假绿）
 const MUT = path.join(SB, 'mutant');
 fs.mkdirSync(MUT, { recursive: true });
@@ -454,11 +519,26 @@ mutant('把压缩摘要当用户指令（复现现役缺陷）', "if (!entry || 
   runHook(stopInput(transcript(COMPACT_TURN)), mutFile);
   return records().length === 0 && /SKIP_READ_ONLY/.test(heartbeatText());
 });
-mutant('去掉有界回溯', '  if (!out.userText && start > 0) out.userText = lastUserTextBefore(file, start, headFragment, backtrackBytes);\n', '', () => {
+mutant('去掉有界回溯', '  if (!out.userText && start > 0) out.userText = lastUserTextBefore(file, start, backtrackBytes);\n', '', () => {
   write(CONFIG, JSON.stringify({ tailBytes: 512 }));
   runHook(stopInput(paddedFile), mutFile);
   return records().length === 0 && /SKIP_NO_TRANSCRIPT/.test(heartbeatText());
 });
+// ⑯ 的变异对照：把"按字节拼"改回"按字符串拼"，汉字缝必须重新失配（证明 ⑯ 的绿不是假绿）
+mutant('块缝按字符串拼（重现 U+FFFD 静默失配）',
+  '      const whole = carryBytes ? Buffer.concat([buf, carryBytes]) : buf;',
+  "      const whole = Buffer.from(buf.toString('utf8') + (carryBytes ? carryBytes.toString('utf8') : ''), 'utf8');", () => {
+    write(CONFIG, JSON.stringify({ tailBytes: seamBackPref.tailBytes, backtrackBytes: 8 * 1024 * 1024 }));
+    runHook(stopInput(seamBackPref.file), mutFile);
+    return !kindsOf(records()).includes('long-term-preference') || readLines(INBOX).join('\n').includes('\ufffd');
+  });
+mutant('尾窗不对齐行边界（重现首行汉字被切裂）',
+  '      else { start = rawStart + nl + 1; body = buf.subarray(nl + 1); }',
+  '      else { start = rawStart; body = buf; }', () => {
+    write(CONFIG, JSON.stringify({ tailBytes: seamTailPref.tailBytes, backtrackBytes: 8 * 1024 * 1024 }));
+    runHook(stopInput(seamTailPref.file), mutFile);
+    return !kindsOf(records()).includes('long-term-preference');
+  });
 // 变异 harness 负对照：未改动的副本必须与原件行为一致（红来自变异，不是 harness 恒红）。
 reset();
 const cleanRun = runHook(stopInput(transcript(POSITIVE_TURN)), mutFile);

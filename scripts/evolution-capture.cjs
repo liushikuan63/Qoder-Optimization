@@ -101,11 +101,13 @@ function userInstructionOf(entry) {
 
 // 尾窗里没有真实指令时（长回合、刚压缩过），有界回溯找**最后一条**真实用户指令：
 // 它就是当前仍在生效的那条指令，不是"上一轮的旧话"。分块从后往前读，命中即停；
-// 跨块半行用 carry 拼回，尾窗丢弃的首行碎片也接进来，边界上不丢消息。
+// 跨块半行用 carry 拼回，边界上不丢消息。
+// 块边界一律对齐到换行字节：0x0A 不会出现在多字节 UTF-8 序列内部，所以按行切不会把汉字劈成两半。
+// （旧写法按固定字节切 + 字符串 carry，缝落在汉字中间时两侧各得一个 U+FFFD，JSON 仍解析成功 → 关键词静默失配。）
 const BACKTRACK_CHUNK = 512 * 1024;
-function lastUserTextBefore(file, end, headFragment, limit) {
+function lastUserTextBefore(file, end, limit) {
   const floor = Math.max(0, end - limit);
-  let carry = headFragment || '';
+  let carryBytes = null; // 更靠后那块开头那半行的字节，等更早的块补齐
   let stop = end;
   const fd = (() => { try { return fs.openSync(file, 'r'); } catch { return null; } })();
   if (fd === null) return '';
@@ -114,15 +116,26 @@ function lastUserTextBefore(file, end, headFragment, limit) {
       const from = Math.max(floor, stop - BACKTRACK_CHUNK);
       const buf = Buffer.alloc(stop - from);
       fs.readSync(fd, buf, 0, buf.length, from);
-      const lines = (buf.toString('utf8') + carry).split('\n');
-      carry = from > floor ? lines.shift() : '';
+      const whole = carryBytes ? Buffer.concat([buf, carryBytes]) : buf;
+      let body = whole;
+      if (from > floor) {
+        const nl = whole.indexOf(0x0a);
+        if (nl < 0) { carryBytes = whole; stop = from; continue; } // 整块都是半行，继续往前接
+        carryBytes = whole.subarray(0, nl + 1); // 这半行的头在更早的块里，留给下一轮拼
+        body = whole.subarray(nl + 1);
+      } else {
+        carryBytes = null; // floor>0 时首行可能不完整，JSON.parse 失败即跳过（诚实有界）
+      }
+      // carry 覆盖 [from, from+nl+1)，所以下一块必须**止于 from** 才首尾相接：
+      // 写成 from+nl+1 会重复读同一段字节（JSON 必坏），且当换行正好是块末字节时 stop 不前进 → 死循环。
+      stop = from;
+      const lines = body.toString('utf8').split('\n');
       for (let i = lines.length - 1; i >= 0; i--) {
         let entry;
         try { entry = JSON.parse(lines[i]); } catch { continue; }
         const text = userInstructionOf(entry);
         if (text) return text;
       }
-      stop = from;
     }
   } catch { return ''; } finally { try { fs.closeSync(fd); } catch {} }
   return '';
@@ -134,17 +147,23 @@ function readTurn(file, tailBytes, backtrackBytes) {
   let st;
   try { st = fs.statSync(file); } catch { return out; }
   out.exists = true;
-  const start = Math.max(0, st.size - tailBytes);
+  const rawStart = Math.max(0, st.size - tailBytes);
+  let start = rawStart;
   let lines;
   try {
     const fd = fs.openSync(file, 'r');
-    const buf = Buffer.alloc(st.size - start);
-    fs.readSync(fd, buf, 0, buf.length, start);
+    const buf = Buffer.alloc(st.size - rawStart);
+    fs.readSync(fd, buf, 0, buf.length, rawStart);
     fs.closeSync(fd);
-    lines = buf.toString('utf8').split('\n').filter(x => x.trim());
+    // 尾窗起点同样对齐到行边界，避免首个汉字被切成半个（U+FFFD）后关键词静默失配。
+    let body = buf;
+    if (rawStart > 0) {
+      const nl = buf.indexOf(0x0a);
+      if (nl < 0) { lines = []; start = st.size; body = null; } // 尾窗内无完整行：交给有界回溯
+      else { start = rawStart + nl + 1; body = buf.subarray(nl + 1); }
+    }
+    if (body) lines = body.toString('utf8').split('\n').filter(x => x.trim());
   } catch { return out; }
-  let headFragment = '';
-  if (start > 0) headFragment = lines.shift(); // 首行可能被截断
   const uses = new Map();
   for (const line of lines) {
     let entry;
@@ -189,7 +208,7 @@ function readTurn(file, tailBytes, backtrackBytes) {
   }
   // 尾窗只有工具回执 / 注入件 / 压缩摘要时，回溯取仍在生效的那条真实指令；
   // 只补 userText，本轮的助手笔记与失败工具仍来自尾窗（不清空、不重置）。
-  if (!out.userText && start > 0) out.userText = lastUserTextBefore(file, start, headFragment, backtrackBytes);
+  if (!out.userText && start > 0) out.userText = lastUserTextBefore(file, start, backtrackBytes);
   return out;
 }
 
