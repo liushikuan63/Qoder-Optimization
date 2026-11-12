@@ -21,7 +21,7 @@ const ALWAYS_PROTECT = [/^QO-(?:REL|AUDIT|FIX)-/i, /^qo-(?:deploy|wip)-/i]
 function parseArgs(argv) {
   const opts = { since: Date.now() - DAY, sinceSet: false, root: null, json: false, apply: false,
     includeSharePackage: false, only: [], force: false, session: null, includeModified: false, trash: null,
-    evidenceDocs: [] }
+    evidenceDocs: [], markEvidence: [], task: null, docs: [] }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--json') opts.json = true
@@ -32,6 +32,9 @@ function parseArgs(argv) {
     else if (a === '--trash') opts.trash = true
     else if (a === '--no-trash') opts.trash = false
     else if (a === '--evidence-docs' && argv[i + 1]) opts.evidenceDocs.push(path.resolve(argv[++i]))
+    else if (a === '--mark-evidence' && argv[i + 1]) opts.markEvidence.push(path.resolve(argv[++i]))
+    else if (a === '--task' && argv[i + 1]) opts.task = String(argv[++i]).trim()
+    else if (a === '--doc' && argv[i + 1]) opts.docs.push(path.resolve(argv[++i]))
     else if (a === '--session' && argv[i + 1]) opts.session = String(argv[++i]).trim()
     else if (a === '--only' && argv[i + 1]) opts.only.push(path.resolve(argv[++i]))
     else if (a === '--since' && argv[i + 1]) {
@@ -48,6 +51,8 @@ function parseArgs(argv) {
       console.log('--only 可重复，只处理临时根的直接子条目；并行会话共用 D:/tmp 时用它按精确路径清理本任务产物。')
       console.log('删除默认移入 <root>/.trash（7 天后自动回收），--no-trash 才永久删除；每次 --apply 写 <root>/.last-cleanup 台账。');
       console.log('--evidence-docs <目录> 可重复：扫描其中 .md，被登记为证据路径的条目即使无 .keep/.evidence.json 也保留。');
+      console.log('--mark-evidence <目录> 可重复：把用户的「保留」答复落成目录内 .evidence.json（只写不删，不与 --apply 同批）。');
+      console.log('  必须三字段齐：--task <任务ID> --session <会话id> --doc <登记文档路径>（--doc 可重复）；已有标记一律不改写。');
       console.log('分享包流程默认必须扫描后询问清理范围。')
       process.exit(0)
     }
@@ -162,9 +167,78 @@ function entryTag(e, opts, isOnlyEntry) {
   if (e.excluded) return '[已登记证据，保留] '
   if (e.protected) return '[分享包产物/受保护，保留] '
   if (e.keep) return '[.keep 证据，保留] '
+  // C10：被文档登记的证据目录必须点名原因，否则人读输出会把它标成「本轮新建」，看不出为什么没删。
+  if (e.registered) return '[文档登记证据，保留] '
   if (opts.session && !e.sessionOwned && !isOnlyEntry(e)) return '[非本会话，保留] '
   if (!e.created && !opts.includeModified && !isOnlyEntry(e)) return '[仅修改，保留] '
   return e.created ? '[本轮新建] ' : ''
+}
+
+/** 临时根解析：--root 优先，否则配置里的 canonicalRoot，否则历史默认根。 */
+function resolveRoot(opts, cfg) {
+  const canonical = typeof cfg.canonicalRoot === 'string' && path.isAbsolute(cfg.canonicalRoot)
+    ? path.resolve(cfg.canonicalRoot) : sweeper.defaultRoot()
+  return { canonical, root: opts.root ? path.resolve(opts.root) : canonical }
+}
+
+/** C10 / T-18：把用户的「保留」答复落成目录内 `.evidence.json`（任务ID / 会话 / 登记文档路径三字段齐）。
+ *  只写不删；已有标记一律不改写——那可能是别的会话登记的证据。退出码：0 全部写成，3 有跳过，1 有失败，2 参数不合法。 */
+function markEvidence(opts) {
+  if (opts.apply) {
+    console.error('--mark-evidence 只写标记，不与 --apply 同批执行：先标记，再单独跑清理。')
+    return 2
+  }
+  const missing = []
+  if (!opts.task) missing.push('--task <任务ID>')
+  if (!opts.session) missing.push('--session <会话id>')
+  if (!opts.docs.length) missing.push('--doc <登记文档路径>')
+  if (missing.length) {
+    console.error('--mark-evidence 需要三字段齐，缺：' + missing.join('、'))
+    return 2
+  }
+  const { root } = resolveRoot(opts, sweeper.loadConfig() || {})
+  const written = []
+  const skipped = []
+  const failed = []
+  for (const dir of opts.markEvidence) {
+    const target = path.resolve(dir)
+    let st
+    try { st = fs.statSync(target) } catch (e) { failed.push({ path: target, error: '目录不存在' }); continue }
+    if (!st.isDirectory()) { failed.push({ path: target, error: '不是目录' }); continue }
+    const rel = path.relative(root, target)
+    if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) {
+      failed.push({ path: target, error: '不在临时根内（root=' + root + '）；只给本根下的证据目录打标记' })
+      continue
+    }
+    if (sweeper.isForbidden(target)) {
+      failed.push({ path: target, error: '硬否决路径（.git / node_modules / .trash / 客户端目录）' })
+      continue
+    }
+    const marker = path.join(target, '.evidence.json')
+    if (fs.existsSync(marker)) {
+      skipped.push({ path: target, marker, reason: '已有 .evidence.json，不改写他人标记' })
+      continue
+    }
+    const record = { schema: 1, taskId: opts.task, session: opts.session, docs: opts.docs,
+      path: target, at: new Date().toISOString(), by: 'tmp-round-scan.cjs --mark-evidence' }
+    try {
+      fs.writeFileSync(marker, JSON.stringify(record, null, 1))
+      written.push({ path: target, marker, taskId: opts.task, session: opts.session, docs: opts.docs })
+    } catch (e) {
+      failed.push({ path: target, error: String((e && e.message) || e) })
+    }
+  }
+  const result = { mode: 'mark-evidence', root, written, skipped, failed }
+  if (opts.json) {
+    console.log(JSON.stringify(result))
+  } else {
+    console.log('证据标记（只写不删）：写成 ' + written.length + ' 项，跳过 ' + skipped.length + ' 项，失败 ' + failed.length + ' 项。')
+    for (const w of written) console.log('  已标记：' + w.marker + '（task=' + w.taskId + ' session=' + w.session + ' docs=' + w.docs.length + '）')
+    for (const s of skipped) console.log('  跳过：' + s.path + '（' + s.reason + '）')
+    for (const f of failed) console.log('  失败：' + f.path + '（' + f.error + '）')
+    if (written.length) console.log('带标记的目录在 tmp-sweeper 与 tmp-round-scan --apply 下整棵保留。')
+  }
+  return failed.length ? 1 : (skipped.length ? 3 : 0)
 }
 
 function main() {
@@ -177,10 +251,9 @@ function main() {
     console.error('--session 必须是 4-64 位字母/数字/_/-（通常是 8 位会话 id）。')
     return 2
   }
+  if (opts.markEvidence.length) return markEvidence(opts)
   const cfg = sweeper.loadConfig() || {}
-  const canonical = typeof cfg.canonicalRoot === 'string' && path.isAbsolute(cfg.canonicalRoot)
-    ? path.resolve(cfg.canonicalRoot) : sweeper.defaultRoot()
-  const root = opts.root ? path.resolve(opts.root) : canonical
+  const { canonical, root } = resolveRoot(opts, cfg)
   const rootKey = root.toLowerCase()
   const now = Date.now()
   const guards = { force: opts.force === true, backdatedSince: false, rootOverride: false }
@@ -360,6 +433,10 @@ function main() {
     if (protectedEntries.length) {
       console.log('保留受保护/分享包产物 ' + protectedEntries.length + ' 项：'
         + protectedEntries.slice(0, 5).map((e) => e.path).join('、') + '。')
+    }
+    if (registeredList.length) {
+      console.log('保留文档登记证据 ' + registeredList.length + ' 项（即使无 .keep/.evidence.json 也不删）：'
+        + registeredList.slice(0, 5).join('、') + '。')
     }
     if (modifiedKept.length) {
       console.log('保留本轮仅修改的旧条目 ' + modifiedKept.length + ' 项（如确需删除，用 --only 精确指定或 --include-modified）。')
