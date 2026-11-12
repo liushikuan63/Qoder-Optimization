@@ -97,10 +97,29 @@ function fileStats(p) {
     // 一行日志）被算成 0 行 ⇒ effLines × avgBytes = 0 ⇒ 整读放行，判据被乘法吃掉
     // （2026-11-12 probe-f73-75 F73-A/E 修前红：exit 0 且 decision=allow）。
     const lines = newlines + (buf.length > 0 && buf[buf.length - 1] !== 10 ? 1 : 0);
-    return { bytes: st.size, lines };
+    return { bytes: st.size, lines, buf };
   } catch (e) {
     return null;
   }
+}
+
+// F89：某一段行区间的**真实字节数**（含换行符）。行口径与 fileStats 一致：按 \n 切，末行无换行也算一行。
+// 为什么不用平均行长投影：胖行混在大量瘦行里时，offset/limit 正好命中胖行会被低估几十倍 ⇒ 放行
+// （fail-open）；读瘦行区段又会被高估 ⇒ 误拦。fileStats 本来就把整份读进内存数行，
+// 所以这里按真实字节求和是**零额外 I/O**，用 indexOf 跳行也不是逐字节循环。
+// 修前取证：D:/tmp/qo-f88/hog-before-fix.log（406091 字节 / 5001 行，平均 81.2 字节，
+// 胖行 307200 字节；offset=2501&limit=1 旧实现 decision=allow）。
+function rangeBytes(buf, startLine, effLines) {
+  const endLine = startLine + effLines - 1;
+  let line = 1, from = 0, sum = 0;
+  while (from <= buf.length) {
+    const nl = buf.indexOf(10, from);
+    const end = nl === -1 ? buf.length : nl + 1;
+    if (line >= startLine && line <= endLine) sum += end - from;
+    if (line >= endLine || nl === -1) break;
+    line++; from = end;
+  }
+  return sum;
 }
 
 // ---------- 判据 1：Read 整读大文件 ----------
@@ -135,11 +154,13 @@ function checkRead(toolInput) {
   const effLines = hasLimit ? Math.min(rawLimit, remaining) : remaining;
   if (effLines <= 0) return null;   // offset 超出 EOF：读不到东西，别误拦
   const avgBytes = st.lines > 0 ? st.bytes / st.lines : st.bytes;
-  const projected = effLines * avgBytes;
+  // F89：判定用**真实字节数**，平均行长只用于文案说明（旧实现拿投影当判据 ⇒ 胖行被低估放行）。
+  // 拿不到 buf 时按整份体积算（fail-closed），不退回平均投影——那正是被修掉的洞。
+  const projected = st.buf ? rangeBytes(st.buf, startLine, effLines) : st.bytes;
   if (effLines <= READ_LINES && projected <= READ_BYTES) return null;
   const kb = (Math.min(projected, st.bytes) / 1024).toFixed(0);
   if (hasLimit || hasOffset) {
-    return `即使带了 offset/limit，这一段仍约 ${kb} KB / ${effLines} 行（平均行长 ${Math.round(avgBytes)} 字节`
+    return `即使带了 offset/limit，这一段仍约 ${kb} KB / ${effLines} 行（按真实行字节数统计；全文平均行长 ${Math.round(avgBytes)} 字节`
       + (st.lines <= 1 ? '；整份文件只有一行，而 limit 按**行数**限流，对单行大文件等于没限' : '')
       + `），超过单条 ${(READ_BYTES / 1024).toFixed(0)} KB 的上下文预算。改法：`
       + '① 先 Grep 定位关键词，只读命中行附近；② 单行大文件按**字节**截断（`head -c 2000 文件`、`cut -c1-2000 文件`）；'

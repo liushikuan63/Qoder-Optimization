@@ -98,7 +98,13 @@ for (const [name, scriptCount, includeDirectory, exitCode] of [
       fs.writeFileSync(target, text);
     };
     for (const file of ['VERSION', 'skills-manifest.json', 'Qoder-AI编码通用规则.md', 'README-安装说明.md', 'INDEX.md']) write(file, '{}\n');
-    write('catalog.json', JSON.stringify({ counts: { skill: 0, command: 0, agent: 0, script: scriptCount } }));
+    // F90：夹具必须让「description」与「catalog 来源」两道判据真的有东西可查。
+    // 原来既没有 skills/ 也没有 entries，exit=0 那条正例是空对空恒真——判据一条都没跑。
+    write('skills/ok-skill/SKILL.md', '---\nname: ok-skill\ndescription: 短描述\n---\n\n# x\n');
+    write('catalog.json', JSON.stringify({
+      counts: { skill: 1, command: 0, agent: 0, script: scriptCount },
+      entries: [{ id: 'skill:ok-skill', status: 'shipped', source: 'skills/ok-skill/SKILL.md' }],
+    }));
     write('scripts/plain.cjs', 'module.exports = true;\n');
     if (includeDirectory) {
       write('scripts/runtime/package.json', '{"main":"index.cjs"}\n');
@@ -108,6 +114,13 @@ for (const [name, scriptCount, includeDirectory, exitCode] of [
     }
     const result = spawnSync(process.execPath, [path.join(__dirname, 'share-package-verify.cjs'), root], { encoding: 'utf8', timeout: 60000 });
     assert.equal(result.status, exitCode, result.stdout + result.stderr);
-    assert.match(result.stdout, exitCode === 0 ? /script=2/ : /catalog 计数不符/);
+    if (exitCode === 0) {
+      assert.match(result.stdout, /script=2/);
+      // F90：判绿还必须证明两道判据真的跑过（非空集），否则又是空对空恒真。
+      assert.match(result.stdout, /1 个技能/, 'description 判据必须真的量过技能');
+      assert.match(result.stdout, /catalog 来源存在 \(1 条\)/, '来源判据必须真的验过一条');
+    } else {
+      assert.match(result.stdout, /catalog 计数不符/);
+    }
   });
 }

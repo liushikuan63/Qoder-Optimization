@@ -250,6 +250,33 @@ check('负对照：cat big.md > /dev/null 2>&1（真丢弃）放行', pre('Bash'
 check('负对照：node --test x >> /tmp/t.log 2>&1（append 真重定向）放行', pre('Bash', { command: 'node --test x >> /tmp/t.log 2>&1' }), 'allow');
 check('负对照：git log | head -20 放行', pre('Bash', { command: 'git log | head -20' }), 'allow');
 
+// ---- F89 ----
+// 2026-11-12 第九段通读：字节投影用**平均行长**（st.bytes/st.lines）。胖行混在大量瘦行里时，
+// offset/limit 正好命中胖行会被严重低估 ⇒ 放行（fail-open）；反过来读瘦行区段又会被高估 ⇒ 误拦。
+// 旧夹具（two-fat-lines / many-short-lines）全是等长行，两个方向都照不到。
+console.log('— F89 胖行混瘦行：按真实行字节数判定，不按平均行长投影 —');
+const FAT_MIX = path.join(TMP, 'fat-among-thin.txt');
+const thinLines = Array.from({ length: 5000 }, (_, i) => `line ${i} padpadpad`);
+thinLines.splice(2500, 0, 'F'.repeat(300 * 1024));   // 第 2501 行＝300KB 胖行
+fs.writeFileSync(FAT_MIX, thinLines.join('\n') + '\n');
+const FAT_LAST = path.join(TMP, 'fat-last-no-newline.txt');
+fs.writeFileSync(FAT_LAST, Array.from({ length: 2000 }, (_, i) => `t ${i}`).join('\n') + '\n' + 'Z'.repeat(200 * 1024));
+const mixBytes = fs.statSync(FAT_MIX).size;
+const mixLines = fs.readFileSync(FAT_MIX, 'utf8').split('\n').length - 1;   // 末尾有换行
+console.log(`  夹具：${mixBytes} 字节 / ${mixLines} 行，平均行长 ${(mixBytes / mixLines).toFixed(1)} 字节，胖行 307200 字节`);
+check('F89 胖行在第 2501 行 + offset=2501&limit=1（真实 300KB，平均投影只 81B）：拦',
+  pre('Read', { file_path: FAT_MIX, offset: 2501, limit: 1 }), 'deny');
+check('F89 胖行是末行且无结尾换行 + offset=2001&limit=1：拦',
+  pre('Read', { file_path: FAT_LAST, offset: 2001, limit: 1 }), 'deny');
+check('F89 跨胖行区间 offset=2490&limit=20（含 300KB）：拦',
+  pre('Read', { file_path: FAT_MIX, offset: 2490, limit: 20 }), 'deny');
+check('F89 负对照：胖行前一行（瘦行）offset=2500&limit=1 放行',
+  pre('Read', { file_path: FAT_MIX, offset: 2500, limit: 1 }), 'allow');
+check('F89 负对照：胖行后一行（瘦行）offset=2502&limit=1 放行',
+  pre('Read', { file_path: FAT_MIX, offset: 2502, limit: 1 }), 'allow');
+check('F89 负对照：开头 600 瘦行 offset=1&limit=600（≈11KB，平均投影会误判 48KB）放行',
+  pre('Read', { file_path: FAT_MIX, offset: 1, limit: 600 }), 'allow');
+
 console.log(`\n${pass} PASS / ${fail} FAIL`);
 try { fs.rmSync(TMP, { recursive: true, force: true }); } catch (e) {}
 process.exit(fail === 0 ? 0 : 1);

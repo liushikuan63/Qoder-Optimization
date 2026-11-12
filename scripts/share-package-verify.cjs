@@ -98,7 +98,12 @@ function verify(pkgDir, agentsPath) {
     if (d.length > cap) over.push(`${n}(${d.length}>${cap})`);
     if (d.length > maxSeen[0]) maxSeen = [d.length, n + (caps[n] ? '²' : '')];
   }
-  over.length ? fails.push(`description 超限 ${over.length} 个: ${over.join(', ')}`) : passes.push(`description ≤300（载体按 DESC_CARRIERS 放宽）: ${skillNames.length} 个技能, max=${maxSeen[0]} ${maxSeen[1]}`);
+  // F90：空集不算查过。skills/ 缺失或一个技能目录都没有时，旧实现循环零次、over=[] ⇒
+  // 打 PASS「description ≤300: 0 个技能」并退 0——这道关卡形同不存在
+  // （2026-11-12 D:/tmp/qo-f90/probe-f90.cjs 修前 A/B 实测 exit=0）。
+  if (!fs.existsSync(skillsDir)) fails.push('skills/ 目录缺失：description 判据一个技能都没查（空集不算通过）');
+  else if (skillNames.length === 0) fails.push('skills/ 里没有任何技能目录：description 判据空对空恒真（0 个技能不算通过）');
+  else over.length ? fails.push(`description 超限 ${over.length} 个: ${over.join(', ')}`) : passes.push(`description ≤300（载体按 DESC_CARRIERS 放宽）: ${skillNames.length} 个技能, max=${maxSeen[0]} ${maxSeen[1]}`);
 
   // 5. catalog 计数
   try {
@@ -114,6 +119,11 @@ function verify(pkgDir, agentsPath) {
       ? fails.push(`catalog 计数不符: ` + bad.map((k) => `${k} 标 ${cat.counts[k]} 实 ${actual[k]}`).join(', '))
       : passes.push(`catalog 计数一致 (${Object.entries(actual).map(([k, v]) => k + '=' + v).join(' ')})`);
     const entries = Array.isArray(cat.entries) ? cat.entries.filter((e) => e && e.status === 'shipped') : [];
+    // F90：entries 缺失/非数组/没有 shipped 时，旧实现 entries=[] ⇒ unsafe 与 absent 都是空集 ⇒
+    // 打 PASS「catalog 来源存在 (0 条)」并退 0（2026-11-12 probe-f90 修前 C/D/E 实测 exit=0）。
+    // 空集不算查过：这道关卡必须真的有 shipped 条目可验，否则判红。
+    if (!Array.isArray(cat.entries)) fails.push('catalog.entries 缺失或不是数组：来源判据一条都没查（空集不算通过）');
+    else if (entries.length === 0) fails.push('catalog 没有任何 shipped 条目：来源判据空对空恒真（0 条不算通过）');
     // source 必须是**包内相对路径**。旧写法只按 '/' 切段找 '..'：Windows 反斜杠形
     // `..\outside.md` 切不开 ⇒ 不算 unsafe，而 existsSync 在 Windows 上照样解析到包外真实文件
     // ⇒ 判绿（2026-11-12 probe-f77-79 F77-A/B 修前红）。这里改成"先归一化分隔符，再验解析结果仍在包内"：
@@ -130,10 +140,10 @@ function verify(pkgDir, agentsPath) {
     const absent = entries.filter((e) => !unsafe.includes(e) && !fs.existsSync(path.join(pkgDir, e.source)));
     if (unsafe.length || absent.length) {
       fails.push(`catalog 来源无效/缺失 ${unsafe.length + absent.length} 条: ` + [...unsafe, ...absent].slice(0, 5).map((e) => e.id || e.source).join(', '));
-    } else passes.push(`catalog 来源存在 (${entries.length} 条)`);
+    } else if (entries.length > 0) passes.push(`catalog 来源存在 (${entries.length} 条)`);
     const ids = new Set((Array.isArray(cat.entries) ? cat.entries : []).map((e) => e && e.id));
     const dangling = entries.flatMap((e) => (Array.isArray(e.dependencies) ? e.dependencies : []).filter((id) => !ids.has(id)).map((id) => `${e.id}->${id}`));
-    dangling.length ? fails.push(`catalog 依赖悬空 ${dangling.length} 条: ` + dangling.slice(0, 5).join(', ')) : passes.push('catalog 依赖齐全');
+    dangling.length ? fails.push(`catalog 依赖悬空 ${dangling.length} 条: ` + dangling.slice(0, 5).join(', ')) : (entries.length > 0 && passes.push('catalog 依赖齐全'));
   } catch (e) {
     fails.push('catalog.json 解析失败: ' + e.message.split('\n')[0]);
   }
@@ -175,6 +185,13 @@ function selftest() {
   const mk = (root, name, desc) => {
     fs.mkdirSync(path.join(root, 'skills', name), { recursive: true });
     fs.writeFileSync(path.join(root, 'skills', name, 'SKILL.md'), `---\nname: ${name}\ndescription: ${desc}\n---\n\n# x\n`);
+    // F90：base() 原来写 entries:[]，于是**所有**正例的「catalog 来源」判据都在空集上恒真
+    // （夹具把判据框住了：看着绿，其实一条来源都没验）。mk 之后按真实技能名补一条 shipped，
+    // 让正例真的验过来源；counts 沿用 base 的设定，红/绿仍能归因到被测判据本身。
+    const catPath = path.join(root, 'catalog.json');
+    const cat = JSON.parse(fs.readFileSync(catPath, 'utf8'));
+    cat.entries = [{ id: 'skill:' + name, status: 'shipped', source: `skills/${name}/SKILL.md` }];
+    fs.writeFileSync(catPath, JSON.stringify(cat));
   };
   const base = (root, extra = {}) => {
     fs.mkdirSync(root, { recursive: true });
@@ -316,6 +333,28 @@ function selftest() {
     expectCase('负例', 'F79 ' + name, run(withFiles('f79-' + name.replace(/[^A-Za-z0-9]+/g, '-'), { [name]: '备份内容\n' })), 2,
       `真备份/日志 ${name} 应判红`, '垃圾文件');
   }
+
+  // ---- F90 ----
+  // 2026-11-12 第九段通读：skills/ 缺失或空、catalog.entries 缺失/非数组/无 shipped 时，
+  // 两道判据都在空集上恒真（修前 D:/tmp/qo-f90/probe-f90.cjs A–E 全部 exit=0，
+  // PASS 行还自报「0 个技能」「catalog 来源存在 (0 条)」）。夹具同批修：mk() 现在真的补一条 shipped 来源。
+  const noSkills = path.join(tmp, 'f90-noskills'); base(noSkills, { counts: { skill: 0 } });
+  expectCase('负例', 'F90 无 skills 目录', run(noSkills), 2, 'skills/ 缺失不许判绿', 'skills/ 目录缺失');
+  const emptySkills = path.join(tmp, 'f90-emptyskills'); base(emptySkills, { counts: { skill: 0 } });
+  fs.mkdirSync(path.join(emptySkills, 'skills'), { recursive: true });
+  expectCase('负例', 'F90 skills 空目录', run(emptySkills), 2, '0 个技能不许判绿', '没有任何技能目录');
+  const catOnly = (root, extra) => fs.writeFileSync(path.join(root, 'catalog.json'),
+    JSON.stringify({ counts: { skill: 1, command: 0, agent: 0, script: 0 }, ...extra }));
+  const noEntries = path.join(tmp, 'f90-noentries'); base(noEntries); mk(noEntries, 'ok-skill', '短描述'); catOnly(noEntries, {});
+  expectCase('负例', 'F90 entries 缺失', run(noEntries), 2, 'entries 字段缺失不许判绿', 'catalog.entries 缺失');
+  const badEntries = path.join(tmp, 'f90-badentries'); base(badEntries); mk(badEntries, 'ok-skill', '短描述'); catOnly(badEntries, { entries: {} });
+  expectCase('负例', 'F90 entries 非数组', run(badEntries), 2, 'entries 非数组不许判绿', 'catalog.entries 缺失');
+  const noShipped = path.join(tmp, 'f90-noshipped'); base(noShipped); mk(noShipped, 'ok-skill', '短描述');
+  catOnly(noShipped, { entries: [{ id: 'skill:ok-skill', status: 'planned', source: 'skills/ok-skill/SKILL.md' }] });
+  expectCase('负例', 'F90 无 shipped 条目', run(noShipped), 2, '只有 planned 条目不许判绿', '没有任何 shipped');
+  const realPkg = path.join(tmp, 'f90-real'); base(realPkg); mk(realPkg, 'ok-skill', '短描述');
+  expectCase('正例', 'F90 来源判据真的跑过', run(realPkg), 0, '有 shipped 来源时必须真的验过一条', 'catalog 来源存在 (1 条)');
+  expectCase('正例', 'F90 描述判据真的跑过', run(realPkg), 0, '有技能时必须真的量过一个', '1 个技能');
 
   fs.rmSync(tmp, { recursive: true, force: true });
   console.log(bad ? `SELFTEST=FAIL (${bad})` : `SELFTEST=PASS (${pos} 正例 / ${neg} 负例)`);

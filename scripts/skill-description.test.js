@@ -52,14 +52,83 @@ check('全量语料 catalog 与统一解析一致（差分判据）', compared >
 
 // ---- differential: the enforcer's own descOf must equal the unified parser ----
 // F85：只查「源码里出现过 skill-description.cjs」＝注释里提一句也算共用真源（假绿）。
-// 这里要求真的有 require 调用；行为层面的证据是下面 M1/M2 的三处一致差分（那才是判据本体）。
-const requiresRealSource = (src) => /require\(\s*['"][^'"]*skill-description\.cjs['"]\s*\)/.test(src);
-check('共用真源判据可失败：只在注释里提路径不算 require', !requiresRealSource('// 详见 skill-description.cjs\nconst x = 1;\n'));
+// F88：改成「有 require(」仍然不够——旧正则直接扫全文，`// const d = require('./skill-description.cjs')`
+//      同样命中，而当时的负对照只测「提路径不带 require(」，照不到「require 被注释掉」。
+//      修前取证 D:/tmp/qo-f88/probe-old.cjs：三个执行器把真 require 行注释/块注释/塞进字符串后
+//      旧判据全部仍判 true（HOLES=3/3）。现在先做字符扫描：注释与正则字面量整段抹成空格，
+//      字符串字面量保留原文但记下区间；require 调用只有起点落在代码上下文（不在任何字符串区间内）才算。
+//      行为层面的证据仍是下面 M1/M2 的三处一致差分（那才是判据本体），这里是「不许退回自带裸正则」的守门。
+function codeRequireCalls(src, moduleFile) {
+  const n = src.length;
+  const clean = src.split('');
+  const strings = [];
+  const OPS = new Set('(,=:[!&|?{};+-*%~^<>'.split(''));
+  const KEYWORDS = new Set(['return', 'typeof', 'case', 'in', 'of', 'new', 'delete', 'void', 'throw', 'else', 'do', 'yield', 'await']);
+  const blank = (a, b) => { for (let k = a; k < b && k < n; k++) if (clean[k] !== '\n') clean[k] = ' '; };
+  let prev = '', word = '', i = 0;
+  while (i < n) {
+    const c = src[i], d = src[i + 1];
+    if (c === '/' && d === '/') { let j = i; while (j < n && src[j] !== '\n') j++; blank(i, j); i = j; continue; }
+    if (c === '/' && d === '*') { let j = i + 2; while (j < n && !(src[j] === '*' && src[j + 1] === '/')) j++; blank(i, Math.min(n, j + 2)); i = Math.min(n, j + 2); continue; }
+    if (c === '"' || c === "'" || c === '`') {
+      // 模板串里的 ${...} 也按字符串处理（其中的 require 会被漏判＝fail-closed，不会假绿）
+      let j = i + 1;
+      while (j < n) { if (src[j] === '\\') { j += 2; continue; } if (src[j] === c) { j++; break; } j++; }
+      j = Math.min(n, j); strings.push([i, j]); i = j; prev = c; word = ''; continue;
+    }
+    if (c === '/' && (prev === '' || OPS.has(prev) || KEYWORDS.has(word))) {
+      let j = i + 1, inClass = false;
+      while (j < n) {
+        const ch = src[j];
+        if (ch === '\\') { j += 2; continue; }
+        if (ch === '\n') break;
+        if (ch === '[') inClass = true; else if (ch === ']') inClass = false;
+        else if (ch === '/' && !inClass) { j++; break; }
+        j++;
+      }
+      while (j < n && /[a-z]/.test(src[j])) j++;
+      blank(i, j); i = j; prev = '/'; word = ''; continue;
+    }
+    if (/[A-Za-z0-9_$]/.test(c)) { word += c; prev = c; i++; continue; }
+    if (/\s/.test(c)) { if (KEYWORDS.has(word)) { prev = ''; word = ''; } i++; continue; }
+    word = ''; prev = c; i++;
+  }
+  const text = clean.join('');
+  const esc = moduleFile.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp('require\\(\\s*[\'"][^\'"]*' + esc + '[\'"]\\s*\\)', 'g');
+  const hits = [];
+  for (const m of text.matchAll(re)) {
+    const at = m.index;
+    if (strings.some(([a, b]) => at >= a && at < b)) continue;
+    hits.push(m[0]);
+  }
+  return hits;
+}
+const requiresRealSource = (src) => codeRequireCalls(src, 'skill-description.cjs').length > 0;
 const verifySrc = fs.readFileSync(path.join(ROOT, 'scripts/share-package-verify.cjs'), 'utf8');
-check('执行器已改为共用真源（真的 require，且不再自带裸正则）', requiresRealSource(verifySrc) && !/t\.match\(\/\^description:\\s\*\(\.\+\)\$\/m\)/.test(verifySrc));
 const extrasSrc = fs.readFileSync(path.join(ROOT, 'scripts/pack-share-extras.cjs'), 'utf8');
-check('生产者已改为共用真源（真的 require）', requiresRealSource(extrasSrc));
 const collSrc = fs.readFileSync(path.join(ROOT, 'scripts/skill-collisions.cjs'), 'utf8');
+
+// F88 判据自测：正反双向夹具 + 扫描器不被「带引号的正则字面量 / URL 里的 //」带偏
+check('F88 正对照：真 require 调用算共用真源', requiresRealSource('const d = require(\'./skill-description.cjs\');\n'));
+check('F88 负对照：只在注释里提路径不算 require', !requiresRealSource('// 详见 skill-description.cjs\nconst x = 1;\n'));
+check('F88 负对照：行注释里的 require 不算', !requiresRealSource('// const d = require(\'./skill-description.cjs\');\nconst x = 1;\n'));
+check('F88 负对照：块注释里的 require 不算', !requiresRealSource('/* const d = require(\'./skill-description.cjs\'); */\nconst x = 1;\n'));
+check('F88 负对照：字符串里的 require 文本不算', !requiresRealSource('const s = "require(\'./skill-description.cjs\')";\n'));
+check('F88 扫描器抗干扰：带引号正则 + URL 双斜杠之后仍认出真 require',
+  requiresRealSource('const re = /["\']/; const u = \'https://x//y\';\nconst d = require(\'./skill-description.cjs\');\n'));
+
+// F88 变异证明（用真实执行器源码，不是玩具夹具）：把那一行真 require 注释掉，判据必须翻红
+const REQ_LINE = /^.*require\('\.\/skill-description\.cjs'\).*$/m;
+const reqLineHits = (verifySrc.match(new RegExp(REQ_LINE.source, 'gm')) || []).length;
+check('F88 变异前提：执行器里真 require 恰好 1 行（否则变异打空＝负对照恒真）', reqLineHits === 1, `hits=${reqLineHits}`);
+const mutLine = verifySrc.replace(REQ_LINE, (m) => '// ' + m.trim());
+const mutBlock = verifySrc.replace(REQ_LINE, (m) => '/* ' + m.trim() + ' */');
+check('F88 变异证明：行注释掉真 require 后必须判红', mutLine !== verifySrc && requiresRealSource(verifySrc) && !requiresRealSource(mutLine));
+check('F88 变异证明：块注释包住真 require 后必须判红', mutBlock !== verifySrc && !requiresRealSource(mutBlock));
+
+check('执行器已改为共用真源（真的 require，且不再自带裸正则）', requiresRealSource(verifySrc) && !/t\.match\(\/\^description:\\s\*\(\.\+\)\$\/m\)/.test(verifySrc));
+check('生产者已改为共用真源（真的 require）', requiresRealSource(extrasSrc));
 check('碰撞扫描已改为共用真源（真的 require）', requiresRealSource(collSrc));
 
 // ---- mutation control: the OLD enforcer regex must disagree on the quoted corpus ----
@@ -108,7 +177,12 @@ function verifyPkg(tag, text) {
   fs.writeFileSync(path.join(dir, 'skills', SK, 'SKILL.md'), text);
   for (const f of ['VERSION', 'README-安装说明.md', 'Qoder-AI编码通用规则.md', 'INDEX.md']) fs.writeFileSync(path.join(dir, f), 'x\n');
   fs.writeFileSync(path.join(dir, 'skills-manifest.json'), JSON.stringify({ total: 1, skills: [] }));
-  fs.writeFileSync(path.join(dir, 'catalog.json'), JSON.stringify({ counts: { skill: 1, command: 0, agent: 0, script: 0 }, entries: [] }));
+  // F90/F91：夹具必须带一条真实 shipped 来源。原来 entries:[]，执行器加「空集不算通过」守门后
+  // 立刻把 M1 拖红（实测 FAIL 2）——exit 码是「描述合规」的代理，夹具里别的红会让代理失真。
+  fs.writeFileSync(path.join(dir, 'catalog.json'), JSON.stringify({
+    counts: { skill: 1, command: 0, agent: 0, script: 0 },
+    entries: [{ id: 'skill:' + SK, status: 'shipped', source: `skills/${SK}/SKILL.md` }],
+  }));
   return spawnSync(process.execPath, [VERIFY, dir], { encoding: 'utf8' });
 }
 function collisionsLen(text) {
@@ -139,6 +213,11 @@ check('多行 M1：执行器判绿 exit 0', r1.status === 0, 'exit=' + r1.status
 check('多行 M2：生产者折叠后精确等于 want2（301 字符，不是取首行 299）', e2 === want2, 'len=' + String(e2 || '').length);
 check('多行 M2：碰撞扫描解析长度＝301', c2 === 301, 'got=' + c2);
 check('多行 M2：执行器判红 exit 2（取首行的实现会在这里假绿）', r2.status === 2, 'exit=' + r2.status);
+// F91：exit 码只是「描述是否合规」的**代理**，必须断言归因，否则夹具里任何别的红/绿都会冒充结论。
+const failLines = (r) => String(r.stdout || '').split('\n').filter((l) => l.startsWith('FAIL'));
+check('多行 M1：执行器一条 FAIL 都没有（exit 0 不是别道关卡凑出来的）', failLines(r1).length === 0, JSON.stringify(failLines(r1)));
+check('多行 M2：执行器唯一 FAIL 来自 description 超限（红得可归因）',
+  failLines(r2).length === 1 && /description 超限/.test(failLines(r2)[0]), JSON.stringify(failLines(r2)));
 // 三处一致＝把三处对同一夹具的「是否合规」归一成布尔后必须相同。
 // 旧写法比的是 want1.length===300 && want2.length===301，那是我自己算的常数，恒真、无判别力。
 const compliant = (e, c, r) => [String(e || '').length <= 300, c !== null && c <= 300, r.status === 0];

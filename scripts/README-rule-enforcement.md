@@ -114,7 +114,7 @@ Edit 回显 849KB、Bash 无上限输出 454KB、子代理报告 382KB。
 
 | 层 | 入口 | 行为 | 怎么验 |
 |---|---|---|---|
-| PreToolUse 守卫 | `~/.qoder/scripts/huge-output-guard.js`（两侧 settings.json 已挂） | ① `Read` 大文件（>40KB 或 >600 行；**末行无换行也算一行**，单行 300KB 的压缩 JSON 同样拦）→ **deny**；带了 offset/limit 也**按字节投影**再判一次（limit 按行数限流，对单行大文件等于没限；只带 offset ＝读到 EOF，按余量算）；② `Bash` 命中 `cat`/`grep`/`git log`/`mvn`/`npm test`/`find`/`ls -R` 等形态且无任何**有效**限流（管道 / 重定向到**文件** / head / tail / `-l` / `-c` / `-m` / `--oneline`；`2>&1`、`1>&2` 是 fd 复制，输出仍进上下文，**不算**限流）→ 默认**自动追加 `\| head -100` 后放行**（只读查询语义不变；要恢复"拦下让我改命令"用 `HOG_MODE=deny` 或配置 `hogMode`）；head/tail 上界失效不算限流：`-c 5M`/`-c 5MB`/`-n 2K` 按后缀换算，`-n +K`/`-c +K` 是"一路输出到末尾"，认不出的后缀按无界处理；③ 双引号内联脚本（`node -e` / `python -c` / `bash -c` …）里出现反引号 → **deny**（带引号 heredoc 的**正文**豁免，正文之外照拦）；④ `Agent` 提示词末尾追加"只回结论、≤300 字"硬约束（**改输入而不是拒绝**，子代理本身是必要的） | `node scripts/huge-output-guard.test.js`（**115 条**：该拦的拦、该放的放，每处漏判都配负对照；含自测抓出来的真问题：`/-l\b/` 匹配不到 `grep -rl` 的组合短参、`find` 带 `-name` 仍可能上千行、单行大文件被算成 0 行、`head -c 5M` 被读成 5 字节、heredoc 豁免被整条命令借走、显式 offset/limit 早退跳过字节投影、`2>&1` 被当成重定向到文件）。条数由 `node --test .github/doc-test-tally.test.js` 实跑比对，写过期会判红 |
+| PreToolUse 守卫 | `~/.qoder/scripts/huge-output-guard.js`（两侧 settings.json 已挂） | ① `Read` 大文件（>40KB 或 >600 行；**末行无换行也算一行**，单行 300KB 的压缩 JSON 同样拦）→ **deny**；带了 offset/limit 也**按真实行字节数**再判一次（limit 按行数限流，对单行大文件等于没限；只带 offset ＝读到 EOF，按余量算）；② `Bash` 命中 `cat`/`grep`/`git log`/`mvn`/`npm test`/`find`/`ls -R` 等形态且无任何**有效**限流（管道 / 重定向到**文件** / head / tail / `-l` / `-c` / `-m` / `--oneline`；`2>&1`、`1>&2` 是 fd 复制，输出仍进上下文，**不算**限流）→ 默认**自动追加 `\| head -100` 后放行**（只读查询语义不变；要恢复"拦下让我改命令"用 `HOG_MODE=deny` 或配置 `hogMode`）；head/tail 上界失效不算限流：`-c 5M`/`-c 5MB`/`-n 2K` 按后缀换算，`-n +K`/`-c +K` 是"一路输出到末尾"，认不出的后缀按无界处理；③ 双引号内联脚本（`node -e` / `python -c` / `bash -c` …）里出现反引号 → **deny**（带引号 heredoc 的**正文**豁免，正文之外照拦）；④ `Agent` 提示词末尾追加"只回结论、≤300 字"硬约束（**改输入而不是拒绝**，子代理本身是必要的） | `node scripts/huge-output-guard.test.js`（**121 条**：该拦的拦、该放的放，每处漏判都配负对照；含自测抓出来的真问题：`/-l\b/` 匹配不到 `grep -rl` 的组合短参、`find` 带 `-name` 仍可能上千行、单行大文件被算成 0 行、`head -c 5M` 被读成 5 字节、heredoc 豁免被整条命令借走、显式 offset/limit 早退跳过字节投影、`2>&1` 被当成重定向到文件、**胖行混在瘦行里被"全文平均行长"投影吃掉**）。条数由 `node --test .github/doc-test-tally.test.js` 实跑比对，写过期会判红 |
 | 会话体积哨兵 | `stop-gate.js` 规则 **R7**（Stop hook） | 会话 transcript ≥ 25MB（`STOP_GATE_SESSION_MB` 可调）时拦停，要求先交接（队列 + 台账 + 明说"建议开新会话"） | `node stop-gate.test.js`（27/27）+ R7 专项两端自检（26MB 拦 / 小会话放行） |
 | **阻塞过期复核** | `stop-gate.js` 规则 **R6b**（Stop hook） | 队列里 `- [~] … 阻塞：` 若**声称某文件正脏/被持有**，收尾前实测这些文件（`git ls-files` 解析 → `git status --porcelain`）：全部干净 ⇒ 判"这条阻塞已过期"并拦停——现在开工，或换成新的真实条件。**三道保守闸门**：① 只判含脏态词（脏/持有/在途/未提交/正被/并行会话）的条目，"等数据产出/等关卡"这类与文件无关的不判；② 含 git 查不了的条件（凭据/端口/上游规格/真机/模拟器/mvn）整条跳过；③ 提到的文件有一个在版本清单里找不到就整条不判（**不许把"查不到"当"已过期"**）。git 跑不动 ⇒ fail-open | `node stop-gate.test.js`（44/44，含 6 条 R6b：过期必拦 2 条 + 确实脏/无脏态声明/文件查不到/含凭据 各放行对照）；真队列冒烟：V03-d 那条"heroes=0"过期阻塞被拦出、修文案后静默 |
 | 规则层 | `AGENTS.md` §任务处理 | 写清"上下文体积是回合的生死线"+ 正误对照 | `sync-global-config.sh --check`（12 文件逐字节一致） |
@@ -139,6 +139,12 @@ bash 会**先做命令替换**再交给解释器，所以文本里的 `` `xxx` `
 同批**纠正了两条写错的负对照**：原文断言「单行 300KB 带 `limit=100` / 只带 `offset` 放行」，
 可这两种写法实际都把整份 300KB 读进上下文——错的负对照把漏判钉成了绿（修前全套 90 PASS / 0 FAIL，
 只改守卫后立刻 88 PASS / 2 FAIL，红的正是这两条）。教训：负对照也要问一句「它断言的放行真的安全吗」。
+2026-11-12 第九段修 **F89**（胖行投影）再补 **6 条**（拦 3 / 放行 3），全套 **115 → 121 条**：
+旧实现用「全文平均行长 × 行数」估算 offset/limit 区间的体积，胖瘦混排时两头都错——
+夹具 5001 行 / 406091 字节（平均 81.2 字节/行），第 2501 行是 307200 字节的胖行：
+`offset=2501&limit=1` 按平均只算 81 字节 ⇒ **放行整份 300KB**；反过来读瘦行区间又被高估误拦。
+改成按**真实行字节数**累加（`rangeBytes`，读不出 buffer 时退回全文体积，fail-closed，绝不退回平均值）。
+修前 `117 PASS / 4 FAIL`（exit 1），修后 `121 PASS / 0 FAIL`（exit 0）；把 `rangeBytes` 换回平均值的变异体重新判红 4 条。
 
 **关掉 / 调松**：`~/.qoder/huge-output-guard.json` 写 `{"disabled":true}`（守卫立即静默）；阈值用环境变量
 `HOG_READ_BYTES` / `HOG_READ_LINES`（默认 40KB / 600 行）、会话线 `STOP_GATE_SESSION_MB`（默认 25）。
