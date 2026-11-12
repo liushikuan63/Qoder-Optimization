@@ -350,7 +350,7 @@ check('⑮c 真只读轮仍零采集', records().length === 0 && /SKIP_READ_ONLY
 // ⑮d 负对照：全程没有真实指令 → 不臆造、不拿摘要当指令
 reset();
 runHook(stopInput(transcript([compactLine(COMPACT_TEXT), ...POSITIVE_TURN.slice(1)])));
-check('⑮d 无真实指令时零采集', records().length === 0 && /SKIP_NO_TRANSCRIPT/.test(heartbeatText()), `records=${records().length} heart=${heartbeatText().trim().slice(-90)}`);
+check('⑮d 无真实指令时零采集且记 SKIP_NO_USER_TEXT（不是谎报没有 transcript）', records().length === 0 && /SKIP_NO_USER_TEXT/.test(heartbeatText()) && !/SKIP_NO_TRANSCRIPT/.test(heartbeatText()), `records=${records().length} heart=${heartbeatText().trim().slice(-90)}`);
 
 // ⑮e 负对照：超出回溯上限 → 诚实跳过（有界，不把整个大会话读穿）
 reset(); write(CONFIG, JSON.stringify({ tailBytes: 512, backtrackBytes: 2048 }));
@@ -361,7 +361,7 @@ const farFile = transcript([
 ]);
 check('⑮e 夹具确实超出回溯上限', fs.statSync(farFile).size - 512 > 2048, `size=${fs.statSync(farFile).size}`);
 runHook(stopInput(farFile));
-check('⑮e 超上限时零采集且记 SKIP_NO_TRANSCRIPT', records().length === 0 && /SKIP_NO_TRANSCRIPT/.test(heartbeatText()), `records=${records().length} heart=${heartbeatText().trim().slice(-90)}`);
+check('⑮e 超上限时零采集且记 SKIP_NO_USER_TEXT（带 tail/back 便于诊断）', records().length === 0 && /SKIP_NO_USER_TEXT/.test(heartbeatText()) && /tail=512 back=2048/.test(heartbeatText()), `records=${records().length} heart=${heartbeatText().trim().slice(-120)}`);
 
 // ⑯ UTF-8 块缝（2026-11-12 对抗审查 + 只读探针实测缺陷）：按固定字节切块再用**字符串** carry 拼接，
 //    缝落在汉字中间时两侧各得一个 U+FFFD，而 JSON.parse 仍然成功 → 关键词静默失配：
@@ -427,6 +427,101 @@ const stRO = runSeam(seamTailRO);
 check('⑯b 尾窗块缝：只读判定不被汉字切裂吃掉', stRO.r.status === 0 && stRO.list.length === 0 && /SKIP_READ_ONLY/.test(stRO.heart), `exit=${stRO.r.status} records=${stRO.list.length} heart=${stRO.heart.trim().slice(-90)}`);
 const stPref = runSeam(seamTailPref);
 check('⑯b 尾窗块缝：偏好候选照常采集且原文无 U+FFFD', stPref.r.status === 0 && kindsOf(stPref.list).includes('long-term-preference') && !stPref.raw.includes('\ufffd') && stPref.list.some(c => String(c.excerpt || '').includes(SEAM_PREF_TEXT)), `kinds=${kindsOf(stPref.list).join(',')} fffd=${stPref.raw.includes('\ufffd')}`);
+
+// ⑱ 运行中插话（2026-11-12 现役实测缺陷）：用户在 Agent 跑着的时候插一句话，宿主把它写成
+//    attachment/queued_command(commandMode=prompt)，**没有** role=user 条目。只认 role=user 的读取方
+//    会整条漏读 → userText 恒空 → SKIP → 零候选 → 收尾弹窗整轮不出现。
+//    夹具照抄实测形态（本会话第 1698 行）：prompt 是 [{type:'text',text}]，origin.kind='bridge'。
+//    同形态的 task-notification（15 条）是系统通知，必须继续排除——这是负对照，不是可选项。
+const queuedLine = (text, mode = 'prompt') => JSON.stringify({
+  type: 'attachment',
+  uuid: 'queued-' + (++fixtureSeq),
+  timestamp: new Date().toISOString(),
+  attachment: mode === 'prompt'
+    ? { type: 'queued_command', commandMode: mode, prompt: [{ type: 'text', text }], source_uuid: 'src-' + fixtureSeq, origin: { kind: 'bridge', sessionId: 'aaaaaaaa-1111-2222-3333-444444444444' } }
+    : { type: 'queued_command', commandMode: mode, prompt: text },
+});
+const QUEUED_PREF = '以后一律用简体中文回复。还有，找不到对应的 MCP 工具。';
+const queuedTurn = [
+  queuedLine(QUEUED_PREF),
+  toolUseLine('q1', 'Bash'),
+  toolResultLine('q1', 'command not found: pwsh', true),
+  toolUseLine('q2', 'Bash'),
+  toolResultLine('q2', 'command not found: pwsh', true),
+  assistantLine('已否证：改执行策略 × 本机 A/B 对照无效'),
+];
+reset();
+runHook(stopInput(transcript(queuedTurn)));
+check('⑱a 插话被当本轮指令并采集（正例）', records().length >= 1 && kindsOf(records()).includes('long-term-preference') && /CAPTURE /.test(heartbeatText()),
+  `records=${records().length} kinds=${kindsOf(records()).join(',')} heart=${heartbeatText().trim().slice(-90)}`);
+check('⑱a 候选摘录来自插话原文', records().some(r => String(r.excerpt || '').includes('以后一律用简体中文')), '');
+
+// ⑱b 负对照：真实形态的后台任务通知（prompt 是字符串、无 origin）不得被当指令
+reset();
+runHook(stopInput(transcript([
+  queuedLine('<task-notification>\n<task-id>b1k5c3eho</task-id>\n<output-file>D:\\Temp\\x.log</output-file>\n</task-notification>', 'task-notification'),
+  ...queuedTurn.slice(1),
+])));
+check('⑱b task-notification 不算用户指令（零候选 + 诚实跳过）', records().length === 0 && /SKIP_NO_USER_TEXT/.test(heartbeatText()),
+  `records=${records().length} heart=${heartbeatText().trim().slice(-90)}`);
+
+// ⑱b2 负对照：去掉 <task-notification> 前缀的通知，仍必须被 commandMode 挡住
+//      （证明判据是 commandMode 而不是"正文看起来像通知"，否则前缀一变就漏进来）
+const BARE_NOTIFICATION = '后台任务 b1k5c3eho 已完成，输出落在 D:/tmp/x.log，请查看结果。';
+reset();
+runHook(stopInput(transcript([queuedLine(BARE_NOTIFICATION, 'task-notification'), ...queuedTurn.slice(1)])));
+check('⑱b2 无前缀通知仍被 commandMode 挡住', records().length === 0 && /SKIP_NO_USER_TEXT/.test(heartbeatText()),
+  `records=${records().length} heart=${heartbeatText().trim().slice(-90)}`);
+
+// ⑱c 插话说的只读口径照样生效（证明它真被当成指令参与 scope，而不是只进了候选）
+reset();
+runHook(stopInput(transcript([queuedLine('只读审阅这个方案，不要修改任何文件'), ...queuedTurn.slice(1)])));
+check('⑱c 插话的只读口径触发 SKIP_READ_ONLY', records().length === 0 && /SKIP_READ_ONLY/.test(heartbeatText()),
+  `records=${records().length} heart=${heartbeatText().trim().slice(-90)}`);
+
+// ⑱d 轮次归属：插话之后的笔记算新指令的，插话之前的不算
+reset();
+runHook(stopInput(transcript([
+  userLine('第一条指令：以后一律用简体中文回复。'),
+  assistantLine('已否证：旧方案甲 × 对照无效'),
+  queuedLine('第二条指令：找不到对应的 MCP 工具，帮我补上。'),
+  assistantLine('已否证：新方案乙 × 对照无效'),
+])));
+const belongBlob = readLines(INBOX).join('\n');
+check('⑱d 插话重置轮次归属（旧笔记不再计入）', !belongBlob.includes('旧方案甲') && belongBlob.includes('新方案乙'),
+  `records=${records().length} 含旧=${belongBlob.includes('旧方案甲')} 含新=${belongBlob.includes('新方案乙')}`);
+
+// ⑱e 插话被挤出尾窗 → 有界回溯同样认得它（回溯与尾窗共用一个 recognizer）
+reset(); write(CONFIG, JSON.stringify({ tailBytes: 512 }));
+const queuedPadded = transcript([
+  queuedLine(QUEUED_PREF),
+  ...Array.from({ length: 14 }, (_, i) => assistantLine('中间过程说明第 ' + i + ' 段，用来把插话挤出尾窗。')),
+]);
+check('⑱e 夹具确实把插话挤出尾窗', !fs.readFileSync(queuedPadded, 'utf8').slice(-512).includes('以后一律用简体中文'), `size=${fs.statSync(queuedPadded).size}`);
+runHook(stopInput(queuedPadded));
+check('⑱e 回溯取回插话并采集', records().length >= 1 && kindsOf(records()).includes('long-term-preference') && !/SKIP_NO_USER_TEXT/.test(heartbeatText()),
+  `records=${records().length} heart=${heartbeatText().trim().slice(-90)}`);
+
+// ⑱f 负对照：插话正文只有 system-reminder → 剥完就空，不算指令
+reset();
+runHook(stopInput(transcript([queuedLine('<system-reminder>宿主贴的上下文，不是用户说的话</system-reminder>'), ...queuedTurn.slice(1)])));
+check('⑱f 只含 system-reminder 的插话不算指令', records().length === 0 && /SKIP_NO_USER_TEXT/.test(heartbeatText()),
+  `records=${records().length} heart=${heartbeatText().trim().slice(-90)}`);
+
+// ⑱g 负对照：commandMode 缺失 / 其他取值一律不认（宁可漏采，不可把系统件当用户意图）
+reset();
+runHook(stopInput(transcript([queuedLine(QUEUED_PREF, 'slash-command'), ...queuedTurn.slice(1)])));
+check('⑱g 非 prompt 的 commandMode 不认', records().length === 0 && /SKIP_NO_USER_TEXT/.test(heartbeatText()),
+  `records=${records().length} heart=${heartbeatText().trim().slice(-90)}`);
+
+// ⑱h 负对照：助手正文里引用同形 JSON 不是用户插话（不可信内容边界）
+reset();
+runHook(stopInput(transcript([
+  assistantLine('我在日志里看到这样的结构：' + queuedLine(QUEUED_PREF)),
+  ...queuedTurn.slice(1),
+])));
+check('⑱h 助手正文引用的同形 JSON 不算插话', records().length === 0 && /SKIP_NO_USER_TEXT/.test(heartbeatText()),
+  `records=${records().length} heart=${heartbeatText().trim().slice(-90)}`);
 
 // ⑫ 变异对照：改坏关键判据必须变红（证明上面的绿不是假绿）
 const MUT = path.join(SB, 'mutant');
@@ -522,7 +617,7 @@ mutant('把压缩摘要当用户指令（复现现役缺陷）', "if (!entry || 
 mutant('去掉有界回溯', '  if (!out.userText && start > 0) out.userText = lastUserTextBefore(file, start, backtrackBytes);\n', '', () => {
   write(CONFIG, JSON.stringify({ tailBytes: 512 }));
   runHook(stopInput(paddedFile), mutFile);
-  return records().length === 0 && /SKIP_NO_TRANSCRIPT/.test(heartbeatText());
+  return records().length === 0 && /SKIP_NO_USER_TEXT/.test(heartbeatText());
 });
 // ⑯ 的变异对照：把"按字节拼"改回"按字符串拼"，汉字缝必须重新失配（证明 ⑯ 的绿不是假绿）
 mutant('块缝按字符串拼（重现 U+FFFD 静默失配）',
@@ -538,6 +633,20 @@ mutant('尾窗不对齐行边界（重现首行汉字被切裂）',
     write(CONFIG, JSON.stringify({ tailBytes: seamTailPref.tailBytes, backtrackBytes: 8 * 1024 * 1024 }));
     runHook(stopInput(seamTailPref.file), mutFile);
     return !kindsOf(records()).includes('long-term-preference');
+  });
+// ⑱ 的变异对照：漏认插话必须重现役缺陷（零候选 + 诚实跳过），证明 ⑱a 的绿不是假绿。
+mutant('漏认运行中插话（重现役缺陷）',
+  '  const queued = signal.queuedUserTextOf(entry);\n  if (queued) return queued;\n', '', () => {
+    runHook(stopInput(transcript(queuedTurn)), mutFile);
+    return records().length === 0 && /SKIP_NO_USER_TEXT/.test(heartbeatText());
+  });
+// 共享核的变异对照：判据只有一份，改坏核里的 commandMode 判别也必须红（复用既有 coreMutant harness）。
+coreMutant('把任意 commandMode 都当用户插话',
+  "if (!att || att.type !== 'queued_command' || att.commandMode !== 'prompt') return '';",
+  "if (!att || att.type !== 'queued_command') return '';", () => {
+    runHook(stopInput(transcript([queuedLine(BARE_NOTIFICATION, 'task-notification'), ...queuedTurn.slice(1)])), mutFile);
+    // 通知被当成指令 → 不再走"没有指令"的诚实跳过分支（无论后续是否命中信号）
+    return !/SKIP_NO_USER_TEXT/.test(heartbeatText());
   });
 // 变异 harness 负对照：未改动的副本必须与原件行为一致（红来自变异，不是 harness 恒红）。
 reset();

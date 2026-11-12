@@ -126,6 +126,26 @@ function assertions(mod) {
   add('开工卡不冒充建议弹窗', mod.isEvolutionAsk('AskUserQuestion', { questions: [{ question: '开工确认：理解与步骤是否合适？' }] }) === false);
   add('清理卡不冒充建议弹窗', mod.isEvolutionAsk('AskUserQuestion', { questions: [{ question: '本轮临时文件清理范围？' }] }) === false);
   add('非弹窗工具不算已问建议', mod.isEvolutionAsk('Bash', { command: 'echo 自进化' }) === false);
+  // —— 运行中插话：真实用户指令的第二种宿主形态（2026-11-12 现役实测，attachment/queued_command）——
+  const q = (text, mode = 'prompt') => ({
+    type: 'attachment',
+    attachment: mode === 'prompt'
+      ? { type: 'queued_command', commandMode: mode, prompt: [{ type: 'text', text }], origin: { kind: 'bridge' } }
+      : { type: 'queued_command', commandMode: mode, prompt: text },
+  });
+  add('插话正例：prompt 模式取回原文', mod.queuedUserTextOf(q('以后一律用简体中文回复')) === '以后一律用简体中文回复');
+  add('插话正例：字符串 prompt 也认', mod.queuedUserTextOf({ type: 'attachment', attachment: { type: 'queued_command', commandMode: 'prompt', prompt: '记住：改配置前先备份' } }) === '记住：改配置前先备份');
+  add('插话负对照：task-notification 不认', mod.queuedUserTextOf(q('后台任务已完成，请继续实施', 'task-notification')) === '');
+  add('插话负对照：其他 commandMode 不认', mod.queuedUserTextOf(q('以后一律用中文', 'slash-command')) === '');
+  add('插话负对照：缺 commandMode 不认', mod.queuedUserTextOf({ type: 'attachment', attachment: { type: 'queued_command', prompt: '以后一律用中文' } }) === '');
+  add('插话负对照：别的 attachment 类型不认', mod.queuedUserTextOf({ type: 'attachment', attachment: { type: 'goal_state', commandMode: 'prompt', prompt: '以后一律用中文' } }) === '');
+  add('插话负对照：system-reminder 剥完为空', mod.queuedUserTextOf(q('<system-reminder>宿主上下文</system-reminder>')) === '');
+  add('插话负对照：注入件前缀不认', mod.queuedUserTextOf(q('[stop-gate] 续跑提示')) === '' && mod.queuedUserTextOf(q('<task-notification>x</task-notification>')) === '');
+  add('插话负对照：压缩摘要标记不认', mod.queuedUserTextOf(Object.assign({}, q('以后一律用中文'), { isCompactSummary: true })) === '');
+  add('插话负对照：isMeta 不认', mod.queuedUserTextOf(Object.assign({}, q('以后一律用中文'), { isMeta: true })) === '');
+  add('插话负对照：助手条目里的同形结构不认', mod.queuedUserTextOf({ type: 'assistant', message: { role: 'assistant', content: [] }, attachment: q('以后一律用中文').attachment }) === '');
+  add('插话空输入不抛错', mod.queuedUserTextOf(null) === '' && mod.queuedUserTextOf(undefined) === '' && mod.queuedUserTextOf({}) === '');
+  add('插话识别后 scope 照常生效', mod.captureScope(mod.queuedUserTextOf(q('只读审阅这个方案，不要修改任何文件'))).readOnly === true);
   return list;
 }
 
@@ -210,6 +230,8 @@ mutate('topic-whitespace-unstable', ".replace(/\\s+/g, '');", '.trim();', '空�
 mutate('popup-threshold-neutered', 'if ([KINDS.TOOL_GAP, KINDS.REPEATED_FAILURE].includes(candidate.kind)) return occurrences >= 2;', 'if ([KINDS.TOOL_GAP, KINDS.REPEATED_FAILURE].includes(candidate.kind)) return true;', '弹窗不够格：单次能力缺口且单会话');
 mutate('experience-popup-allowed', "if (!candidate || candidate.family === 'experience') return false;", 'if (!candidate) return false;', '弹窗不够格：助手自述经验只进月报');
 mutate('evolution-ask-too-wide', 'try { return EVOLUTION_ASK.test(JSON.stringify(input || {})); } catch { return false; }', 'try { return true; } catch { return false; }', '开工卡不冒充建议弹窗');
+mutate('queued-mode-discriminator-removed', "if (!att || att.type !== 'queued_command' || att.commandMode !== 'prompt') return '';", "if (!att || att.type !== 'queued_command') return '';", '插话负对照：task-notification 不认');
+mutate('queued-recognition-neutered', '  const att = entry.attachment;\n', '  const att = null;\n', '插话正例：prompt 模式取回原文');
 
 // —— 跨文件漂移断言：核声明"与门禁同源"就必须真的逐字一致，且这条断言要能失败 ——
 const gateSrc = fs.readFileSync(path.join(__dirname, 'stop-gate.js'), 'utf8');
@@ -224,6 +246,10 @@ const stateDirExpr = "process.env.EVOLUTION_CAPTURE_STATE_DIR || path.join(CLIEN
 check('采集与门禁的 pending 目录解析口径一致', captureSrc.includes(stateDirExpr) && gateSrc.includes(stateDirExpr));
 check('采集与门禁的 pending 有效期一致（24h）', captureSrc.includes('PENDING_TTL_MS = 24 * 60 * 60 * 1000') && gateSrc.includes('PENDING_TTL_MS = 24 * 60 * 60 * 1000'));
 check('采集 hook 自己永不拦截（强制弹窗只由门禁承担）', !/decision\s*:\s*['"]block/.test(captureSrc));
+check('采集与门禁都复用核的插话识别（判据只有一份）',
+  captureSrc.includes('signal.queuedUserTextOf(entry)') && gateSrc.includes("require('./evolution-signal-core.js').queuedUserTextOf"));
+check('同源断言能失败（抹掉调用点就不认）',
+  !captureSrc.replace('signal.queuedUserTextOf(entry)', '').includes('signal.queuedUserTextOf(entry)'));
 
 // 变异自检本身的负对照：未改动的副本必须全绿（证明红来自变异，不是harness恒红）。
 const cleanCopy = path.join(SB, 'clean-copy.js');

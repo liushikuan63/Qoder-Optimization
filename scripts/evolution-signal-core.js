@@ -114,6 +114,38 @@ function classifyAssistantNote(text) {
   return { matched: false, signals: [] };
 }
 
+// —— 真实用户指令的宿主形态（2026-11-12 实测取证，不是猜的）——
+// 用户在 Agent 运行中插话时，宿主把这条指令写成 attachment/queued_command，**不是** role=user 条目：
+//   {"type":"attachment","attachment":{"type":"queued_command","commandMode":"prompt",
+//    "prompt":[{"type":"text","text":"…"}],"origin":{"kind":"bridge","sessionId":"…"}}}
+// 只认 commandMode==='prompt'：同形态的 task-notification（后台任务完成通知）是系统注入件，
+// 当成用户指令会让 scope 与候选双双失真（实测同一会话 15 条通知 vs 1 条真实插话）。
+// 漏认这种形态的代价已实测：采集 userText 恒空 → SKIP → 零候选 → 收尾弹窗整轮不出现。
+const INJECTED_PREFIX = /^\[stop-gate\b|^\[continuity\b|^Base directory for this skill:|^Note: The file|^\[SYSTEM NOTIFICATION - NOT USER INPUT\]|^<task-notification>/;
+
+function textOfContent(content) {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) return content.filter((x) => x && x.type === 'text').map((x) => x.text || '').join('\n');
+  return '';
+}
+
+// 注入件与空正文一律不算用户指令；system-reminder 是宿主贴的上下文，先剥掉再判。
+function cleanUserText(raw) {
+  const text = String(raw || '').replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '').trim();
+  if (!text || INJECTED_PREFIX.test(text)) return '';
+  return text;
+}
+
+function queuedUserTextOf(entry) {
+  if (!entry || entry.isCompactSummary === true || entry.isMeta === true) return '';
+  const msg = entry.message || {};
+  if (msg.role === 'assistant') return ''; // 助手正文里引用的同形 JSON 不是用户插话
+  const att = entry.attachment;
+  if (!att || att.type !== 'queued_command' || att.commandMode !== 'prompt') return '';
+  if (att.isMeta === true || att.isCompactSummary === true) return '';
+  return cleanUserText(textOfContent(att.prompt));
+}
+
 function captureScope(userText) {
   const text = typeof userText === 'string' ? userText : '';
   return {
@@ -164,4 +196,5 @@ module.exports = {
   normalize, isMetaOrQuote, classifyPreference, preferenceNote,
   classifyProblem, classifyAssistantNote, captureScope, suggestCarriers, topicFor,
   isEvolutionAsk, popupWorthy,
+  INJECTED_PREFIX, textOfContent, cleanUserText, queuedUserTextOf,
 };

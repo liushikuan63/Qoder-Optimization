@@ -83,20 +83,21 @@ function heartbeat(line) {
 // isCompactSummary 是宿主给压缩摘要打的标记（与 continuity.cjs 同一口径）：它是**上下文摘要**，
 // 不是用户指令。2026-11-12 现役实测：摘要里引用了规则原文"先只读预览命中范围"，被 READ_ONLY 命中
 // → 整个压缩后会话判成只读轮、零采集（SKIP_READ_ONLY），而真实指令在 7.2MB 之外。
-const INJECTED_PREFIX = /^\[stop-gate\b|^\[continuity\b|^Base directory for this skill:|^Note: The file|^\[SYSTEM NOTIFICATION - NOT USER INPUT\]/;
+// 同日第二处实测：用户运行中插话被宿主写成 attachment/queued_command(commandMode=prompt)，
+// 只认 role=user 会整条漏读（本会话 6450 行里只认出 1 条指令，真实插话在第 1698 行）。
+// 注入件前缀与正文清洗统一由 signal-core 提供，避免两处口径漂移。
 function userInstructionOf(entry) {
   if (!entry || entry.isCompactSummary === true) return '';
+  const queued = signal.queuedUserTextOf(entry);
+  if (queued) return queued;
   const msg = entry.message || entry;
   if (msg.isCompactSummary === true) return '';
   const role = msg.role || entry.type;
   if (role !== 'user') return '';
   const content = msg.content;
   if (Array.isArray(content) && content.some(x => x && x.type === 'tool_result')) return '';
-  const raw = typeof content === 'string' ? content
-    : Array.isArray(content) ? content.filter(x => x && x.type === 'text').map(x => x.text || '').join('\n') : '';
-  const text = raw.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '').trim();
-  if (!text || entry.isMeta || msg.isMeta || INJECTED_PREFIX.test(text)) return '';
-  return text;
+  if (entry.isMeta || msg.isMeta) return '';
+  return signal.cleanUserText(signal.textOfContent(content));
 }
 
 // 尾窗里没有真实指令时（长回合、刚压缩过），有界回溯找**最后一条**真实用户指令：
@@ -183,14 +184,6 @@ function readTurn(file, tailBytes, backtrackBytes) {
           if (failed) out.failures.push({ name: use.name, excerpt: String(body || '').slice(0, 600) });
         }
       }
-      const text = userInstructionOf(entry);
-      if (text) {
-        out.userText = text;
-        out.assistantTexts = [];
-        out.failures = [];
-        out.askedEvolution = false;
-        uses.clear();
-      }
     } else if (role === 'assistant') {
       if (typeof content === 'string' && content.trim()) out.assistantTexts.push(content);
       else if (Array.isArray(content)) {
@@ -203,6 +196,16 @@ function readTurn(file, tailBytes, backtrackBytes) {
           if (signal.isEvolutionAsk(item.name, item.input)) out.askedEvolution = true;
         }
       }
+    }
+    // 指令判定统一放在分支之后：user 条目与运行中插话（attachment/queued_command，没有 role=user）
+    // 走同一条口径，插话同样重置轮次归属——否则插话之后的助手笔记与失败工具会算到上一条指令名下。
+    const instruction = userInstructionOf(entry);
+    if (instruction) {
+      out.userText = instruction;
+      out.assistantTexts = [];
+      out.failures = [];
+      out.askedEvolution = false;
+      uses.clear();
     }
     out.parsed++;
   }
@@ -553,7 +556,7 @@ function main() {
       .filter(c => !declined.has(c.topic))
       .filter(c => signal.popupWorthy(c, sessions.get(c.topic) ? sessions.get(c.topic).size : 1))
       .map(c => c.topic);
-    console.log(JSON.stringify({ dryRun: true, writes: 0, exists: turn.exists, scope, askedEvolution: turn.askedEvolution, wouldPopup: popup, candidates }, null, 2));
+    console.log(JSON.stringify({ dryRun: true, writes: 0, exists: turn.exists, userTextLen: String(turn.userText || '').length, parsed: turn.parsed, scope, askedEvolution: turn.askedEvolution, wouldPopup: popup, candidates }, null, 2));
     return 0;
   }
 
@@ -569,7 +572,13 @@ function main() {
   if (!enabled.ok) { heartbeat(`SKIP_${enabled.reason} session=${shortSession}`); return 0; }
 
   const turn = readTurn(input.transcript_path || input.transcriptPath, cfg.tailBytes, cfg.backtrackBytes);
-  if (!turn.exists || !turn.userText) { heartbeat(`SKIP_NO_TRANSCRIPT session=${shortSession} exists=${turn.exists}`); return 0; }
+  if (!turn.exists) { heartbeat(`SKIP_NO_TRANSCRIPT session=${shortSession} exists=false`); return 0; }
+  // 文件在、但尾窗 + 有界回溯里没有真实指令：这是**可诊断的有界跳过**，不能谎报成"没有 transcript"。
+  // 2026-11-12 实测教训：两种原因混用一个 SKIP_NO_TRANSCRIPT，排查时误以为是路径问题，绕了一大圈。
+  if (!turn.userText) {
+    heartbeat(`SKIP_NO_USER_TEXT session=${shortSession} parsed=${turn.parsed} tail=${cfg.tailBytes} back=${cfg.backtrackBytes}`);
+    return 0;
+  }
 
   const scope = signal.captureScope(turn.userText);
   if (scope.readOnly || scope.handoffOnly || scope.noMemory) {

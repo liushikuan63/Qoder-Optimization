@@ -440,6 +440,14 @@ const compactSummary = (text, onMessage) => JSON.stringify(onMessage
   ? { type: 'user', message: { role: 'user', isCompactSummary: true, content: text } }
   : { type: 'user', isCompactSummary: true, message: { role: 'user', content: text } });
 let r19Seq = 0;
+// 运行中插话：宿主写成 attachment/queued_command(commandMode=prompt)，没有 role=user 条目。
+// 形态照抄 2026-11-12 现役实测（本会话第 1698 行）；同形态的 task-notification 是系统通知。
+const queuedPrompt = (text, mode = 'prompt') => JSON.stringify({
+  type: 'attachment', uuid: 'q-' + (++r19Seq), timestamp: new Date().toISOString(),
+  attachment: mode === 'prompt'
+    ? { type: 'queued_command', commandMode: mode, prompt: [{ type: 'text', text }], source_uuid: 'src', origin: { kind: 'bridge' } }
+    : { type: 'queued_command', commandMode: mode, prompt: text },
+});
 function r19Setup(opts = {}) {
   const id = 'r19c' + String(++r19Seq).padStart(4, '0');
   const session = id + '-1111-2222-3333-444444444444';
@@ -455,7 +463,7 @@ function r19Setup(opts = {}) {
       schema: 1, session: 'zzzzzzzz-1111', task: 'other', cwd: ROOT, at: new Date().toISOString(), askKey: 'foreign', items: r19Items,
     }), 'utf8');
   }
-  const tr = transcript([...(opts.noUser ? [] : [user(opts.userText || '以后一律用简体中文回复')]), ...(opts.compact ? [compactSummary(opts.compact, opts.compactOnMessage)] : []), ...(opts.tools || [tool('Bash', { command: 'ls' })]), asst(opts.text || r19Text)]);
+  const tr = transcript([...(opts.noUser ? [] : [user(opts.userText || '以后一律用简体中文回复')]), ...(opts.compact ? [compactSummary(opts.compact, opts.compactOnMessage)] : []), ...(opts.queued ? [queuedPrompt(opts.queued, opts.queuedMode)] : []), ...(opts.tools || [tool('Bash', { command: 'ls' })]), asst(opts.text || r19Text)]);
   const got = run({ transcript_path: tr, session_id: session, last_assistant_message: opts.text || r19Text }, session, { EVOLUTION_CAPTURE_STATE_DIR: R19_STATE });
   return { got, session, id };
 }
@@ -484,6 +492,17 @@ r19check('R19 摘要标记打在 message 上同样排除', { compact: R19_COMPAC
 r19check('R19 负对照：真实只读指令优先于不含只读标记的摘要', { userText: '只读审阅这个方案，不要修改任何文件', compact: 'Summary: 本轮继续推进实施。' }, 'allow');
 const r19OnlyCompact = r19check('R19 尾窗只有摘要时不臆造只读范围（有 pending 仍要求弹窗）', { noUser: true, compact: R19_COMPACT_TEXT }, 'block');
 check('R19 只有摘要场景归因仍是 R19', r19OnlyCompact.got.out.includes('R19-evolution-suggestion-not-asked') ? 'yes' : 'no', 'yes');
+// 运行中插话（attachment/queued_command）同样是本轮指令：漏认它 → scope 停在旧指令上，
+// R19 该拦不拦、不该拦乱拦（2026-11-12 现役实测：采集侧因此整轮零候选）。
+const R19_RO = '只读审阅这个方案，不要修改任何文件';
+const R19_IMPL = '继续实施，按方案改代码并跑测试';
+r19check('R19 插话的只读口径生效（旧指令是实施轮）', { queued: R19_RO }, 'allow');
+r19check('R19 插话把只读轮翻成实施轮 → 仍要求弹窗', { userText: R19_RO, queued: R19_IMPL }, 'block');
+r19check('R19 负对照：task-notification 不改 scope（只读轮保持只读）',
+  { userText: R19_RO, queued: '后台任务已完成，请继续实施并修改文件', queuedMode: 'task-notification' }, 'allow');
+r19check('R19 尾窗只有插话时按插话判 scope（只读）', { noUser: true, queued: R19_RO }, 'allow');
+const r19QueuedOnly = r19check('R19 尾窗只有插话时按插话判 scope（实施）', { noUser: true, queued: R19_IMPL }, 'block');
+check('R19 只有插话场景归因仍是 R19', r19QueuedOnly.got.out.includes('R19-evolution-suggestion-not-asked') ? 'yes' : 'no', 'yes');
 // 滑动窗上限：同会话同规则最多拦 2 次，超限**可见**放行并落 -SUPPRESSED 台账。
 const r19CapSession = 'r19cap01-1111-2222-3333-444444444444';
 fs.writeFileSync(path.join(R19_STATE, 'pending-r19cap01.json'), JSON.stringify({
@@ -516,7 +535,7 @@ function r19Mutant(label, from, to, opts, want) {
   fs.writeFileSync(path.join(R19_STATE, `pending-${id}.json`), JSON.stringify({
     schema: 1, session, task: 'project-alpha', cwd: ROOT, at: opts.at || new Date().toISOString(), askKey: 'mut', items: opts.items || r19Items,
   }), 'utf8');
-  const tr = transcript([...(opts.noUser ? [] : [user(opts.userText || '以后一律用简体中文回复')]), ...(opts.compact ? [compactSummary(opts.compact, opts.compactOnMessage)] : []), ...(opts.tools || [tool('Bash', { command: 'ls' })]), asst(r19Text)]);
+  const tr = transcript([...(opts.noUser ? [] : [user(opts.userText || '以后一律用简体中文回复')]), ...(opts.compact ? [compactSummary(opts.compact, opts.compactOnMessage)] : []), ...(opts.queued ? [queuedPrompt(opts.queued, opts.queuedMode)] : []), ...(opts.tools || [tool('Bash', { command: 'ls' })]), asst(r19Text)]);
   let out = '';
   try {
     out = execFileSync(process.execPath, [target], {
@@ -543,6 +562,8 @@ r19Mutant('scope-ignored', 'if (ctx.scope.readOnly || ctx.scope.handoffOnly || c
   { userText: '只读审阅这个方案，不要修改任何文件' }, 'block');
 r19Mutant('compact-summary-accepted', '!j.isCompactSummary && !msg.isCompactSummary && ', '',
   { compact: R19_COMPACT_TEXT }, 'allow');
+r19Mutant('queued-prompt-ignored', '        const qtxt = queuedUserText(j);', "        const qtxt = '';",
+  { userText: R19_RO, queued: R19_IMPL }, 'allow');
 
 // R5 无主张踢皮球（窄条件：踢皮球句式 + 无主张词）
 const r5a = '两个方案各有优劣，看你要哪个。';

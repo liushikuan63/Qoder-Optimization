@@ -115,6 +115,16 @@ function toolFailed(value, depth = 0) {
 }
 
 // transcript 只取尾部，解析出：最后一条助手文本 + 最后一条真实用户文本 + 最近一轮的工具调用
+// 运行中插话的识别口径只有一份（evolution-signal-core.js 的 queuedUserTextOf），这里懒加载 + 缓存：
+// 核缺失时退回"只认 role=user"的旧行为（fail-open，不因缺件而崩，也不另抄一份判据）。
+let queuedTextReader;
+function queuedUserText(entry) {
+  if (queuedTextReader === undefined) {
+    try { queuedTextReader = require('./evolution-signal-core.js').queuedUserTextOf || null; } catch (e) { queuedTextReader = null; }
+  }
+  return queuedTextReader ? queuedTextReader(entry) : '';
+}
+
 function scanTranscript(file, tailBytes) {
   const out = { lastUserText: '', lastAssistantText: '', turnTools: [], lastUserAt: null, lastUserId: null, parsed: 0, exists: false };
   try {
@@ -175,6 +185,19 @@ function scanTranscript(file, tailBytes) {
           for (const x of c) {
             if (x && x.type === 'tool_use') out.turnTools.push({ id: x.id, name: x.name, input: x.input || {}, success: false });
           }
+        }
+      } else {
+        // 用户在 Agent 运行中插话时，宿主写的是 attachment/queued_command(commandMode=prompt)，
+        // 没有 role=user 条目。漏认它 → lastUserText 停在旧指令 → taskScope 与按 scope 放行的判据整轮失真。
+        // 同形态的 task-notification 是系统通知，由共享核按 commandMode 排除（负对照见测试）。
+        const qtxt = queuedUserText(j);
+        if (qtxt) {
+          out.lastUserText = qtxt;
+          out.lastUserId = String(j.uuid || '') || null;
+          out.lastAssistantText = '';
+          out.turnTools = [];
+          const ts = typeof j.timestamp === 'number' ? j.timestamp : Date.parse(j.timestamp || '');
+          if (Number.isFinite(ts)) out.lastUserAt = ts;
         }
       }
       out.parsed++;
