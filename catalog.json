@@ -4,11 +4,11 @@
   "name": "Qoder-Optimization",
   "version": "0.1.5"
  },
- "generated": "2026-11-10",
+ "generated": "2026-11-12",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 133,
-  "script": 167,
+  "script": 171,
   "command": 12,
   "agent": 2
  },
@@ -2621,6 +2621,63 @@
    ]
   },
   {
+   "id": "script:evolution-capture.test.js",
+   "category": "script",
+   "name": "evolution-capture.test.js",
+   "status": "shipped",
+   "source": "scripts/evolution-capture.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:evolution-capture.cjs",
+    "script:evolution-signal-core.js",
+    "script:client-root.js",
+    "script:hook-crash-guard.js",
+    "script:parallel-context-redact.cjs"
+   ]
+  },
+  {
+   "id": "script:evolution-capture.cjs",
+   "category": "script",
+   "name": "evolution-capture.cjs",
+   "status": "shipped",
+   "source": "scripts/evolution-capture.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:client-root.js",
+    "script:evolution-signal-core.js",
+    "script:hook-crash-guard.js",
+    "script:parallel-context-redact.cjs"
+   ]
+  },
+  {
+   "id": "script:evolution-signal-core.test.js",
+   "category": "script",
+   "name": "evolution-signal-core.test.js",
+   "status": "shipped",
+   "source": "scripts/evolution-signal-core.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:evolution-signal-core.js"
+   ]
+  },
+  {
+   "id": "script:evolution-signal-core.js",
+   "category": "script",
+   "name": "evolution-signal-core.js",
+   "status": "shipped",
+   "source": "scripts/evolution-signal-core.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": []
+  },
+  {
    "id": "script:fact-ledger.cjs",
    "category": "script",
    "name": "fact-ledger.cjs",
@@ -3303,6 +3360,7 @@
     "script:capability-advisor.cjs",
     "script:capability-roots.cjs",
     "script:client-root.js",
+    "script:evolution-signal-core.js",
     "script:goal-candidate-core.js",
     "script:hook-crash-guard.js",
     "script:kickoff-core.cjs",

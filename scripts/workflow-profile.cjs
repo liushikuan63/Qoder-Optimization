@@ -8,6 +8,7 @@ const HOOKS = [
   ['UserPromptSubmit', 'session-budget.js', 10],
   ['UserPromptSubmit', 'fact-ledger.cjs', 10, undefined, ['--hook']],
   ['Stop', 'stop-gate.js', 15],
+  ['Stop', 'evolution-capture.cjs', 20],
   ['SessionStart', 'global-config-guard.js', 15],
   ['SessionStart', 'session-budget.js', 10],
   ['PreToolUse', 'edit-guard.js', 10],

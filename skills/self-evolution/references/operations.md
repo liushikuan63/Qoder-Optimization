@@ -111,10 +111,27 @@ node ~/.qoder/scripts/evolution-candidates.cjs --days 30 --write    # 写 candid
 node ~/.qoder/scripts/evolution-candidates.cjs --help
 ```
 
-- 数据源：记忆 feedback（`metadata.type: feedback`）、Stop 门禁违规台账、`evolution/records/*.json`。任一源缺失只降级该源并写入 warnings，不中断。
-- `--days` 只作用于违规台账和 records；feedback 没有统一时间字段，报告会标注。
+- 数据源四个：记忆 feedback（`metadata.type: feedback`）、Stop 门禁违规台账、`evolution/records/*.json`、`evolution/inbox.jsonl`（Stop hook `evolution-capture.cjs` 自动采集，含轮转归档 `inbox.archive-*.jsonl`）。任一源缺失只降级该源并写入 warnings，不中断。
+- `--days` 作用于违规台账、records 与 inbox；feedback 没有统一时间字段，报告会标注。
 - feedback 正文中的 UUID 只供定位；Stop 违规台账缺少独立 `task_id` 与范围证据，两者不直接形成全局晋升候选。补充有来源、范围和独立任务/会话的规范 records 后再核对；报告仍不授予实际写入权限。
+- inbox 候选的晋升判据：长期要求/纠正需**同时**跨 ≥2 会话与 ≥2 工作目录才建议全局，否则只建议局部；能力缺口需 ≥2 会话或 ≥2 目录；单轮内重复失败（`occurrences` 再大）只算观察；助手自述的「已否证/验证结论」属技术经验，跨会话也只建议局部。`task` 以工作目录名为代理，**不等于独立任务**，每条候选都带这句核对提醒。
+- inbox 摘录二次脱敏后才进报告；`verified` 一律 `false`，助手「验证结论」也只是待核对材料，不得当成已验证事实。
 - records 的空值/数组、无效或未来时间、不合法主题会被忽略并计入 warnings；非字符串任务/会话身份不作为独立证据。
 - 退出码：0 正常（含无候选）；2 参数错误或输出目录不可写。
 - 报告不复制记忆正文，只含文件名、描述摘要和关键词计数；覆盖检测是关键词初筛，不是晋升结论。
-- 报告默认只读；`--write` 只写 `evolution/candidates/`，不写规则、技能、hook 或数据库。
+- 报告默认只读；`--write` 只写 `evolution/candidates/`，不写规则、技能、hook、MCP 或数据库。
+
+### 采集链路存活取证（谁看住看门的人）
+
+采集是每轮 Stop 触发的确定性机制，必须有独立通道确认它还活着；月度报告任务已内置以下只读检查：
+
+```bash
+tail -n 3 ~/.qoder/evolution/inbox.jsonl                        # 最近候选与 at 时间戳
+tail -n 5 ~/.qoder/tmp/evolution-capture/heartbeat.log          # 最近一次 Stop 触发
+node ~/.qoder/scripts/evolution-capture.cjs --report            # 只读汇总：byKind / 跨会话主题
+cat ~/.qoder/evolution/control.json                             # enabled=false 即用户已暂停（正常）
+```
+
+- `sources.inbox.status=missing` 或 `records=0`：先核对两侧 `settings.json` 的 Stop 组是否同时含 `stop-gate.js` 与 `evolution-capture.cjs`，再看心跳；只取证汇报，不静默补接线。
+- `control.json` 的 `enabled` 非布尔＝配置非法，停下报告，**不重置、不改写**。
+- 采集 hook 永远 `exit 0`（fail-open），不替代平台权限，也不会因为采集失败挡住收尾。

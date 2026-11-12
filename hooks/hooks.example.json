@@ -6,7 +6,8 @@
     { "hooks": [ { "type": "command", "command": "<node> \"<客户端目录>/scripts/fact-ledger.cjs\" --hook", "timeout": 10 } ] }
     ],
     "Stop": [
-    { "hooks": [ { "type": "command", "command": "<node> \"<客户端目录>/scripts/stop-gate.js\"", "timeout": 15 } ] }
+    { "hooks": [ { "type": "command", "command": "<node> \"<客户端目录>/scripts/stop-gate.js\"", "timeout": 15 } ] },
+    { "hooks": [ { "type": "command", "command": "<node> \"<客户端目录>/scripts/evolution-capture.cjs\"", "timeout": 20 } ] }
     ],
     "SessionStart": [
     { "hooks": [ { "type": "command", "command": "<node> \"<客户端目录>/scripts/global-config-guard.js\"", "timeout": 15 } ] },

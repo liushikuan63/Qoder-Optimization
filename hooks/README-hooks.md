@@ -17,6 +17,7 @@
 | `UserPromptSubmit` | `session-budget.js` | 10 | 上下文体积 / 压缩次数 / 接续队列分档提醒 |
 | `UserPromptSubmit` | `fact-ledger.cjs --hook` | 10 | 硬事实登记簿：把 ≤12 条长期硬约束按目录隔离注入每轮；无登记时**零输出**（不占 token）；`/fact` 增删查清 |
 | `Stop` | `stop-gate.js` | 15 | 收尾门禁：拦住"声明下一步却没做 / 该弹窗没弹 / 无视觉证据 / 明确记忆请求无成功证据 / 无主张踢皮球"；检索到可安装/可更新条目却未询问、发布后未询问部署也拦；只读 / 交接 / 旧队列不催办 |
+| `Stop` | `evolution-capture.cjs` | 20 | **自进化确定性采集**：每轮收尾把用户长期偏好 / 重复纠正、工具与 MCP 缺口、同一错误重复失败、助手 `已否证：`/`验证结论：` 笔记脱敏后追加到 `evolution/inbox.jsonl`（候选，`verified:false`），并给出规则/技能/MCP/hook 载体路由建议。**只写候选与心跳，绝不改规则/技能/settings/memory，永不拦截**；只读 / 仅交接 / 禁记忆轮零候选；暂停开关 `evolution/control.json` 的 `enabled=false` 或开关损坏时停采集。判据与提醒层共用 `evolution-signal-core.js`。`--report [--json]` 只读体检、`--dry-run --transcript <file>` 零写入演算 |
 | `SessionStart` | `global-config-guard.js` | 15 | 开台体检：两侧漂移 + 悬空引用（含 `skills/<技能>/scripts/x` 形态），健康时零输出 |
 | `SessionStart` | `session-budget.js` | 10 | 同上（开会话时也看一眼预算与磁盘水位） |
 | `PreToolUse` | `edit-guard.js` | 10 | 改不可回滚文件前的备份提醒（advisory，不拦截）；命中技能 / 规则 / 记忆 / hook / MCP / agent 等载体目录时追加 `carrier-preflight` 提醒 |
@@ -40,6 +41,7 @@
 | `session-budget.js` | `script:session-budget.js` | `node scripts/pkg-catalog.cjs install script:session-budget.js --apply` |
 | `fact-ledger.cjs` | `script:fact-ledger.cjs` | `node scripts/pkg-catalog.cjs install script:fact-ledger.cjs --apply` |
 | `stop-gate.js` | `script:stop-gate.js` | `node scripts/pkg-catalog.cjs install script:stop-gate.js --apply` |
+| `evolution-capture.cjs` | `script:evolution-capture.cjs` | `node scripts/pkg-catalog.cjs install script:evolution-capture.cjs --apply`（依赖 `script:evolution-signal-core.js`、`script:parallel-context-redact.cjs`、`script:client-root.js`、`script:hook-crash-guard.js`，随依赖一并装入） |
 | `global-config-guard.js` | `script:global-config-guard.js` | `node scripts/pkg-catalog.cjs install script:global-config-guard.js --apply` |
 | `edit-guard.js` | `script:edit-guard.js` | `node scripts/pkg-catalog.cjs install script:edit-guard.js --apply` |
 | `huge-output-guard.js` | `script:huge-output-guard.js` | `node scripts/pkg-catalog.cjs install script:huge-output-guard.js --apply` |

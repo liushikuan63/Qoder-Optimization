@@ -23,11 +23,11 @@ function fixture(t) {
   };
   return { home, client, env, install, hooks, run };
 }
-test('clean complete installation owns 16 exec hooks, 12 usable core entries and portable rules', t => {
+test('clean complete installation owns 17 exec hooks, 12 usable core entries and portable rules', t => {
   const f = fixture(t), result = f.install();
   assert.equal(result.ready, true);
   assert.equal(result.receipt.profile, 'complete');
-  assert.equal(f.hooks().length, 16);
+  assert.equal(f.hooks().length, 17);
   assert.ok(f.hooks().every(({ hook }) => hook.command === process.execPath && Array.isArray(hook.args)));
   for (const name of profile.CORE_SKILLS) assert.ok(fs.existsSync(path.join(f.client, 'skills', name, 'SKILL.md')), name);
   for (const rel of Object.keys(profile.RULES)) assert.match(fs.readFileSync(path.join(f.client, rel), 'utf8'), /qoder-package-workflow:start/);
@@ -36,7 +36,9 @@ test('clean complete installation owns 16 exec hooks, 12 usable core entries and
   const settings = fs.readFileSync(path.join(f.client, 'settings.json'));
   const second = f.install(); assert.equal(second.ready, true);
   assert.ok(fs.readFileSync(path.join(f.client, 'settings.json')).equals(settings));
-  assert.equal(f.hooks().length, 16);
+  assert.equal(f.hooks().length, 17);
+  const stop = f.hooks().filter(item => item.event === 'Stop').map(item => JSON.parse(Buffer.from(item.hook.args[1], 'base64url').toString()).script).sort();
+  assert.deepEqual(stop, ['evolution-capture.cjs', 'stop-gate.js']);
 });
 test('installed async fact hook reads payload cwd and never the launcher cwd', t => {
   const f = fixture(t); f.install();
@@ -75,7 +77,7 @@ test('legacy routing remains selected until an explicit complete upgrade', t => 
   const f = fixture(t); f.install({ profile: 'routing', workflowMode: 'route' });
   const keep = f.install(); assert.equal(keep.receipt.profile, 'routing'); assert.equal(f.hooks().length, 1);
   const upgrade = f.install({ profile: 'complete' }); assert.equal(upgrade.ready, true);
-  assert.equal(f.hooks().length, 16);
+  assert.equal(f.hooks().length, 17);
   assert.equal(f.hooks().find(item => item.hook.args[0].endsWith('rules-reminder.js')).hook.args.at(-1), 'route');
   assert.throws(() => f.install({ profile: 'routing' }), /不能.*卸载/);
 });
@@ -103,7 +105,7 @@ test('legacy full hooks upgrade in place and preserve the private extra hook', t
   settings.hooks.SessionStart.push({ hooks: [{ type: 'command', command: 'PRIVATE_BYOK_SENTINEL', timeout: 10 }] });
   fs.writeFileSync(file, JSON.stringify(settings));
   assert.equal(f.install().ready, true);
-  assert.equal(f.hooks().length, 17);
+  assert.equal(f.hooks().length, 18);
   assert.equal(f.hooks().filter(item => item.hook.command === 'PRIVATE_BYOK_SENTINEL').length, 1);
   assert.equal(profile.health(f.client).status, 'READY');
 });

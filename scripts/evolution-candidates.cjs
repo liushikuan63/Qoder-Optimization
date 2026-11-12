@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 'use strict';
-// 自进化证据晋升候选扫描（2026-11-02）：只读汇总三源，输出四类候选报告。
+// 自进化证据晋升候选扫描（2026-11-02；2026-11-12 增第四源 inbox）：只读汇总四源，输出四类候选报告。
+// 四源＝memory/feedback、stop-gate 违规台账、evolution/records、evolution/inbox.jsonl（Stop hook 采集）。
 // 不写规则 / 技能 / hook / 数据库；报告是候选入口，不是晋升授权。
 // 用法：
 //   node evolution-candidates.cjs [--days 30] [--json] [--write] [--out <dir>]
@@ -349,6 +350,125 @@ function scanRecords(root, days, warnings) {
   return { status: 'ok', count, items };
 }
 
+// —— 第四源：Stop hook 采集的候选 inbox（2026-11-12）。
+// 采集层只记事实，晋升判断在这里：跨会话/跨项目才建议全局，其余先落最窄局部载体。
+// task 以工作目录名为代理，不等于独立任务；报告只是候选入口，采纳仍需当轮授权与证据核对。
+const CARRIER_LABEL = {
+  memory: '记忆条目',
+  rules: 'rules/ 领域规则',
+  agents: 'AGENTS.md（个人偏好）',
+  skill: '技能（按需库）',
+  hook: 'hook（确定性纪律）',
+  mcp: 'MCP 连接（先核实已有能力）',
+  script: '脚本（确定性校验）',
+};
+
+function inboxFiles(root) {
+  const dir = path.join(root, 'evolution');
+  let names;
+  try { names = fs.readdirSync(dir); } catch { return null; }
+  return names.filter((n) => n === 'inbox.jsonl' || /^inbox\.archive-\d{8}T\d{6}Z?\.jsonl$/.test(n))
+    .map((n) => path.join(dir, n)).sort();
+}
+
+function scanInbox(root, days, warnings, carrierText) {
+  const files = inboxFiles(root);
+  if (files === null) {
+    warnings.push('evolution/inbox.jsonl 缺失，采集源跳过（核对 Stop 接线与 evolution-capture 心跳）');
+    return { status: 'missing', records: 0, items: [] };
+  }
+  const signal = require('./evolution-signal-core.js');
+  const { redact } = require('./parallel-context-redact.cjs');
+  const now = Date.now();
+  const since = now - days * 86400000;
+  const groups = new Map();
+  let total = 0;
+  let inWindow = 0;
+  for (const file of files) {
+    const text = readText(file);
+    if (text === null) continue;
+    for (const line of text.split(/\r?\n/)) {
+      if (!line.trim()) continue;
+      let record;
+      try { record = JSON.parse(line); } catch { continue; }
+      if (!record || !record.topic || !record.kind) continue;
+      total++;
+      const at = Date.parse(record.at);
+      if (!Number.isFinite(at) || at < since || at > now) continue;
+      inWindow++;
+      const group = groups.get(record.topic) || {
+        topic: record.topic, kind: record.kind, family: record.family || 'preference',
+        count: 0, sessions: new Set(), tasks: new Set(), occurrences: 0, lastAt: 0, excerpt: '', carriers: record.carriers || [],
+      };
+      group.count++;
+      if (record.session) group.sessions.add(record.session);
+      if (record.task) group.tasks.add(record.task);
+      group.occurrences = Math.max(group.occurrences, Number(record.evidence && record.evidence.occurrences) || 1);
+      if (at > group.lastAt) { group.lastAt = at; group.excerpt = String(record.excerpt || ''); }
+      groups.set(record.topic, group);
+    }
+  }
+  const items = [...groups.values()].map((group) => {
+    const keywords = extractKeywords({ name: group.topic, description: group.excerpt });
+    const hits = keywords.filter((k) => carrierText.includes(k));
+    const coverage = keywords.length ? hits.length / keywords.length : 0;
+    const sessions = group.sessions.size;
+    const tasks = group.tasks.size;
+    const reasons = [];
+    let kind;
+    if (coverage >= 0.5) {
+      kind = 'covered';
+      reasons.push(`关键词覆盖 ${Math.round(coverage * 100)}%（${hits.length}/${keywords.length}），先核对是否已由现有载体承载`);
+    } else if (group.family === 'experience') {
+      kind = 'promote-local';
+      reasons.push('助手自述的已否证/验证结论属技术经验，按项目或技术栈沉淀；结论本身仍须本轮复验，不能从一个项目推广全机');
+    } else if (group.kind === 'capability-gap') {
+      kind = sessions >= 2 || tasks >= 2 ? 'promote-local' : 'observe';
+      reasons.push(kind === 'promote-local'
+        ? `同一能力缺口出现在 ${sessions} 个会话 / ${tasks} 个工作目录；先核实内置能力与已装工具，再决定 MCP / 技能 / 脚本`
+        : `仅 ${group.count} 条、${sessions} 个会话，未达"2 个独立任务同一缺口"，继续观察`);
+    } else if (group.kind === 'repeated-failure') {
+      kind = sessions >= 2 ? 'promote-local' : 'observe';
+      reasons.push(kind === 'promote-local'
+        ? `跨 ${sessions} 个会话重复失败（单轮最多 ${group.occurrences} 次）；先定位根因，再判断该补技能还是 hook`
+        : `同一轮内重复 ${group.occurrences} 次不算独立任务，继续观察`);
+    } else if (group.kind === 'explicit-sedimentation') {
+      kind = 'promote-local';
+      reasons.push('用户明确要求沉淀，一次即可采纳；先落最窄载体并说明作用范围');
+    } else {
+      kind = sessions >= 2 && tasks >= 2 ? 'promote-global' : 'promote-local';
+      reasons.push(kind === 'promote-global'
+        ? `跨 ${sessions} 个会话、${tasks} 个工作目录的一致长期要求/纠正，具备全局候选证据`
+        : `${group.count} 条 / ${sessions} 个会话 / ${tasks} 个工作目录；未同时跨会话与跨项目，先局部沉淀`);
+    }
+    reasons.push('task 以工作目录名为代理，不等于独立任务；采纳前核对用户原话、真实任务与反例');
+    const carriers = (group.carriers && group.carriers.length ? group.carriers : signal.suggestCarriers(group.kind));
+    return {
+      id: 'inbox:' + group.topic,
+      source: 'inbox',
+      title: group.topic,
+      kind,
+      score: group.count,
+      evidence: {
+        records: group.count,
+        sessions,
+        tasks,
+        occurrences: group.occurrences,
+        signal: group.kind,
+        family: group.family,
+        keywords: keywords.length,
+        matched: hits.length,
+        coverage: Number(coverage.toFixed(3)),
+        lastAt: group.lastAt ? new Date(group.lastAt).toISOString() : null,
+        excerpt: redact(group.excerpt).slice(0, 120),
+      },
+      suggested_carrier: carriers.map((c) => CARRIER_LABEL[c] || c).join(' → ') + '（先跑 carrier-preflight）',
+      reasons,
+    };
+  });
+  return { status: 'ok', records: total, inWindow, items };
+}
+
 function buildReport(options) {
   const root = clientRoot();
   const warnings = [];
@@ -356,15 +476,18 @@ function buildReport(options) {
   const carrier = loadCarrierText(root);
   const records = scanRecords(root, options.days, warnings);
   const violations = scanViolations(root, options.days, warnings);
+  const inbox = scanInbox(root, options.days, warnings, carrier.text);
   if (feedback.status === 'missing') warnings.push('memory 目录或 feedback 文件缺失，记忆源跳过');
   if (!carrier.files.length) warnings.push('未找到 AGENTS/rules/skills 载体，覆盖检测结果不可用');
   warnings.push('feedback 无统一时间字段，--days 不作用于记忆源');
   warnings.push('覆盖检测是关键词初筛，需人工核对语义与反例');
+  warnings.push('inbox 候选由 Stop hook 自动采集，verified 一律 false；助手"验证结论"也只是待核对材料');
 
   const candidates = [
     ...feedback.items.map((item) => classifyFeedback(item, carrier.text)),
     ...violations.items,
     ...records.items,
+    ...inbox.items,
   ].sort((a, b) => (KIND_ORDER[a.kind] - KIND_ORDER[b.kind]) || (b.score - a.score));
 
   const counts = { 'promote-global': 0, 'promote-local': 0, observe: 0, rejected: 0, covered: 0 };
@@ -378,6 +501,7 @@ function buildReport(options) {
       feedback: { status: feedback.status, count: feedback.count },
       violations: { status: violations.status, lines: violations.lines },
       records: { status: records.status, count: records.count },
+      inbox: { status: inbox.status, records: inbox.records, inWindow: inbox.inWindow || 0, topics: inbox.items.length },
       carriers: { files: carrier.files.length },
     },
     counts,
@@ -399,6 +523,7 @@ function renderMarkdown(report) {
   lines.push('- 数据源：feedback ' + report.sources.feedback.count + '（' + report.sources.feedback.status + '）；'
     + 'violations ' + report.sources.violations.lines + ' 行（' + report.sources.violations.status + '）；'
     + 'records ' + report.sources.records.count + '（' + report.sources.records.status + '）；'
+    + 'inbox ' + (report.sources.inbox ? report.sources.inbox.records : 0) + ' 条 / 窗口内 ' + (report.sources.inbox ? report.sources.inbox.inWindow : 0) + '（' + (report.sources.inbox ? report.sources.inbox.status : 'missing') + '）；'
     + '载体 ' + report.sources.carriers.files + ' 个');
   lines.push('');
   lines.push('## 计数');
@@ -419,7 +544,9 @@ function renderMarkdown(report) {
       ? '覆盖 ' + Math.round((candidate.evidence.coverage || 0) * 100) + '%，会话 ' + candidate.evidence.sessions
       : candidate.source === 'violation'
         ? '命中 ' + candidate.evidence.count + ' 次，会话 ' + candidate.evidence.sessions
-        : '记录 ' + candidate.evidence.records + ' 条，任务 ' + candidate.evidence.tasks;
+        : candidate.source === 'inbox'
+          ? '候选 ' + candidate.evidence.records + ' 条，会话 ' + candidate.evidence.sessions + '，目录 ' + candidate.evidence.tasks + '，覆盖 ' + Math.round((candidate.evidence.coverage || 0) * 100) + '%'
+          : '记录 ' + candidate.evidence.records + ' 条，任务 ' + candidate.evidence.tasks;
     lines.push('| ' + KIND_LABEL[candidate.kind] + ' | ' + candidate.source + ' | ' + escapeCell(candidate.title)
       + ' | ' + escapeCell(evidence) + ' | ' + escapeCell(candidate.suggested_carrier) + ' |');
   }
