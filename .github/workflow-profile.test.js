@@ -8,6 +8,19 @@ const { spawnSync } = require('node:child_process');
 const root = path.resolve(__dirname, '..');
 const installer = require('../scripts/install-package.cjs');
 const profile = require('../scripts/workflow-profile.cjs');
+const catalogEntries = JSON.parse(fs.readFileSync(path.join(root, 'catalog.json'), 'utf8')).entries;
+const manifestSkills = JSON.parse(fs.readFileSync(path.join(root, 'skills-manifest.json'), 'utf8')).skills;
+// 落位由 install-package.cjs 的 targetFor 按 tier 决定：core → skills/，library → skills-library/。
+// 两份随包载体互校，常驻数量不写死（README「不写死常驻数量」），只要求 12 条工作流技能各就其位。
+function coreSkillTier(name) {
+  const entry = catalogEntries.find(item => item.id === 'skill:' + name);
+  assert.ok(entry, 'catalog 缺少 skill:' + name);
+  const manifest = manifestSkills.find(item => item.name === name);
+  assert.ok(manifest, 'skills-manifest 缺少 ' + name);
+  const tier = entry.install?.tier === 'core' || entry.tier === 'core' ? 'core' : 'library';
+  assert.equal(manifest.tier, tier, 'catalog 与 manifest 默认层不一致：' + name);
+  return tier === 'core' ? 'skills' : 'skills-library';
+}
 function fixture(t) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'qo-complete-profile-'));
   const client = path.join(home, "client ' dollar$ 中文");
@@ -29,7 +42,12 @@ test('clean complete installation owns 17 exec hooks, 12 usable core entries and
   assert.equal(result.receipt.profile, 'complete');
   assert.equal(f.hooks().length, 17);
   assert.ok(f.hooks().every(({ hook }) => hook.command === process.execPath && Array.isArray(hook.args)));
-  for (const name of profile.CORE_SKILLS) assert.ok(fs.existsSync(path.join(f.client, 'skills', name, 'SKILL.md')), name);
+  assert.equal(profile.CORE_SKILLS.length, 12);
+  for (const name of profile.CORE_SKILLS) {
+    const tier = coreSkillTier(name), other = tier === 'skills' ? 'skills-library' : 'skills';
+    assert.ok(fs.existsSync(path.join(f.client, tier, name, 'SKILL.md')), tier + '/' + name);
+    assert.equal(fs.existsSync(path.join(f.client, other, name, 'SKILL.md')), false, '装错层 ' + other + '/' + name);
+  }
   for (const rel of Object.keys(profile.RULES)) assert.match(fs.readFileSync(path.join(f.client, rel), 'utf8'), /qoder-package-workflow:start/);
   assert.equal(profile.health(f.client).status, 'READY');
   assert.equal(fs.existsSync(path.join(f.home, 'decoy')), false);
@@ -145,4 +163,21 @@ test('concurrent managed rule edits after publication refuse ready and retain th
   assert.equal(fs.readFileSync(agents, 'utf8'), 'CONCURRENT_WRITER_RULE');
   assert.equal(fs.existsSync(path.join(f.client, 'package-activation.json')), false);
   assert.equal(fs.existsSync(path.join(f.client, 'share-package.json')), false);
+});
+test('health reports a missing workflow skill in either tier and recovers after restore', t => {
+  const f = fixture(t); f.install();
+  const sample = new Map();
+  for (const name of profile.CORE_SKILLS) { const tier = coreSkillTier(name); if (!sample.has(tier)) sample.set(tier, name); }
+  // 负对照必须两层各取一个样本：只测常驻层会让「按需层漏登记」这种缺陷永远绿。
+  assert.deepEqual([...sample.keys()].sort(), ['skills', 'skills-library']);
+  for (const [tier, name] of sample) {
+    const rel = tier + '/' + name + '/SKILL.md', file = path.join(f.client, ...rel.split('/'));
+    const bytes = fs.readFileSync(file);
+    fs.rmSync(file);
+    const broken = profile.health(f.client);
+    assert.equal(broken.status, 'INCOMPLETE', name);
+    assert.ok(broken.issues.includes('FILE_MISSING:' + rel), name + ' :: ' + broken.issues.join(','));
+    fs.writeFileSync(file, bytes);
+    assert.equal(profile.health(f.client).status, 'READY', name);
+  }
 });
