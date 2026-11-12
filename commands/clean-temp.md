@@ -6,14 +6,14 @@ description: 清理我方临时产物（截图 / 探针脚本 / 日志）——�
 
 显式 /clean-temp 或跨任务批量清理先列清单、弹窗确认；**每轮结束清理是必须的**：普通任务按本机授权自动清理本轮推荐范围，分享包默认每轮询问（获明确授权时可自动清理）；两种方式都要在最终回复反馈删除/保留结果。
 
-**触发**：① `session-budget.js` 在 SessionStart 扫一次多根临时目录——有超期件且距上次提醒 >7 天时注入「清理提醒」（含数量）；② **任务结束**时 stop-gate 的 `R14-temp-artifacts-unhandled` 会检查本任务在 `canonicalRoot` 下新产生的顶层条目：本机 `autoClean.enabled=true` 时要求跑 `tmp-round-scan.cjs --since <本轮开始> --apply --json` 自动清理并在最终回复反馈；未开启该开关的机器仍要求用 AskUserQuestion 确认清理范围；③ **使用分享包（安装/合并/发布构建）后默认每轮结束询问**：先跑 `tmp-round-scan.cjs --since <本轮开始> --json` 列本轮包产物，再用 AskUserQuestion 确认清理范围（超期清单只作参考，可能来自其他机器或包内配置，与本机不一定一致）；只有用户本轮明确授权自动清理或配置 `autoClean.sharePackage=true` 时，才可跳过询问，改用 `--apply --include-share-package --json` 自动清理，且仍须反馈结果；stop-gate `R15-share-package-temp-scan-missing` 兜底。以上机制只提醒/拦截；自动清理只删本轮**新建**条目，超期件、已登记证据、仅被修改的旧目录与分享包回滚点不自动删；节流状态在 `~/.qoder/tmp/tmp-sweeper/last-reminded.json`。
+**触发**：① `session-budget.js` 在 SessionStart 扫一次多根临时目录——有超期件且距上次提醒 >7 天时注入「清理提醒」（含数量）；② **任务结束**时 stop-gate 的 `R14-temp-artifacts-unhandled` 会检查本任务在 `canonicalRoot` 下新产生的顶层条目：本机 `autoClean.enabled=true` 时要求跑 `tmp-round-scan.cjs --since <本轮开始> --apply --evidence-docs <证据登记目录> --json` 自动清理并在最终回复反馈；未开启该开关的机器仍要求用 AskUserQuestion 确认清理范围；③ **使用分享包（安装/合并/发布构建）后默认每轮结束询问**：先跑 `tmp-round-scan.cjs --since <本轮开始> --json` 列本轮包产物，再用 AskUserQuestion 确认清理范围（超期清单只作参考，可能来自其他机器或包内配置，与本机不一定一致）；只有用户本轮明确授权自动清理或配置 `autoClean.sharePackage=true` 时，才可跳过询问，改用 `--apply --include-share-package --json` 自动清理，且仍须反馈结果；stop-gate `R15-share-package-temp-scan-missing` 兜底。以上机制只提醒/拦截；自动清理只删本轮**新建**条目，超期件、已登记证据、仅被修改的旧目录与分享包回滚点不自动删；节流状态在 `~/.qoder/tmp/tmp-sweeper/last-reminded.json`。
 
 ## 步骤
 
 1. **扫描（只列不删）**：跑 `node ~/.qoder/scripts/tmp-round-scan.cjs --since <本轮开始> --json` 列本轮新增/改动条目；再跑 `node ~/.qoder/scripts/tmp-sweeper.js --json` 看超期件。根＝`canonicalRoot`（本机 `D:/tmp`）+ 历史遗留 `%TEMP%/qoder-work` + 客户端 `%TEMP%/qoder-cli` + C 盘遗留 `%LOCALAPPDATA%/Temp/qoder-work`（若存在）。阈值：图片 / 文本 3 天、媒体 7 天、压缩包 / 文档 / 脚本 15 天、未分类扩展名 30 天兜底。
 2. **分类**：本轮新建可清条目 / 本轮仅修改的旧条目（默认保留）/ 已登记证据与回滚点 / 分享包产物（默认受保护）/ 超期件（只作参考，不进入自动清理范围）。本轮产物包括截图、`*.log`、一次性 `.cjs` / `.mjs`、导出的中间 `.json` / `*.md`——它们多半还没满 3 天，扫描器不会报，但"用完即删"针对的正是这一批。
-3. **普通任务执行**：本机 `~/.qoder/tmp-sweeper.json` 的 `autoClean.enabled=true` 时，直接跑 `node ~/.qoder/scripts/tmp-round-scan.cjs --since <本轮开始> --apply --json`，不弹窗；**只删本轮新建条目**，仅被修改的旧目录（确需删除用 `--only <精确路径>` 或 `--include-modified`）、已登记证据、`.keep` 证据目录、回滚点与受保护项保留。未开启该开关的机器，仍用 `AskUserQuestion` 一次问全（推荐项＝**全部清理本轮新建产物**；备选＝仅清截图 / 仅清日志与脚本 / 全部保留），按答复执行。
-4. **分享包任务执行**：默认**每轮结束询问**——扫描后用 `AskUserQuestion` 给清理范围（推荐＝全部清理本轮包产物；备选＝保留回滚点与已登记证据目录 / 全部保留），确认后只用精确路径删除并复扫；用户选「保留」的目录**同批**用 `--mark-evidence` 落 `.evidence.json`（三字段齐，见下「保留」答复必须同批落标记）。只有用户本轮明确授权自动清理（或配置 `autoClean.sharePackage=true`）才可跳过询问，改用 `--apply --include-share-package --json`；未授权时禁止使用该参数预删包产物。回滚点、已登记证据与超期件始终不自动删；包产物默认**移入 `<root>/.trash/<时间戳>/` 隔离区**（保留 7 天后自动回收；`--trash` 可显式强制，只有 `--no-trash` 才永久删除）。
+3. **普通任务执行**：本机 `~/.qoder/tmp-sweeper.json` 的 `autoClean.enabled=true` 时，直接跑 `node ~/.qoder/scripts/tmp-round-scan.cjs --since <本轮开始> --apply --evidence-docs <证据登记目录> --json`，不弹窗；**只删本轮新建条目**，仅被修改的旧目录（确需删除用 `--only <精确路径>` 或 `--include-modified`）、已登记证据、`.keep` 证据目录、回滚点与受保护项保留。未开启该开关的机器，仍用 `AskUserQuestion` 一次问全（推荐项＝**全部清理本轮新建产物**；备选＝仅清截图 / 仅清日志与脚本 / 全部保留），按答复执行。
+4. **分享包任务执行**：默认**每轮结束询问**——扫描后用 `AskUserQuestion` 给清理范围（推荐＝全部清理本轮包产物；备选＝保留回滚点与已登记证据目录 / 全部保留），确认后只用精确路径删除并复扫；用户选「保留」的目录**同批**用 `--mark-evidence` 落 `.evidence.json`（三字段齐，见下「保留」答复必须同批落标记）。只有用户本轮明确授权自动清理（或配置 `autoClean.sharePackage=true`）才可跳过询问，改用 `--apply --include-share-package --evidence-docs <证据登记目录> --json`；未授权时禁止使用该参数预删包产物。回滚点、已登记证据与超期件始终不自动删；包产物默认**移入 `<root>/.trash/<时间戳>/` 隔离区**（保留 7 天后自动回收；`--trash` 可显式强制，只有 `--no-trash` 才永久删除）。**带 `--only`/`--session` 限定范围时跳过隔离区超期回收**：批次按时间戳命名、无法归属到指定路径或会话，整根回收会永久删掉别人的隔离副本；此时输出与台账写 `trashPurgeSkipped=scope-limited`，保留期顺延。不限定范围时照常回收，回收了哪些批次记在台账 `purgedTrashPaths`（可归因）。
 5. **复验并反馈**：再跑一次不带 `--apply` 的扫描，确认推荐清理清单为空；**最终回复必须反馈** `删除 N 个 / 保留 M 个（含保留原因） / 复验结果`。脚本每次清理都会往 `~/.qoder/tmp/tmp-sweeper/heartbeat.log` 追加一行，可事后核对。**并行会话共用 `D:/tmp` 时**（预览里出现非本会话的活跃目录），不要按时间窗整根清理；用 `--only <精确路径>` 逐项清理本任务产物，或在新产物名里带 `.<8位会话id>` 后使用 `--session <8位会话id>`，其余保留。
 
 ## 一次性 vs 可复用（命名即归属，收尾按此分流）
@@ -29,6 +29,7 @@ description: 清理我方临时产物（截图 / 探针脚本 / 日志）——�
 | 本轮仅被修改的旧目录 | 可能是复用目录 | 默认保留；确需删除用 `--only <精确路径>` |
 
 - **证据自声明优先**：在证据目录内放 `.keep` 或 `.evidence.json`，`tmp-sweeper` 与 `tmp-round-scan --apply` 都会整棵保留；中心清单 `excludePaths` / `excludeTopPrefixes` 继续兼容，新增证据目录时优先用标记而不是改配置。
+- **文档登记也算证据，但这层保护必须显式开**：只在文档里登记、目录内没有 `.keep`/`.evidence.json` 的路径，靠 `--evidence-docs <目录>` 扫其中 `.md` 来保护（可重复；登记的是目录内部文件时父目录整棵保留）。**不传这个开关＝这层保护完全不生效**，所以本文所有 `--apply` 命令都带它：传本任务证据登记文档所在目录（如项目 `docs/`）；目录不存在或没有登记时等于无登记，不影响正常清理。因此保留的条目会列进 JSON 的 `registeredEvidence` 与台账，人读输出点名「文档登记证据」。
 - **「保留」答复必须同批落标记（C10）**：用户选「保留」后，不能只把答复留在对话里——同一轮跑
   `node ~/.qoder/scripts/tmp-round-scan.cjs --mark-evidence <证据目录> --task <任务ID> --session <8位会话id> --doc <登记文档路径> --json`
   （`--mark-evidence` / `--doc` 可重复）。三字段缺一即 exit 2 且不写；目录必须在临时根内、不是硬否决路径。
@@ -48,7 +49,7 @@ description: 清理我方临时产物（截图 / 探针脚本 / 日志）——�
 | --- | --- | --- |
 | 普通任务（未使用分享包） | `autoClean.enabled=true` 时按推荐范围自动清理本轮**新建**产物并反馈；未开启则弹窗确认后执行 | `R14` |
 | 分享包安装 / 合并 / 发布 | **默认每轮结束询问**：扫描 → AskUserQuestion → 按答复执行并反馈 | `R15` |
-| 分享包 + 用户本轮明确授权自动清理 | 跳过询问，跑 `--apply --include-share-package --json`（默认进隔离区），仍须反馈删除/保留结果；回滚点与证据保留 | `R15` |
+| 分享包 + 用户本轮明确授权自动清理 | 跳过询问，跑 `--apply --include-share-package --evidence-docs <证据登记目录> --json`（默认进隔离区），仍须反馈删除/保留结果；回滚点与证据保留 | `R15` |
 | 同一轮既有普通产物又有包产物 | 包产物受保护、不自动删；先按分享包规则询问或授权清理，普通产物可另行自动清理 | `R14` 让位给 `R15` |
 
 **优先级**：分享包必问/授权规则 > 本地普通任务自动清理。`R14` 在分享包轮次不拦截，避免与 `R15` 形成双重要求；`R15` 不因 `autoClean.enabled=true` 而放行。自动清理默认保护 `Qoder-Optimization*`、`share-package*`、`install-package*`、`pkg-*`、`qoder-download*`、`qoder-consumer-home*`、`qo-*pkg/release*` 等分享包命名；`QO-REL/AUDIT/FIX-*`、`qo-deploy/wip-*` 回滚点与 `excludePaths` / `excludeTopPrefixes` 始终保留。只有显式 `--include-share-package` 才放开分享包类命名，回滚点与证据不放开；放开后默认进隔离区，`--no-trash` 才永久删。
@@ -62,7 +63,8 @@ description: 清理我方临时产物（截图 / 探针脚本 / 日志）——�
 - **绝不删**：仍在使用的证据（台账引用的截图、还没提交完成的补丁）、
   别人会话的在途产物、`.git` 下任何内容、配置目录。
 - 不确定属不属于本会话 ⇒ **保留并在清单里点名**，不要靠猜删除。
-- 自动清理只允许通过 `tmp-round-scan.cjs --apply --json`（必须显式 `--since <本轮开始>`）执行；禁止直接 `rm` 本轮目录或用通配。`--since` 不能晚于当前时间、不能早于 7 天（越界需 `--force`）；`--apply` 只允许 `canonicalRoot`（其他 `--root` 需 `--force`）。分享包未获授权时不得加 `--include-share-package`。并行会话共用临时根时用 `--only <精确路径>` 或 `--session <8位id>` 限定范围，`--only` 只接受临时根的直接子条目。
+- 自动清理只允许通过 `tmp-round-scan.cjs --apply --evidence-docs <证据登记目录> --json`（必须显式 `--since <本轮开始>`）执行；禁止直接 `rm` 本轮目录或用通配。`--since` 不能晚于当前时间、不能早于 7 天（越界需 `--force`）；`--apply` 只允许 `canonicalRoot`（其他 `--root` 需 `--force`）。分享包未获授权时不得加 `--include-share-package`。并行会话共用临时根时用 `--only <精确路径>` 或 `--session <8位id>` 限定范围，`--only` 只接受临时根的直接子条目。取值型开关 `--flag=value` 与 `--flag value` 等价；**缺值、未知开关、无法识别的参数、解析不出时间的 `--since` 一律 exit 2**，不静默忽略（静默丢一个 `--only` 就等于把范围放大成全量清理）。
 - **收尾门禁校验**：`--apply` 命令必须带 `--json`；stop-gate 会解析结果里的 `deleted / recommended.preserve / failed`，要求本轮探测到的条目全部被删除或保留、`failed=0`，且 `--since` 与本轮用户消息时间相差不超过 10 分钟。
 - 守卫自身要先自证会咬：`node ~/.qoder/scripts/tmp-sweeper.test.js`（40 条，含"新鲜文件不许被列、
-  不许被删"的对照组）、`node ~/.qoder/scripts/tmp-round-scan.test.js`（63 条，含分享包/证据/超期件保护、`--only`、`--session`、未来/超期 since、非 canonicalRoot `--root` 与隔离区负对照）与 `node ~/.qoder/scripts/tmp-round-scan-evidence.test.js`（31 条，含 `.trash` 整棵还原逐文件 sha256 比对、`--mark-evidence` 三字段与"不改写他人标记"负对照、文档登记保护与去标记必删负对照）。
+  不许被删"的对照组）、`node ~/.qoder/scripts/tmp-round-scan.test.js`（142 条，含分享包/证据/超期件保护、`--only`、`--session`、未来/超期 since、非 canonicalRoot `--root`、隔离区负对照、等号形开关与未知参数失败关闭、范围受限时不回收隔离区与回收归因）与 `node ~/.qoder/scripts/tmp-round-scan-evidence.test.js`（31 条，含 `.trash` 整棵还原逐文件 sha256 比对、`--mark-evidence` 三字段与"不改写他人标记"负对照、文档登记保护与去标记必删负对照）。
+  这三个数字由 `node .github/clean-temp-doc.test.js` 实跑比对（同时校验本文每条 `--apply` 命令都带 `--evidence-docs`），加了判据忘改文档会判红，不会再悄悄过期。
