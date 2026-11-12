@@ -432,6 +432,13 @@ const r19Items = [
 const R19_EVOLUTION_CARD = { questions: [{ question: '这条自进化候选要不要采纳并落到 rules？', header: '自进化', options: [{ label: '采纳并落到推荐载体（推荐）' }, { label: '本轮跳过' }] }] };
 const R19_KICKOFF_CARD = { questions: [{ question: '开工确认：理解 / 步骤 / 并行是否合适？', header: '开工确认', options: [{ label: '按此执行' }, { label: '调整' }] }] };
 const R19_CLEAN_CARD = { questions: [{ question: '本轮临时文件清理范围？', header: '临时清理', options: [{ label: '清理本轮产物' }, { label: '保留' }] }] };
+// 压缩续接摘要：宿主注入的 user 角色消息（isCompactSummary），不是本轮指令。
+// 2026-11-12 实测：8 条真实摘要里有 1 条被 kickoffCore.isReadOnlyRequest 判成只读（摘要引用了规则原文
+// "先只读预览命中范围"）→ taskScope.readOnly=true → R19 整轮静默失效，用户要求的收尾弹窗再也不弹。
+const R19_COMPACT_TEXT = 'Summary: 授权边界：按匹配定位的风险操作先只读预览命中范围、做负对照；只读审阅零写入。';
+const compactSummary = (text, onMessage) => JSON.stringify(onMessage
+  ? { type: 'user', message: { role: 'user', isCompactSummary: true, content: text } }
+  : { type: 'user', isCompactSummary: true, message: { role: 'user', content: text } });
 let r19Seq = 0;
 function r19Setup(opts = {}) {
   const id = 'r19c' + String(++r19Seq).padStart(4, '0');
@@ -448,7 +455,7 @@ function r19Setup(opts = {}) {
       schema: 1, session: 'zzzzzzzz-1111', task: 'other', cwd: ROOT, at: new Date().toISOString(), askKey: 'foreign', items: r19Items,
     }), 'utf8');
   }
-  const tr = transcript([user(opts.userText || '以后一律用简体中文回复'), ...(opts.tools || [tool('Bash', { command: 'ls' })]), asst(opts.text || r19Text)]);
+  const tr = transcript([...(opts.noUser ? [] : [user(opts.userText || '以后一律用简体中文回复')]), ...(opts.compact ? [compactSummary(opts.compact, opts.compactOnMessage)] : []), ...(opts.tools || [tool('Bash', { command: 'ls' })]), asst(opts.text || r19Text)]);
   const got = run({ transcript_path: tr, session_id: session, last_assistant_message: opts.text || r19Text }, session, { EVOLUTION_CAPTURE_STATE_DIR: R19_STATE });
   return { got, session, id };
 }
@@ -470,6 +477,13 @@ r19check('R19 负对照：只读轮不要求弹窗', { userText: '只读审阅�
 r19check('R19 负对照：仅交接轮不要求弹窗', { userText: '只给我开工提示词，我自己新开会话' }, 'allow');
 r19check('R19 负对照：禁记忆轮不要求弹窗', { userText: '本轮不要写入记忆，只给结论' }, 'allow');
 r19check('R19 负对照：别的会话的建议不影响本会话', { items: null, foreign: true }, 'allow');
+// 压缩续接摘要不是本轮指令：摘要引用规则原文里的"只读"会把整轮判成只读，R19 静默失效（现役实测缺陷）。
+const r19Compact = r19check('R19 压缩摘要不算指令：仍按真实指令拦截', { compact: R19_COMPACT_TEXT }, 'block');
+check('R19 压缩摘要场景归因仍是 R19', r19Compact.got.out.includes('R19-evolution-suggestion-not-asked') ? 'yes' : 'no', 'yes');
+r19check('R19 摘要标记打在 message 上同样排除', { compact: R19_COMPACT_TEXT, compactOnMessage: true }, 'block');
+r19check('R19 负对照：真实只读指令优先于不含只读标记的摘要', { userText: '只读审阅这个方案，不要修改任何文件', compact: 'Summary: 本轮继续推进实施。' }, 'allow');
+const r19OnlyCompact = r19check('R19 尾窗只有摘要时不臆造只读范围（有 pending 仍要求弹窗）', { noUser: true, compact: R19_COMPACT_TEXT }, 'block');
+check('R19 只有摘要场景归因仍是 R19', r19OnlyCompact.got.out.includes('R19-evolution-suggestion-not-asked') ? 'yes' : 'no', 'yes');
 // 滑动窗上限：同会话同规则最多拦 2 次，超限**可见**放行并落 -SUPPRESSED 台账。
 const r19CapSession = 'r19cap01-1111-2222-3333-444444444444';
 fs.writeFileSync(path.join(R19_STATE, 'pending-r19cap01.json'), JSON.stringify({
@@ -502,7 +516,7 @@ function r19Mutant(label, from, to, opts, want) {
   fs.writeFileSync(path.join(R19_STATE, `pending-${id}.json`), JSON.stringify({
     schema: 1, session, task: 'project-alpha', cwd: ROOT, at: opts.at || new Date().toISOString(), askKey: 'mut', items: opts.items || r19Items,
   }), 'utf8');
-  const tr = transcript([user(opts.userText || '以后一律用简体中文回复'), ...(opts.tools || [tool('Bash', { command: 'ls' })]), asst(r19Text)]);
+  const tr = transcript([...(opts.noUser ? [] : [user(opts.userText || '以后一律用简体中文回复')]), ...(opts.compact ? [compactSummary(opts.compact, opts.compactOnMessage)] : []), ...(opts.tools || [tool('Bash', { command: 'ls' })]), asst(r19Text)]);
   let out = '';
   try {
     out = execFileSync(process.execPath, [target], {
@@ -527,6 +541,8 @@ r19Mutant('ttl-ignored', 'if (!Number.isFinite(at) || Date.now() - at > PENDING_
   { at: new Date(Date.now() - 25 * 3600 * 1000).toISOString() }, 'block');
 r19Mutant('scope-ignored', 'if (ctx.scope.readOnly || ctx.scope.handoffOnly || ctx.scope.noMemory) return false;\n      if (!evolutionSignal) return false;', 'if (false) return false;\n      if (!evolutionSignal) return false;',
   { userText: '只读审阅这个方案，不要修改任何文件' }, 'block');
+r19Mutant('compact-summary-accepted', '!j.isCompactSummary && !msg.isCompactSummary && ', '',
+  { compact: R19_COMPACT_TEXT }, 'allow');
 
 // R5 无主张踢皮球（窄条件：踢皮球句式 + 无主张词）
 const r5a = '两个方案各有优劣，看你要哪个。';

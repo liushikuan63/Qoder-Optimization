@@ -152,7 +152,10 @@ function scanTranscript(file, tailBytes) {
           ? c.filter((x) => x && x.type === 'text').map((x) => x.text || '').join('\n') : '';
         const txt = rawText.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '').trim();
         const toolReturn = Array.isArray(c) && c.some((x) => x && x.type === 'tool_result');
-        if (txt && !toolReturn && !j.isMeta && !msg.isMeta && !/^\[stop-gate\b|^Base directory for this skill:|^Note: The file|^\[SYSTEM NOTIFICATION - NOT USER INPUT\]/.test(txt)) {
+        // 压缩续接摘要（isCompactSummary）是宿主注入的 user 角色消息，不是本轮指令：
+        // 把它当指令会让 taskScope 误判只读，R19 等按 scope 放行的判据整轮静默失效。
+        // 与 evolution-capture.cjs 的 userInstructionOf 同族同口径（实测 8 条真实摘要里 1 条会把门禁判成只读）。
+        if (txt && !toolReturn && !j.isMeta && !msg.isMeta && !j.isCompactSummary && !msg.isCompactSummary && !/^\[stop-gate\b|^Base directory for this skill:|^Note: The file|^\[SYSTEM NOTIFICATION - NOT USER INPUT\]/.test(txt)) {
           out.lastUserText = txt;
           out.lastUserId = String(j.uuid || msg.uuid || j.messageId || msg.messageId || '') || null;
           out.lastAssistantText = '';
