@@ -88,6 +88,22 @@ check('普通小命令（ls 一层 / pwd / echo）：放行',
 check('npm test：拦', pre('Bash', { command: 'npm test' }), 'deny');
 check('node --test 重定向：放行', pre('Bash', { command: 'node --test build-test/tests/ > /tmp/t.log 2>&1' }), 'allow');
 
+// C11：限流器只认"存在"不认"上界"时，`head -c 999999` ≈ 1MB 照样进上下文。
+// 这一组是 T-20 的判据，**每条都要能失败**：上界有效的必须放行，实质无界的必须拦。
+console.log('— C11 限流上界 —');
+check('Read limit=999999（实质无界）：拦', pre('Read', { file_path: BIG, limit: 999999 }), 'deny');
+check('Read offset=0 + limit=999999：拦', pre('Read', { file_path: BIG, offset: 0, limit: 999999 }), 'deny');
+check('head -c 999999：拦', pre('Bash', { command: 'head -c 999999 收口清单.md' }), 'deny');
+check('head -n 999999：拦（通用 /-n\\s*\\d+/ 不得救回放行）', pre('Bash', { command: 'head -n 999999 收口清单.md' }), 'deny');
+check('head -n999999（无空格）：拦', pre('Bash', { command: 'head -n999999 收口清单.md' }), 'deny');
+check('tail -n 999999：拦', pre('Bash', { command: 'tail -n 999999 收口清单.md' }), 'deny');
+check('head --lines=999999：拦（与 -n 形式同判）', pre('Bash', { command: 'head --lines=999999 收口清单.md' }), 'deny');
+check('head -c 2000：放行（上界有效）', pre('Bash', { command: 'head -c 2000 收口清单.md' }), 'allow');
+check('head -n 20：放行（上界有效）', pre('Bash', { command: 'head -n 20 收口清单.md' }), 'allow');
+check('git log -n 20：放行（非 head/tail，判据不外扩）', pre('Bash', { command: 'git log -n 20' }), 'allow');
+check('cat 大文件 > out.txt：放行（重定向是契约内限流器）', pre('Bash', { command: 'cat 收口清单.md > /tmp/out.txt' }), 'allow');
+check('cat 大文件 | wc -l：放行（管道是限流器）', pre('Bash', { command: 'cat 收口清单.md | wc -l' }), 'allow');
+
 console.log('— 内联脚本里的反引号（会被 bash 先执行） —');
 check('node -e "…" 里带反引号：拦（那串会被当命令跑）',
   pre('Bash', { command: 'node -e "const s = 1 // 跑 scripts/build.sh 之前先看 `date`"' }), 'deny');

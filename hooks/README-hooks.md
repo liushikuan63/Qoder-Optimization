@@ -22,9 +22,9 @@
 | `SessionStart` | `session-budget.js` | 10 | 同上（开会话时也看一眼预算与磁盘水位） |
 | `PreToolUse` | `edit-guard.js` | 10 | 改不可回滚文件前的备份提醒（advisory，不拦截）；命中技能 / 规则 / 记忆 / hook / MCP / agent 等载体目录时追加 `carrier-preflight` 提醒 |
 | `PreToolUse` | `huge-output-guard.js` | 10 | 拦"整读大文件 / 无输出限流"的命令（防大会话被传输层掐断） |
-| `PreToolUse` | `commit-scope-guard.js` | 10 | 提交前拦 `git add -A` / `.` 这类宽范围暂存 |
+| `PreToolUse` | `commit-scope-guard.js` | 10 | 拦 **`git commit … -- <路径>` 且这些路径在工作区还有未提交改动**：带 pathspec 的提交取的是工作区内容，会绕过 `git update-index --cacheinfo` 暂存好的 partial blob，把并行会话的在途改动扫进这次提交。`git` 与 `commit` 之间的全局选项（`-C <path>`、`--git-dir=`、`--work-tree=`、`-c k=v`）同样识别，cwd 取 `-C` 指定的路径。**它不管 `git add -A` / `.`**——那条禁令属 AGENTS 与 `ship-clean-pr`，放行是正确行为 |
 | `PreToolUse` | `cua-cursor-guard.js` | 10 | 拦手搓 Win32/SendInput 级桌面原语，改走 CUA 驱动 |
-| `PreToolUse` | `risky-match-guard.js` | 10 | 拦按模式/镜像名杀进程、无 WHERE 的破坏性 SQL 等匹配型危险操作；**还兼作两个门禁的 Pre 入口**：① 认证锁库（末尾委托 `auth-lock-core.js`；core 缺失时该半边会静默失效，故崩错写进本守卫台账 `auth-lock-pre-error|...`，开关 `~/.qoder/auth-lock-guard.json`）② **记忆优先**（本会话一次记忆都没读过就要动远程 / 数据库 / 服务启停 / 对外部署时，拦一次并给出查记忆指引；每类只提醒一次，读过记忆即静默放行；关：本守卫配置文件写 `{"memoryFirst":false}`，整守卫关是 `{"disabled":true}`） |
+| `PreToolUse` | `risky-match-guard.js` | 10 | 拦按模式/镜像名杀进程、无 WHERE 的破坏性 SQL 等匹配型危险操作；**还兼作两个门禁的 Pre 入口**：① 认证锁库（末尾委托 `auth-lock-core.js`；core 缺失时该半边会静默失效，故崩错写进本守卫台账 `auth-lock-pre-error|...`，开关 `~/.qoder/auth-lock-guard.json`）② **记忆优先**（本会话一次记忆都没读过就要动远程 / 数据库 / 服务启停 / 对外部署时，拦一次并给出查记忆指引；每类只提醒一次，读过记忆即静默放行；关：本守卫配置文件写 `{"memoryFirst":false}`，整守卫关是 `{"disabled":true}`）。**覆盖面边界（F18c）**：长选项 `rm --recursive --force dir/*` 与 SQL 注释插入 `DELETE /*c*/ FROM t` 已纳入判据；但**变量间接化**（`RM=rm; $RM -rf dir/*`）静态匹配求解不了，属已知边界、会**放行**——这类命令仍须人工先预览命中清单，别把本守卫当完整安全边界 |
 | `PreToolUse` | `win-path-guard.js` | 10 | 拦 Bash 命令里混进 Windows 原生路径（`C:\…` 交给 Git Bash 会变成 `C:…`）与盘符形态误判；命中就给可粘贴的 `/c/…` 改法。本机 matcher `^Bash$` |
 | `PostToolUse` | `cua-cursor-guard.js` | 10 | 同上（提交后再兜一道） |
 | `PostToolUse` | `auth-lock-guard.js` | 10 | **认证失败计数器**：只看工具返回里的认证/锁定类签名，按目标（服务别名/主机/账号任一相同）累计，满 3 次后由上面那个 Pre 入口硬拦该目标的一切连接动作（防"重试到把数据库账号锁死"——锁定阈值约 10 次，且只能人工解锁）；`--status` 查看、`--clear ALL` 人工解除。可选 `matcher` 缩小触发面（本机用 `^Bash$|mcp_call|mcp__dbhub__.*`） |

@@ -149,6 +149,7 @@ function oversizedHeadTail(cmd) {
   }
   return false;
 }
+const N_LIMITER = /-n\s*\d+/;    // git log -n 20 / head -n 20（head/tail 上界失效时不算有效，见 checkBash）
 const LIMITERS = [
   /\|/,                        // 任何管道（head/tail/grep/wc/sort…）都算限流
   />\s*\S/,                    // 重定向到文件
@@ -158,7 +159,7 @@ const LIMITERS = [
   SHORT_LC_LIMITER,
   /-m\s/,                      // grep -m 5
   /--oneline|--stat|--name-only|--porcelain|--quiet|--short|--numstat|--max-depth/,
-  /-n\s*\d+/,                  // git log -n 20 / head -n 20
+  N_LIMITER,
   /sed\s+-n/, /awk\b/, /\bwc\b/,
 ];
 const VERBOSE = [
@@ -216,8 +217,12 @@ function checkBash(toolInput) {
   const inline = checkInlineBacktick(cmd);
   if (inline !== null) return inline;
   const oversized = oversizedHeadTail(cmd);
-  if (LIMITERS.some((re) => re !== HEAD_TAIL_LIMITER && re !== SHORT_LC_LIMITER && re.test(cmd))) return null;
   // head/tail 与 -l/-c 短选项簇只在**上界有效**时算限流：`head -c 999999` 旧实现照样放行（实测）。
+  // `-n` 同理：上界失效时通用 `/-n\s*\d+/` 也不能救回放行——实测 `head -n 999999 big` 曾 allow，
+  // 而语义等价的 `head --lines=999999 big` 却 deny，同一判据两种结果（C11 残留缺口）。
+  const skip = new Set([HEAD_TAIL_LIMITER, SHORT_LC_LIMITER]);
+  if (oversized) skip.add(N_LIMITER);
+  if (LIMITERS.some((re) => !skip.has(re) && re.test(cmd))) return null;
   if (!oversized && (HEAD_TAIL_LIMITER.test(cmd) || SHORT_LC_LIMITER.test(cmd))) return null;
   for (const v of VERBOSE) {
     if (v.re.test(cmd)) {
