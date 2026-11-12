@@ -322,6 +322,79 @@ check('台账不算「已登记证据」', c3list.some((p) => p.endsWith('.last-
 check('硬否决路径不算「已登记证据」', c3list.some((p) => p.includes('.git')), false);
 check('负对照：真证据目录仍在清单里', c3list.some((p) => p.endsWith('junk')), true);
 
+// ---- D 等号形开关与未知参数：必须与空格形等价，认不出来的一律失败关闭 ----
+// 修前实测（probe-f70-eqform B/D）：`--only=<path>` / `--session=<token>` 既不匹配 VALUE_FLAGS
+// 也不匹配任何 else if，被**静默丢弃** ⇒ 范围限制失效，配 --apply 连别的会话的目录一起删。
+// 上面 A 组只覆盖空格形，所以这个 P0 一直绿着。
+const d1 = caseRoot('eq-d1', ['target', 'bystander']);
+const d1r = runIn(d1, [...sinceArg, '--apply', '--force', '--only=' + path.join(d1, 'target'), '--json']);
+const d1j = d1r.status === 0 ? JSON.parse(d1r.stdout) : { only: [] };
+check('等号形 --only=<path>：退 0', d1r.status, 0);
+check('等号形 --only=<path>：only 清单恰好 1 项（不是被丢成空）', d1j.only.length, 1);
+check('等号形 --only=<path>：只删指定项', fs.existsSync(path.join(d1, 'target')), false);
+check('等号形 --only=<path>：旁观者保留（范围没被放大）', fs.existsSync(path.join(d1, 'bystander')), true);
+
+const d2 = caseRoot('eq-d2', ['mine-c988bddc', 'theirs-8d8de525']);
+const d2r = runIn(d2, [...sinceArg, '--apply', '--force', '--session=c988bddc', '--json']);
+check('等号形 --session=<token>：退 0', d2r.status, 0);
+check('等号形 --session=<token>：只删本会话产物', fs.existsSync(path.join(d2, 'mine-c988bddc')), false);
+check('等号形 --session=<token>：其他会话产物保留', fs.existsSync(path.join(d2, 'theirs-8d8de525')), true);
+
+const d3 = caseRoot('eq-d3', ['target', 'bystander']);
+const d3r = runIn(d3, [...sinceArg, '--apply', '--force', '--only=', '--json']);
+check('等号形空值 --only=：退 2', d3r.status, 2);
+check('等号形空值 --only=：报错点名该开关', /--only 缺少取值/.test(d3r.stderr), true);
+check('等号形空值 --only=：一个都不删', fs.existsSync(path.join(d3, 'target')) && fs.existsSync(path.join(d3, 'bystander')), true);
+
+const d4 = caseRoot('eq-d4', ['target', 'bystander']);
+const d4r = runIn(d4, [...sinceArg, '--apply', '--force', '--onlyy', path.join(d4, 'target'), '--json']);
+check('拼错的开关 --onlyy：退 2（不静默忽略后全量清理）', d4r.status, 2);
+check('拼错的开关 --onlyy：报错点名未知开关', /未知开关 --onlyy/.test(d4r.stderr), true);
+check('拼错的开关 --onlyy：一个都不删', fs.existsSync(path.join(d4, 'target')) && fs.existsSync(path.join(d4, 'bystander')), true);
+
+const d5 = caseRoot('eq-d5', ['target']);
+const d5r = runIn(d5, [...sinceArg, '--apply', '--force', path.join(d5, 'target'), '--json']);
+check('裸位置参数：退 2', d5r.status, 2);
+check('裸位置参数：报错说明无法识别', /无法识别的参数/.test(d5r.stderr), true);
+check('裸位置参数：不删', fs.existsSync(path.join(d5, 'target')), true);
+
+const d6 = caseRoot('eq-d6', ['target']);
+const d6r = runIn(d6, ['--since=not-a-time', '--json']);
+check('--since 解析不出时间：退 2（不静默回落默认时间窗）', d6r.status, 2);
+check('--since 解析不出时间：报错点名原因', /解析不出时间/.test(d6r.stderr), true);
+
+const d7 = caseRoot('eq-d7', ['target']);
+const d7r = runIn(d7, ['--since=' + since, '--json']);
+check('负对照：等号形 --since=<毫秒> 仍生效', d7r.status === 0 && JSON.parse(d7r.stdout).since === new Date(since).toISOString(), true);
+
+const d8 = caseRoot('eq-d8', ['target']);
+const d8r = spawnSync(process.execPath, [SCAN, '--root=' + d8, '--since', String(since), '--json'], { encoding: 'utf8', env });
+check('负对照：等号形 --root=<目录> 仍生效', d8r.status === 0 && JSON.parse(d8r.stdout).root === d8, true);
+
+const d9 = caseRoot('eq-d9', ['docreg-parent', 'unrelated']);
+fs.mkdirSync(path.join(d9, 'docreg-parent', 'nested'), { recursive: true });
+const d9child = path.join(d9, 'docreg-parent', 'nested', 'read-R01.md');
+fs.writeFileSync(d9child, '# 通读记录\n');
+const d9docs = path.join(d9, 'docs');
+fs.mkdirSync(d9docs, { recursive: true });
+fs.writeFileSync(path.join(d9docs, '审计证据.md'), '证据：`' + d9child.replace(/\\/g, '/') + '` 已登记。\n');
+const d9r = runIn(d9, [...sinceArg, '--apply', '--force', '--evidence-docs=' + d9docs, '--json']);
+check('等号形 --evidence-docs=<目录>：文档登记保护真的生效', d9r.status === 0 && fs.existsSync(path.join(d9, 'docreg-parent')), true);
+check('等号形 --evidence-docs：未登记目录照常清理（负对照）', fs.existsSync(path.join(d9, 'unrelated')), false);
+
+const d10 = caseRoot('eq-d10', ['evidence-dir', 'junk']);
+const d10doc = path.join(d10, 'doc.md');
+fs.writeFileSync(d10doc, '# 登记\n');
+const d10r = runIn(d10, ['--mark-evidence=' + path.join(d10, 'evidence-dir'), '--task=QO-TEST', '--session=c988bddc', '--doc=' + d10doc, '--json']);
+check('等号形 --mark-evidence/--task/--session/--doc：退 0', d10r.status, 0);
+check('等号形 --mark-evidence：写出标记', fs.existsSync(path.join(d10, 'evidence-dir', '.evidence.json')), true);
+check('等号形 --mark-evidence：不删任何东西', fs.existsSync(path.join(d10, 'junk')), true);
+
+const d11 = caseRoot('eq-d11', ['target']);
+const d11r = runIn(d11, [...sinceArg, '--apply=true', '--force', '--json']);
+check('布尔开关带值 --apply=true：退 2（不静默忽略）', d11r.status, 2);
+check('布尔开关带值 --apply=true：不删', fs.existsSync(path.join(d11, 'target')), true);
+
 console.log(results.join('\n'));
 const failed = results.filter((x) => x.startsWith('FAIL')).length;
 console.log(`\n=== tmp-round-scan 自测：通过 ${n - failed}，失败 ${failed} ===`);

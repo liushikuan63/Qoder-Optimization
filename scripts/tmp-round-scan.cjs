@@ -24,14 +24,30 @@ const ALWAYS_PROTECT = [/^QO-(?:REL|AUDIT|FIX)-/i, /^qo-(?:deploy|wip)-/i]
 // 2026-11-12 实测三种形态都退 0 且目录真被删（probe-t18b A1/A2/A3 修前红）。
 const VALUE_FLAGS = new Set(['--evidence-docs', '--mark-evidence', '--task', '--doc', '--session', '--only', '--since', '--root'])
 
+// `--flag=value` 与 `--flag value` 等价：先归一化成两个 token 再分派。旧写法只认空格形，
+// `--only=D:/tmp/x` / `--session=deadbeef` 既不匹配 VALUE_FLAGS 也不匹配任何 else if，
+// 被**静默丢弃** ⇒ 范围限制失效，配 --apply 就连别的会话的目录一起删
+// （2026-11-12 probe-f70-eqform B/D 修前红：exit 0 且 clean 含 other-session-b）。
+function tokenize(argv) {
+  const tokens = []
+  for (const raw of argv) {
+    const s = String(raw)
+    const eq = s.startsWith('--') ? s.indexOf('=') : -1
+    if (eq > 2) tokens.push(s.slice(0, eq), s.slice(eq + 1))
+    else tokens.push(s)
+  }
+  return tokens
+}
+
 function parseArgs(argv) {
   const opts = { since: Date.now() - DAY, sinceSet: false, root: null, json: false, apply: false,
     includeSharePackage: false, only: [], force: false, session: null, includeModified: false, trash: null,
     evidenceDocs: [], markEvidence: [], task: null, docs: [], argErrors: [] }
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i]
+  const tokens = tokenize(argv)
+  for (let i = 0; i < tokens.length; i++) {
+    const a = tokens[i]
     if (VALUE_FLAGS.has(a)) {
-      const v = argv[i + 1]
+      const v = tokens[i + 1]
       if (v === undefined || v === '' || v.startsWith('--')) {
         opts.argErrors.push(a + ' 缺少取值'
           + (v === undefined || v === '' ? '' : '（下一个词 "' + v + '" 是另一个开关）')
@@ -46,17 +62,19 @@ function parseArgs(argv) {
     else if (a === '--include-modified') opts.includeModified = true
     else if (a === '--trash') opts.trash = true
     else if (a === '--no-trash') opts.trash = false
-    else if (a === '--evidence-docs' && argv[i + 1]) opts.evidenceDocs.push(path.resolve(argv[++i]))
-    else if (a === '--mark-evidence' && argv[i + 1]) opts.markEvidence.push(path.resolve(argv[++i]))
-    else if (a === '--task' && argv[i + 1]) opts.task = String(argv[++i]).trim()
-    else if (a === '--doc' && argv[i + 1]) opts.docs.push(path.resolve(argv[++i]))
-    else if (a === '--session' && argv[i + 1]) opts.session = String(argv[++i]).trim()
-    else if (a === '--only' && argv[i + 1]) opts.only.push(path.resolve(argv[++i]))
-    else if (a === '--since' && argv[i + 1]) {
-      const v = argv[++i]
+    else if (a === '--evidence-docs' && tokens[i + 1]) opts.evidenceDocs.push(path.resolve(tokens[++i]))
+    else if (a === '--mark-evidence' && tokens[i + 1]) opts.markEvidence.push(path.resolve(tokens[++i]))
+    else if (a === '--task' && tokens[i + 1]) opts.task = String(tokens[++i]).trim()
+    else if (a === '--doc' && tokens[i + 1]) opts.docs.push(path.resolve(tokens[++i]))
+    else if (a === '--session' && tokens[i + 1]) opts.session = String(tokens[++i]).trim()
+    else if (a === '--only' && tokens[i + 1]) opts.only.push(path.resolve(tokens[++i]))
+    else if (a === '--since' && tokens[i + 1]) {
+      const v = tokens[++i]
       const t = /^\d{10,}$/.test(v) ? Number(v) : Date.parse(v)
       if (Number.isFinite(t)) { opts.since = t; opts.sinceSet = true }
-    } else if (a === '--root' && argv[i + 1]) opts.root = path.resolve(argv[++i])
+      else opts.argErrors.push('--since 取值 "' + v + '" 解析不出时间（要 ISO 时间或 10 位以上毫秒时间戳）：拒绝继续。'
+        + '静默回落到默认时间窗会把别的任务的产物一起清掉。')
+    } else if (a === '--root' && tokens[i + 1]) opts.root = path.resolve(tokens[++i])
     else if (a === '--help') {
       console.log('用法：node tmp-round-scan.cjs [--since <ISO时间|毫秒>] [--root <目录>] [--json] [--apply] [--include-share-package] [--only <精确路径>]...')
       console.log('  [--force] [--session <8位会话id>] [--include-modified] [--trash|--no-trash] [--evidence-docs <目录>]...')
@@ -69,8 +87,14 @@ function parseArgs(argv) {
       console.log('--mark-evidence <目录> 可重复：把用户的「保留」答复落成目录内 .evidence.json（只写不删，不与 --apply 同批）。');
       console.log('  必须三字段齐：--task <任务ID> --session <会话id> --doc <登记文档路径>（--doc 可重复）；已有标记一律不改写。');
       console.log('取值型开关（--since/--root/--only/--session/--task/--doc/--evidence-docs/--mark-evidence）缺值即退 2，不静默丢弃。')
+      console.log('取值型开关支持 --flag=value 与 --flag value 两种写法；未知开关与无法识别的参数一律退 2（不静默忽略）。')
       console.log('分享包流程默认必须扫描后询问清理范围。')
       process.exit(0)
+    } else {
+      // 失败关闭：任何认不出来的开关/参数都退 2。静默忽略一个 `--only` 拼写错误
+      // 等于把「只清本任务」放大成「清全部推荐项」，这类事故不能靠用户自己发现。
+      opts.argErrors.push((a.startsWith('--') ? '未知开关 ' : '无法识别的参数 ') + a
+        + '：拒绝继续。静默忽略会把范围限制变成全量清理；请核对拼写，或用 --help 查看用法。')
     }
   }
   return opts
