@@ -18,12 +18,27 @@ const SHARE_PATTERNS = [/^Qoder-Optimization/i, /share-package/i, /install-packa
 // 回滚点/取证目录：即使清理分享包产物也不动（不要用 ^qo- 宽前缀，普通任务日志也会被误保护）。
 const ALWAYS_PROTECT = [/^QO-(?:REL|AUDIT|FIX)-/i, /^qo-(?:deploy|wip)-/i]
 
+// 取值型开关：缺值时**必须失败关闭**。旧写法 `a === '--only' && argv[i+1]` 在缺值时
+// 静默跳过该开关，于是 `--apply --mark-evidence`（本想只写标记）变成真删、
+// `--apply --only`（本想限定范围）变成清掉全部推荐项、`--session` 缺值变成连别人的一起删。
+// 2026-11-12 实测三种形态都退 0 且目录真被删（probe-t18b A1/A2/A3 修前红）。
+const VALUE_FLAGS = new Set(['--evidence-docs', '--mark-evidence', '--task', '--doc', '--session', '--only', '--since', '--root'])
+
 function parseArgs(argv) {
   const opts = { since: Date.now() - DAY, sinceSet: false, root: null, json: false, apply: false,
     includeSharePackage: false, only: [], force: false, session: null, includeModified: false, trash: null,
-    evidenceDocs: [], markEvidence: [], task: null, docs: [] }
+    evidenceDocs: [], markEvidence: [], task: null, docs: [], argErrors: [] }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
+    if (VALUE_FLAGS.has(a)) {
+      const v = argv[i + 1]
+      if (v === undefined || v === '' || v.startsWith('--')) {
+        opts.argErrors.push(a + ' 缺少取值'
+          + (v === undefined || v === '' ? '' : '（下一个词 "' + v + '" 是另一个开关）')
+          + '：拒绝继续。静默丢掉这个开关会把「只写标记」变成删除、把范围限制变成全量清理。')
+        continue
+      }
+    }
     if (a === '--json') opts.json = true
     else if (a === '--apply') opts.apply = true
     else if (a === '--include-share-package') opts.includeSharePackage = true
@@ -53,6 +68,7 @@ function parseArgs(argv) {
       console.log('--evidence-docs <目录> 可重复：扫描其中 .md，被登记为证据路径的条目即使无 .keep/.evidence.json 也保留。');
       console.log('--mark-evidence <目录> 可重复：把用户的「保留」答复落成目录内 .evidence.json（只写不删，不与 --apply 同批）。');
       console.log('  必须三字段齐：--task <任务ID> --session <会话id> --doc <登记文档路径>（--doc 可重复）；已有标记一律不改写。');
+      console.log('取值型开关（--since/--root/--only/--session/--task/--doc/--evidence-docs/--mark-evidence）缺值即退 2，不静默丢弃。')
       console.log('分享包流程默认必须扫描后询问清理范围。')
       process.exit(0)
     }
@@ -135,9 +151,16 @@ function collectRegisteredEvidence(docRoots) {
   return found
 }
 
-/** C10：清理台账。没有它就无法归因「谁删了证据」——本项目已实际踩到。 */
+/** C10：清理台账。没有它就无法归因「谁删了证据」——本项目已实际踩到。
+ *  写失败必须**报出来并让退出码非 0**：旧实现 catch 后吞掉，删了东西却报成功（实测退 0），
+ *  等于把 C10 存在的理由规避掉。返回 null＝成功，返回字符串＝失败原因。 */
 function writeCleanupLedger(root, record) {
-  try { fs.writeFileSync(path.join(root, '.last-cleanup'), JSON.stringify(record, null, 1)) } catch (e) {}
+  try {
+    fs.writeFileSync(path.join(root, '.last-cleanup'), JSON.stringify(record, null, 1))
+    return null
+  } catch (e) {
+    return String((e && e.message) || e)
+  }
 }
 
 function buildProtect(cfg, includeSharePackage) {
@@ -243,6 +266,10 @@ function markEvidence(opts) {
 
 function main() {
   const opts = parseArgs(process.argv.slice(2))
+  if (opts.argErrors.length) {
+    for (const m of opts.argErrors) console.error(m)
+    return 2
+  }
   if (opts.apply && !opts.sinceSet) {
     console.error('--apply 必须显式给 --since <本轮开始时间>，避免把其他任务的产物一起清掉。')
     return 2
@@ -356,6 +383,7 @@ function main() {
   const failed = []
   const trashed = []
   let purgedTrash = 0
+  let cleanupLedgerError = null
   if (opts.apply) {
     const batchDir = useTrash ? trashBatchDir(root, now) : null
     for (const e of candidates) {
@@ -374,7 +402,7 @@ function main() {
       }
     }
     purgedTrash = purgeTrash(root, now)
-    writeCleanupLedger(root, { schema: 1, at: new Date(now).toISOString(),
+    const ledgerError = writeCleanupLedger(root, { schema: 1, at: new Date(now).toISOString(),
       since: new Date(opts.since).toISOString(), root,
       includeSharePackage: opts.includeSharePackage, trash: useTrash,
       deleted: deleted.length, trashed: trashed.length, failed: failed.length,
@@ -385,7 +413,9 @@ function main() {
       + ' deleted=' + deleted.length + ' failed=' + failed.length
       + ' protected=' + protectedEntries.length
       + (opts.session ? ' session=' + opts.session : '')
-      + (useTrash ? ' trash=' + trashed.length : ''))
+      + (useTrash ? ' trash=' + trashed.length : '')
+      + (ledgerError ? ' ledgerError=' + ledgerError.slice(0, 80) : ''))
+    cleanupLedgerError = ledgerError
   }
 
   const result = { root, since: new Date(opts.since).toISOString(), now: new Date(now).toISOString(),
@@ -399,11 +429,12 @@ function main() {
       modified: modifiedKept.map((e) => e.path),
       sessionSkipped: sessionSkipped.map((e) => e.path),
     },
-    guards, trashed, purgedTrash, deleted, failed, registeredEvidence: registeredList }
+    guards, trashed, purgedTrash, deleted, failed, registeredEvidence: registeredList,
+    ledgerError: cleanupLedgerError }
 
   if (opts.json) {
     console.log(JSON.stringify(result))
-    return failed.length ? 1 : 0
+    return failed.length || cleanupLedgerError ? 1 : 0
   }
   console.log('本轮临时根：' + root + '（since ' + new Date(opts.since).toISOString() + '）')
   if (opts.session) console.log('仅自动清理名字含会话令牌 ' + opts.session + ' 的条目；--only 指定项不受限制。')
@@ -445,13 +476,17 @@ function main() {
       console.log('保留非本会话条目 ' + sessionSkipped.length + ' 项（名字不含会话令牌 ' + opts.session + '）。')
     }
     for (const f of failed) console.log('  失败：' + f.path + '（' + f.error + '）')
+    if (cleanupLedgerError) {
+      console.log('清理台账写入失败（' + cleanupLedgerError + '）：删除已执行但没有台账，无法归因「谁删了证据」。'
+        + '请手工补记 ' + path.join(root, '.last-cleanup') + '（本次退出码按失败计）。')
+    }
     console.log('请在最终回复中反馈本次删除/保留结果。自动清理命令请加 --json，收尾门禁会校验 deleted/preserve 覆盖。')
   } else {
     console.log('建议清理范围（推荐）：仅本轮新建条目 ' + candidates.length + ' 项；仅修改的旧条目 ' + modifiedKept.length
       + ' 项默认保留；超期件 ' + stale.length + ' 项只作参考，如要清理须逐条核对本机存在性、归属与证据引用。保留证据/受保护项 ' + preserved.length + ' 项。')
     console.log('自动清理：加 --apply --json 并显式给 --since（7 天内）；分享包流程默认必须扫描并弹窗询问，只有本轮获得明确授权才可加 --include-share-package。')
   }
-  return failed.length ? 1 : 0
+  return failed.length || cleanupLedgerError ? 1 : 0
 }
 
 process.exitCode = main()

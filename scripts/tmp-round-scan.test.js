@@ -204,6 +204,83 @@ fs.mkdirSync(empty);
 const r2 = scan(['--root', empty, '--since', String(since)]);
 check('空目录返回零条目', r2.entries.length, 0);
 
+// ---- 取值型开关缺值：必须失败关闭，不得静默丢弃后照删（2026-11-12 修前实测退 0 且真删）----
+// 每例一套独立根：--apply 会删东西，共用根会让后一条判据读到前一条的残骸。
+function caseRoot(tag, names) {
+  const dir = path.join(ROOT, tag);
+  fs.mkdirSync(dir, { recursive: true });
+  for (const name of names) {
+    fs.mkdirSync(path.join(dir, name), { recursive: true });
+    fs.writeFileSync(path.join(dir, name, 'payload.bin'), 'x'.repeat(32));
+  }
+  return dir;
+}
+const runIn = (dir, args) => spawnSync(process.execPath, [SCAN, '--root', dir, ...args], { encoding: 'utf8', env });
+const sinceArg = ['--since', String(since)];
+
+const a1 = caseRoot('arg-a1', ['keep-me', 'other']);
+const a1r = runIn(a1, [...sinceArg, '--apply', '--force', '--mark-evidence']);
+check('--mark-evidence 缺值：退 2', a1r.status, 2);
+check('--mark-evidence 缺值：报错点名该开关（不是被 root 判据顺手拦下）', /--mark-evidence 缺少取值/.test(a1r.stderr), true);
+check('--mark-evidence 缺值：一个目录都不删', fs.existsSync(path.join(a1, 'keep-me')) && fs.existsSync(path.join(a1, 'other')), true);
+
+const a2 = caseRoot('arg-a2', ['target', 'bystander']);
+const a2r = runIn(a2, [...sinceArg, '--apply', '--force', '--only']);
+check('--only 缺值：退 2', a2r.status, 2);
+check('--only 缺值：报错点名该开关', /--only 缺少取值/.test(a2r.stderr), true);
+check('--only 缺值：范围不被放大成全部推荐项', fs.existsSync(path.join(a2, 'target')) && fs.existsSync(path.join(a2, 'bystander')), true);
+
+const a3 = caseRoot('arg-a3', ['mine-c988bddc', 'theirs-8d8de525']);
+const a3r = runIn(a3, [...sinceArg, '--apply', '--force', '--session']);
+check('--session 缺值：退 2', a3r.status, 2);
+check('--session 缺值：报错点名该开关', /--session 缺少取值/.test(a3r.stderr), true);
+check('--session 缺值：不动其他会话的产物', fs.existsSync(path.join(a3, 'theirs-8d8de525')), true);
+
+const a4 = caseRoot('arg-a4', ['keep-me']);
+const a4r = runIn(a4, [...sinceArg, '--apply', '--force', '--only', '--json']);
+check('取值位置上是另一个开关：退 2（不把 --json 当路径）', a4r.status, 2);
+check('取值位置上是另一个开关：报错说明原因', /另一个开关/.test(a4r.stderr), true);
+
+// 负对照：合法用法必须仍然绿，否则就是「拦得太多」——那比不拦更糟。
+const a5 = caseRoot('arg-a5', ['evidence-dir', 'junk']);
+const a5doc = path.join(a5, 'doc.md');
+fs.writeFileSync(a5doc, '# 登记\n');
+const a5r = runIn(a5, ['--mark-evidence', path.join(a5, 'evidence-dir'), '--task', 'QO-TEST', '--session', 'c988bddc', '--doc', a5doc, '--json']);
+check('负对照：合法 --mark-evidence 退 0', a5r.status, 0);
+check('负对照：合法 --mark-evidence 写出标记', fs.existsSync(path.join(a5, 'evidence-dir', '.evidence.json')), true);
+check('负对照：合法 --mark-evidence 不删任何东西', fs.existsSync(path.join(a5, 'junk')), true);
+
+const a6 = caseRoot('arg-a6', ['target', 'bystander']);
+const a6r = runIn(a6, [...sinceArg, '--apply', '--force', '--only', path.join(a6, 'target'), '--json']);
+check('负对照：合法 --only 仍只删指定项', a6r.status === 0 && !fs.existsSync(path.join(a6, 'target')), true);
+check('负对照：合法 --only 保留旁观者', fs.existsSync(path.join(a6, 'bystander')), true);
+
+const a7 = caseRoot('arg-a7', ['mine-c988bddc', 'theirs-8d8de525']);
+const a7r = runIn(a7, [...sinceArg, '--apply', '--force', '--session', 'c988bddc', '--json']);
+check('负对照：合法 --session 仍只删本会话产物', a7r.status === 0 && !fs.existsSync(path.join(a7, 'mine-c988bddc')), true);
+check('负对照：合法 --session 保留其他会话产物', fs.existsSync(path.join(a7, 'theirs-8d8de525')), true);
+
+// ---- C10 台账写失败不得报成功（旧实现 catch 后吞掉，删了东西却退 0）----
+// 真实失败注入：把 .last-cleanup 做成目录 ⇒ writeFileSync 抛 EISDIR，不 mock。
+const b1 = caseRoot('ledger-b1', ['junk']);
+fs.mkdirSync(path.join(b1, '.last-cleanup'), { recursive: true });
+const b1r = runIn(b1, [...sinceArg, '--apply', '--force', '--json']);
+check('台账不可写：退出码非 0', b1r.status, 1);
+check('台账不可写：JSON 带 ledgerError 原因', /EISDIR/.test(String(JSON.parse(b1r.stdout).ledgerError || '')), true);
+
+const b2 = caseRoot('ledger-b2', ['junk']);
+const b2r = runIn(b2, [...sinceArg, '--apply', '--force', '--json']);
+const b2j = JSON.parse(b2r.stdout);
+check('负对照：正常根台账写入成功仍退 0', b2r.status, 0);
+check('负对照：正常根 .last-cleanup 是文件', fs.statSync(path.join(b2, '.last-cleanup')).isFile(), true);
+check('负对照：正常根无 ledgerError', b2j.ledgerError, null);
+
+const b3 = caseRoot('ledger-b3', ['junk']);
+fs.mkdirSync(path.join(b3, '.last-cleanup'), { recursive: true });
+const b3r = runIn(b3, [...sinceArg, '--apply', '--force']);
+check('文本模式台账失败：退出码非 0', b3r.status, 1);
+check('文本模式台账失败：打印可归因的提示', /清理台账写入失败/.test(b3r.stdout), true);
+
 console.log(results.join('\n'));
 const failed = results.filter((x) => x.startsWith('FAIL')).length;
 console.log(`\n=== tmp-round-scan 自测：通过 ${n - failed}，失败 ${failed} ===`);
