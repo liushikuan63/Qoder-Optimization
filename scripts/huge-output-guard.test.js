@@ -173,8 +173,11 @@ check('整读 300KB 单行无换行文件：拦', pre('Read', { file_path: ONELI
 check('同体积但带一个换行：拦（对照，证明差别只在换行）', pre('Read', { file_path: ONELINE_NL }), 'deny');
 check('单行大文件 limit=999999（实质无界）：拦', pre('Read', { file_path: ONELINE, limit: 999999 }), 'deny');
 check('负对照：小文件整读放行', pre('Read', { file_path: SMALL }), 'allow');
-check('负对照：单行大文件带 limit=100（显式有界）放行', pre('Read', { file_path: ONELINE, limit: 100 }), 'allow');
-check('负对照：单行大文件只带 offset 放行（既有豁免不被扩大）', pre('Read', { file_path: ONELINE, offset: 1 }), 'allow');
+// 2026-11-12 第八段：这里原来写着「单行大文件带 limit=100 / 只带 offset 放行」两条负对照——
+// **它们是错的**：limit 按行数限流，300KB 单行文件的 limit=100 与 offset=1 实际都读进整份 300KB。
+// 错的负对照把 F80 那个洞钉成了绿（修前 88 PASS / 0 FAIL 就是这么来的）。换成真正有界的读：
+check('负对照：小文件带 limit=100（真的只有两行）放行', pre('Read', { file_path: SMALL, limit: 100 }), 'allow');
+check('负对照：多行大文件 offset=1495（余 6 行，字节很小）放行', pre('Read', { file_path: BIG, offset: 1495 }), 'allow');
 
 console.log('— F74 head/tail 的 +K 形与 K/M 后缀 —');
 check('tail -c +1（从第 1 字节到末尾）：拦', pre('Bash', { command: 'tail -c +1 big.log' }), 'deny');
@@ -209,6 +212,43 @@ check('负对照：<<- 缩进结束标记的 heredoc 正文里有反引号：放
 check('负对照：bash -c 单引号里有反引号：放行', pre('Bash', { command: "bash -c 'echo `date`'" }), 'allow');
 check('负对照：bash -c 双引号里没有反引号：放行', pre('Bash', { command: 'bash -c "echo hello"' }), 'allow');
 check('负对照：node -e 双引号里没有反引号：放行', pre('Bash', { command: 'node -e "console.log(1)"' }), 'allow');
+
+// ---- F80 / F86 ----
+// 2026-11-12 第八段通读（probe-f80-86.cjs 修前 14 条红、18 条负对照/回归绿）。
+// F80：显式 offset/limit 曾**早退**，跳过字节投影 ⇒ 单行大文件配 limit/offset 照样灌满上下文。
+// F86：`2>&1` 是 fd 复制（输出仍进上下文），旧 REDIRECT_LIMITER 把它当成「重定向到文件」。
+console.log('— F80 显式 offset/limit 不得跳过字节投影 —');
+const TWOFAT = path.join(TMP, 'two-fat-lines.txt');
+const MANY = path.join(TMP, 'many-short-lines.txt');
+fs.writeFileSync(TWOFAT, 'b'.repeat(100 * 1024) + '\n' + 'c'.repeat(100 * 1024) + '\n');
+fs.writeFileSync(MANY, Array.from({ length: 5000 }, (_, i) => `line ${i} padpadpad`).join('\n'));
+check('单行 300KB + limit=100（一行就是 300KB）：拦', pre('Read', { file_path: ONELINE, limit: 100 }), 'deny');
+check('单行 300KB + 只带 offset=1（读到 EOF＝整份）：拦', pre('Read', { file_path: ONELINE, offset: 1 }), 'deny');
+check('单行 300KB（带结尾换行）+ limit=100：拦', pre('Read', { file_path: ONELINE_NL, limit: 100 }), 'deny');
+check('单行 300KB + offset=1&limit=100：拦', pre('Read', { file_path: ONELINE, offset: 1, limit: 100 }), 'deny');
+check('单行 300KB + limit=1（一行仍 300KB）：拦', pre('Read', { file_path: ONELINE, limit: 1 }), 'deny');
+check('两行各 100KB + limit=1（100KB > 40KB）：拦', pre('Read', { file_path: TWOFAT, limit: 1 }), 'deny');
+check('两行各 100KB + offset=2（余 1 行 100KB）：拦', pre('Read', { file_path: TWOFAT, offset: 2 }), 'deny');
+check('5000 短行 + offset=1（余量≈100KB）：拦', pre('Read', { file_path: MANY, offset: 1 }), 'deny');
+check('负对照：小文件 + limit=100 放行', pre('Read', { file_path: SMALL, limit: 100 }), 'allow');
+check('负对照：60KB 多行 + offset=1&limit=200（≈16KB）放行', pre('Read', { file_path: BIG, offset: 1, limit: 200 }), 'allow');
+check('负对照：5000 短行 + limit=600（≈12KB）放行', pre('Read', { file_path: MANY, limit: 600 }), 'allow');
+check('负对照：5000 短行 + offset=4990（余 11 行）放行', pre('Read', { file_path: MANY, offset: 4990 }), 'allow');
+check('负对照：offset 超出 EOF（读不到东西）放行', pre('Read', { file_path: BIG, offset: 99999 }), 'allow');
+
+console.log('— F86 `2>&1` 是 fd 复制，不是「输出不进上下文」 —');
+check('node --test scripts/ 2>&1：拦', pre('Bash', { command: 'node --test scripts/ 2>&1' }), 'deny');
+check('git log 2>&1：拦', pre('Bash', { command: 'git log 2>&1' }), 'deny');
+check('cat big.md 2>&1：拦', pre('Bash', { command: 'cat big.md 2>&1' }), 'deny');
+check('grep -r foo . 2>&1：拦', pre('Bash', { command: 'grep -r foo . 2>&1' }), 'deny');
+check('find . 1>&2：拦', pre('Bash', { command: 'find . 1>&2' }), 'deny');
+check('node --test x 2>>&1（append 形 fd 复制）：拦', pre('Bash', { command: 'node --test x 2>>&1' }), 'deny');
+check('负对照：mvn test > /tmp/x.log 2>&1; tail -5 放行', pre('Bash', { command: 'mvn test > /tmp/x.log 2>&1; tail -5 /tmp/x.log' }), 'allow');
+check('负对照：node --test … > /tmp/t.log 2>&1 放行', pre('Bash', { command: 'node --test build-test/tests/ > /tmp/t.log 2>&1' }), 'allow');
+check('负对照：git log --oneline 2>&1（--oneline 真限流）放行', pre('Bash', { command: 'git log --oneline 2>&1' }), 'allow');
+check('负对照：cat big.md > /dev/null 2>&1（真丢弃）放行', pre('Bash', { command: 'cat big.md > /dev/null 2>&1' }), 'allow');
+check('负对照：node --test x >> /tmp/t.log 2>&1（append 真重定向）放行', pre('Bash', { command: 'node --test x >> /tmp/t.log 2>&1' }), 'allow');
+check('负对照：git log | head -20 放行', pre('Bash', { command: 'git log | head -20' }), 'allow');
 
 console.log(`\n${pass} PASS / ${fail} FAIL`);
 try { fs.rmSync(TMP, { recursive: true, force: true }); } catch (e) {}

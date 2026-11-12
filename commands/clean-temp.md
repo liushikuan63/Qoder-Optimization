@@ -6,7 +6,7 @@ description: 清理我方临时产物（截图 / 探针脚本 / 日志）——�
 
 显式 /clean-temp 或跨任务批量清理先列清单、弹窗确认；**每轮结束清理是必须的**：普通任务按本机授权自动清理本轮推荐范围，分享包默认每轮询问（获明确授权时可自动清理）；两种方式都要在最终回复反馈删除/保留结果。
 
-**触发**：① `session-budget.js` 在 SessionStart 扫一次多根临时目录——有超期件且距上次提醒 >7 天时注入「清理提醒」（含数量）；② **任务结束**时 stop-gate 的 `R14-temp-artifacts-unhandled` 会检查本任务在 `canonicalRoot` 下新产生的顶层条目：本机 `autoClean.enabled=true` 时要求跑 `tmp-round-scan.cjs --since <本轮开始> --apply --evidence-docs <证据登记目录> --json` 自动清理并在最终回复反馈；未开启该开关的机器仍要求用 AskUserQuestion 确认清理范围；③ **使用分享包（安装/合并/发布构建）后默认每轮结束询问**：先跑 `tmp-round-scan.cjs --since <本轮开始> --json` 列本轮包产物，再用 AskUserQuestion 确认清理范围（超期清单只作参考，可能来自其他机器或包内配置，与本机不一定一致）；只有用户本轮明确授权自动清理或配置 `autoClean.sharePackage=true` 时，才可跳过询问，改用 `--apply --include-share-package --json` 自动清理，且仍须反馈结果；stop-gate `R15-share-package-temp-scan-missing` 兜底。以上机制只提醒/拦截；自动清理只删本轮**新建**条目，超期件、已登记证据、仅被修改的旧目录与分享包回滚点不自动删；节流状态在 `~/.qoder/tmp/tmp-sweeper/last-reminded.json`。
+**触发**：① `session-budget.js` 在 SessionStart 扫一次多根临时目录——有超期件且距上次提醒 >7 天时注入「清理提醒」（含数量）；② **任务结束**时 stop-gate 的 `R14-temp-artifacts-unhandled` 会检查本任务在 `canonicalRoot` 下新产生的顶层条目：本机 `autoClean.enabled=true` 时要求跑 `tmp-round-scan.cjs --since <本轮开始> --apply --evidence-docs <证据登记目录> --json` 自动清理并在最终回复反馈；未开启该开关的机器仍要求用 AskUserQuestion 确认清理范围；③ **使用分享包（安装/合并/发布构建）后默认每轮结束询问**：先跑 `tmp-round-scan.cjs --since <本轮开始> --json` 列本轮包产物，再用 AskUserQuestion 确认清理范围（超期清单只作参考，可能来自其他机器或包内配置，与本机不一定一致）；只有用户本轮明确授权自动清理或配置 `autoClean.sharePackage=true` 时，才可跳过询问，改用 `--apply --include-share-package --evidence-docs <证据登记目录> --json` 自动清理，且仍须反馈结果；stop-gate `R15-share-package-temp-scan-missing` 兜底。以上机制只提醒/拦截；自动清理只删本轮**新建**条目，超期件、已登记证据、仅被修改的旧目录与分享包回滚点不自动删；节流状态在 `~/.qoder/tmp/tmp-sweeper/last-reminded.json`。
 
 ## 步骤
 

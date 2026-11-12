@@ -118,24 +118,38 @@ function checkRead(toolInput) {
       + `③ 需要原图细节时分块裁剪后逐块读。（阈值可用 HOG_IMAGE_BYTES 调整。）`;
   }
   const st = fileStats(String(p));
-  if (st === null) return null;
-  // 显式 offset/limit 是「我知道自己在读什么」的信号，但**实质无界**的 limit 与整读等价：
-  // 219KB 文件配 limit=999999 旧实现直接放行（实测），守卫存在的理由被规避。
+  if (st === null || st.bytes === 0) return null;
+  // 显式 offset/limit 是「我知道自己在读什么」的信号，但**信号不等于体积安全**：
+  // ① 实质无界的 limit 与整读等价（219KB 文件配 limit=999999 旧实现直接放行）；
+  // ② limit 按**行数**限流，对单行大文件（压缩 JSON / base64 / 一行日志）等于没限——
+  //    300KB 单行文件配 limit=100 或只配 offset=1，实际仍把整份 300KB 灌进上下文。
+  // 旧实现在这两处**早退**，跳过了下面的字节投影（2026-11-12 probe-f80-86 F80-A~G 修前红：
+  // exit 0 且 decision=allow）。现在一律先算「这一段有多少字节」，再决定放不放行。
   const rawLimit = Number(toolInput.limit);
-  const bounded = toolInput.limit !== undefined && Number.isFinite(rawLimit) && rawLimit > 0 && rawLimit <= READ_LINES;
-  if (bounded) return null;
-  if (toolInput.offset !== undefined && toolInput.limit === undefined) return null;
-  const effLines = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, st.lines) : st.lines;
+  const hasLimit = toolInput.limit !== undefined && Number.isFinite(rawLimit) && rawLimit > 0;
+  const rawOffset = Number(toolInput.offset);
+  const hasOffset = toolInput.offset !== undefined && Number.isFinite(rawOffset) && rawOffset > 0;
+  const startLine = hasOffset ? Math.floor(rawOffset) : 1;
+  // 只带 offset ＝「从该行一路读到 EOF」，上界是**余量**而不是整份行数。
+  const remaining = Math.max(st.lines - (startLine - 1), 0);
+  const effLines = hasLimit ? Math.min(rawLimit, remaining) : remaining;
+  if (effLines <= 0) return null;   // offset 超出 EOF：读不到东西，别误拦
   const avgBytes = st.lines > 0 ? st.bytes / st.lines : st.bytes;
-  // 兜底投影：行数一旦为 0，乘积就是 0，任何阈值都拦不住。行数不可知时按整文件体积算。
-  const projected = effLines > 0 ? effLines * avgBytes : st.bytes;
+  const projected = effLines * avgBytes;
   if (effLines <= READ_LINES && projected <= READ_BYTES) return null;
-  const mb = (Math.min(projected, st.bytes) / 1024).toFixed(0);
-  return `整读会把 ${mb} KB / ${effLines} 行一次性灌进上下文（本项目实测：` +
+  const kb = (Math.min(projected, st.bytes) / 1024).toFixed(0);
+  if (hasLimit || hasOffset) {
+    return `即使带了 offset/limit，这一段仍约 ${kb} KB / ${effLines} 行（平均行长 ${Math.round(avgBytes)} 字节`
+      + (st.lines <= 1 ? '；整份文件只有一行，而 limit 按**行数**限流，对单行大文件等于没限' : '')
+      + `），超过单条 ${(READ_BYTES / 1024).toFixed(0)} KB 的上下文预算。改法：`
+      + '① 先 Grep 定位关键词，只读命中行附近；② 单行大文件按**字节**截断（`head -c 2000 文件`、`cut -c1-2000 文件`）；'
+      + '③ 确实要全文就落盘分段处理，别整段进上下文。';
+  }
+  return `整读会把 ${kb} KB / ${effLines} 行一次性灌进上下文（本项目实测：` +
     `单条 >20KB 的返回共 81 条，最大的几条正是这类整读）。改法二选一：` +
     `① 先 Grep 定位（\`grep -n "关键词" 文件\` 或 Grep 工具）再 Read 带 offset/limit 只读那一段；` +
     `② 确实要通读就先 \`sed -n '1,200p'\` 分段读，每次不超过 200 行。` +
-    `（要放行就显式带 offset/limit —— 那是"我知道自己在读什么"的信号。）`;
+    `（要放行就显式带 offset/limit，且那一段的**字节数**也要在预算内——单行大文件请按字节截断。）`;
 }
 
 // ---------- 判据 2：Bash 命令会吐一屏 ----------
@@ -183,7 +197,11 @@ function oversizedHeadTail(cmd) {
 }
 const N_LIMITER = /-n\s*\d+/;    // git log -n 20 / head -n 20（head/tail 上界失效时不算有效，见 checkBash）
 const PIPE_LIMITER = /\|/;
-const REDIRECT_LIMITER = />\s*\S/;
+// 重定向到**文件**才算限流（输出不进上下文）。`2>&1` / `1>&2` / `2>>&1` 是 **fd 复制**：
+// 输出照样进上下文，旧写法 />\s*\S/ 把它也算限流 ⇒ `node --test x 2>&1`、`git log 2>&1`
+// 整族放行（2026-11-12 probe-f80-86 F86-A~F 修前红）。
+// `(?![>&])` 防止把 `>>` 的第一个 `>` 单独匹配上从而绕过 `(?!&)`；`/dev/null` 是真丢弃，照常放行。
+const REDIRECT_LIMITER = /\d*>{1,2}(?![>&])\s*(?!&)\S/;
 const LIMITERS = [
   PIPE_LIMITER,                // 任何管道（head/tail/grep/wc/sort…）都算限流
   REDIRECT_LIMITER,            // 重定向到文件

@@ -73,11 +73,27 @@ function claimOf(docText, claim) {
 }
 const readDoc = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 
-/** 文档里点名脚本的完整命令（反引号内）；只挑带 --apply 的，检查是否带 --evidence-docs。 */
+/** 文档里的 --apply 命令（反引号内）。
+ *  旧写法要求反引号内**同时点名脚本**，于是 clean-temp.md:9 的简写
+ *  `--apply --include-share-package --json` 整条漏检（F81，2026-11-12 第八段）：
+ *  文档自身在第 32 行声明「本文所有 --apply 命令都带它」，而照第 9 行执行时保护永不生效。
+ *  现在的口径：含 --apply 且「不止一个 flag **或** 点名脚本」就算一条命令；
+ *  单独的 `--apply` 是名词提及（文档里有 8 处），不算命令——否则守卫会把正常文档判红而被关掉。 */
 function applyCommands(docText) {
-  const cmds = [...docText.matchAll(/`[^`]*tmp-round-scan\.cjs[^`]*`/g)].map((m) => m[0]);
-  return cmds.filter((c) => c.includes('--apply'))
+  const spans = [...docText.matchAll(/`[^`]*`/g)].map((m) => m[0]);
+  return spans
+    .filter((s) => s.includes('--apply'))
+    .filter((s) => (s.match(/--[a-z][a-z-]*/g) || []).length >= 2 || /tmp-round-scan\.cjs/.test(s))
     .map((cmd) => ({ cmd, guarded: cmd.includes('--evidence-docs') }));
+}
+
+/** 按配置决定查不查这份文档：applyGuard=false ⇒ null（跳过）。
+ *  旧实现里 DOCS 的 applyGuard 字段**从未被读过**，两条判据硬编码 clean-temp.md，
+ *  等于配置是装饰品；这里让它真的决定行为，并配一条能失败的判据证明它被读了。 */
+function applyFindings(cfg, docText) {
+  if (!cfg.applyGuard) return null;
+  const cmds = applyCommands(docText);
+  return { cmds, unguarded: cmds.filter((c) => !c.guarded) };
 }
 
 for (const cfg of DOCS) {
@@ -111,18 +127,45 @@ for (const cfg of DOCS) {
   });
 }
 
-test('clean-temp.md 里每条 --apply 命令都带 --evidence-docs（否则文档登记保护永不生效）', () => {
-  const cmds = applyCommands(readDoc('commands/clean-temp.md'));
-  assert.ok(cmds.length >= 3, `点名脚本的 --apply 命令应至少 3 条，实测 ${cmds.length}（清单为空会让本判据恒真）`);
-  for (const c of cmds) assert.equal(c.guarded, true, `缺少 --evidence-docs：${c.cmd}`);
+const guardedDocs = DOCS.filter((d) => d.applyGuard);
+
+test('applyGuard 配置真的决定行为（false 跳过 / true 查出无保护命令）', () => {
+  assert.ok(guardedDocs.length > 0, 'applyGuard=true 的文档一个都没有，这组判据会恒真');
+  assert.ok(DOCS.some((d) => !d.applyGuard), 'DOCS 里没有 applyGuard=false 的条目，无法证明该字段被读过');
+  const sample = '改用 `--apply --include-share-package --json` 自动清理。\n';
+  assert.equal(applyFindings({ applyGuard: false }, sample), null, 'applyGuard=false 必须跳过');
+  const on = applyFindings({ applyGuard: true }, sample);
+  assert.equal(on.cmds.length, 1, 'applyGuard=true 必须认出这条简写命令');
+  assert.equal(on.unguarded.length, 1, '缺 --evidence-docs 必须被判为无保护');
 });
 
-test('负对照：漏掉 --evidence-docs 的 --apply 命令必须被判红', () => {
-  const docText = readDoc('commands/clean-temp.md');
-  const cmds = applyCommands(docText);
-  assert.ok(cmds.length >= 3);
-  const broken = docText.replace('--apply --evidence-docs <证据登记目录> --json', '--apply --json');
-  assert.notEqual(broken, docText, '负对照必须真的改到文档副本');
-  const bad = applyCommands(broken).filter((c) => !c.guarded);
-  assert.ok(bad.length >= 1, '去掉开关后必须至少有一条命令被判为无保护');
+for (const cfg of guardedDocs) {
+  test(`${cfg.rel} 里每条 --apply 命令都带 --evidence-docs（否则文档登记保护永不生效）`, () => {
+    const f = applyFindings(cfg, readDoc(cfg.rel));
+    assert.ok(f.cmds.length >= 3, `--apply 命令应至少 3 条，实测 ${f.cmds.length}（清单为空会让本判据恒真）`);
+    for (const c of f.unguarded) assert.fail(`缺少 --evidence-docs：${c.cmd}`);
+  });
+
+  test(`负对照：${cfg.rel} 漏掉 --evidence-docs 的 --apply 命令必须被判红`, () => {
+    const docText = readDoc(cfg.rel);
+    const f = applyFindings(cfg, docText);
+    assert.ok(f.cmds.length >= 3);
+    const broken = docText.replace('--apply --evidence-docs <证据登记目录> --json', '--apply --json');
+    assert.notEqual(broken, docText, '负对照必须真的改到文档副本');
+    const bad = applyFindings(cfg, broken).unguarded;
+    assert.ok(bad.length >= 1, '去掉开关后必须至少有一条命令被判为无保护');
+  });
+}
+
+test('负对照：省略脚本名的 --apply 简写必须被认出，而名词提及不算命令（F81 的洞）', () => {
+  const synthetic = '改用 `--apply --include-share-package --json` 自动清理。\n';
+  const cmds = applyCommands(synthetic);
+  assert.equal(cmds.length, 1, '简写命令必须被认出');
+  assert.equal(cmds[0].guarded, false);
+  // 差分：旧判据（反引号内必须点名脚本）对同一段文本认不出任何命令 —— 证明这条判据真的变强了。
+  const old = [...synthetic.matchAll(/`[^`]*tmp-round-scan\.cjs[^`]*`/g)]
+    .map((m) => m[0]).filter((c) => c.includes('--apply'));
+  assert.equal(old.length, 0, '旧判据本应漏掉它（否则这条负对照没有鉴别力）');
+  // 名词提及不是命令：文档里 8 处单独的 `--apply` 不该被判红。
+  assert.equal(applyCommands('本文所有 `--apply` 命令都带它；`tmp-round-scan --apply` 同理。').length, 0);
 });
