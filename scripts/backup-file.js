@@ -40,6 +40,32 @@ const BAK_RE = /^(.*)\.bak(?:[-._].*)?$/;
 const fmtDate = (ms) => new Date(ms).toISOString().slice(0, 10);
 const ageDays = (ms) => Math.floor((Date.now() - ms) / DAY_MS);
 
+// A53：判龄必须用「备份自身的时间」，不能用继承来的源文件 mtime。
+// 实测 fs.copyFileSync 会继承源文件 mtime（源文件 10 天没改 ⇒ 新备份看起来 10 天前 ⇒ 当场被裁、回滚指针悬空）。
+// 只解析 `.bak` 之后的后缀，避免把原文件名里的数字当日期。
+function nameTimeMs(name) {
+  const idx = name.indexOf('.bak');
+  const s = idx >= 0 ? name.slice(idx + 4) : name;
+  const valid = (y, mo, d) => y >= 2000 && y <= 2100 && mo >= 1 && mo <= 12 && d >= 1 && d <= 31;
+  let m = s.match(/(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/);
+  if (m && valid(+m[1], +m[2], +m[3])) {
+    const t = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime();
+    if (Number.isFinite(t)) return t;
+  }
+  m = s.match(/(\d{4})(\d{2})(\d{2})/);
+  if (m && valid(+m[1], +m[2], +m[3])) {
+    const t = new Date(+m[1], +m[2] - 1, +m[3]).getTime();
+    if (Number.isFinite(t)) return t;
+  }
+  return null;
+}
+// 取 max(mtime, 文件名时间戳) 是**单调安全**的：只会让备份看起来更新，
+// 绝不会把按旧口径本该保留的备份判成超期（文件名时间戳比 mtime 旧时仍以 mtime 为准）。
+const effectiveTime = (name, st) => {
+  const nt = nameTimeMs(name);
+  return nt === null ? st.mtimeMs : Math.max(st.mtimeMs, nt);
+};
+
 function listBackups(orig) {
   const dir = path.dirname(orig);
   const base = path.basename(orig);
@@ -50,17 +76,19 @@ function listBackups(orig) {
     const m = n.match(BAK_RE);
     if (!m || m[1] !== base) continue;
     const p = path.join(dir, n);
-    try { const st = fs.statSync(p); if (st.isFile()) out.push({ path: p, name: n, mtime: st.mtimeMs }); } catch (e) {}
+    try { const st = fs.statSync(p); if (st.isFile()) out.push({ path: p, name: n, mtime: st.mtimeMs, time: effectiveTime(n, st) }); } catch (e) {}
   }
-  out.sort((a, b) => b.mtime - a.mtime); // 新 → 旧
+  out.sort((a, b) => b.time - a.time); // 新 → 旧（按备份自身时间）
   return out;
 }
 
 // 纯函数：给定备份列表（新→旧），返回 { kept, del }
-function plan(backups) {
+// protect：本次刚生成的备份路径集合，永不裁剪（回滚指针不能悬空），即使超出上限也保留。
+function plan(backups, protect) {
+  const prot = protect || new Set();
   const cap = backups.slice(0, KEEP_MAX);
   const rest = backups.slice(KEEP_MAX);
-  const fresh = cap.filter((b) => Date.now() - b.mtime <= KEEP_DAYS * DAY_MS);
+  const fresh = cap.filter((b) => Date.now() - b.time <= KEEP_DAYS * DAY_MS);
   let kept;
   let del;
   if (fresh.length === 0) {
@@ -71,6 +99,10 @@ function plan(backups) {
     del = cap.filter((b) => !fresh.includes(b));
   }
   del = del.concat(rest);
+  if (prot.size) {
+    del = del.filter((b) => !prot.has(b.path));
+    for (const b of backups) if (prot.has(b.path) && !kept.includes(b)) kept.push(b);
+  }
   return { kept, del };
 }
 
@@ -85,19 +117,22 @@ function makeBackup(target, label) {
   let i = 2;
   while (fs.existsSync(bak)) bak = `${target}${mid}${ts}-${i++}`;
   fs.copyFileSync(target, bak);
+  // A53 根因修正：copyFileSync 继承源文件 mtime，这里把副本时间归正为「备份生成时刻」。
+  // 失败也不致命：文件名时间戳判龄 + protect 两道兜底仍在。
+  try { const now = new Date(); fs.utimesSync(bak, now, now); } catch (e) {}
   return bak;
 }
 
-function pruneTarget(target, apply) {
+function pruneTarget(target, apply, protect) {
   const backups = listBackups(target);
-  const { kept, del } = plan(backups);
+  const { kept, del } = plan(backups, protect);
   for (const b of del) { if (apply) removeFile(b.path); }
   return { backups, kept, del };
 }
 
 function report({ kept, del }, apply, indent = '') {
-  for (const b of del) console.log(`${indent}[${apply ? '删除' : '计划删除'}] ${b.name}（${ageDays(b.mtime)} 天前）`);
-  if (del.length) console.log(`${indent}  保留 ${kept.length} 份：` + kept.map((b) => `${b.name}（${ageDays(b.mtime)}d）`).join('、'));
+  for (const b of del) console.log(`${indent}[${apply ? '删除' : '计划删除'}] ${b.name}（${ageDays(b.time)} 天前）`);
+  if (del.length) console.log(`${indent}  保留 ${kept.length} 份：` + kept.map((b) => `${b.name}（${ageDays(b.time)}d）`).join('、'));
   return del.length;
 }
 
@@ -123,12 +158,12 @@ function dirMode(root, apply) {
     if (!m) return;
     const key = path.join(path.dirname(p), m[1]);
     if (!groups.has(key)) groups.set(key, []);
-    try { const st = fs.statSync(p); groups.get(key).push({ path: p, name: path.basename(p), mtime: st.mtimeMs }); } catch (e) {}
+    try { const st = fs.statSync(p); groups.get(key).push({ path: p, name: path.basename(p), mtime: st.mtimeMs, time: effectiveTime(path.basename(p), st) }); } catch (e) {}
   });
   let totalDel = 0;
   let totalGroups = 0;
   for (const [orig, list] of groups) {
-    list.sort((a, b) => b.mtime - a.mtime);
+    list.sort((a, b) => b.time - a.time);
     const r = plan(list);
     if (!r.del.length) continue;
     totalGroups++;
@@ -164,7 +199,7 @@ if (mode === 'backup') {
   if (!fs.existsSync(target)) { console.error('目标不存在：' + target); process.exit(1); }
   const bak = makeBackup(target, label);
   console.log('[备份] ' + bak);
-  const r = pruneTarget(target, true);   // 每次备份顺带裁剪（策略②）
+  const r = pruneTarget(target, true, new Set([bak]));   // 每次备份顺带裁剪（策略②）；本次新备份永不裁剪（A53）
   if (r.del.length) report(r, true);
   console.log(`[就绪] 当前保留 ${r.kept.length} 份（上限 ${KEEP_MAX} 份 / 保留 ${KEEP_DAYS} 天 / 至少 1 份）`);
 } else if (mode === 'prune') {
