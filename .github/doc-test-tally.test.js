@@ -214,3 +214,68 @@ test('F87：claim.args 真的被传给脚本（校验器不带 --selftest 只打
   assert.equal(bare.status, 2, '不带参数的校验器应打用法并退 2（所以忽略 args 的实现根本取不到条数）');
   for (const c of withArgs) assert.ok(tallyOf(c.script, c.args) > 0, c.script + ' 带 args 实跑必须给出正条数');
 });
+
+// ── F102：文档声明的 hook 条数必须等于实现真值 ────────────────────────────────
+// 同族过期计数第五处，且是**结构计数**不是自测条数，所以不能塞进 DOCS（那套靠跑自测取数）。
+// 实测：0.1.5 的 HOOKS=15 ⇒ exec hook 16；0.1.6 新增 Stop/evolution-capture.cjs ⇒ HOOKS=16 ⇒ exec hook 17
+// （隔离沙箱干净升级后 settings.json 实测 17：UserPromptSubmit 3 / Stop 2 / SessionStart 2 / PreToolUse 6 / PostToolUse 4）。
+// 而 README.md 英中两处与 README-安装说明.md 两处仍写 16 / 15 ⇒ 四处静默漂移，四道包契约门禁都抓不到。
+// 真值一律从 scripts/workflow-profile.cjs 现读，不在本文件硬编码数字（硬编码＝第二真相）。
+const HOOK_DOCS = [
+  { rel: 'README.md', reSrc: '(\\d+) exec hooks across five events', kind: 'exec' },
+  { rel: 'README.md', reSrc: '五类事件共 (\\d+) 条 exec hook', kind: 'exec' },
+  { rel: 'README-安装说明.md', reSrc: '五类事件共 (\\d+) 条 hook', kind: 'exec' },
+  { rel: 'README-安装说明.md', reSrc: '(\\d+) 条守卫经白名单 launcher', kind: 'guards' },
+];
+
+/** 从实现取真值：HOOKS 行数＝守卫接线数；rules-reminder 由安装器单独接线，故 exec 总数＝HOOKS+1。 */
+function hookTruth(text) {
+  const src = text === undefined ? fs.readFileSync(path.join(root, 'scripts', 'workflow-profile.cjs'), 'utf8') : text;
+  const m = src.match(/const HOOKS = \[([\s\S]*?)\n\];/);
+  assert.ok(m, '找不到 HOOKS 定义：实现结构已变，本判据必须红而不是静默跳过');
+  const rows = m[1].split('\n').filter((l) => /^\s*\['/.test(l));
+  assert.ok(rows.length > 0, 'HOOKS 为空会让本判据恒真');
+  assert.ok(/rules-reminder\.js/.test(src), 'workflow-profile.cjs 未引用 rules-reminder.js，exec=HOOKS+1 的依据不成立');
+  return { guards: rows.length, exec: rows.length + 1 };
+}
+
+test('F102：四处文档声明的 hook 条数＝实现真值（每处恰好命中 1 次）', () => {
+  const truth = hookTruth();
+  assert.ok(truth.exec > truth.guards, 'exec 总数必须大于守卫接线数，否则 +1 没生效');
+  for (const c of HOOK_DOCS) {
+    const docText = readDoc(c.rel);
+    const hits = [...docText.matchAll(new RegExp(c.reSrc, 'g'))];
+    assert.equal(hits.length, 1, `${c.rel} 的「${c.reSrc}」应恰好命中 1 次，实测 ${hits.length} 次（没写会被当成写对）`);
+    assert.equal(Number(hits[0][1]), truth[c.kind], `${c.rel} 写 ${hits[0][1]} 条 ${c.kind}，实现真值 ${truth[c.kind]} 条`);
+  }
+});
+
+test('F102 负对照：文档数字改错 / 整处删掉 / 实现增删一条接线，三种都必须被判红', () => {
+  const truth = hookTruth();
+  for (const c of HOOK_DOCS) {
+    const docText = readDoc(c.rel);
+    const re = new RegExp(c.reSrc);
+    // ① 数字改错
+    const wrong = docText.replace(re, (m0, n) => m0.replace(n, String(truth[c.kind] - 1)));
+    assert.notEqual(wrong, docText, '负对照必须真的改到文档副本：' + c.rel);
+    const wh = [...wrong.matchAll(new RegExp(c.reSrc, 'g'))];
+    assert.equal(wh.length, 1);
+    assert.notEqual(Number(wh[0][1]), truth[c.kind], '改错的数字必须与真值不符：' + c.rel);
+    // ② 整处删掉数字（hits=0，不能因「没写」放行）
+    const missing = docText.replace(re, (m0) => m0.replace(/\d+/, '若干'));
+    assert.notEqual(missing, docText, '负对照必须真的删掉数字：' + c.rel);
+    assert.equal([...missing.matchAll(new RegExp(c.reSrc, 'g'))].length, 0, '去掉数字后不应再命中：' + c.rel);
+  }
+  // ③ 实现侧变异：摘掉一条 HOOKS 接线 ⇒ 真值必须下降，且与现盘文档不再相符
+  //    （证明真值是**现读实现**而不是硬编码常量；否则实现改了门禁仍恒绿）
+  const src = fs.readFileSync(path.join(root, 'scripts', 'workflow-profile.cjs'), 'utf8');
+  const mutated = src.replace(/\n\s*\['Stop', 'evolution-capture\.cjs'[^\n]*\],/, '');
+  assert.notEqual(mutated, src, '变异必须真的摘掉一条接线（摘不到说明实现结构已变，本负对照失效）');
+  const mt = hookTruth(mutated);
+  assert.equal(mt.guards, truth.guards - 1, '摘掉一条后守卫接线数必须减 1');
+  assert.equal(mt.exec, truth.exec - 1, '摘掉一条后 exec 总数必须减 1');
+  const docText = readDoc('README-安装说明.md');
+  const hits = [...docText.matchAll(/五类事件共 (\d+) 条 hook/g)];
+  assert.equal(hits.length, 1);
+  assert.notEqual(Number(hits[0][1]), mt.exec, '实现变异后文档数字必须与真值不符（否则门禁对实现漂移无鉴别力）');
+});

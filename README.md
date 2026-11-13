@@ -94,7 +94,7 @@ For a guided setup, give the repository to Qoder and ask it to inspect your curr
 
 For a manual setup, follow the [installation guide](README-安装说明.md). The installer puts every shipped skill into the on-demand library by default (`--skills-scope all`); use `--skills-scope base` for the core set only. Do not copy `skills/` wholesale by hand.
 
-Start with `install.cmd` on Windows, or `node scripts/install-package.cjs` elsewhere. A fresh installation defaults to the complete portable workflow: 5 public core skills, managed rules, required helpers and 16 exec hooks across five events. Existing routing installations retain their choice; select `--profile complete` to upgrade. Personal rules, accounts, private memory and optional integrations are preserved separately. The package checks installed capabilities, updates only verified unchanged older copies, and asks about missing general or explicitly preferred capabilities. It wires task routing so relevant installed capabilities can prompt for use. Optional SQLite continuity remains a separate explicit choice (`--continuity` or `install-continuity.cjs`); accepted continuity installs auto-bind supported sessions while preserving explicit disables.
+Start with `install.cmd` on Windows, or `node scripts/install-package.cjs` elsewhere. A fresh installation defaults to the complete portable workflow: 5 public core skills, managed rules, required helpers and 17 exec hooks across five events. Existing routing installations retain their choice; select `--profile complete` to upgrade. Personal rules, accounts, private memory and optional integrations are preserved separately. The package checks installed capabilities, updates only verified unchanged older copies, and asks about missing general or explicitly preferred capabilities. It wires task routing so relevant installed capabilities can prompt for use. Optional SQLite continuity remains a separate explicit choice (`--continuity` or `install-continuity.cjs`); accepted continuity installs auto-bind supported sessions while preserving explicit disables.
 
 After setup, run the checks from the client directory you configured:
 
@@ -288,7 +288,7 @@ Hooks      在配置的流程节点运行检查
 
 手动安装请按[安装说明](README-安装说明.md)操作。安装器默认把全部随包技能装入按需库（`--skills-scope all`），只要核心集时用 `--skills-scope base`；不要手工整目录复制 `skills/`。
 
-Windows 从包根 `install.cmd` 开始，其他平台运行 `node scripts/install-package.cjs`。新装默认完整工作流：5 个公开核心技能、托管规则、必要依赖和五类事件共 16 条 exec hook；已有 routing 保留，显式 `--profile complete` 升级。个人规则、账号、私人记忆和可选集成分别保留。安装包主动核对已有能力，只更新可证明未被本地修改的旧副本；缺失仅通用或符合明确偏好时询问安装，其他跳过，并把相关已装能力接入任务询问与路由。SQLite 接续记忆仍需单独显式选择（`--continuity` 或 `install-continuity.cjs`），启用后自动绑定并保留会话关闭选择。
+Windows 从包根 `install.cmd` 开始，其他平台运行 `node scripts/install-package.cjs`。新装默认完整工作流：5 个公开核心技能、托管规则、必要依赖和五类事件共 17 条 exec hook；已有 routing 保留，显式 `--profile complete` 升级。个人规则、账号、私人记忆和可选集成分别保留。安装包主动核对已有能力，只更新可证明未被本地修改的旧副本；缺失仅通用或符合明确偏好时询问安装，其他跳过，并把相关已装能力接入任务询问与路由。SQLite 接续记忆仍需单独显式选择（`--continuity` 或 `install-continuity.cjs`），启用后自动绑定并保留会话关闭选择。
 
 安装后，在所使用客户端的目录中运行：
 

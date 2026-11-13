@@ -40,7 +40,7 @@ node scripts/install-package.cjs --yes --install skill:parallel-orchestration --
 
 ## 完整工作流：分享包复现通用本机效果
 
-新客户端默认 `complete`，确认安装后落地公开工作流的 12 个技能（**5 个常驻 + 7 个按需**，常驻集与 catalog `tier=core` 一致）、完整依赖、`/checkpoint` 与 `/fact`、AGENTS 托管规则及 `rules/long-task.md`、`rules/vibe-coding.md`，并接入五类事件共 16 条 hook。AGENTS 和规则中的原有内容保留，托管段有摘要登记；托管段被本地修改时先审查。其他专业技能和 MCP、插件、SQLite 接续仍单独选择。
+新客户端默认 `complete`，确认安装后落地公开工作流的 12 个技能（**5 个常驻 + 7 个按需**，常驻集与 catalog `tier=core` 一致）、完整依赖、`/checkpoint` 与 `/fact`、AGENTS 托管规则及 `rules/long-task.md`、`rules/vibe-coding.md`，并接入五类事件共 17 条 hook。AGENTS 和规则中的原有内容保留，托管段有摘要登记；托管段被本地修改时先审查。其他专业技能和 MCP、插件、SQLite 接续仍单独选择。
 
 ```bash
 # 先看计划；全新客户端默认完整工作流
@@ -54,7 +54,7 @@ node scripts/install-package.cjs --profile routing --yes --client-root <客户�
 node <客户端目录>/scripts/workflow-profile.cjs <客户端目录>
 ```
 
-完整工作流使用 `command` 可执行文件与 `args` 数组，避免 shell 解释客户端路径；15 条守卫经白名单 launcher 显式绑定客户端，规则提醒也显式绑定。已验证的宿主为 Qoder 0.5.1 / worker 1.1.79-hotfix.7，其原生 runner 支持这一协议。其他版本需核对原生 exec hook 支持；旧宿主可保留 routing，不能把不执行的完整接线算通过。宿主禁用 hook 或工作目录不受信任时不会成为已触发；安装器保留禁用选择并报告冲突。
+完整工作流使用 `command` 可执行文件与 `args` 数组，避免 shell 解释客户端路径；16 条守卫经白名单 launcher 显式绑定客户端，规则提醒也显式绑定。已验证的宿主为 Qoder 0.5.1 / worker 1.1.79-hotfix.7，其原生 runner 支持这一协议。其他版本需核对原生 exec hook 支持；旧宿主可保留 routing，不能把不执行的完整接线算通过。宿主禁用 hook 或工作目录不受信任时不会成为已触发；安装器保留禁用选择并报告冲突。
 
 只升级有可信旧来源且本地原样的能力。旧登记指向已变化仓库时，可用 `--previous-catalog <可信旧包/catalog.json>` 提供已核验旧源；文件仍须完整相同。没有可追溯来源或含本地定制的项保持 `REVIEW_UPDATE`，不会用本地副本伪造旧基线。完整基础受阻返回 `ACTIVATION_BLOCKED / 3`，旧 hook 与包指针保留；事务备份和并发冲突均有恢复目录。
 
