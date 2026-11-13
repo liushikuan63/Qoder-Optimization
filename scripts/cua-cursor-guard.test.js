@@ -216,6 +216,11 @@ const SLOW_FIRST = path.join(SANDBOX, 'slow-first.cjs');
 const FAIL_ALWAYS = path.join(SANDBOX, 'fail-always.cjs');
 const COUNTED = path.join(SANDBOX, 'counted.cjs');
 const DELAY = 4500;                       // > 改前 4000ms 读取预算
+// 重试用例的每次读取预算：只需「小于首次延迟」即可隔离重试这一处。首版写 400ms，在现役两侧跑时
+// 连重试那次都扛不住环境负载下的 node 启动开销 ⇒ 假红（stub 调用次数仍 >=2，证明不是没重试）。
+// 按实测契约放宽到 2500ms，并把「预算 < 首次延迟」写成显式断言，防止将来改成空转用例。
+const FIRST_DELAY = 5000;
+const RETRY_BUDGET = 2500;
 fs.writeFileSync(SLOW_ALWAYS, [
   "const fs=require('fs');",
   `const d=${DELAY};const t=Date.now();while(Date.now()-t<d){}`,   // 忙等，模拟负载下的慢响应
@@ -226,7 +231,7 @@ fs.writeFileSync(SLOW_FIRST, [
   "const m=process.env.CUA_STUB_MARKER;",
   "let n=0;try{n=Number(fs.readFileSync(m,'utf8'))||0;}catch(e){}",
   "n++;fs.writeFileSync(m,String(n));",
-  `if(n===1){const t=Date.now();while(Date.now()-t<5000){}}`,      // 首次超预算，之后立即返回
+  `if(n===1){const t=Date.now();while(Date.now()-t<${FIRST_DELAY}){}}`,      // 首次超预算，之后立即返回
   "process.stdout.write(fs.readFileSync(process.env.CUA_STUB_CURSOR,'utf8'));",
 ].join('\n'));
 fs.writeFileSync(FAIL_ALWAYS, "process.exit(1);");
@@ -258,17 +263,18 @@ setCua(1079, 583);
 const m2 = path.join(SANDBOX, 'm2.txt');
 const a2pre = run35('PreToolUse', 'mcp_call', SAFE_STEPS, {
   readCmd: `node "${SLOW_FIRST}" read`, timeout: 90000,
-  env: { CUA_STUB_MARKER: m2, CUA_GUARD_READ_TIMEOUT_MS: '400' },
+  env: { CUA_STUB_MARKER: m2, CUA_GUARD_READ_TIMEOUT_MS: String(RETRY_BUDGET) },
 });
 ok('A35 首次读取超时后重试成功（快照仍在）', fs.existsSync(path.join(STATE, `${a2pre.sid}.json`)), 'snapshot missing');
 setCua(2157, 637);
 run35('PostToolUse', 'mcp_call', SAFE_STEPS, {
   session: a2pre.sid, readCmd: `node "${SLOW_FIRST}" read`, timeout: 90000,
-  env: { CUA_STUB_MARKER: m2, CUA_GUARD_READ_TIMEOUT_MS: '400' },
+  env: { CUA_STUB_MARKER: m2, CUA_GUARD_READ_TIMEOUT_MS: String(RETRY_BUDGET) },
 });
 const a2after = JSON.parse(fs.readFileSync(CURSOR, 'utf8'));
 ok('A35 重试路径下光标仍被还原', a2after.x === 1079 && a2after.y === 583, JSON.stringify(a2after));
 ok('A35 stub 确实被调用了多次（超时+重试，非空转）', reads(m2) >= 2, 'reads=' + reads(m2));
+ok('A35 重试用例非空转：每次预算 < 首次延迟（否则首次就不会超时）', RETRY_BUDGET < FIRST_DELAY, `budget=${RETRY_BUDGET} firstDelay=${FIRST_DELAY}`);
 
 // A35-3 负对照：读取彻底失败时，fail-open 语义必须保持不变（不改成 deny、不抛错）。
 setCua(1079, 583);
