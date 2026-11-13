@@ -36,7 +36,16 @@ const EXTENDED_ONLY = [
   '从现在开始提交只加明确路径',
   '以后默认走 D 盘临时目录',
   '下次先跑只读预览',
+  // A33（2026-11-13 用户采纳）：周期锚点封闭集漏掉「每轮/每一轮/每回合」式长期偏好。
+  // 第一条是用户真实指令原文；第二条是最小对照对里只差一字的那句（每次→每轮）。
+  '每轮对话收尾，将自进化建议通过弹窗形式，给出推荐建议',
+  '每轮收尾都要弹窗给自进化建议',
+  '每一轮收尾都要给推荐建议',
+  '每回合结束前先跑只读预览',
+  '每轮收尾把建议弹窗给我',
 ];
+// 提醒层严格口径的历史真源（逐字节钉住）：A33 只允许扩采集侧 BROAD，这一行不得被顺手加宽。
+const STRICT_LONG_TERM_SOURCE = '(?:以后|今后|下次|从现在开始|每次|一律|永远|总是).{0,24}(?:都|要|别|不要|必须|记得|记住|用|按)';
 // 加宽后仍不能命中的拖延语与单次约束（防止为了召回把噪声也收进来）。
 const EXTENDED_NEGATIVE = [
   ['以后再说', '拖延语，无祈使尾词'],
@@ -44,6 +53,9 @@ const EXTENDED_NEGATIVE = [
   ['这次不要修改任何文件，只给建议', '单次任务约束'],
   ['当我说“以后默认走 D 盘”时你怎么处理', '元提及'],
   ['规则要求以后一律备份', '引用规则原文'],
+  ['每轮再说', '新锚点下的拖延语'],
+  ['当我说“每轮都要弹窗”时你怎么处理', '新锚点下的元提及'],
+  ['规则要求每轮收尾弹窗', '新锚点下的规则引用'],
 ];
 const PREF_NEGATIVE = [
   ['这次不要修改任何文件，只给建议', '单次任务约束'],
@@ -105,6 +117,9 @@ function assertions(mod) {
     add(`问题负对照静默（${why}）:: ${text || '(空)'}`, !r.matched && r.signals.length === 0, JSON.stringify(kindsOf(r)));
   }
   add('提醒正文与历史基线逐字节一致', mod.PREFERENCE_NOTE === LEGACY_NOTE);
+  // A33 模式隔离：采集侧加宽不得泄漏进提醒层。钉住严格口径真源，加宽一个字就红。
+  add('提醒层 LONG_TERM 严格口径逐字节未变', mod.LONG_TERM.source === STRICT_LONG_TERM_SOURCE, mod.LONG_TERM.source);
+  add('提醒层对新周期词仍静默（每轮式偏好只进采集）', mod.preferenceNote('每轮对话收尾，将自进化建议通过弹窗形式，给出推荐建议') === '');
   add('提醒正例注入历史正文', mod.preferenceNote('以后一律用简体中文回复') === LEGACY_NOTE);
   add('提醒负对照零注入', mod.preferenceNote('这次不要修改任何文件，只给建议') === '' && mod.preferenceNote('') === '');
   add('提醒层不掺入过程问题族', mod.preferenceNote('找不到对应的 MCP 工具') === '');
@@ -280,6 +295,10 @@ mutate('read-only-english-removed', '\\bread[- ]only\\b', '\\bread[- ]onlyZZZ\\b
 mutate('handoff-english-removed', '\\bhand[- ]?off only\\b', '\\bhand[- ]?off onlyZZZ\\b', '英文暂停约束命中 handoffOnly');
 mutate('no-memory-english-removed', '(?:to\\s+)?memory\\b', '(?:to\\s+)?memoryZZZ\\b', '英文暂停约束命中 noMemory');
 mutate('read-only-english-case-sensitive', 'files?\\b/i;', 'files?\\b/;', '英文暂停约束命中 readOnly :: Do not modify any files.');
+// A33：新周期锚点 / 新祈使尾词被摘掉必红；把加宽泄漏进提醒层也必红（模式隔离）。
+mutate('broad-periodic-anchor-removed', '每次|每轮对话|每轮|每一轮|每回合|一律', '每次|一律', '采集加宽召回命中 :: 每轮对话收尾');
+mutate('broad-imperative-verb-removed', '|将|把|给出|提供)/', ')/', '采集加宽召回命中 :: 每轮对话收尾，将自进化建议');
+mutate('strict-layer-widened', 'const LONG_TERM = /(?:以后|今后|下次|从现在开始|每次|一律', 'const LONG_TERM = /(?:以后|今后|下次|从现在开始|每次|每轮|一律', '提醒层 LONG_TERM 严格口径逐字节未变');
 
 // —— 跨文件漂移断言：核声明"与门禁同源"就必须真的逐字一致，且这条断言要能失败 ——
 const gateSrc = fs.readFileSync(path.join(__dirname, 'stop-gate.js'), 'utf8');
