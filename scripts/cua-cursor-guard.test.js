@@ -218,9 +218,10 @@ const COUNTED = path.join(SANDBOX, 'counted.cjs');
 const DELAY = 4500;                       // > 改前 4000ms 读取预算
 // 重试用例的每次读取预算：只需「小于首次延迟」即可隔离重试这一处。首版写 400ms，在现役两侧跑时
 // 连重试那次都扛不住环境负载下的 node 启动开销 ⇒ 假红（stub 调用次数仍 >=2，证明不是没重试）。
-// 按实测契约放宽到 2500ms，并把「预算 < 首次延迟」写成显式断言，防止将来改成空转用例。
-const FIRST_DELAY = 5000;
-const RETRY_BUDGET = 2500;
+// 第二版 2500ms 在 8 忙等负载下仍假红，且 reads=0 —— 连 stub 进程都没启动到写标记那一步。
+// 按实测契约提到 8000ms（首次延迟同步提到 20000ms），并把「预算 < 首次延迟」写成显式断言防空转。
+const FIRST_DELAY = 20000;
+const RETRY_BUDGET = 8000;
 fs.writeFileSync(SLOW_ALWAYS, [
   "const fs=require('fs');",
   `const d=${DELAY};const t=Date.now();while(Date.now()-t<d){}`,   // 忙等，模拟负载下的慢响应
