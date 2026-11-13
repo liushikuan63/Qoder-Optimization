@@ -29,6 +29,11 @@ ok('driver calls use argv, not a shell', /execFileSync\(DRIVER, \['call', 'get_c
 ok('test stubs are explicitly gated', /CUA_GUARD_TEST_STUBS !== '1'/.test(guardSource));
 ok('shell:true is confined to the gated stub helper', (guardSource.match(/shell:\s*true/g) || []).length === 1 && /function runStub[\s\S]{0,200}shell:\s*true/.test(guardSource));
 
+// A57：harness 单次调用预算。负载下守卫的「读重试(2×12s) + 写重试(2×12s) + user32 兜底(15s)」会超过
+// 原来的 20s ⇒ 用例拿不到任何输出（detail=undefined），被误当成守卫判红（负载 A/B 实测到的 harness-no-response）。
+// 下界由守卫源码里的预算推导（见 A57-7），不拍数字：守卫再放宽预算时那条断言会红，提醒同步 harness。
+const DEFAULT_TIMEOUT = 90000;
+
 function run(event, toolName, input, opts = {}) {
   const payload = { hook_event_name: event, tool_name: toolName, tool_input: input, session_id: opts.session || 's-' + Math.random().toString(36).slice(2, 8) };
   const env = Object.assign({}, process.env, {
@@ -44,7 +49,7 @@ function run(event, toolName, input, opts = {}) {
   else delete env.CUA_GUARD_WRITE2_CMD;
   if (opts.disable === '1') env.CUA_GUARD_DISABLE = '1';
   try {
-    const out = execFileSync(process.execPath, [GUARD], { input: JSON.stringify(payload), env, encoding: 'utf8', timeout: opts.timeout || 20000 });
+    const out = execFileSync(process.execPath, [GUARD], { input: JSON.stringify(payload), env, encoding: 'utf8', timeout: opts.timeout || DEFAULT_TIMEOUT });
     return { out, json: (() => { try { return JSON.parse(out); } catch (e) { return null; } })(), sid: payload.session_id };
   } catch (e) {
     return { err: String(e.stdout || e.message).slice(0, 300), sid: payload.session_id };
@@ -247,8 +252,43 @@ fs.writeFileSync(COUNTED, [
 
 const SAFE_STEPS = { toolName: 'mcp__cua_driver__run_steps', arguments: { pid: 1, steps: [{ click: { x: 4, y: 4 } }] } };
 const reads = (marker) => { try { return Number(fs.readFileSync(marker, 'utf8')) || 0; } catch (e) { return 0; } };
+// 账本只看最后一行：整文件正则会匹配到前面用例留下的同名记录 ⇒ 恒真假绿（A57 必须逐轮取证）。
+const lastLedger = () => { const l = fs.readFileSync(path.join(STATE, 'decisions.log'), 'utf8').trim().split('\n'); return l[l.length - 1]; };
+
+// A57 写入侧 stub：慢写入（忙等后才落位）／首次慢写入（隔离重试）／慢且永不落位（负对照）／只数写入次数
+const SLOW_WRITE = path.join(SANDBOX, 'slow-write.cjs');
+const SLOW_FIRST_WRITE = path.join(SANDBOX, 'slow-first-write.cjs');
+const SLOW_NOOP_WRITE = path.join(SANDBOX, 'slow-noop-write.cjs');
+const COUNTED_WRITE = path.join(SANDBOX, 'counted-write.cjs');
+const SET_LINES = [
+  "if(process.argv[2]==='set'){const p=JSON.parse(fs.readFileSync(process.env.CUA_STUB_CURSOR,'utf8'));p.x=Number(process.argv[3]);p.y=Number(process.argv[4]);fs.writeFileSync(process.env.CUA_STUB_CURSOR,JSON.stringify(p));process.exit(0);}",
+  "process.stdout.write(fs.readFileSync(process.env.CUA_STUB_CURSOR,'utf8'));",
+];
+fs.writeFileSync(SLOW_WRITE, ["const fs=require('fs');", `const t=Date.now();while(Date.now()-t<${DELAY}){}`, ...SET_LINES].join('\n'));
+fs.writeFileSync(SLOW_FIRST_WRITE, [
+  "const fs=require('fs');",
+  "const m=process.env.CUA_STUB_MARKER;",
+  "let n=0;try{n=Number(fs.readFileSync(m,'utf8'))||0;}catch(e){}",
+  "n++;fs.writeFileSync(m,String(n));",                    // 先记数再忙等：被超时杀掉也算一次尝试
+  `if(n===1){const t=Date.now();while(Date.now()-t<${FIRST_DELAY}){}}`,
+  ...SET_LINES,
+].join('\n'));
+fs.writeFileSync(SLOW_NOOP_WRITE, ["const fs=require('fs');", `const t=Date.now();while(Date.now()-t<${DELAY}){}`, "process.exit(0);"].join('\n'));
+fs.writeFileSync(COUNTED_WRITE, [
+  "const fs=require('fs');",
+  "if(process.argv[2]==='set'){const m=process.env.CUA_STUB_MARKER;let n=0;try{n=Number(fs.readFileSync(m,'utf8'))||0;}catch(e){}fs.writeFileSync(m,String(n+1));}",
+  ...SET_LINES,
+].join('\n'));
 // A35 用例全部密闭：禁止回落到真实桌面 user32（读/写都不许），否则断言不稳定且可能误动用户指针。
 const run35 = (event, tool, input, opts = {}) => run(event, tool, input, Object.assign({}, opts, { env: Object.assign({ CUA_GUARD_TEST_NO_USER32: '1' }, opts.env || {}) }));
+// A57 用例各自一份光标文件。实测机制（探针 a57-orphan-probe，5 PASS）：runStub 的 shell:true + timeout
+// 只杀 cmd.exe，孙进程 node 会跑完并落位；argv 形式（生产 DRIVER / powershell 通道）无此问题。
+// 共用一份光标文件时，上一个用例的孤儿写入会污染下一个用例 —— 首版 A57-5 负对照因此假红。
+// 同理：A57-1/A57-3 的「光标已还原」可能被孤儿满足，**判据以账本 via=…|verified 为准**（它要求预算内写成功）。
+const caseCursor = (tag) => path.join(SANDBOX, `cursor-${tag}.json`);
+const setCase = (tag, x, y) => fs.writeFileSync(caseCursor(tag), JSON.stringify({ x, y }));
+const readCase = (tag) => JSON.parse(fs.readFileSync(caseCursor(tag), 'utf8'));
+const run57 = (tag, event, tool, input, opts = {}) => run35(event, tool, input, Object.assign({}, opts, { env: Object.assign({ CUA_STUB_CURSOR: caseCursor(tag) }, opts.env || {}) }));
 
 // A35-1 预算：读取慢于改前 4000ms 预算时，快照必须仍拿到、光标必须仍还原。
 setCua(1079, 583);
@@ -302,18 +342,96 @@ ok('A35 模式隔离：无负载路径读取次数与改前一致（未多跑重
 const a5 = run35('PreToolUse', 'mcp__cua-driver__click', { pid: 1, x: 10, y: 10, delivery_mode: 'foreground' }, { readCmd: `node "${SLOW_ALWAYS}" read`, timeout: 90000 });
 ok('A35 负对照：慢读取下前台点击仍 deny（拦截范围未变）', decision(a5) === 'deny', decision(a5));
 
-// A35-6 窄修边界：密闭门控必须双重 gated（只在测试模式生效），写入预算必须原样未动。
+// A35-6 窄修边界：密闭门控必须双重 gated（只在测试模式生效）。
 const gateHits = (guardSource.match(/CUA_GUARD_TEST_STUBS === '1' && process\.env\.CUA_GUARD_TEST_NO_USER32 === '1'/g) || []).length;
 ok('A35 密闭门控双重 gated 且读写各一处（生产路径不受影响）', gateHits === 2, 'hits=' + gateHits);
 // 首版用 `[^)]*` 匹配写入 stub 调用，但真实字节含 `.replace('%X%', x)` 的内层括号 ⇒ 未改动副本也判红
 // （被变异探针的 control 判据抓住，已点名）。改成抽出实际预算数字再比对，红时能报出真值。
 const budgetAfter = (re) => { const m = guardSource.match(re); return m ? Number(m[1]) : null; };
-const wStub1 = budgetAfter(/runStub\(process\.env\.CUA_GUARD_WRITE_CMD[\s\S]{0,120}?,\s*(\d+)\)/);
-const wStub2 = budgetAfter(/runStub\(process\.env\.CUA_GUARD_WRITE2_CMD[\s\S]{0,120}?,\s*(\d+)\)/);
-const wDriver = budgetAfter(/'move_cursor', '--args'[\s\S]{0,160}?timeout:\s*(\d+)/);
-const wUser32 = budgetAfter(/SetCursorPos\(\$\{x\},\$\{y\}\)[\s\S]{0,200}?timeout:\s*(\d+)/);
-ok('A35 窄修只动读取：写入预算仍是 4000/4000/4000/6000', wStub1 === 4000 && wStub2 === 4000 && wDriver === 4000 && wUser32 === 6000, `stub=${wStub1} stub2=${wStub2} driver=${wDriver} user32=${wUser32}`);
 ok('A35 读取预算可配且默认已放宽（12000/15000）', /CUA_GUARD_READ_TIMEOUT_MS \|\| 12000/.test(guardSource) && /CUA_GUARD_PS_READ_TIMEOUT_MS \|\| 15000/.test(guardSource), 'read budgets not raised');
+
+// --- A57：写入侧（还原/兜底）在负载下同样超预算 ⇒ 还原失败、账本 UNVERIFIED ---
+// 机制与 A35 同源：写入预算写死 4000/4000/4000/6000，负载下 node/powershell 启动+往返就超了。
+// 写入是「设绝对坐标」，幂等 ⇒ 超预算可安全重试一次。窄修＝只动写入预算与写入重试，读取预算不动。
+
+// A57-1 慢写入（DELAY=4500ms > 改前 4000ms 预算）下，写入必须在预算内成功（账本 via=stub|verified）。
+setCase('b1', 1079, 583);
+const b1pre = run57('b1', 'PreToolUse', 'mcp_call', SAFE_STEPS, { timeout: 90000 });
+setCase('b1', 2157, 637);
+const b1post = run57('b1', 'PostToolUse', 'mcp_call', SAFE_STEPS, { session: b1pre.sid, writeCmd: `node "${SLOW_WRITE}" set %X% %Y%`, timeout: 90000 });
+const b1after = readCase('b1');
+ok('A57 慢写入下光标仍被还原', b1after.x === 1079 && b1after.y === 583, JSON.stringify(b1after));
+ok('A57 慢写入在预算内成功（账本 via=stub|verified，不再 stub-fail）', /via=stub\|verified/.test(lastLedger()), lastLedger());
+ok('A57 慢写入下仍报已还原并复验', /已还原并复验/.test(b1post.out || ''), (b1post.out || '').slice(0, 140));
+
+// A57-2 写入重试：首次写入超预算、第二次立即落位 ⇒ 必须靠一次重试救回（隔离「写入重试」这一处）。
+setCase('b2', 1079, 583);
+const m5 = path.join(SANDBOX, 'm5.txt');
+const b2pre = run57('b2', 'PreToolUse', 'mcp_call', SAFE_STEPS, { timeout: 90000 });
+setCase('b2', 2157, 637);
+run57('b2', 'PostToolUse', 'mcp_call', SAFE_STEPS, {
+  session: b2pre.sid, writeCmd: `node "${SLOW_FIRST_WRITE}" set %X% %Y%`, timeout: 90000,
+  env: { CUA_STUB_MARKER: m5, CUA_GUARD_WRITE_TIMEOUT_MS: String(RETRY_BUDGET) },
+});
+const b2after = readCase('b2');
+ok('A57 首次写入超时后重试成功（光标还原）', b2after.x === 1079 && b2after.y === 583, JSON.stringify(b2after));
+ok('A57 写入 stub 确实被调用了多次（超时+重试，非空转）', reads(m5) >= 2, 'writes=' + reads(m5));
+ok('A57 重试用例非空转：每次写入预算 < 首次延迟（否则首次就不会超时）', RETRY_BUDGET < FIRST_DELAY, `budget=${RETRY_BUDGET} firstDelay=${FIRST_DELAY}`);
+ok('A57 重试成功后账本 verified', /via=stub\|verified/.test(lastLedger()), lastLedger());
+
+// A57-3 兜底通道（stub2）慢写入：driver 空写不落位时，user32 兜底通道也必须扛得住同样的负载。
+setCase('b3', 1079, 583);
+const b3pre = run57('b3', 'PreToolUse', 'mcp_call', SAFE_STEPS, { timeout: 90000 });
+setCase('b3', 2157, 637);
+run57('b3', 'PostToolUse', 'mcp_call', SAFE_STEPS, { session: b3pre.sid, writeCmd: NOOP_WRITE, write2Cmd: `node "${SLOW_WRITE}" set %X% %Y%`, timeout: 90000 });
+const b3after = readCase('b3');
+ok('A57 兜底通道慢写入仍能落位', b3after.x === 1079 && b3after.y === 583, JSON.stringify(b3after));
+ok('A57 兜底通道在预算内成功（账本两跳 via=stub+stub2|verified）', /via=stub\+stub2\|verified/.test(lastLedger()), lastLedger());
+
+// A57-4 负对照：写入永久失败（立即退出 1）时，重试不得把失败说成还原 —— UNVERIFIED + 人工确认必须保留。
+setCase('b4', 1079, 583);
+const b4pre = run57('b4', 'PreToolUse', 'mcp_call', SAFE_STEPS, { timeout: 90000 });
+setCase('b4', 2157, 637);
+const b4post = run57('b4', 'PostToolUse', 'mcp_call', SAFE_STEPS, { session: b4pre.sid, writeCmd: `node "${FAIL_ALWAYS}" set %X% %Y%`, write2Cmd: `node "${FAIL_ALWAYS}" set %X% %Y%`, timeout: 90000 });
+const b4after = readCase('b4');
+ok('A57 负对照：写入永久失败仍 UNVERIFIED', /UNVERIFIED/.test(lastLedger()), lastLedger());
+ok('A57 负对照：写入永久失败仍提示人工确认', /未确认|人工确认/.test(b4post.out || ''), (b4post.out || '').slice(0, 140));
+ok('A57 负对照：写不进去就不谎报落位（光标仍是 2157,637）', b4after.x === 2157 && b4after.y === 637, JSON.stringify(b4after));
+
+// A57-5 负对照：慢且永不落位（负载形态）时同样必须 UNVERIFIED —— 放宽预算 ≠ 谎报还原。
+setCase('b5', 1079, 583);
+const b5pre = run57('b5', 'PreToolUse', 'mcp_call', SAFE_STEPS, { timeout: 90000 });
+setCase('b5', 2157, 637);
+const b5post = run57('b5', 'PostToolUse', 'mcp_call', SAFE_STEPS, {
+  session: b5pre.sid, writeCmd: `node "${SLOW_NOOP_WRITE}" set %X% %Y%`, write2Cmd: `node "${SLOW_NOOP_WRITE}" set %X% %Y%`, timeout: 90000,
+  env: { CUA_GUARD_WRITE_TIMEOUT_MS: '1500' },
+});
+ok('A57 负对照：慢且永不落位的写入仍 UNVERIFIED', /UNVERIFIED/.test(lastLedger()), lastLedger());
+ok('A57 负对照：慢写入失败仍提示人工确认', /未确认|人工确认/.test(b5post.out || ''), (b5post.out || '').slice(0, 140));
+
+// A57-6 模式隔离：无负载路径的写入次数必须与改前一致 —— 成功就不许多跑重试。
+setCase('b6', 1079, 583);
+const m6 = path.join(SANDBOX, 'm6.txt');
+const b6pre = run57('b6', 'PreToolUse', 'mcp_call', SAFE_STEPS, { writeCmd: `node "${COUNTED_WRITE}" set %X% %Y%`, env: { CUA_STUB_MARKER: m6 }, timeout: 90000 });
+setCase('b6', 2157, 637);
+run57('b6', 'PostToolUse', 'mcp_call', SAFE_STEPS, { session: b6pre.sid, writeCmd: `node "${COUNTED_WRITE}" set %X% %Y%`, env: { CUA_STUB_MARKER: m6 }, timeout: 90000 });
+const b6after = readCase('b6');
+ok('A57 模式隔离：无负载路径仍还原成功', b6after.x === 1079 && b6after.y === 583, JSON.stringify(b6after));
+ok('A57 模式隔离：无负载路径写入次数与改前一致（未多跑重试）', reads(m6) === 1, 'writes=' + reads(m6) + '（改前实测基线 1）');
+
+// A57-7 窄修边界：读取预算必须原样未动；写入四通道预算全部走可配常量、默认已放宽、各一次重试。
+const rDriver = budgetAfter(/CUA_GUARD_READ_TIMEOUT_MS \|\| (\d+)/);
+const rUser32 = budgetAfter(/CUA_GUARD_PS_READ_TIMEOUT_MS \|\| (\d+)/);
+ok('A57 窄修只动写入：读取预算仍是 12000/15000', rDriver === 12000 && rUser32 === 15000, `read=${rDriver} psRead=${rUser32}`);
+const wRegion = guardSource.slice(guardSource.indexOf('// A57'), guardSource.indexOf('// driver 的移动是异步落地'));
+ok('A57 写入预算可配且默认已放宽（12000/15000）', /CUA_GUARD_WRITE_TIMEOUT_MS \|\| 12000/.test(wRegion) && /CUA_GUARD_PS_WRITE_TIMEOUT_MS \|\| 15000/.test(wRegion), 'write budgets not raised');
+ok('A57 写入四通道无写死预算（全部走常量）', wRegion.length > 0 && !/timeout:\s*\d+/.test(wRegion) && !/runStub\([\s\S]*?,\s*\d+\)/.test(wRegion), 'literal write timeout left');
+const retryHits = (wRegion.match(/sleepSync\(WRITE_RETRY_GAP_MS\)/g) || []).length;
+ok('A57 四条写入通道各一次重试（stub/driver/stub2/user32）', retryHits === 4, 'retryHits=' + retryHits);
+// harness 预算下界由守卫预算推导：读重试 2× + 写重试 2× + user32 兜底 1×（readSettled 的完整最坏链路更大，
+// 跑到那条链路的用例显式传 timeout；这里守的是负载 A/B 里实测到的 harness-no-response 形态）。
+const worstChain = 2 * rDriver + 2 * budgetAfter(/CUA_GUARD_WRITE_TIMEOUT_MS \|\| (\d+)/) + budgetAfter(/CUA_GUARD_PS_WRITE_TIMEOUT_MS \|\| (\d+)/);
+ok('A57 harness 默认预算覆盖「读重试+写重试+兜底」链路', Number.isFinite(worstChain) && DEFAULT_TIMEOUT >= worstChain, `default=${DEFAULT_TIMEOUT} worst=${worstChain}`);
 
 console.log(`\n=== ${pass} passed, ${fail} failed ===`);
 try { fs.rmSync(SANDBOX, { recursive: true, force: true }); } catch (e) {}

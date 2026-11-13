@@ -73,7 +73,7 @@ function runStub(command, timeout) {
 
 // --- cursor read/write: driver first (fast, no compile), user32 fallback ---
 // A35：负载下 stub/驱动往返会超过原来的 4s/6s 预算 ⇒ 读不到光标 ⇒ Pre 不写快照、Post 早退不还原（fail-open）。
-// 窄修＝只放宽**读取**预算并加一次重试；拦截范围、deny 文案、fail-open 语义与写入预算都不动。
+// 窄修＝只放宽**读取**预算并加一次重试；拦截范围、deny 文案与 fail-open 语义都不动（写入侧由 A57 另行窄修）。
 // 无负载时首次读取即成功 ⇒ 不触发重试、不触及预算上限，路径行为与改前一致（模式隔离由测试的读取计数守住）。
 const READ_TIMEOUT_MS = Number(process.env.CUA_GUARD_READ_TIMEOUT_MS || 12000);
 const PS_READ_TIMEOUT_MS = Number(process.env.CUA_GUARD_PS_READ_TIMEOUT_MS || 15000);
@@ -108,16 +108,33 @@ function cursorRead() {
   } catch (e) {}
   return null;
 }
+// A57：写入侧（还原/兜底）在负载下同样会超过原来的 4s/6s 预算 ⇒ 还原失败、账本 UNVERIFIED。
+// 写入是「设绝对坐标」，幂等 ⇒ 超预算可安全重试一次；预算改为可配并放宽（与 A35 读取侧同一口径）。
+// 窄修＝只动写入预算与写入重试：拦截范围、deny 文案、fail-open 语义与**读取**预算都不动。
+// 无负载时首次写入即成功 ⇒ 不触发重试、不触及预算上限，路径行为与改前一致（测试用写入计数守住）。
+const WRITE_TIMEOUT_MS = Number(process.env.CUA_GUARD_WRITE_TIMEOUT_MS || 12000);
+const PS_WRITE_TIMEOUT_MS = Number(process.env.CUA_GUARD_PS_WRITE_TIMEOUT_MS || 15000);
+const WRITE_RETRY_GAP_MS = Number(process.env.CUA_GUARD_WRITE_RETRY_GAP_MS || 150);
+function writeStubOnce(cmd, x, y) {
+  try { runStub(cmd.replace('%X%', x).replace('%Y%', y), WRITE_TIMEOUT_MS); return true; } catch (e) { return false; }
+}
+function writeDriverOnce(x, y) {
+  try {
+    execFileSync(DRIVER, ['call', 'move_cursor', '--args', JSON.stringify({ x, y, scope: 'desktop' })], { encoding: 'utf8', timeout: WRITE_TIMEOUT_MS });
+    return true;
+  } catch (e) { return false; }
+}
 function cursorWrite(x, y) {
   if (process.env.CUA_GUARD_WRITE_CMD) {
     if (process.env.CUA_GUARD_TEST_STUBS !== '1') return 'stub-fail';
-    try { runStub(process.env.CUA_GUARD_WRITE_CMD.replace('%X%', x).replace('%Y%', y), 4000); return 'stub'; } catch (e) { return 'stub-fail'; }
+    if (writeStubOnce(process.env.CUA_GUARD_WRITE_CMD, x, y)) return 'stub';
+    sleepSync(WRITE_RETRY_GAP_MS);
+    return writeStubOnce(process.env.CUA_GUARD_WRITE_CMD, x, y) ? 'stub' : 'stub-fail';
   }
   if (DRIVER) {
-    try {
-      execFileSync(DRIVER, ['call', 'move_cursor', '--args', JSON.stringify({ x, y, scope: 'desktop' })], { encoding: 'utf8', timeout: 4000 });
-      return 'driver';
-    } catch (e) {}
+    if (writeDriverOnce(x, y)) return 'driver';
+    sleepSync(WRITE_RETRY_GAP_MS);
+    if (writeDriverOnce(x, y)) return 'driver';
   }
   return cursorWriteUser32(x, y);
 }
@@ -125,15 +142,22 @@ function cursorWrite(x, y) {
 function cursorWriteUser32(x, y) {
   if (process.env.CUA_GUARD_WRITE2_CMD) {
     if (process.env.CUA_GUARD_TEST_STUBS !== '1') return 'stub2-fail';
-    try { runStub(process.env.CUA_GUARD_WRITE2_CMD.replace('%X%', x).replace('%Y%', y), 4000); return 'stub2'; } catch (e) { return 'stub2-fail'; }
+    if (writeStubOnce(process.env.CUA_GUARD_WRITE2_CMD, x, y)) return 'stub2';
+    sleepSync(WRITE_RETRY_GAP_MS);
+    return writeStubOnce(process.env.CUA_GUARD_WRITE2_CMD, x, y) ? 'stub2' : 'stub2-fail';
   }
   // 测试密闭门控（同上）：禁止用例回落到真实 SetCursorPos，避免误动用户指针。
   if (process.env.CUA_GUARD_TEST_STUBS === '1' && process.env.CUA_GUARD_TEST_NO_USER32 === '1') return 'test-no-user32';
+  if (writeUser32Once(x, y)) return 'user32';
+  sleepSync(WRITE_RETRY_GAP_MS);
+  return writeUser32Once(x, y) ? 'user32' : 'failed';
+}
+function writeUser32Once(x, y) {
   try {
     const ps = `Add-Type -MemberDefinition 'using System;using System.Runtime.InteropServices;public static class S{[DllImport("user32.dll")] public static extern bool SetCursorPos(int x,int y);}' -Name SS -Namespace Cs; [void][Cs.SS]::SetCursorPos(${x},${y})`;
-    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 6000 });
-    return 'user32';
-  } catch (e) { return 'failed'; }
+    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: PS_WRITE_TIMEOUT_MS });
+    return true;
+  } catch (e) { return false; }
 }
 // driver 的移动是异步落地的（daemon 往返）——写完立刻复读会误判，按小间隔复读几轮
 function sleepSync(ms) { try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); } catch (e) {} }
