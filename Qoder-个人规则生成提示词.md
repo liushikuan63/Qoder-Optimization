@@ -151,21 +151,17 @@ qoder-memory-export-<时间戳>/
 ├── reference-*.md            # 通用工具 / 平台参考类（已脱敏）
 ├── tooling-*.md              # 具体工具用法（已脱敏）
 ├── CREDENTIALS-TEMPLATE.md   # 需手动重建的文件清单（凭据不随包提供）
-└── scripts/                  # 工具 + **整层机制**（每个脚本都带自己的自测）
-    ├── README-rule-enforcement.md   # 机制清单 / 怎么验 / 怎么关 —— 先读这个
-    ├── rules-reminder.js            # 每轮纪律注入
-    ├── session-budget.js            # 会话体积与接续（体积 / 压缩次数 / 回合增量 三个信号 + 看门狗）
-    ├── stop-gate.js                 # 停手门禁（收尾文本五类违规）
-    ├── huge-output-guard.js         # 大输出守卫（整读大文件 / 无上限命令 / 子代理回报上限）
-    ├── edit-guard.js                # 备份提醒（整文件覆盖 + 无 git 兜底时）
-    ├── global-config-guard.js       # 开台体检（两侧漂移 / 分叉 / 悬空引用）
-    ├── rules-weekly-audit.js        # 每周深检（冲突回归 / 机制掉了 / 接线一致性 / 耗时预算…）
-    ├── *.test.js / *.test.sh        # 上面每个的自测：先全绿，再接线
+└── scripts/                  # 记忆导出/导入与出包工具（实测 8 个；**不含**机制层，见下方说明）
     ├── export-memory.sh             # 导出记忆（环境/凭据条目整份排除 + 敏感串擦除 + 出包前扫描门禁）
     ├── import-memory.sh             # 导入记忆（自动备份目标机器现有记忆）
+    ├── import-memory.cjs            # 导入记忆的 Node 实现（解归档条目后落盘）
+    ├── archive-entries.cjs          # 归档条目解析与 tar 生成（安全名 / gzip 头归一 / 体积上限）
+    ├── capability-roots.cjs         # 能力目录绑定与路径校验（readBindings / bindLibrary / resolveTier / assertClientPath）
+    ├── client-root.js               # 客户端配置根解析（单端装配不制造另一侧目录）
     ├── pack-folder.js               # 生成中文名兼容的 zip（Unix 来源 + UTF-8 标志位）
     └── link-cn-dirs.ps1             # 可选：Windows 上用 junction 合并同构配置目录（带备份槽 / -Revert）
 ```
+> 说明：**整层机制不在这个记忆归档里**。`README-rule-enforcement.md`、`rules-reminder.js`、`session-budget.js`、`stop-gate.js`、`huge-output-guard.js`、`edit-guard.js`、`global-config-guard.js`、`rules-weekly-audit.js` 及各自的 `*.test.js` 随**分享包的 `scripts/` 目录**分发，由安装器落到 `<客户端>/scripts/`；本归档实测 108 个条目、其中脚本只有上面 8 个、自测 0 个。机制清单与「怎么验 / 怎么关」见包内 `scripts/README-rule-enforcement.md`。
 > 说明：包内**不含**明文口令、内网地址、个人路径与用户名——这不是靠人工核对，而是导出脚本在出包前扫描、命中即拒绝生成归档（2026-09-19 起的门禁，此前版本存在过泄露，故改为默认安全）。
 > 机制脚本**全部从 `HOME` 派生路径、不写死用户名**，所以换台机器可直接用（这一点也是被上面那道门禁逼出来的）。
 

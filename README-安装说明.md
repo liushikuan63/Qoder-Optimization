@@ -134,7 +134,7 @@ node scripts/install-continuity.cjs --yes --no-auto-bind # 只接线，仍按会
 - 用了一段时间后按实际频率调整：`node ~/.qoder/scripts/tier-skills.cjs --promote <常用技能>` 升到常驻，`--demote <低频技能>` 退回按需；都先 dry-run，加 `--apply` 才移动并重建索引。**promote/demote 会写入 `<客户端>/skills-resident.json`**，后续默认分层不会把你的选择移回去；安装时选常驻（`--tier core` / `--resident`）也会自动记入该清单；包升级不覆盖这个文件。`--keep` 和 `--restore-all` 只影响本次操作。
 - 想恢复包内默认层级：删除 `skills-resident.json` 后运行一次 `tier-skills --apply`；升级包时若不想保留旧选择，也按这个方式处理。
 - **按使用记录给建议，不自动改层级**：`skill-load --record` 记录一次检索需求，实际采用后运行 `skill-usage.cjs log <名> --source use`；`skill-usage.cjs report` 查看 30/90 天使用，`suggest` 按阈值给建议——按需技能 30 天 ≥3 次或 90 天 ≥5 次建议晋升；用户自选常驻且 90 天未用建议降级；包内 CORE 默认常驻不建议降级。建议必须先用 `AskUserQuestion` 确认，再运行 `tier-skills --promote/--demote --apply`。原生 Skill 调用无法被脚本自动观测，未显式 log 的使用不进入统计。
-- 包内 12 个常驻只是**默认起点**（基础路由与跨域元技能），不是要求接收者照搬的数量。常驻越多，每轮注入的描述越长；以「这条技能是否靠描述自动命中」为准，不靠堆数量。
+- 包内 5 个常驻只是**默认起点**（基础路由与跨域元技能），不是要求接收者照搬的数量。常驻越多，每轮注入的描述越长；以「这条技能是否靠描述自动命中」为准，不靠堆数量。
 
 包内实物：133 个技能（5 常驻 + 128 按需）；常驻描述 1083 字符，全部技能描述 27678 字符，占比 3.9%。按 catalog 计算，不是接收者的已安装数量；5 只是默认起点，常驻数量由使用者按习惯在安装时与使用中决定。
 
