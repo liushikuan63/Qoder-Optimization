@@ -14,7 +14,7 @@
 | 规则真源体检 | `scripts/global-config-guard.js`（SessionStart） | AGENTS.md 与 `rules/*.md` 两侧漂移、memory 分叉、规则里的悬空文件引用；健康时零输出。**两路 bash 检查共用一个 11s 截止线**（hook 只给 15s，各设 8s 会相加越界、被掐时连提醒都不输出）：到点跳过剩余项并明说「未检查」，检查器跑不起来（退出码非 0/1）也一律出声 |
 | 会话体积与接续 | `scripts/session-budget.js`（UserPromptSubmit + SessionStart） | **三个独立信号**：① 体积 ≥8MB 节约模式 / ≥15MB **先落盘再继续** / ≥25MB **立即落盘**；② transcript 里 `isCompactSummary:true` 的**压缩次数** ≥1 条提醒落盘、≥2 条**落盘并继续**。体积说"会不会被掐断"，压缩次数说"已经丢过几次上下文"（context rot），**③ 上一回合的上下文增量**（≥2MB 报警，`SB_TURN_GROWTH_MB` 可调）说"上一回合灌得太快"——这是**返回侧入账**：读取侧守卫只拦"明显超标的单条"，拦不住多条中等返回累积。**已知局限**：增量只有回合粒度，看不出是哪一个工具贡献的（要单工具粒度需 PostToolUse，尚未接）。SessionStart 另注入两样：未完成的 `.qoder-work-queue.md` 接续点（文案是"**第一条未完成项就是你本轮的第一件事，直接接着做**"） + **看门狗**（见下行）。**为什么必须前移**：被掐断的回合到不了 Stop，R7 兜不住它要防的那件事。**文案定调**：落盘与换会话都是手段、都**不是收工信号**——到档位先落盘，**然后继续推进当前任务**，任务不停只是换个地方跑 |
 | 看门狗（谁看住看门的人） | 同上，`session-budget.js` 的 SessionStart 分支 | 周检会查其它机制的心跳，但**周检自己没跑**（cron 失效 / 周一机器关机）没人知道。会话开台是与 cron **完全独立**的通道 ⇒ 用它查"周检上次成功是多久前"，超 `SB_AUDIT_STALE_DAYS`（默认 10 天，允许漏一轮不报）或台账根本不存在时在开局提示并给出手工命令 |
-| **hook 崩溃可见化** | `scripts/hook-crash-guard.js`（各 hook 顶部 `require('./hook-crash-guard.js').install('<名字>')` 一行接入） | hook 抛错本来就是 **fail-open**（非 `exit 2` 不拦），但这意味着**一个坏掉的守卫可以连着几周"看着没事"**：不响、台账不涨，也没人知道它没在干活。装了它之后仍退 0（语义不变），但把 `uncaughtException` / `unhandledRejection` 连同栈写进 `scripts/hooks-crash.log`；周检 `checkHookCrashes()` 读近 7 天记录，有就报 warn 并给样本。已接入 13 个：`stop-gate` / `rules-reminder` / `session-budget` / `global-config-guard` / `huge-output-guard` / `edit-guard` / `commit-scope-guard` / `cua-cursor-guard` / `risky-match-guard` / `auth-lock-guard` / `attempt-lock-guard` / `tool-payload-guard` / `win-path-guard` |
+| **hook 崩溃可见化** | `scripts/hook-crash-guard.js`（各 hook 顶部 `require('./hook-crash-guard.js').install('<名字>')` 一行接入） | hook 抛错本来就是 **fail-open**（非 `exit 2` 不拦），但这意味着**一个坏掉的守卫可以连着几周"看着没事"**：不响、台账不涨，也没人知道它没在干活。装了它之后仍退 0（语义不变），但把 `uncaughtException` / `unhandledRejection` 连同栈写进 `scripts/hooks-crash.log`；周检 `checkHookCrashes()` 读近 7 天记录，有就报 warn 并给样本。已接入 15 个：`stop-gate` / `rules-reminder` / `session-budget` / `global-config-guard` / `huge-output-guard` / `edit-guard` / `commit-scope-guard` / `cua-cursor-guard` / `risky-match-guard` / `auth-lock-guard` / `attempt-lock-guard` / `tool-payload-guard` / `win-path-guard` / `pre-tool-dispatcher` / `post-tool-dispatcher` |
 | **同类连败计数** | 判据 `scripts/attempt-lock-core.js`；入口 = `risky-match-guard.js`（Pre）+ `attempt-lock-guard.js`（Post，`^Bash$`） | 把"同类操作连败 3 次即停"从数据库认证泛化到**构建 / 测试 / 部署**：按工作目录、workspace 与命令签名隔离目标，连续失败 3 次即硬拦下一次同类调用；成功一次清零；拿不到明确信号的返回记 neutral 不计数；多个不同目标的复合命令汇总返回同样记 neutral，不凭最后退出码给其中一个目标计数或清零。`cd`、工具 cwd 和包管理器目录选项指向同一目标时共用预算；`echo` / `rg` 中引用命令不建账。解封 `attempt-lock-guard.js --clear`，关掉 `~/.qoder/attempt-lock.json` |
 | **返回侧体积** | `scripts/tool-payload-guard.js`（PostToolUse，Bash/Read/Agent/Task/mcp_call） | 单条工具返回 >2MB（`TPG_BYTES`）时当场提示改用摘要推进；同会话同工具只提醒一次。补的是 Pre 守卫拦不住的"返回才知道多大"（子代理报告、工具默认回显、多条中等返回） |
 | 备份提醒 | `scripts/edit-guard.js`（PreToolUse） | 给"改文件前先备份"补机制。**只堵不可恢复那一格**：`Write`（整文件覆盖）且文件已存在、≥2KB、**一路向上无 `.git`**（有版本库时 git 就是备份）、不在临时/备份路径下；同会话同文件只提醒一次。命中技能 / 规则 / 记忆 / hook / MCP / agent 等载体目录时追加 `carrier-preflight` 提醒（含新建载体）。动作是 **allow + 提示**（advisory 不拦截），每次判定落台账。关掉：`~/.qoder/edit-guard.json` |
@@ -34,7 +34,7 @@
 ## 怎么验
 
 ```bash
-node ~/.qoder/scripts/stop-gate.test.js        # 336 条：各规则违规必红 + 对照组必绿 + 真实历史原文回放 + 台账 + 防死循环 + fail-open + R6b 阻塞过期复核 + R6 持有豁免 + R10 安装/更新询问 + R11 发布后部署询问
+node ~/.qoder/scripts/stop-gate.test.js        # 501 条：各规则违规必红 + 对照组必绿 + 真实历史原文回放 + 台账 + 防死循环 + fail-open + R6b 阻塞过期复核 + R6 持有豁免 + R10 安装/更新询问 + R11 发布后部署询问
 echo '{"last_assistant_message":"剩下的待办要继续下一格吗？","session_id":"t"}' | node ~/.qoder/scripts/stop-gate.js
 node ~/.qoder/scripts/stop-gate.js --report 7   # 按规则汇总近 7 天命中；台账为空会显式打"零命中"
 node ~/.qoder/scripts/rules-reminder.test.js   # 条数以本轮实测为准：注入/心跳/请求回注/目标候选/自进化/B05 + 联网与工具缺口正例、引用/禁联网/只读/禁下载负例及变异对照
@@ -298,11 +298,11 @@ Post 是另一个事件面（要看返回），塞进 `risky-match-guard` 就等
 |---|---|---|
 | R15 授权判定把"不要自动清理"当成授权 | 否定式优先；"不用问 / 无需询问"不算否定；只认明确授权词，不再把单独出现的"自动清理"当授权 | stop-gate：否定授权必拦 + 两种肯定式放行 |
 | 只看命令文本/散文即算闭环 | 自动清理必须 `--apply --json`；解析 `entries / deleted / recommended.preserve / failed`，要求本轮探测条目全部被删除或保留、`failed=0`、`--since` 与本轮用户消息偏差 ≤10 分钟 | R14/R15：未来/超期 since、failed、未覆盖均拦 |
-| 按顶层 mtime 命中后整棵删目录 | 只自动删"本轮新建"（birthtime ≥ since）；仅被修改的旧目录默认保留，`--only` 或 `--include-modified` 才删 | tmp-round-scan 62 条（含旧目录只修改用例） |
+| 按顶层 mtime 命中后整棵删目录 | 只自动删"本轮新建"（birthtime ≥ since）；仅被修改的旧目录默认保留，`--only` 或 `--include-modified` 才删 | tmp-round-scan 142 条（含旧目录只修改用例） |
 | 并行会话产物被按时间窗误删 | `--session <8位会话id>` 只自动删名字含本会话令牌的条目；`--only` 精确指定；`--apply` 只允许 canonicalRoot（越界需 `--force`） | tmp-round-scan `--session` / 边界负对照 |
 | 未分类扩展名永不超期，压缩包/大件长期滞留 | 图片/文本 3 天、媒体 7 天、压缩包/文档/脚本 15 天、未分类 30 天兜底 | tmp-sweeper 40 条 |
 | 证据目录只靠中心前缀清单，容易漏登记 | 目录内 `.keep` / `.evidence.json` 自声明，扫描与自动清理都整棵保留 | tmp-sweeper / tmp-round-scan `.keep` 用例 |
 | 分享包产物与旧回滚点永久删除 | `--include-share-package` 默认移入 `<root>/.trash/<时间戳>`，保留 7 天后回收；`--no-trash` 才永久删 | tmp-round-scan 隔离区用例 |
 | 临时根总量失控没有提醒 | SessionStart 调 `tmp-sweeper --usage`，超过 5GB 或 2000 个顶层条目时提醒，24h 节流 | session-budget 水位用例 |
 
-**自测入口**：`node ~/.qoder/scripts/stop-gate.test.js`（432 条）、`tmp-sweeper.test.js`（40 条）、`tmp-round-scan.test.js`（62 条）、`session-budget.test.js`（全过）。
+**自测入口**：`node ~/.qoder/scripts/stop-gate.test.js`（501 条）、`tmp-sweeper.test.js`（40 条）、`tmp-round-scan.test.js`（142 条）、`session-budget.test.js`（全过）。
