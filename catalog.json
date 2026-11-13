@@ -2481,7 +2481,8 @@
    },
    "source": "scripts/cua-cursor-guard.test.js",
    "dependencies": [
-    "script:cua-cursor-guard.js"
+    "script:cua-cursor-guard.js",
+    "script:post-tool-dispatcher.js"
    ]
   },
   {
