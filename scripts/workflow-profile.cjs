@@ -4,6 +4,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const hash = value => crypto.createHash('sha256').update(value).digest('hex');
+// 随包 timeout 是**下限**，不是唯一合法值：本机现役 profile 故意把余量调大（见文件头注释）。
+// 更长的正整数只增加余量、不会截断 hook ⇒ 属本地差异，原样保留；
+// 更短或非正整数会静默掐断 hook（负载下外层预算不足即丢台账/判定）⇒ 仍一律判冲突。
+// 判据只放开安全方向，既有「timeout=1 必须拒绝」的负对照不变红为绿。
+const localHookTimeout = (value, shipped) => Number.isInteger(value) && value >= shipped;
 const HOOKS = [
   ['UserPromptSubmit', 'session-budget.js', 10],
   ['UserPromptSubmit', 'fact-ledger.cjs', 10, undefined, ['--hook']],
@@ -112,10 +117,13 @@ function completeSettings(bytes, client) {
       const realEqual = (a, b) => { try { return fs.realpathSync.native(a) === fs.realpathSync.native(b); } catch { return false; } };
       const validLegacy = !hook.args && legacyMatch && /^node(?:\.exe)?$/i.test(path.basename(legacyMatch[1] || legacyMatch[2] || legacyMatch[3])) && realEqual(legacyMatch[4] || legacyMatch[5] || legacyMatch[6], path.join(client, 'scripts', script)) && Boolean(legacyMatch[7]) === Boolean(spec[4]?.length);
       const validAlias = other && realEqual(other.client, client) && realEqual(hook.args[0], call.args[0]) && other.event === event && JSON.stringify(other.args) === JSON.stringify(spec[4] || []);
-      if (found || actualEvent !== event || group.matcher !== matcher || hook.type !== 'command' || hook.env || hook.shell || ![timeout, ...(script === 'stop-gate.js' ? [10] : [])].includes(hook.timeout) || (!owned && !validLegacy && !validAlias)) throw new Error('完整工作流 hook 冲突，保留供审阅：' + event + '/' + script);
+      if (found || actualEvent !== event || group.matcher !== matcher || hook.type !== 'command' || hook.env || hook.shell || !(localHookTimeout(hook.timeout, timeout) || (script === 'stop-gate.js' && hook.timeout === 10)) || (!owned && !validLegacy && !validAlias)) throw new Error('完整工作流 hook 冲突，保留供审阅：' + event + '/' + script);
       found = hook;
     }
-    if (found) { found.command = call.executable; found.args = call.args; found.timeout = timeout; }
+    // 保留本地更大的余量，不把现役加固静默降回随包默认；只有 >= 下限的本地值才保留。
+    // legacy stop-gate 10 在守卫处被接受（旧装机不抛错），但落盘仍归正为随包默认——
+    // 低于下限的值不保留，否则与「更短会掐断 hook」的修法理由自相矛盾（审查疑点①）。
+    if (found) { found.command = call.executable; found.args = call.args; found.timeout = localHookTimeout(found.timeout, timeout) ? found.timeout : timeout; }
     else (settings.hooks[event] ||= []).push({ ...(matcher ? { matcher } : {}), hooks: [{ type: 'command', command: call.executable, args: call.args, timeout }] });
   }
   const next = Buffer.from(JSON.stringify(settings, null, 2) + '\n');
@@ -140,11 +148,11 @@ function health(client) {
     for (const [event, groups] of Object.entries(settings.hooks || {})) for (const group of groups) for (const hook of group.hooks) if (String(hook.command || '').includes('rules-reminder.js') || (Array.isArray(hook.args) && String(hook.args[0]).includes('rules-reminder.js'))) candidates.push({ event, group, hook });
     const rule = candidates[0], args = rule?.hook.args;
     const realEqual = (a, b) => { try { return fs.realpathSync.native(a) === fs.realpathSync.native(b); } catch { return false; } };
-    if (candidates.length !== 1 || rule.event !== 'UserPromptSubmit' || rule.group.matcher !== undefined || rule.hook.type !== 'command' || rule.hook.timeout !== 10 || rule.hook.env || rule.hook.shell || !realEqual(rule.hook.command, process.execPath) || !Array.isArray(args) || args.length !== 5 || !realEqual(args[0], path.join(client, 'scripts/rules-reminder.js')) || args[1] !== '--client-root' || !realEqual(args[2], client) || args[3] !== '--workflow-mode' || !['route', 'model'].includes(args[4])) issues.push('RULES_HOOK_INCOMPLETE');
+    if (candidates.length !== 1 || rule.event !== 'UserPromptSubmit' || rule.group.matcher !== undefined || rule.hook.type !== 'command' || !localHookTimeout(rule.hook.timeout, 10) || rule.hook.env || rule.hook.shell || !realEqual(rule.hook.command, process.execPath) || !Array.isArray(args) || args.length !== 5 || !realEqual(args[0], path.join(client, 'scripts/rules-reminder.js')) || args[1] !== '--client-root' || !realEqual(args[2], client) || args[3] !== '--workflow-mode' || !['route', 'model'].includes(args[4])) issues.push('RULES_HOOK_INCOMPLETE');
     if (completeSettings(bytes, client).state !== 'KEEP') issues.push('HOOKS_INCOMPLETE');
   }
   catch { issues.push('HOOKS_CONFLICT'); }
   return { schema: 1, profile: 'complete', status: issues.length ? 'INCOMPLETE' : 'READY', issues };
 }
-module.exports = { HOOKS, CORE_SKILLS, COMPLETE_IDS, RULES, START, END, managedRule, invocation, completeSettings, health };
+module.exports = { HOOKS, CORE_SKILLS, COMPLETE_IDS, RULES, START, END, managedRule, invocation, completeSettings, health, localHookTimeout };
 if (require.main === module) { try { const result = health(process.argv[2] || require('./client-root.js').clientRoot()); console.log(JSON.stringify(result || { status: 'PROFILE_NOT_INSTALLED' })); process.exitCode = result?.status === 'READY' ? 0 : 1; } catch (error) { console.error('PROFILE_HEALTH_ERROR: ' + error.message); process.exitCode = 2; } }

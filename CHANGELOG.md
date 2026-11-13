@@ -37,6 +37,7 @@ During the 0.x line, minor versions may contain breaking changes.
 - Docs: correct stale selftest tallies and the hook install count, turn on doc-registered evidence protection in every cleanup command, tell the two evolution skip reasons apart and record criteria lessons in `verify-before-claim`.
 - Docs: correct the resident-skill count to the catalog's `tier=core` truth (5, not 12), rewrite the memory-archive directory tree to the 8 scripts actually shipped, and correct the exec-hook counts in both READMEs — now gated by `.github/doc-test-tally.test.js` so the tallies cannot drift from the implementation again.
 
+- Installer hook guards treat the shipped timeout as a floor, not the only legal value: a larger positive-integer local headroom (the author's live profile runs 12 hooks at 30s) is preserved and named instead of failing the whole deploy closed, while shorter or non-integer timeouts still abort; `completeSettings` no longer silently downgrades a preserved local headroom, and legacy stop-gate 10 is still accepted but normalized to the shipped default.
 ### 中文摘要
 - 新增接续档案自动清理（默认关闭，需在 `<store>/prune.json` 开启）：`prune` 默认干跑，`--apply` 才把超期、孤儿（来源 transcript 已消失）或空会话目录移入隔离批次并写逐文件 SHA-256 清单；自动绑定会话按 `retentionDays`（默认 90 天）过期，孤儿宽限 7 天，手工命名任务档案除非 `--include-manual` 否则保留，当前会话与新鲜 `capture.lock` 永远排除，`SessionStart` 每 `intervalHours`（默认 24 小时）最多执行一次。
 - 新增 `prune --recover`（恢复崩溃中断批次）、`prune --list-quarantine`、移动前/过程中写 in-progress 清单、每次 apply 追加 `prune-audit.jsonl` 审计，以及 `prune-cache.json` 检查缓存，避免重复打开未变化的数据库。
@@ -64,6 +65,7 @@ During the 0.x line, minor versions may contain breaking changes.
 - 文档：更正过期的自测条数与 hook 接入数，每条清理命令都启用文档登记证据保护，区分自进化的两种跳过原因，并把判据经验记进 `verify-before-claim`。
 - 文档：常驻技能数改为 catalog `tier=core` 真值（5，不是 12），记忆归档目录树按实物重写为 8 个脚本，两份 README 的执行 hook 计数按实现更正，并新增 `.github/doc-test-tally.test.js` 把文档条数与实现钉在一起（再漂移即红）。
 
+- 安装器 hook 守卫把随包 timeout 当作下限而非唯一合法值：更大的正整数本地余量（本机现役 12 条 hook 为 30s）原样保留并点名，不再让整个部署 fail-closed 拒绝；更短或非正整数仍一律判冲突；`completeSettings` 不再把保留的本地余量静默降回默认，legacy stop-gate 10 仍被接受但落盘归正为随包默认。
 ## [0.1.5] - 2026-11-10
 
 ### Changed

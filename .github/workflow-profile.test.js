@@ -181,3 +181,122 @@ test('health reports a missing workflow skill in either tier and recovers after 
     assert.equal(profile.health(f.client).status, 'READY', name);
   }
 });
+
+// ── 本地 timeout 余量：随包默认是下限，不是唯一合法值 ─────────────────────────────
+// 根修背景：现役 profile 故意把 hook 余量调大（本机 12 条为 30），旧守卫硬要求 === 10，
+// 于是 command 逐字一致、本该 KEEP 的接线被整体判冲突，包部署 fail-closed 拒绝。
+// 修法是只放开安全方向：更长的正整数保留，更短/非正整数仍判冲突（短 timeout 会静默掐断 hook）。
+test('local hook timeout predicate accepts only integer headroom at or above the shipped floor', () => {
+  for (const shipped of [10, 15, 20]) {
+    for (const value of [shipped, shipped + 1, 30, 600]) assert.equal(profile.localHookTimeout(value, shipped), true, shipped + '/' + value);
+    for (const value of [shipped - 1, 1, 0, -1, 1.5, NaN, Infinity]) assert.equal(profile.localHookTimeout(value, shipped), false, shipped + '/' + value);
+    for (const value of ['30', undefined, null, {}, []]) assert.equal(profile.localHookTimeout(value, shipped), false, shipped + '/' + JSON.stringify(value));
+  }
+  // 负对照：把下限当成「唯一合法值」的旧写法必须被这条断言否证（30 在旧写法下会被拒）。
+  assert.equal(profile.localHookTimeout(30, 10), true);
+});
+
+test('completeSettings preserves larger local hook timeouts and still rejects shorter or non-integer ones', t => {
+  const f = fixture(t);
+  f.install();
+  const file = path.join(f.client, 'settings.json');
+  const shipped = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const entries = () => Object.values(shipped.hooks).flatMap(groups => groups.flatMap(group => group.hooks));
+  const before = entries().map(hook => hook.timeout);
+  assert.ok(before.length >= 16, 'hooks=' + before.length);
+
+  // 正例：全部调大到 30（>= 各自随包下限）⇒ 不抛错，且逐条保留 30，不被静默降回默认。
+  for (const hook of entries()) hook.timeout = 30;
+  fs.writeFileSync(file, JSON.stringify(shipped, null, 2) + '\n');
+  const kept = profile.completeSettings(fs.readFileSync(file), f.client);
+  const after = Object.values(JSON.parse(kept.bytes.toString()).hooks).flatMap(groups => groups.flatMap(group => group.hooks));
+  assert.ok(after.length >= 16);
+  for (const hook of after) assert.equal(hook.timeout, 30, '本地余量被降回随包默认');
+
+  // 负例：更短 / 非正整数 / 字符串一律仍判冲突（既有 timeout=1 负对照语义不变）。
+  for (const bad of [9, 1, 0, -1, 1.5, '30']) {
+    const broken = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const list = Object.values(broken.hooks).flatMap(groups => groups.flatMap(group => group.hooks));
+    // 必须挑 completeSettings 真正拥有的 hook：rules-reminder 不在 HOOKS 表内，会被直接跳过，
+    // 改它的 timeout 不触发本守卫（首版误挑 list[0] 正是它 ⇒ 假红，已按真实归属改正）。
+    const owned = list.find(hook => {
+      // 随包 hook 经 run-package-hook.cjs 包装，脚本名在 args[1] 的 base64url token 内，
+      // 直接 stringify(args) 匹配不到字面名（第二版假红即此因），按夹具既有解码方式取。
+      let decoded = '';
+      const token = Array.isArray(hook.args) && hook.args[1];
+      if (token) { try { decoded = Buffer.from(token, 'base64url').toString('utf8'); } catch { /* 非本格式 */ } }
+      return decoded.includes('"script":"' + profile.HOOKS[0][1] + '"')
+        || String(hook.command || '').includes(profile.HOOKS[0][1])
+        || JSON.stringify(hook.args || []).includes(profile.HOOKS[0][1]);
+    });
+    assert.ok(owned, '找不到随包 hook ' + profile.HOOKS[0][1]);
+    owned.timeout = bad;
+    fs.writeFileSync(file, JSON.stringify(broken, null, 2) + '\n');
+    assert.throws(() => profile.completeSettings(fs.readFileSync(file), f.client), /完整工作流 hook 冲突/, 'timeout=' + JSON.stringify(bad));
+  }
+});
+
+test('completeSettings accepts legacy stop-gate 10 but normalizes it, and rejects 14 while preserving 30', t => {
+  const f = fixture(t);
+  f.install();
+  const file = path.join(f.client, 'settings.json');
+  const stopGate = settings => Object.values(settings.hooks).flatMap(groups => groups.flatMap(group => group.hooks))
+    .find(hook => {
+      let decoded = '';
+      const token = Array.isArray(hook.args) && hook.args[1];
+      if (token) { try { decoded = Buffer.from(token, 'base64url').toString('utf8'); } catch { /* 非本格式 */ } }
+      return decoded.includes('"script":"stop-gate.js"');
+    });
+  const shippedStopGate = profile.HOOKS.find(spec => spec[1] === 'stop-gate.js')[2];
+  assert.equal(shippedStopGate, 15);
+
+  // legacy 10：守卫接受（旧装机不抛错），但落盘归正为随包 15，不永久保留低于下限的值。
+  const legacy = JSON.parse(fs.readFileSync(file, 'utf8'));
+  stopGate(legacy).timeout = 10;
+  fs.writeFileSync(file, JSON.stringify(legacy, null, 2) + '\n');
+  const normalized = JSON.parse(profile.completeSettings(fs.readFileSync(file), f.client).bytes.toString());
+  assert.equal(stopGate(normalized).timeout, shippedStopGate, 'legacy 10 应归正为随包默认');
+
+  // 边界负例：14 低于下限 15 且不是 legacy 10 ⇒ 仍判冲突。
+  const short = JSON.parse(fs.readFileSync(file, 'utf8'));
+  stopGate(short).timeout = 14;
+  fs.writeFileSync(file, JSON.stringify(short, null, 2) + '\n');
+  assert.throws(() => profile.completeSettings(fs.readFileSync(file), f.client), /完整工作流 hook 冲突/);
+
+  // 正例：30 >= 15 ⇒ 保留 30。
+  const headroom = JSON.parse(fs.readFileSync(file, 'utf8'));
+  stopGate(headroom).timeout = 30;
+  fs.writeFileSync(file, JSON.stringify(headroom, null, 2) + '\n');
+  const kept = JSON.parse(profile.completeSettings(fs.readFileSync(file), f.client).bytes.toString());
+  assert.equal(stopGate(kept).timeout, 30);
+});
+
+test('installer preserves and names a larger local rules-reminder timeout, and stays silent without deviation', t => {
+  const f = fixture(t);
+  f.install();
+  const file = path.join(f.client, 'settings.json');
+  const findRules = settings => Object.values(settings.hooks).flatMap(groups => groups.flatMap(group => group.hooks))
+    .find(hook => String(hook.command || '').includes('rules-reminder.js') || (Array.isArray(hook.args) && String(hook.args[0]).includes('rules-reminder.js')));
+  const prepare = () => installer.prepare({ client: f.client, skillsScope: 'base', catalogFile: path.join(root, 'catalog.json') });
+
+  // 模式隔离：随包默认 10 时不报保留值，输出与改动前一致。
+  const baseline = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.equal(findRules(baseline).timeout, 10);
+  assert.equal(prepare().hook.preservedTimeout, undefined);
+
+  // 正例：本地余量 30 ⇒ 不再整体判冲突，保留值被点名，落盘字节仍是 30。
+  const local = JSON.parse(fs.readFileSync(file, 'utf8'));
+  findRules(local).timeout = 30;
+  fs.writeFileSync(file, JSON.stringify(local, null, 2) + '\n');
+  const plan = prepare();
+  assert.equal(plan.hook.preservedTimeout, 30);
+  assert.equal(findRules(JSON.parse(plan.hook.bytes.toString())).timeout, 30);
+
+  // 负例：比随包下限更短仍判冲突，错误原文不变（不放宽危险方向）。
+  for (const bad of [9, 1, 0, 1.5, '30']) {
+    const broken = JSON.parse(fs.readFileSync(file, 'utf8'));
+    findRules(broken).timeout = bad;
+    fs.writeFileSync(file, JSON.stringify(broken, null, 2) + '\n');
+    assert.throws(prepare, /rules-reminder .*接线.*冲突/, 'timeout=' + JSON.stringify(bad));
+  }
+});

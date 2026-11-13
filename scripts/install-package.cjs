@@ -11,7 +11,7 @@ const { dependenciesFor } = require('./package-dependencies.cjs');
 const { readCatalog } = require('./pkg-catalog.cjs');
 const { isPublicFile } = require('./pack-share-extras.cjs');
 const { readResident } = require('./tier-skills.cjs');
-const { COMPLETE_IDS, RULES, managedRule, completeSettings } = require('./workflow-profile.cjs');
+const { COMPLETE_IDS, RULES, managedRule, completeSettings, localHookTimeout } = require('./workflow-profile.cjs');
 const capabilityRoots = require('./capability-roots.cjs');
 
 const BASE_IDS = [
@@ -179,23 +179,26 @@ function settingsFor(bytes, target, workflowMode) {
   const groups = settings.hooks.UserPromptSubmit || [];
   const found = groups.flatMap(group => group.hooks.filter(hook => String(hook.command || '').includes('rules-reminder.js') || (Array.isArray(hook.args) && String(hook.args[0]).includes('rules-reminder.js'))).map(hook => ({ group, hook })));
   let state = 'ADD';
+  // 本地余量与随包默认不同时点名保留值，不静默（三路合并的「保留现役较新」要可核对）。
+  let preservedTimeout;
   if (found.length) {
     const { group, hook } = found[0];
+    if (hook.timeout !== 10) preservedTimeout = hook.timeout;
     if (Array.isArray(hook.args)) {
       const args = hook.args;
-      if (found.length !== 1 || group.matcher !== undefined || hook.type !== 'command' || hook.timeout !== 10 || hook.env || hook.shell || !sameLocation(hook.command, process.execPath)
+      if (found.length !== 1 || group.matcher !== undefined || hook.type !== 'command' || !localHookTimeout(hook.timeout, 10) || hook.env || hook.shell || !sameLocation(hook.command, process.execPath)
         || args.length !== 5 || !sameLocation(args[0], target) || args[1] !== '--client-root' || !path.isAbsolute(args[2]) || !sameLocation(args[2], client) || args[3] !== '--workflow-mode' || !['route', 'model'].includes(args[4])) throw new Error('已有 rules-reminder exec 接线冲突，保留配置供核对');
       const nextArgs = [target, '--client-root', client, '--workflow-mode', workflowMode || args[4]];
       state = hook.command === process.execPath && JSON.stringify(args) === JSON.stringify(nextArgs) ? 'KEEP' : 'UPDATE';
       hook.command = process.execPath; hook.args = nextArgs;
-      return { bytes: Buffer.from(JSON.stringify(settings, null, 2) + '\n'), state };
+      return { bytes: Buffer.from(JSON.stringify(settings, null, 2) + '\n'), state, ...(preservedTimeout !== undefined ? { preservedTimeout } : {}) };
     }
     const match = String(hook.command || '').match(/^\s*(?:"([^"\r\n]+)"|([^\s"'`|&;<>$()]+))\s+(?:"([^"\r\n]+)"|([^\s"'`|&;<>$()]+))(?:\s+--client-root\s+(?:"([^"\r\n]+)"|([^\s"'`|&;<>$()]+)))?(?:\s+--workflow-mode\s+(route|model))?\s*$/);
     const node = match && (match[1] || match[2]).split(/[\\/]/).pop();
     const boundClient = match && (match[5] || match[6]);
     if (found.length !== 1 || hook.env || hook.shell || !match || !/^node(?:\.exe)?$/i.test(node) || !sameLocation(match[3] || match[4], target)
       || (boundClient !== undefined && (!path.isAbsolute(boundClient) || !sameLocation(boundClient, client)))
-      || group.matcher !== undefined || hook.type !== 'command' || hook.timeout !== 10) throw new Error('已有 rules-reminder 接线与完整命令/client-root/matcher/type/timeout 冲突，保留配置供核对');
+      || group.matcher !== undefined || hook.type !== 'command' || !localHookTimeout(hook.timeout, 10)) throw new Error('已有 rules-reminder 接线与完整命令/client-root/matcher/type/timeout 冲突，保留配置供核对');
     if (match[7] || workflowMode) command += ' --workflow-mode ' + (workflowMode || match[7]);
     state = hook.command === command ? 'KEEP' : 'UPDATE';
     hook.command = command;
@@ -203,7 +206,7 @@ function settingsFor(bytes, target, workflowMode) {
     command += ' --workflow-mode ' + (workflowMode || 'model');
     settings.hooks.UserPromptSubmit = [...groups, { hooks: [{ type: 'command', command, timeout: 10 }] }];
   }
-  return { bytes: Buffer.from(JSON.stringify(settings, null, 2) + '\n'), state };
+  return { bytes: Buffer.from(JSON.stringify(settings, null, 2) + '\n'), state, ...(preservedTimeout !== undefined ? { preservedTimeout } : {}) };
 }
 
 function readPreferences(file) {
@@ -392,7 +395,7 @@ function prepare(options = {}) {
   plan.rules = [];
   if (plan.profile === 'complete') {
     const fullHook = completeSettings(plan.hook.bytes, client);
-    plan.hook = { bytes: fullHook.bytes, state: plan.hook.state === 'KEEP' && fullHook.state === 'KEEP' ? 'KEEP' : plan.settingsBytes ? 'UPDATE' : 'ADD' };
+    plan.hook = { bytes: fullHook.bytes, state: plan.hook.state === 'KEEP' && fullHook.state === 'KEEP' ? 'KEEP' : plan.settingsBytes ? 'UPDATE' : 'ADD', ...(plan.hook.preservedTimeout !== undefined ? { preservedTimeout: plan.hook.preservedTimeout } : {}) };
     for (const rel of Object.keys(RULES)) {
       const target = path.join(client, rel); assertPath(plan, target);
       const before = snapshot(target);
@@ -693,6 +696,8 @@ function printSummary(result) {
     ? '未写盘；--yes 安装上述工作流基础能力、更新有旧包基线的已有能力，并全量安装包内随包技能到按需库（脚本/命令/agent/hook 仍需 --install <exact-id> 明确选择）。'
     : '未写盘；--yes 接受上述工作流基础能力与有旧包基线的 UPDATE。新可选能力只在 --install <exact-id> 明确选择后安装。');
   if (!plan.baseReady) console.log('基础路由因本地差异未接线：' + plan.baseBlocked.join(', '));
+  // 只在确有本地余量差异时多印一行；无差异时输出与改动前逐字节相同（模式隔离）。
+  if (plan.hook.preservedTimeout !== undefined) console.log('保留现役 rules-reminder 本地 timeout=' + plan.hook.preservedTimeout + '（随包默认 10 是下限，更长的余量不覆盖）。');
   if (result.recoveryDirectory) console.log('备份/事务记录：' + result.recoveryDirectory);
   if (pendingItems.length) console.log('NEXT_ACTION: ASK_INSTALL_OR_UPDATE — 仅询问上述未完成的候选/差异；已完成的基础安装、更新与精确选择无需重复批准。');
 }
