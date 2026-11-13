@@ -154,6 +154,41 @@ function assertions(mod) {
   add('插话负对照：助手条目里的同形结构不认', mod.queuedUserTextOf({ type: 'assistant', message: { role: 'assistant', content: [] }, attachment: q('以后一律用中文').attachment }) === '');
   add('插话空输入不抛错', mod.queuedUserTextOf(null) === '' && mod.queuedUserTextOf(undefined) === '' && mod.queuedUserTextOf({}) === '');
   add('插话识别后 scope 照常生效', mod.captureScope(mod.queuedUserTextOf(q('只读审阅这个方案，不要修改任何文件'))).readOnly === true);
+  // —— A30：暂停约束的英文识别面（2026-11-13 用户采纳；旧版只认中文，英文只读轮照样写候选）——
+  const SCOPE_EN = [
+    ['Please review this read-only. Do not modify any files.', 'readOnly'],
+    ['read-only review only, no writes', 'readOnly'],
+    // 这条只能由 read-only 短语触发：不含 review only / do not modify / no writes / without…files，
+    // 否则摘掉该分支的变异体会因为别的分支兜底而恒绿（本轮实测 0 条红后补的覆盖）。
+    ['This round is read-only.', 'readOnly'],
+    ['Do not modify any files.', 'readOnly'],
+    ['Review only, without modifying any files.', 'readOnly'],
+    ['Handoff only: just give me a kickoff prompt.', 'handoffOnly'],
+    ["I'll open a new session myself, only give me a handoff prompt.", 'handoffOnly'],
+    ['Do not write to memory this round.', 'noMemory'],
+    ["Don't remember this preference.", 'noMemory'],
+  ];
+  for (const [text, key] of SCOPE_EN) {
+    const s = mod.captureScope(text);
+    add(`英文暂停约束命中 ${key} :: ${text}`, s[key] === true, JSON.stringify(s));
+  }
+  for (const text of [
+    'Please add a retry to the uploader and run the tests.',
+    'Remember to run the tests before committing.',
+    'Implement the retry helper and commit the change.',
+  ]) {
+    const s = mod.captureScope(text);
+    add(`英文普通指令不误暂停 :: ${text}`, !s.readOnly && !s.handoffOnly && !s.noMemory, JSON.stringify(s));
+  }
+  for (const [text, key] of [
+    ['只读审阅这个方案，不要修改任何文件', 'readOnly'],
+    ['只给我开工提示词，我自己新开会话', 'handoffOnly'],
+    ['本轮不要写入记忆', 'noMemory'],
+  ]) {
+    const s = mod.captureScope(text);
+    add(`中文暂停正例仍绿 ${key} :: ${text}`, s[key] === true, JSON.stringify(s));
+  }
+  add('英文插话的只读口径同样生效', mod.captureScope(mod.queuedUserTextOf(q('Please review this read-only. Do not modify any files.'))).readOnly === true);
   return list;
 }
 
@@ -240,6 +275,11 @@ mutate('experience-popup-allowed', "if (!candidate || candidate.family === 'expe
 mutate('evolution-ask-too-wide', 'try { return EVOLUTION_ASK.test(JSON.stringify(input || {})); } catch { return false; }', 'try { return true; } catch { return false; }', '开工卡不冒充建议弹窗');
 mutate('queued-mode-discriminator-removed', "if (!att || att.type !== 'queued_command' || att.commandMode !== 'prompt') return '';", "if (!att || att.type !== 'queued_command') return '';", '插话负对照：task-notification 不认');
 mutate('queued-recognition-neutered', '  const att = entry.attachment;\n', '  const att = null;\n', '插话正例：prompt 模式取回原文');
+// A30：英文分支被摘掉 / 大小写敏感被改回，对应英文判据必须变红（否则这批判据是假绿）。
+mutate('read-only-english-removed', '\\bread[- ]only\\b', '\\bread[- ]onlyZZZ\\b', '英文暂停约束命中 readOnly');
+mutate('handoff-english-removed', '\\bhand[- ]?off only\\b', '\\bhand[- ]?off onlyZZZ\\b', '英文暂停约束命中 handoffOnly');
+mutate('no-memory-english-removed', '(?:to\\s+)?memory\\b', '(?:to\\s+)?memoryZZZ\\b', '英文暂停约束命中 noMemory');
+mutate('read-only-english-case-sensitive', 'files?\\b/i;', 'files?\\b/;', '英文暂停约束命中 readOnly :: Do not modify any files.');
 
 // —— 跨文件漂移断言：核声明"与门禁同源"就必须真的逐字一致，且这条断言要能失败 ——
 const gateSrc = fs.readFileSync(path.join(__dirname, 'stop-gate.js'), 'utf8');

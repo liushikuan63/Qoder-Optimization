@@ -328,6 +328,34 @@ check('先只读检查后执行仍要开工卡', () => {
 check('审阅并修改仍要开工卡', () => {
   assert.strictEqual(core.prepareKickoff({ sessionId: 'sess-ro4', prompt: '审阅并修改登录按钮文案', cwd: process.cwd() }).skip, false);
 });
+// —— A30（2026-11-13 用户采纳）：门禁 taskScope 优先走本函数，英文只读轮此前一律判成实施轮 ——
+for (const text of [
+  'Please review this read-only. Do not modify any files.',
+  'This round is read-only.',
+  'read-only review only, no writes',
+  'Review only, without modifying any files.',
+]) {
+  check(`英文只读判为只读 :: ${text}`, () => {
+    assert.strictEqual(core.isReadOnlyRequest(text), true);
+  });
+}
+for (const text of [
+  'Please add a retry to the uploader and run the tests.',
+  'Implement the read-only endpoint for the dashboard.',
+  'Read-only analysis first, then implement the fix.',
+  'Could you modify the read-only banner text?',
+]) {
+  check(`英文实施请求不误判只读 :: ${text}`, () => {
+    assert.strictEqual(core.isReadOnlyRequest(text), false);
+  });
+}
+check('中文只读正例仍绿（英文分支未污染中文口径）', () => {
+  assert.strictEqual(core.isReadOnlyRequest('只读审阅，提出修改建议，不实施'), true);
+  assert.strictEqual(core.isReadOnlyRequest('先只读检查，然后按计划执行修改'), false);
+});
+check('英文只读轮跳过开工卡（与中文同口径）', () => {
+  assert.strictEqual(core.prepareKickoff({ sessionId: 'sess-ro-en', prompt: 'This round is read-only.', cwd: process.cwd() }).reason, 'READ_ONLY');
+});
 
 console.log('# machine-readable selections');
 freshState();

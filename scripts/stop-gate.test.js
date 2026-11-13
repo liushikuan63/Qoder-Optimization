@@ -489,6 +489,12 @@ r19check('R19 负对照：没有 pending 就不拦', { items: null }, 'allow');
 r19check('R19 负对照：pending  items 为空不拦', { items: [] }, 'allow');
 r19check('R19 负对照：超过 24 小时的陈年建议不拦', { at: new Date(Date.now() - 25 * 3600 * 1000).toISOString() }, 'allow');
 r19check('R19 负对照：只读轮不要求弹窗', { userText: '只读审阅这个方案，不要修改任何文件' }, 'allow');
+// A30（2026-11-13 用户采纳）：英文暂停轮同样不要求弹窗；旧版只认中文，英文只读轮会被误拦。
+r19check('R19 负对照：英文只读轮不要求弹窗', { userText: 'Please review this read-only. Do not modify any files.' }, 'allow');
+r19check('R19 负对照：英文只读轮不要求弹窗（纯 read-only 短语）', { userText: 'This round is read-only.' }, 'allow');
+r19check('R19 负对照：英文仅交接轮不要求弹窗', { userText: 'Handoff only: just give me a kickoff prompt.' }, 'allow');
+r19check('R19 负对照：英文禁记忆轮不要求弹窗', { userText: 'Do not write to memory this round.' }, 'allow');
+r19check('R19 英文普通实施轮仍要求弹窗（不是把守卫关掉）', { userText: 'Please add a retry to the uploader and run the tests.' }, 'block');
 r19check('R19 负对照：仅交接轮不要求弹窗', { userText: '只给我开工提示词，我自己新开会话' }, 'allow');
 r19check('R19 负对照：禁记忆轮不要求弹窗', { userText: '本轮不要写入记忆，只给结论' }, 'allow');
 r19check('R19 负对照：别的会话的建议不影响本会话', { items: null, foreign: true }, 'allow');

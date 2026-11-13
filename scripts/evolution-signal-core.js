@@ -36,9 +36,11 @@ const DISPROVEN_PREFIX = /^已否证[：:]/;
 const VERIFIED_PREFIX = /^验证结论[：:]/;
 
 // —— 采集范围（与 stop-gate taskScope 的兜底正则同源）——
-const READ_ONLY = /只读|仅(?:提供|做|作)?(?:审阅|审查|评审|分析|建议)|只(?:给|提供)(?:方案|建议)|不(?:要|得)?(?:修改|写入|改动)任何文件|在(?:更改|修改)任何文件之前/;
-const HANDOFF_ONLY = /仅做交接|只(?:做交接|给(?:我)?开工提示词)|我自己新开会话/;
-const NO_MEMORY = /不(?:要|得)?(?:写入|保存|更新|使用|读取|新增|写)记忆|不要记住/;
+// A30（2026-11-13 用户采纳）：原来三个正则只认中文，英文只读轮照样写候选并触发 R19 要求弹窗，
+// 违背用户「本轮只读」的口径。英文分支与中文同口径（提及即命中），不额外放宽也不额外收紧。
+const READ_ONLY = /只读|仅(?:提供|做|作)?(?:审阅|审查|评审|分析|建议)|只(?:给|提供)(?:方案|建议)|不(?:要|得)?(?:修改|写入|改动)任何文件|在(?:更改|修改)任何文件之前|\bread[- ]only\b|\breview only\b|\b(?:do not|don't|never)\s+(?:modify|change|write|edit)\s+(?:any\s+)?files?\b|\bno\s+(?:file\s+)?writes\b|\b(?:without|before)\s+(?:modifying|changing|writing)\s+(?:any\s+)?files?\b/i;
+const HANDOFF_ONLY = /仅做交接|只(?:做交接|给(?:我)?开工提示词)|我自己新开会话|\bhand[- ]?off only\b|\bonly\s+(?:give|provide)\s+(?:me\s+)?(?:a\s+)?(?:hand[- ]?off|kickoff|startup)\s+prompt\b|\bi(?:'ll| will)\s+open\s+(?:a\s+)?new\s+session\s+myself\b/i;
+const NO_MEMORY = /不(?:要|得)?(?:写入|保存|更新|使用|读取|新增|写)记忆|不要记住|\b(?:do not|don't|never)\s+(?:write|save|update|use|read|add)\s+(?:to\s+)?memory\b|\bno\s+memory\s+(?:writes|updates|reads)\b|\b(?:do not|don't)\s+remember\b/i;
 
 const KINDS = {
   LONG_TERM: 'long-term-preference',

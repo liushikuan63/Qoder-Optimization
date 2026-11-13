@@ -28,7 +28,14 @@ const IMPERATIVE_PREFIX = /^(?:帮我|请帮我|麻烦|给我|把)/;
 const EXPLICIT_SKIP = /(?:不用|无需|不必|免)(?:再)?(?:确认|问|问我)|直接(?:做|执行|开工|改|处理)|别(?:问|确认)|先(?:做|执行)再说/;
 const CONTINUATION = /^(?:继续(?:刚才|之前|上面|原计划)?的?(?:任务|工作|计划)?|接着|按(?:此|计划|刚才|上面|原计划)(?:继续)?|就按(?:这个|此|计划)|开始|执行吧|开工吧|下一步|往下做|继续做|好[的]?[，,]?(?:继续|开工|执行)|可以[，,]?(?:继续|开工|执行)|确认[，,]?(?:继续|执行|开工)|同意[，,]?(?:继续|执行|开工))(?:[。.!！~～]|$)/;
 const COMPLEX_MARKERS = /(?:跨模块|跨端|前后端|全链路|全量|重构|迁移|架构|发布|部署|批量|多文件|多模块|多端|系统性|整套|多阶段|长期|长任务|并行|多会话|全部|整体|升级|打包|集成|联调|兼容|回归|灰度|上线|生产|权限|鉴权|计费|安全|性能|并发|缓存|消息队列|分布式|微服务)/g;
-const READONLY_EXPLICIT = /(?:只读|仅(?:提供|做|作)?(?:审阅|审查|评审|分析|建议)|只(?:给|提供)(?:方案|建议)|不(?:要|得)?(?:修改|写入|改动)任何文件)/;
+const READONLY_EXPLICIT = /(?:只读|仅(?:提供|做|作)?(?:审阅|审查|评审|分析|建议)|只(?:给|提供)(?:方案|建议)|不(?:要|得)?(?:修改|写入|改动)任何文件|\bread[- ]only\b|\breview only\b)/i;
+// A30（2026-11-13 用户采纳）：英文只读轮此前一律判成实施轮 —— 门禁 taskScope 优先走本函数，
+// 所以只改 evolution-signal-core 的兜底正则不够（实测 stop-gate 504/506，两条英文只读负对照红）。
+// 明确禁写短语最高优先；其余英文只读表述与中文同口径：带先后顺序或祈使动作时仍按执行任务处理。
+const READONLY_ENGLISH_HARD = /\b(?:do not|don't|never)\s+(?:modify|change|write|edit)\s+(?:any\s+)?files?\b|\bno\s+(?:file\s+)?writes\b|\b(?:without|before)\s+(?:modifying|changing|writing)\s+(?:any\s+)?files?\b/i;
+const READONLY_ENGLISH_THEN = /\b(?:then|after that|afterwards|next|and then)\b[^.!?]{0,40}\b(?:implement|modify|change|fix|add|write|delete|remove|deploy|publish|commit|push|update|install|upgrade|execute|refactor|create)\b/i;
+const READONLY_ENGLISH_ASK = /\b(?:please|can you|could you|help me)\b[^.!?]{0,20}\b(?:implement|modify|change|fix|add|write|delete|remove|deploy|publish|commit|push|update|install|upgrade|execute|refactor|create)\b/i;
+const READONLY_ENGLISH_MUTATION = /\b(?:implement|modify|change|fix|add|create|write|delete|remove|deploy|publish|commit|push|refactor|install|upgrade|update|execute|build)\b/i;
 const READONLY_REVIEW = /(?:审阅|审查|评审|评估|复盘|分析|诊断|排查|对比|梳理|检视)/;
 const READONLY_OUTPUT = /(?:建议|结论|意见|方案|推荐|判断|报告|评估)/;
 const MUTATION_INTENT = /(?<!的)(?:修改|改动|改成|修复|实现|新增|添加|删除|移除|部署|发布|上线|提交|推送|写入|重构|迁移|安装|升级|替换|更新|优化|调整|执行|落地|开工|改一|改下|做一个|写一个|生成)/;
@@ -39,9 +46,14 @@ function isReadOnlyRequest(prompt) {
   const text = normalize(prompt);
   if (!text) return false;
   if (/不(?:要|得)?(?:修改|写入|改动)任何文件/.test(text)) return true;
+  if (READONLY_ENGLISH_HARD.test(text)) return true;
   if (READONLY_EXPLICIT.test(text)) {
     if (/(?:然后|接着|之后|再|并|同时|随后)[^，。；]{0,16}(?:修改|改动|修复|实现|写入|新增|删除|移除|部署|发布|提交|推送|优化|调整|更新|安装|升级|执行|落地)/.test(text)) return false;
     if (/(?:帮我|请帮我|麻烦|给我|需要你|要你)[^，。；]{0,10}(?:修改|改动|修复|实现|写入|新增|删除|移除|部署|发布|提交|推送|优化|调整|更新|安装|升级|执行|落地|做一个|写一个)/.test(text)) return false;
+    if (READONLY_ENGLISH_THEN.test(text) || READONLY_ENGLISH_ASK.test(text)) return false;
+    // 句中只是提到 read-only、实际是实施请求（"Implement the read-only endpoint"）时不得判只读：
+    // 先剥掉否定短语再查英文祈使动词，避免把 "Do not modify any files" 自己当成实施意图。
+    if (READONLY_ENGLISH_MUTATION.test(text.replace(/\b(?:do not|don't|never|no)\s+[^,.;!?]{0,40}/gi, ' '))) return false;
     return true;
   }
   if (MUTATION_INTENT.test(text)) return false;
