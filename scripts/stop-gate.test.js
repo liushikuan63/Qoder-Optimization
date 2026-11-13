@@ -495,6 +495,15 @@ r19check('R19 负对照：英文只读轮不要求弹窗（纯 read-only 短语�
 r19check('R19 负对照：英文仅交接轮不要求弹窗', { userText: 'Handoff only: just give me a kickoff prompt.' }, 'allow');
 r19check('R19 负对照：英文禁记忆轮不要求弹窗', { userText: 'Do not write to memory this round.' }, 'allow');
 r19check('R19 英文普通实施轮仍要求弹窗（不是把守卫关掉）', { userText: 'Please add a retry to the uploader and run the tests.' }, 'block');
+// A34（2026-11-13 用户采纳）：超窗降级采集的候选范围未知，仍必须弹窗，且理由要求先人工确认本轮范围。
+const r19ScopeUnknown = r19check('R19 范围未知候选仍要求弹窗', { items: r19Items.map(i => ({ ...i, scopeUnknown: true })) }, 'block');
+check('R19 范围未知候选的理由点名标记并要求人工确认本轮范围',
+  r19ScopeUnknown.got.out.includes('范围未知') && r19ScopeUnknown.got.out.includes('人工确认本轮范围') ? 'yes' : 'no', 'yes');
+check('R19 范围未知候选的理由写明不得直接落载体',
+  r19ScopeUnknown.got.out.includes('不得直接落载体') ? 'yes' : 'no', 'yes');
+const r19PlainPending = r19check('R19 负对照：普通候选仍要求弹窗', {}, 'block');
+check('R19 负对照：普通候选的理由不含范围未知警告（判据非恒真）',
+  !r19PlainPending.got.out.includes('范围未知') && !r19PlainPending.got.out.includes('人工确认本轮范围') ? 'yes' : 'no', 'yes');
 r19check('R19 负对照：仅交接轮不要求弹窗', { userText: '只给我开工提示词，我自己新开会话' }, 'allow');
 r19check('R19 负对照：禁记忆轮不要求弹窗', { userText: '本轮不要写入记忆，只给结论' }, 'allow');
 r19check('R19 负对照：别的会话的建议不影响本会话', { items: null, foreign: true }, 'allow');

@@ -143,7 +143,7 @@ function lastUserTextBefore(file, end, limit) {
 }
 
 function readTurn(file, tailBytes, backtrackBytes) {
-  const out = { exists: false, userText: '', assistantTexts: [], failures: [], askedEvolution: false, parsed: 0 };
+  const out = { exists: false, userText: '', assistantTexts: [], failures: [], askedEvolution: false, parsed: 0, truncated: false };
   if (!file) return out;
   let st;
   try { st = fs.statSync(file); } catch { return out; }
@@ -217,6 +217,8 @@ function readTurn(file, tailBytes, backtrackBytes) {
   // 尾窗只有工具回执 / 注入件 / 压缩摘要时，回溯取仍在生效的那条真实指令；
   // 只补 userText，本轮的助手笔记与失败工具仍来自尾窗（不清空、不重置）。
   if (!out.userText && start > 0) out.userText = lastUserTextBefore(file, start, backtrackBytes);
+  // 窗口没覆盖整个转录 ⇒ 本轮范围可能未知（A34 降级采集的前提，不是"没有指令"的同义词）。
+  out.truncated = start > 0;
   return out;
 }
 
@@ -244,8 +246,11 @@ function failureSignature(text) {
 }
 
 // —— 候选生成（纯计算，不写盘）——
-function candidatesFromTurn(turn, ctx) {
+// options.scopeUnknown=true（A34 超窗降级）：只保留问题族，并给每条打 scopeUnknown 标记。
+// 偏好族必须有真实指令才采；助手自述经验也不在降级范围内。不开该选项时行为与改前逐字节一致。
+function candidatesFromTurn(turn, ctx, options) {
   const limit = ctx.excerptChars;
+  const scopeUnknown = Boolean(options && options.scopeUnknown);
   const found = [];
   const push = (sig, family, excerpt, evidence) => {
     const topic = signal.topicFor(sig);
@@ -261,6 +266,7 @@ function candidatesFromTurn(turn, ctx) {
       evidence: evidence || {},
       verified: false,
       status: 'candidate',
+      ...(scopeUnknown ? { scopeUnknown: true } : {}),
     });
   };
 
@@ -306,7 +312,9 @@ function candidatesFromTurn(turn, ctx) {
     seen.add(key);
     unique.push(item);
   }
-  return unique.slice(0, ctx.maxPerTurn);
+  // 降级采集只认问题族：范围未知时不得把偏好或助手自述经验当成用户口径入库。
+  const allowed = scopeUnknown ? unique.filter(item => item.family === 'problem') : unique;
+  return allowed.slice(0, ctx.maxPerTurn);
 }
 
 function withIdentity(candidate, ctx) {
@@ -362,7 +370,7 @@ function writePending(session, ctx, fresh, sessions) {
   const items = fresh
     .filter(c => !declined.has(c.topic))
     .filter(c => signal.popupWorthy(c, sessions.get(c.topic) ? sessions.get(c.topic).size : 1))
-    .map(c => ({ kind: c.kind, topic: c.topic, carriers: c.carriers, excerpt: c.excerpt, evidence: c.evidence || {} }));
+    .map(c => ({ kind: c.kind, topic: c.topic, carriers: c.carriers, excerpt: c.excerpt, evidence: c.evidence || {}, ...(c.scopeUnknown ? { scopeUnknown: true } : {}) }));
   if (!items.length) return { pending: 0 };
   const previous = readPending(session);
   const merged = new Map();
@@ -562,14 +570,16 @@ function main() {
     const ctx = contextFrom(input, cfg);
     const turn = readTurn(path.resolve(file), cfg.tailBytes, cfg.backtrackBytes);
     const scope = signal.captureScope(turn.userText);
-    const candidates = candidatesFromTurn(turn, ctx).map(c => withIdentity(c, ctx));
+    // 与真实 Stop 分支同口径：超窗且读不到指令 ⇒ 仅问题族降级（A34），便于只读观测到真实会写什么。
+    const scopeUnknown = !turn.userText && turn.truncated;
+    const candidates = candidatesFromTurn(turn, ctx, { scopeUnknown }).map(c => withIdentity(c, ctx));
     const { sessions } = readInboxKeys(inboxFiles());
     const declined = readDeclined();
     const popup = candidates
       .filter(c => !declined.has(c.topic))
       .filter(c => signal.popupWorthy(c, sessions.get(c.topic) ? sessions.get(c.topic).size : 1))
       .map(c => c.topic);
-    console.log(JSON.stringify({ dryRun: true, writes: 0, exists: turn.exists, userTextLen: String(turn.userText || '').length, parsed: turn.parsed, scope, askedEvolution: turn.askedEvolution, wouldPopup: popup, candidates }, null, 2));
+    console.log(JSON.stringify({ dryRun: true, writes: 0, exists: turn.exists, userTextLen: String(turn.userText || '').length, parsed: turn.parsed, truncated: turn.truncated, scopeUnknown, scope, askedEvolution: turn.askedEvolution, wouldPopup: popup, candidates }, null, 2));
     return 0;
   }
 
@@ -588,7 +598,12 @@ function main() {
   if (!turn.exists) { heartbeat(`SKIP_NO_TRANSCRIPT session=${shortSession} exists=false`); return 0; }
   // 文件在、但尾窗 + 有界回溯里没有真实指令：这是**可诊断的有界跳过**，不能谎报成"没有 transcript"。
   // 2026-11-12 实测教训：两种原因混用一个 SKIP_NO_TRANSCRIPT，排查时误以为是路径问题，绕了一大圈。
-  if (!turn.userText) {
+  // A34（2026-11-13 用户采纳）：超窗（窗口没覆盖整个转录）时不再整轮丢弃 —— 尾窗内够格的**问题族**
+  // 证据降级采集并标 scopeUnknown:true，交弹窗层要求人工确认本轮范围；偏好族仍必须有指令才采。
+  // 唯一变量对照实测：同一 transcript 只改 backtrackBytes，8MB→written=0、15MB→written=1，
+  // 丢弃点就在这道范围门禁而不是识别层。窗口覆盖全文却仍无指令时保持原样诚实跳过（不臆造范围）。
+  const scopeUnknown = !turn.userText && turn.truncated;
+  if (!turn.userText && !scopeUnknown) {
     heartbeat(`SKIP_NO_USER_TEXT session=${shortSession} parsed=${turn.parsed} tail=${cfg.tailBytes} back=${cfg.backtrackBytes}`);
     return 0;
   }
@@ -600,17 +615,23 @@ function main() {
     return 0;
   }
 
-  const candidates = candidatesFromTurn(turn, ctx).map(c => withIdentity(c, ctx));
+  const candidates = candidatesFromTurn(turn, ctx, { scopeUnknown }).map(c => withIdentity(c, ctx));
   // 本轮已就自进化建议弹过窗 → 建议已交用户拍板，清掉 pending（门禁 R19 随之放行）。
   if (turn.askedEvolution && clearPending(ctx.session)) heartbeat(`ASKED session=${shortSession} pending=cleared`);
-  if (!candidates.length) { heartbeat(`NO_SIGNAL session=${shortSession} failures=${turn.failures.length}`); return 0; }
+  if (!candidates.length) {
+    // 降级后没有问题族证据：仍按"读不到指令"诚实跳过，带 tail/back 便于诊断（与改前同一 token）。
+    if (scopeUnknown) heartbeat(`SKIP_NO_USER_TEXT session=${shortSession} parsed=${turn.parsed} tail=${cfg.tailBytes} back=${cfg.backtrackBytes} degraded=1`);
+    else heartbeat(`NO_SIGNAL session=${shortSession} failures=${turn.failures.length}`);
+    return 0;
+  }
   const result = appendCandidates(candidates, cfg);
   if (result.reason) { heartbeat(`SKIP_${result.reason} session=${shortSession} candidates=${candidates.length}`); return 0; }
   // 只有**本轮新增**且够格的候选才形成收尾建议；重复证据不再弹，助手自述经验只进月报。
   // 本轮已经弹过建议卡就不再追加（每轮最多问一次），避免"刚问完又拦一次"。
   const suggestion = result.written && !turn.askedEvolution ? writePending(ctx.session, ctx, result.fresh, result.sessions) : { pending: 0 };
   const kinds = [...new Set(candidates.map(c => c.kind))].join(',');
-  heartbeat(`CAPTURE session=${shortSession} task=${ctx.task} written=${result.written} dup=${result.duplicates} kinds=${kinds} pending=${suggestion.pending}`);
+  const scopeNote = scopeUnknown ? ` scopeUnknown=${candidates.length}` : '';
+  heartbeat(`CAPTURE session=${shortSession} task=${ctx.task} written=${result.written} dup=${result.duplicates} kinds=${kinds} pending=${suggestion.pending}${scopeNote}`);
   return 0;
 }
 

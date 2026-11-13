@@ -1000,11 +1000,18 @@ function suggestionReason(ctx) {
   const lines = pending.items.slice(0, 6).map((item) => {
     const carriers = (Array.isArray(item.carriers) ? item.carriers : []).map(c => CARRIER_LABEL[c] || c).join(' → ');
     const times = item.evidence && Number(item.evidence.occurrences) >= 2 ? `（本轮同一错误 ${item.evidence.occurrences} 次）` : '';
-    return `· ${item.topic}${times} → 推荐落点：${carriers || '记忆'}；片段：${String(item.excerpt || '').slice(0, 80)}`;
+    // A34：超窗降级采集的候选范围未知，卡面必须点名，采纳前先人工确认本轮范围。
+    const unknown = item.scopeUnknown === true ? '（范围未知·超窗降级采集）' : '';
+    return `· ${item.topic}${times}${unknown} → 推荐落点：${carriers || '记忆'}；片段：${String(item.excerpt || '').slice(0, 80)}`;
   });
+  const scopeWarning = pending.items.some((item) => item.scopeUnknown === true)
+    ? '\n标「范围未知」的候选是读不到本轮用户指令（超出回溯窗口）时降级采集的，只含问题族证据。'
+      + '采纳前必须先人工确认本轮范围（是否只读 / 仅交接 / 禁记忆）；确认不了就本轮跳过，不得直接落载体。'
+    : '';
   return '本轮自进化采集到值得沉淀的新候选，但没有用 AskUserQuestion 把建议交用户拍板。'
     + '按用户 2026-11-12 的明确要求：每轮收尾要把自进化建议弹窗给出推荐，由用户决定是否新增/更改。\n'
     + lines.join('\n')
+    + scopeWarning
     + '\n现在用 AskUserQuestion 弹一张卡（问题正文含「自进化」字样），每条候选给真实备选：'
     + '「采纳并落到推荐载体（推荐）」/「改写后采纳」/「本轮跳过」，并写清收益与代价。'
     + '用户选采纳才动载体：先 carrier-preflight，再备份、最小差异修改、验证、evolution.js record；'

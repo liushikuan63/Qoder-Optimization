@@ -662,15 +662,15 @@ mutant('去掉去重', 'const fresh = candidates.filter(c => !keys.has(c.dedupKe
   runHook(stopInput(file), mutFile);
   return records().length > first;
 });
-mutant('去掉单轮上限', 'return unique.slice(0, ctx.maxPerTurn);', 'return unique;', () => {
+mutant('去掉单轮上限', 'return allowed.slice(0, ctx.maxPerTurn);', 'return allowed;', () => {
   write(CONFIG, JSON.stringify({ maxPerTurn: 2 }));
   runHook(stopInput(transcript(POSITIVE_TURN)), mutFile);
   return records().length > 2;
 });
 // 收尾建议判据的变异对照：⑭ 的绿必须能变红
 mutant('去掉够格判定（单次缺口也弹）',
-  '.filter(c => signal.popupWorthy(c, sessions.get(c.topic) ? sessions.get(c.topic).size : 1))\n    .map(c => ({ kind: c.kind, topic: c.topic, carriers: c.carriers, excerpt: c.excerpt, evidence: c.evidence || {} }));',
-  '.filter(c => true)\n    .map(c => ({ kind: c.kind, topic: c.topic, carriers: c.carriers, excerpt: c.excerpt, evidence: c.evidence || {} }));', () => {
+  '.filter(c => signal.popupWorthy(c, sessions.get(c.topic) ? sessions.get(c.topic).size : 1))\n    .map(c => ({ kind: c.kind, topic: c.topic, carriers: c.carriers, excerpt: c.excerpt, evidence: c.evidence || {}, ...(c.scopeUnknown ? { scopeUnknown: true } : {}) }));',
+  '.filter(c => true)\n    .map(c => ({ kind: c.kind, topic: c.topic, carriers: c.carriers, excerpt: c.excerpt, evidence: c.evidence || {}, ...(c.scopeUnknown ? { scopeUnknown: true } : {}) }));', () => {
     runHook(stopInput(transcript(gapOnce)), mutFile);
     return !!pendingOf('aaaaaaaa');
   });
@@ -753,6 +753,84 @@ coreMutant('把任意 commandMode 都当用户插话',
     // 通知被当成指令 → 不再走"没有指令"的诚实跳过分支（无论后续是否命中信号）
     return !/SKIP_NO_USER_TEXT/.test(heartbeatText());
   });
+// ⑳ A34（2026-11-13 用户采纳）：超窗不再整轮丢弃 —— 仅问题族降级采集 + scopeUnknown 标记。
+// 夹具把真实指令推到回溯上限之外，同时把两次同一工具失败与一条助手自述笔记留在尾窗内：
+// 前者必须被采到（问题族），后者必须被挡住（经验族不在降级范围）。
+const A34_TAIL = 1536, A34_BACK = 2048;
+const a34Config = JSON.stringify({ tailBytes: A34_TAIL, backtrackBytes: A34_BACK });
+const a34File = transcript([
+  userLine('以后一律用简体中文回复。'),
+  ...Array.from({ length: 40 }, (_, i) => assistantLine('远端过程说明第 ' + i + ' 段，把真实指令推到回溯上限之外。')),
+  toolUseLine('g1', 'Bash'),
+  toolResultLine('g1', 'command not found: pwsh', true),
+  toolUseLine('g2', 'Bash'),
+  toolResultLine('g2', 'command not found: pwsh', true),
+  assistantLine('已否证：改执行策略 × 本机 A/B 对照无效'),
+]);
+const a34Tail = fs.readFileSync(a34File, 'utf8').slice(-A34_TAIL);
+check('⑳ 夹具确实超窗（指令在尾窗与回溯之外）', fs.statSync(a34File).size - A34_TAIL > A34_BACK && !a34Tail.includes('以后一律用简体中文'), `size=${fs.statSync(a34File).size}`);
+check('⑳ 夹具尾窗内确有两次同一失败与一条经验笔记（判据非空转）', (a34Tail.match(/command not found/g) || []).length >= 2 && a34Tail.includes('已否证'), a34Tail.slice(-100));
+reset(); write(CONFIG, a34Config);
+const a34Run = runHook(stopInput(a34File));
+const a34Records = records();
+check('⑳a 超窗仍采到问题族候选', a34Run.status === 0 && a34Records.length >= 1 && kindsOf(a34Records).includes('repeated-failure'), `exit=${a34Run.status} records=${a34Records.length} heart=${heartbeatText().trim().slice(-120)}`);
+check('⑳a 降级候选全部是问题族且带 scopeUnknown', a34Records.length > 0 && a34Records.every(r => r.family === 'problem' && r.scopeUnknown === true), JSON.stringify(a34Records.map(r => [r.family, r.scopeUnknown])));
+check('⑳a 经验族与偏好族不入库（降级只认问题族）', !a34Records.some(r => r.family === 'experience' || r.kind === 'long-term-preference'), kindsOf(a34Records).join(','));
+check('⑳a 心跳记 CAPTURE 且带 scopeUnknown 计数', /CAPTURE session=aaaaaaaa/.test(heartbeatText()) && /scopeUnknown=[1-9]/.test(heartbeatText()) && !/SKIP_NO_USER_TEXT/.test(heartbeatText()), heartbeatText().trim().slice(-140));
+const a34Pending = pendingOf('aaaaaaaa');
+check('⑳a pending 项带 scopeUnknown（弹窗层据此要求人工确认范围）', !!a34Pending && a34Pending.items.length >= 1 && a34Pending.items.every(i => i.scopeUnknown === true), JSON.stringify(a34Pending && a34Pending.items.map(i => i.scopeUnknown)));
+check('⑳a 降级候选仍 verified:false / status:candidate', a34Records.length > 0 && a34Records.every(r => r.verified === false && r.status === 'candidate'), '');
+const a34Dry = spawnSync(process.execPath, [SCRIPT, '--dry-run', '--transcript', a34File, '--session', 'aaaaaaaa-1111-2222-3333-444444444444', '--cwd', path.join(SB, 'project-alpha')], { encoding: 'utf8', timeout: 20000, env: CHILD_ENV });
+let a34DryJson = null; try { a34DryJson = JSON.parse(a34Dry.stdout); } catch {}
+check('⑳b dry-run 与真实分支同口径（truncated + scopeUnknown + 仅问题族）', a34Dry.status === 0 && !!a34DryJson && a34DryJson.truncated === true && a34DryJson.scopeUnknown === true && a34DryJson.candidates.length >= 1 && a34DryJson.candidates.every(c => c.family === 'problem'), `exit=${a34Dry.status} ${String(a34Dry.stdout).slice(0, 100)}`);
+// ⑳c 负对照：超窗但尾窗没有问题族证据 → 仍诚实跳过（带 degraded 便于诊断），不臆造范围。
+reset(); write(CONFIG, JSON.stringify({ tailBytes: 512, backtrackBytes: 2048 }));
+runHook(stopInput(transcript([
+  userLine('以后一律用简体中文回复。'),
+  ...Array.from({ length: 40 }, (_, i) => assistantLine('远端过程说明第 ' + i + ' 段，把真实指令推到回溯上限之外。')),
+  compactLine(COMPACT_TEXT),
+])));
+check('⑳c 超窗且无问题族证据时零采集 + SKIP_NO_USER_TEXT(degraded=1)', records().length === 0 && /SKIP_NO_USER_TEXT/.test(heartbeatText()) && /degraded=1/.test(heartbeatText()) && /tail=512 back=2048/.test(heartbeatText()), heartbeatText().trim().slice(-140));
+// ⑳d 负对照：窗口覆盖全文却仍无指令 → 保持改前口径（不带 degraded），不把"没有指令"当"超窗"。
+reset();
+runHook(stopInput(transcript([compactLine(COMPACT_TEXT), ...POSITIVE_TURN.slice(1)])));
+check('⑳d 未超窗且无指令时仍零采集且不带 degraded', records().length === 0 && /SKIP_NO_USER_TEXT/.test(heartbeatText()) && !/degraded=1/.test(heartbeatText()), heartbeatText().trim().slice(-140));
+// ⑳e 负对照：回溯能读到只读指令时仍暂停（降级不得绕过已知范围，尾窗有失败也不采）。
+reset(); write(CONFIG, JSON.stringify({ tailBytes: 512, backtrackBytes: 8 * 1024 * 1024 }));
+runHook(stopInput(transcript([
+  userLine('只读审阅这个方案，不要修改任何文件'),
+  ...Array.from({ length: 14 }, (_, i) => assistantLine('中间过程说明第 ' + i + ' 段，用来把真实指令挤出尾窗。')),
+  toolUseLine('h1', 'Bash'), toolResultLine('h1', 'command not found: pwsh', true),
+  toolUseLine('h2', 'Bash'), toolResultLine('h2', 'command not found: pwsh', true),
+])));
+check('⑳e 只读指令可读时仍 SKIP_READ_ONLY（守卫没被降级绕过）', records().length === 0 && /SKIP_READ_ONLY/.test(heartbeatText()), heartbeatText().trim().slice(-120));
+// A34 变异对照：摘掉降级 / 标记 / family 过滤 / 截断判定，对应判据必须重现缺陷。
+// 锚点必须锁定真实 Stop 分支：dry-run 里有同形一行（缩进 4 空格），只按语句文本替换会命中它，
+// 变异体看着构造成功却根本没改到被测分支（本轮实测 probe=false 后改成带下一行的唯一锚点）。
+mutant('摘掉超窗降级分支（重现整轮丢弃）',
+  '  const scopeUnknown = !turn.userText && turn.truncated;\n  if (!turn.userText && !scopeUnknown) {',
+  '  const scopeUnknown = false;\n  if (!turn.userText && !scopeUnknown) {', () => {
+  write(CONFIG, a34Config);
+  runHook(stopInput(a34File), mutFile);
+  return records().length === 0 && /SKIP_NO_USER_TEXT/.test(heartbeatText());
+});
+mutant('摘掉 scopeUnknown 标记', '\n      ...(scopeUnknown ? { scopeUnknown: true } : {}),', '', () => {
+  write(CONFIG, a34Config);
+  runHook(stopInput(a34File), mutFile);
+  const rs = records();
+  return rs.length >= 1 && rs.every(r => r.scopeUnknown !== true);
+});
+mutant('降级时不过滤 family（经验族混进来）', "const allowed = scopeUnknown ? unique.filter(item => item.family === 'problem') : unique;", 'const allowed = unique;', () => {
+  write(CONFIG, a34Config);
+  runHook(stopInput(a34File), mutFile);
+  return records().some(r => r.family === 'experience');
+});
+mutant('truncated 恒 false（超窗判不出来）', 'out.truncated = start > 0;', 'out.truncated = false;', () => {
+  write(CONFIG, a34Config);
+  runHook(stopInput(a34File), mutFile);
+  return records().length === 0 && /SKIP_NO_USER_TEXT/.test(heartbeatText());
+});
+
 // 变异 harness 负对照：未改动的副本必须与原件行为一致（红来自变异，不是 harness 恒红）。
 reset();
 const cleanRun = runHook(stopInput(transcript(POSITIVE_TURN)), mutFile);
