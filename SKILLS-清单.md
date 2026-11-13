@@ -1,4 +1,4 @@
-# Qoder-Optimization - 0.1.5 技能清单
+# Qoder-Optimization - 0.1.6 技能清单
 
 共 133 个源码随包技能：常驻 5 / 按需 128。机器可读版见 skills-manifest.json 与 catalog.json。
 
@@ -96,7 +96,7 @@
 - `redis-semantic-cache`（按需）—— Redis LangCache 语义缓存：LLM 响应缓存、相似度阈值、按任务分缓存与自定义属性过滤。触发词：LangCache、语义缓存、LLM 缓存、相似度阈值、Redis Cloud。不用于：RediSearch 全文/向量检索 → redis-search。
 - `rules-conflict-audit`（按需）—— 规则体系冲突与验证主张审计：只读交叉核对 AGENTS、提醒、收尾门禁、领域规则、技能描述和记忆，输出引用、行号、行为影响、具体改文与扩权标注；核对证明力、真实问答、多项阻塞与历史授权反例。报告交付即完成审阅；批准实施后才修改，保留平台强制审批。扩展：技能/文档家族一致性审计——按四层模型核对 description、正文、校验器、规则文件、分享包五个面，正负夹具防校验器假绿，修复后同批同步分享包。触发词：规则冲突、规则审计、规则体系冲突。
 - `safe-text-editing`（按需）—— 改文件与传参的字符安全 playbook。当"内容写出来不对"时用：引号/反斜杠/反引号/`$` 被 shell 先解释、中文进 .cmd 变乱码、CRLF 与 GBK 被改写、整文件覆盖丢内容、替换串手抄失配、管道吞掉退出码、命令成功但改错地方。触发词：编辑出错、字符被吃掉、内容不对、乱码、转义、引号问题、sed 替换没生效、写进去的不是我要的、编码、GBK、CRLF、退出码不对。不用于：纯文本内容校对（走文档类技能）、.cmd 工具的整套改/验/发链（走 verify-windows-cmd-tool）。
-- `self-evolution`（按需）—— 将用户明确的长期偏好、重复纠正、验证过的复用经验和持续能力缺口转为有证据的规则、技能或工具配置更新；也用于查看、暂停、恢复与回退自动调整。触发词：自进化、学到的规则、暂停自动调整、恢复自进化、撤销最近学到的、查看学到的规则、经验沉淀、证据门槛。不用于：单次临时指令和普通成功任务。
+- `self-evolution`（按需）—— 将用户明确的长期偏好、重复纠正、验证过的复用经验和持续能力缺口转为有证据的规则、技能、MCP 或 hook 更新；每轮 Stop 自动把问题与习惯采集成 inbox 候选，收尾用弹窗给推荐建议、由用户决定是否新增或更改，定期扫描给出载体路由；也用于查看、暂停、恢复与回退自动调整。触发词：自进化、学到的规则、暂停自动调整、恢复自进化、撤销最近学到的、查看学到的规则、经验沉淀、证据门槛、采集候选、候选报告、记录用户习惯、收尾建议弹窗、采纳建议、跳过这条建议。不用于：单次临时指令和普通成功任务。
 - `senior-devops`（按需）—— DevOps：CI/CD、基础设施自动化、容器化与云平台（AWS/GCP/Azure）。触发词：CI 流水线、容器化、Kubernetes、Terraform、云平台、基础设施自动化。不用于：本机 Windows 脚本与 cmd 工具 → verify-windows-cmd-tool；GitHub Actions 成本 → audit-ci-cost-levers。
 - `setup-windows-selfhosted-runner`（按需）—— 在 Windows 上安装、注册、验证并持久化 GitHub Actions 自托管 runner 的完整链与九类实测坑避坑顺序。用于要装 self-hosted runner、把门禁挪到本机跑以省 GitHub Free 的 2000 分钟/月、job 在含空格的 runner 目录下秒红（/usr/bin/bash 报 D:\Program 无此文件）、runner 随会话结束即停或开机弹常驻终端、硬杀 listener 后报 A session for this runner already exists。
 - `share-package-release`（按需）—— 分享包/配置包从组装、改名、发版门禁到发布后远端资产与包内成员逐字节核验的闭环。触发词：分享包发版、改包名、改名冲突、VERSION、catalog、manifest、发布门禁、发布说明、tag 后 publish 失败、Release 资产核验、解压逐字节比对、已发布包审计。不用于普通 PR 交付（ship-clean-pr）或仅打包前校验（/verify-package）。

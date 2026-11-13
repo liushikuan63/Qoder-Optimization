@@ -2,9 +2,9 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.1.5"
+  "version": "0.1.6"
  },
- "generated": "2026-11-12",
+ "generated": "2026-11-13",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 133,
@@ -2624,23 +2624,6 @@
    ]
   },
   {
-   "id": "script:evolution-capture.test.js",
-   "category": "script",
-   "name": "evolution-capture.test.js",
-   "status": "shipped",
-   "source": "scripts/evolution-capture.test.js",
-   "install": {
-    "mode": "copy-file"
-   },
-   "dependencies": [
-    "script:evolution-capture.cjs",
-    "script:evolution-signal-core.js",
-    "script:client-root.js",
-    "script:hook-crash-guard.js",
-    "script:parallel-context-redact.cjs"
-   ]
-  },
-  {
    "id": "script:evolution-capture.cjs",
    "category": "script",
    "name": "evolution-capture.cjs",
@@ -2657,6 +2640,20 @@
    ]
   },
   {
+   "id": "script:evolution-capture.test.js",
+   "category": "script",
+   "name": "evolution-capture.test.js",
+   "status": "shipped",
+   "source": "scripts/evolution-capture.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:evolution-capture.cjs",
+    "script:parallel-context-redact.cjs"
+   ]
+  },
+  {
    "id": "script:evolution-loop.test.js",
    "category": "script",
    "name": "evolution-loop.test.js",
@@ -2667,15 +2664,19 @@
    },
    "dependencies": [
     "script:evolution-capture.cjs",
-    "script:stop-gate.js",
-    "script:stop-gate-text.js",
-    "script:evolution-signal-core.js",
-    "script:client-root.js",
-    "script:hook-crash-guard.js",
-    "script:parallel-context-redact.cjs",
-    "script:kickoff-core.cjs",
-    "script:capability-roots.cjs"
+    "script:stop-gate.js"
    ]
+  },
+  {
+   "id": "script:evolution-signal-core.js",
+   "category": "script",
+   "name": "evolution-signal-core.js",
+   "status": "shipped",
+   "source": "scripts/evolution-signal-core.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": []
   },
   {
    "id": "script:evolution-signal-core.test.js",
@@ -2691,17 +2692,6 @@
     "script:evolution-signal-core.js",
     "script:stop-gate.js"
    ]
-  },
-  {
-   "id": "script:evolution-signal-core.js",
-   "category": "script",
-   "name": "evolution-signal-core.js",
-   "status": "shipped",
-   "source": "scripts/evolution-signal-core.js",
-   "install": {
-    "mode": "copy-file"
-   },
-   "dependencies": []
   },
   {
    "id": "script:fact-ledger.cjs",
@@ -3511,7 +3501,8 @@
    },
    "source": "scripts/share-package-verify.test.js",
    "dependencies": [
-    "script:share-package-verify.cjs"
+    "script:share-package-verify.cjs",
+    "script:skill-description.cjs"
    ]
   },
   {
@@ -3572,6 +3563,7 @@
     "mode": "copy-file"
    },
    "dependencies": [
+    "script:pack-share-extras.cjs",
     "script:skill-description.cjs"
    ]
   },

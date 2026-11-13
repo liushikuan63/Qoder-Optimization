@@ -165,7 +165,9 @@ function metadataFor(root, options = {}) {
     let row = 0;
     readme = readme.split('\n').flatMap(line => {
       if (!line.startsWith('| ' + originalVersion + ' |')) return [line];
-      const summary = row++ === 0 ? 'Integrity fixes; optional offline bundle' : '完整性修复；离线附件按需下载';
+      // 这两行是**本次发版**的编辑性摘要，生产者无法从代码推导，每次升版必须手工更新；
+      // 留着上一版的文案会让 README 新版本行描述旧内容（四道包契约门禁抓不到这种漂移）。
+      const summary = row++ === 0 ? 'Evolution capture with user-decided carrier changes; continuity archive pruning; guard and package-verifier hardening' : '自进化采集与载体改动由用户拍板；接续档案自动清理；守卫与包校验器加固';
       const url = 'https://github.com/liushikuan63/Qoder-Optimization/releases/';
       return [`| ${version} | ${date} | ${summary} | [zip](${url}download/v${version}/${name}-${version}.zip) · [notes](${url}tag/v${version}) |`, line];
     }).join('\n');

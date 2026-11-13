@@ -6,17 +6,29 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-11-13
+
 ### Added
 - Add opt-in automatic pruning for the SQLite continuity archive. `prune` runs as a dry run by default; `--apply` moves expired, orphaned (source transcript missing) or empty session directories into a quarantine batch with a per-file SHA-256 manifest. Auto-bound sessions expire after `retentionDays` (default 90), orphaned archives get a 7-day grace, manually named task archives stay protected unless `--include-manual`, fresh capture locks and the current session are always excluded, and `SessionStart` runs cleanup at most once per `intervalHours` (default 24). Automatic cleanup stays off until `<store>/prune.json` enables it.
 - Add `prune --recover` for interrupted (`inprogress`/`partial`) quarantine batches, `prune --list-quarantine`, in-progress manifests written before and during moves, a `prune-audit.jsonl` audit entry per applied run, and a `prune-cache.json` inspection cache that avoids reopening unchanged databases.
 - Add deterministic self-evolution capture on `Stop`: `scripts/evolution-capture.cjs` appends redacted candidates (long-term preferences, explicit sedimentation requests, repeat corrections, capability gaps, repeated failures, assistant `已否证：`/`验证结论：` notes) to `evolution/inbox.jsonl` with carrier routing, plus a heartbeat log. Judgement lives in one shared core, `scripts/evolution-signal-core.js`, also used by the per-turn reminder and the stop gate; capture widens recall only through an explicit `extended` mode, so non-triggering reminder output stays byte-identical. Capture never blocks and never writes rules, skills, hooks, MCP, memory or `settings.json`; read-only, handoff-only and no-memory turns write nothing, and a paused or invalid `evolution/control.json` stops collection without resetting it. Read-only `--report [--json]` and zero-write `--dry-run --transcript <file>` are included.
 - Add a wrap-up suggestion popup so the user decides every carrier change: capture writes newly deduped, popup-worthy candidates to `tmp/evolution-capture/pending-<session8>.json` (at most 6 items, 24-hour TTL), and stop-gate `R19-evolution-suggestion-not-asked` blocks the wrap-up until an `AskUserQuestion` card about the suggestions has been asked. Explicit user preferences qualify once; capability gaps and repeated failures need `occurrences >= 2` or two sessions; assistant experience notes stay report-only. At most one suggestion card per turn, and read-only, handoff-only, no-memory and paused turns are exempt. `--decline <topic>` records a skipped suggestion in `evolution/suggestions-declined.json` and removes it from pending while keeping the inbox evidence. The rule blocks at most twice per 30-minute window and then passes visibly through a `-SUPPRESSED` ledger entry.
 - Add stop-gate `R18-sedimentation-claim-without-evidence`, which blocks wrap-up claims such as "已沉淀为规则/已落成技能" unless this turn contains a successful write to the claimed carrier, and extend `evolution-candidates.cjs` to read the inbox (including rotated archives) and route each candidate to memory, rules, AGENTS, skill, hook, MCP or script with cross-session and cross-directory promotion thresholds.
+- Persist cleanup `keep` answers as evidence markers (`.keep` / `.evidence.json`) and name registered skips in the cleanup report, so a later sweep can tell protected evidence from disposable output.
 
 ### Fixed
 - Do not treat legacy JSON-only continuity archives as empty session directories: `prune` now counts `records/*.json`, and such archives are governed only by the retention window instead of the 7-day empty grace.
 - Re-check `capture.lock` and the last activity immediately before moving a session, skip sessions touched after the scan, and let `prune --cwd/--session` exclude the current session; orphan detection also checks known transcript roots so a moved transcript is not mistaken for a deleted session.
 - `scope.json` mtime no longer extends a session's life, so disabling an old session cannot postpone cleanup.
+- Harden the package verifier (`share-package-verify.cjs`): fail closed on backslash escapes in catalog `source`, on unknown or value-less CLI arguments and on `.bak` lookalikes; report an unavailable per-skill description-cap table instead of silently judging every skill against 300; catch empty `backups/` and `node_modules/` directories, junk-named directories and same-named files, and register symlinks without recursing into them; turn unreadable directories and failed `stat` calls into explicit FAIL rows rather than a crash that looks like a verdict.
+- Output guard (`huge-output-guard.js`): project byte counts even when the command carries `offset`/`limit`, stop treating `2>&1` as a file redirect, and close three measured bypasses.
+- Cleanup guards (`tmp-round-scan.cjs` and the sweeper): honour `--flag=value`, fail closed on unknown or value-less flags, keep quarantine purge inside the requested scope, protect doc-registered evidence subtrees, purge only our own trash batches and surface cleanup-ledger errors.
+- Hook guards: reject oversized `-n` bounds and dead guards, close the remaining C11 bound gaps and correct the commit-scope contract.
+- Audit: treat drive-letter evidence refs as paths rather than URI schemes, and close four vacuous-green holes in the package and cleanup guards.
+- Self-evolution: exclude the compaction summary from instruction scanning, read mid-turn prompts stored as `queued_command`, align read boundaries to newlines so CJK keywords survive, honour English read-only / handoff / no-memory rounds, recall per-round long-term preferences in capture only, redact failure signatures, prefer fresh suggestions, ignore sidechain text and degrade to problem-family capture when the instruction falls outside the window.
+- Parallel context redaction now redacts URLs before secrets so paths and query keys cannot leak; parallel write retries transient `EPERM`/`EBUSY` when committing the run receipt.
+- Tests: make the three-way multiline description agreement check and the 300-character boundary falsifiable, report the actual mutation verdict instead of a fixed label, keep the evidence fixture from auditing a record as a plan, assert tier-aware placement of the 12 workflow skills, derive the reminder sandbox list from unconditional requires, and split private-IP fixtures so shipped text carries no full IP shape (runtime values and PASS counts unchanged).
+- Docs: correct stale selftest tallies and the hook install count, turn on doc-registered evidence protection in every cleanup command, tell the two evolution skip reasons apart and record criteria lessons in `verify-before-claim`.
 
 ### 中文摘要
 - 新增接续档案自动清理（默认关闭，需在 `<store>/prune.json` 开启）：`prune` 默认干跑，`--apply` 才把超期、孤儿（来源 transcript 已消失）或空会话目录移入隔离批次并写逐文件 SHA-256 清单；自动绑定会话按 `retentionDays`（默认 90 天）过期，孤儿宽限 7 天，手工命名任务档案除非 `--include-manual` 否则保留，当前会话与新鲜 `capture.lock` 永远排除，`SessionStart` 每 `intervalHours`（默认 24 小时）最多执行一次。
@@ -27,6 +39,16 @@ During the 0.x line, minor versions may contain breaking changes.
 - 新增每轮 `Stop` 的自进化确定性采集：`scripts/evolution-capture.cjs` 把长期偏好、明确沉淀要求、重复纠正、能力缺口、重复失败与助手 `已否证：`/`验证结论：` 笔记脱敏后追加到 `evolution/inbox.jsonl`，带载体路由与心跳。判据收敛到唯一真源 `scripts/evolution-signal-core.js`（提醒层、采集层、门禁共用），采集只在显式 `extended` 模式下加宽召回，非触发轮提醒输出逐字节不变。采集永不拦截、绝不写规则/技能/hook/MCP/记忆/`settings.json`；只读、仅交接、禁记忆轮零写入，`evolution/control.json` 暂停或损坏即停采集且不重置。附只读 `--report [--json]` 与零写入 `--dry-run --transcript <file>`。
 - 新增收尾建议弹窗，载体改不改由用户拍板：采集把**本轮新增且够格**的候选写进 `tmp/evolution-capture/pending-<会话前8位>.json`（≤6 条、24 小时过期），stop-gate `R19-evolution-suggestion-not-asked` 在没弹过建议卡时拦下收尾。用户明确的偏好一次即够格，能力缺口与重复失败需 `occurrences >= 2` 或跨 2 个会话，助手经验只进报告不弹窗；每轮最多问一次，只读/仅交接/禁记忆/已暂停轮豁免。`--decline <主题>` 把跳过登记到 `evolution/suggestions-declined.json` 并从 pending 撤下，**inbox 证据保留**。该规则 30 分钟窗口内最多拦 2 次，超限写 `-SUPPRESSED` 台账后可见放行。
 - 新增 stop-gate `R18-sedimentation-claim-without-evidence`：收尾声称“已沉淀为规则/已落成技能”却没有本轮成功写入证据时拦下；`evolution-candidates.cjs` 增加 inbox（含轮转归档）数据源，按跨会话/跨目录门槛把候选路由到记忆、rules、AGENTS、技能、hook、MCP 或脚本。
+- 清理时选择的「保留」落盘为证据标记（`.keep` / `.evidence.json`），报告点名已登记的跳过项，后续清扫能区分受保护证据与可丢产物。
+- 包校验器加固：catalog `source` 的反斜杠绕法、未知/缺值参数、`.bak` 形似名一律失败关闭；载体描述上限表读不到时显式判红，不再静默按 300 判所有技能；空的 `backups/`、`node_modules/` 目录、垃圾名目录与同名文件都拦，符号链接只登记不递归；目录读不出与 `stat` 失败改成逐条 FAIL，不再用崩溃冒充判红。
+- 大输出守卫：带 `offset`/`limit` 也投影字节数，`2>&1` 不再被当成文件重定向，另堵三条实测绕法。
+- 清理守卫：支持 `--flag=value`，未知/缺值参数失败关闭，隔离区清除只在请求范围内，保护文档登记的证据子树，只清自己的回收批次，台账错误显式呈报。
+- hook 守卫：拒绝超大 `-n` 边界与死守卫，补齐 C11 剩余边界缺口，更正提交范围契约。
+- 审计：盘符形证据引用按路径核对而非当成 URI scheme；堵掉包与清理守卫的四处空集恒真。
+- 自进化：指令扫描排除压缩摘要，读取以 `queued_command` 存放的轮内提示，读边界对齐换行以保住中文关键词，英文只读/仅交接/禁记忆轮同样豁免，采集只召回本轮长期偏好，失败签名脱敏、优先新鲜建议、忽略侧链文本，指令落在窗口外时降级为问题族采集。
+- 并行上下文脱敏先处理 URL 再处理秘密，避免路径与查询键泄漏；并行写入提交运行回执时对瞬时 `EPERM`/`EBUSY` 重试。
+- 测试：三方多行描述一致性与 300 字符边界改成可失败，变异结论报真实判定而非固定标签，证据夹具不再把记录当计划审计，断言 12 个工作流技能的分层落位，提醒沙箱清单从无条件 require 推导，私网 IP 夹具拆串使随包文本不含完整形状（运行时值与 PASS 数不变）。
+- 文档：更正过期的自测条数与 hook 接入数，每条清理命令都启用文档登记证据保护，区分自进化的两种跳过原因，并把判据经验记进 `verify-before-claim`。
 
 ## [0.1.5] - 2026-11-10
 
@@ -780,7 +802,9 @@ During the 0.x line, minor versions may contain breaking changes.
 ### Contributors / 贡献者
 - @liushikuan63
 
-[Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.6
+[0.1.5]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.5
 [0.1.4]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.4
 [0.1.3]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.3
 [0.1.2]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.2
