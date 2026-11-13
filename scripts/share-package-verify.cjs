@@ -129,9 +129,18 @@ function verify(pkgDir, agentsPath) {
   const skillsDir = path.join(pkgDir, 'skills');
   const over = [];
   let maxSeen = [0, ''];
-  const skillNames = fs.existsSync(skillsDir)
-    ? fs.readdirSync(skillsDir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)
-    : [];
+  // F97：skills 存在但**读不出**时（它是普通文件 → ENOTDIR；权限不足 → EACCES/EPERM），
+  // 旧写法在 try 外直接 readdirSync ⇒ 未捕获异常崩溃退出、连 VERDICT 行都没有，
+  // 与 F96「崩溃不算判红」同族残留（2026-11-13 probe-f97 修前实测 exit=1 / HAS_VERDICT=false / HAS_STACK=true）。
+  // 读不出必须显式判红并点名原因；skillNames 退化成空集后，由下面的空集判据继续兜住（不静默判绿）。
+  let skillNames = [];
+  if (fs.existsSync(skillsDir)) {
+    try {
+      skillNames = fs.readdirSync(skillsDir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
+    } catch (e) {
+      fails.push(`skills/ 读不出（${e && e.code ? e.code : String(e)}）：description 判据一个技能都没查，崩溃不算判红`);
+    }
+  }
   for (const n of skillNames) {
     const f = path.join(skillsDir, n, 'SKILL.md');
     if (!fs.existsSync(f)) { fails.push(`技能缺 SKILL.md: ${n}`); continue; }
@@ -316,8 +325,17 @@ function selftest() {
   const nmFile = path.join(tmp, 'nm-file'); base(nmFile); mk(nmFile, 'ok-skill', '短描述');
   fs.writeFileSync(path.join(nmFile, 'node_modules'), 'x\n');
   expectCase('负例', 'node_modules同名文件', run(nmFile), 2, '名为 node_modules 的文件应判红', '垃圾文件');
-  // 说明：walk/walkDirs 的「目录读不出」与 statSync 失败两条错误收集路径，本轮**无确定性夹具覆盖**
-  // （Windows 下造 EPERM/断链需特权且不稳定），按 [静态] 登记，不假装测过。
+  // F97 负对照：skills 存在但**读不出**（造成普通文件 → ENOTDIR）。修前 :133 在 try 外 ⇒ 未捕获异常崩溃退出、
+  // 连 VERDICT 行都没有（probe-f97 修前实测 exit=1 / HAS_VERDICT=false / HAS_STACK=true）；修后必须显式判红并点名。
+  const skillsFile = path.join(tmp, 'skills-is-file'); base(skillsFile);
+  fs.writeFileSync(path.join(skillsFile, 'skills'), 'not a directory\n');
+  expectCase('负例', 'skills读不出', run(skillsFile), 2, 'skills 是普通文件 ⇒ 应显式判红而非崩溃', 'skills/ 读不出（ENOTDIR）');
+  // F97b 负对照：**包目录本身**是普通文件 ⇒ walk 与 walkDirs 的 readdirSync 都抛 ENOTDIR。
+  // 这条给 F96 的「目录读不出」错误收集路径补上了确定性夹具（此前如实记为无夹具，现更正）。
+  const pkgFile = path.join(tmp, 'pkg-is-file'); fs.writeFileSync(pkgFile, 'x\n');
+  expectCase('负例', '包目录读不出', run(pkgFile), 2, '包目录是普通文件 ⇒ 两处读不出都必须显式判红', '目录读不出 2 处');
+  // 说明：statSync 失败那条错误收集路径仍**无确定性夹具**（Windows 下造断链/EPERM 需特权且不稳定），
+  // 按 [静态] 登记，不假装测过。
 
   // F93 正/负对照：载体放宽必须真生效，且上限真被 enforcing（不是「载体＝无限制」）。
   // CARRIER 的 max 取自 skills-doctor.cjs 的 DESC_CARRIERS（现读＝460），不手写死数字来源。

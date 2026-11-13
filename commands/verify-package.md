@@ -15,7 +15,7 @@ node ~/.qoder/scripts/share-package-verify.cjs "D:/tmp/Qoder-Optimization-0.0.2"
 # 额外校验规则文档第一节是否与 AGENTS.md 逐字节一致
 node ~/.qoder/scripts/share-package-verify.cjs "<包目录>" --agents ~/.qoder/AGENTS.md
 
-# 校验器自身自测（55 条：14 正例 / 41 负例）
+# 校验器自身自测（57 条：14 正例 / 43 负例）
 node ~/.qoder/scripts/share-package-verify.cjs --selftest
 ```
 
