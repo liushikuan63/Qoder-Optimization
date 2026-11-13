@@ -480,6 +480,7 @@ if (fs.existsSync(hooksExamplePath)) {
 }
 const minOuter = Math.min(outerDispatcher, outerExample);
 const deadlineDefault = budgetAfter(/CUA_GUARD_DEADLINE_MS \|\| (\d+)/);
+const reserveDefault = budgetAfter(/CUA_GUARD_SPAWN_RESERVE_MS \|\| (\d+)/);
 ok('A60 外层预算取到了真实来源（非空转）', Number.isFinite(minOuter) && minOuter > 0, `dispatcher=${outerDispatcher} example=${outerExample}`);
 ok('A60 守卫总 deadline 留余量后仍小于外层预算', Number.isFinite(deadlineDefault) && deadlineDefault + 1000 <= minOuter, `deadline=${deadlineDefault} minOuter=${minOuter}`);
 
@@ -511,9 +512,15 @@ ok('A60 慢读取总耗时≈deadline+余量（启动开销已被计入）', d2.
 ok('A60 慢读取下 Pre 仍 allow（fail-open 语义不变）', decision(d2) === 'allow', decision(d2) + ' ' + (d2.err || '').slice(0, 80));
 ok('A60 读不到就不写快照（不假装 Post 能还原）', !fs.existsSync(path.join(STATE, `${d2.sid}.json`)), d2.sid);
 
-// A60-3 模式隔离：deadline 开 vs 关，同一份快 stub 的读/写次数必须完全相同（A/B，不靠我手算基线）。
+// A60-3 模式隔离：deadline 开 vs 关（A/B，不靠我手算基线）。
 // 首版我把读取次数期望写成 4 ⇒ 假红：COUNTED 对**读与写都计数**，A35 的 4 其实是 3 读 + 1 写；
 // 这里读/写用独立 marker 分开数，按实测契约改成 3，并另加开/关对照防「两边一起变」的恒真。
+// A60b 工况校正（2026-11-13 负载 A/B 实测 on=2 off=3）：原式把「reads===3 / writes===1 / 已还原并复验」
+// 钉在**开着 deadline 的那一侧**，可负载下 deadline 本就该截断读取 ⇒ 那几条在负载下恒红，属断言与工况不匹配。
+// 校正＝严格基线改钉在**关闭 deadline 的一侧**（没有钳制就不该少做事，与机器负载无关）；开着的一侧按
+// **它自己报出的结果**分工况判：还原成功 ⇒ 读/写次数必须与关闭侧逐项相同；没还原成功 ⇒ 必须仍在外层预算内、
+// 仍写台账、仍给诚实 UNVERIFIED，且「截断」要有时间依据（防止有余量却拒绝干活的变异体蒙混过关）。
+// 两个分支各 4 条断言 ⇒ 断言总数不随工况变化（变异对照按总数钉住）。
 const isoRun = (tag, useDefault) => {
   setCase(tag, 1079, 583);
   const mr = path.join(SANDBOX, `${tag}-r.txt`), mw = path.join(SANDBOX, `${tag}-w.txt`);
@@ -521,17 +528,30 @@ const isoRun = (tag, useDefault) => {
   if (useDefault) o.deadline = 'default';
   const pre = run57(tag, 'PreToolUse', 'mcp_call', SAFE_STEPS, o);
   setCase(tag, 2157, 637);
+  const led = ledgerCount();
   const post = run57(tag, 'PostToolUse', 'mcp_call', SAFE_STEPS, Object.assign({ session: pre.sid }, o));
-  return { reads: reads(mr), writes: reads(mw), after: readCase(tag), out: post.out || '' };
+  return { reads: reads(mr), writes: reads(mw), after: readCase(tag), out: post.out || '', ms: post.ms, preMs: pre.ms, json: post.json, ledDelta: ledgerCount() - led, led: lastLedger() };
 };
 const d3on = isoRun('d3', true);
 const d3off = isoRun('d3off', false);
-ok('A60 模式隔离：deadline 开/关的读取次数相同', d3on.reads === d3off.reads, `on=${d3on.reads} off=${d3off.reads}`);
-ok('A60 模式隔离：deadline 开/关的写入次数相同', d3on.writes === d3off.writes, `on=${d3on.writes} off=${d3off.writes}`);
-ok('A60 模式隔离：无负载读取次数是 3（Pre 1 + Post 1 + 沉降复读 1）', d3on.reads === 3, 'reads=' + d3on.reads);
-ok('A60 模式隔离：无负载写入次数是 1（成功就不重试）', d3on.writes === 1, 'writes=' + d3on.writes);
-ok('A60 模式隔离：deadline 开着无负载仍还原成功', d3on.after.x === 1079 && d3on.after.y === 583, JSON.stringify(d3on.after));
-ok('A60 模式隔离：无负载仍报已还原并复验', /已还原并复验/.test(d3on.out), d3on.out.slice(0, 120));
+ok('A60 模式隔离：关闭 deadline 时读取次数是 3（Pre 1 + Post 1 + 沉降复读 1）', d3off.reads === 3, 'reads=' + d3off.reads);
+ok('A60 模式隔离：关闭 deadline 时写入次数是 1（成功就不重试）', d3off.writes === 1, 'writes=' + d3off.writes);
+ok('A60 模式隔离：关闭 deadline 时还原成功', d3off.after.x === 1079 && d3off.after.y === 583, JSON.stringify(d3off.after));
+ok('A60 模式隔离：关闭 deadline 时报已还原并复验', /已还原并复验/.test(d3off.out), d3off.out.slice(0, 120));
+ok('A60 模式隔离：deadline 只能减少工作量不能增加（开≤关）', d3on.reads <= d3off.reads && d3on.writes <= d3off.writes, `on=${d3on.reads}/${d3on.writes} off=${d3off.reads}/${d3off.writes}`);
+const onSucceeded = /已还原并复验/.test(d3on.out) && d3on.after.x === 1079 && d3on.after.y === 583;
+console.log(`  [A60-3 工况] onSucceeded=${onSucceeded} on={reads:${d3on.reads},writes:${d3on.writes},ms:${d3on.ms}} off={reads:${d3off.reads},writes:${d3off.writes},ms:${d3off.ms}} deadline=${deadlineDefault} reserve=${reserveDefault}`);
+if (onSucceeded) {
+  ok('A60 模式隔离：未截断时开/关读取次数相同', d3on.reads === d3off.reads, `on=${d3on.reads} off=${d3off.reads}`);
+  ok('A60 模式隔离：未截断时开/关写入次数相同', d3on.writes === d3off.writes, `on=${d3on.writes} off=${d3off.writes}`);
+  ok('A60 模式隔离：未截断时 Pre/Post 都在外层预算内', d3on.ms < minOuter && d3on.preMs < minOuter, `post=${d3on.ms} pre=${d3on.preMs} minOuter=${minOuter}`);
+  ok('A60 模式隔离：未截断时台账记 verified（与输出文案互为独立证据）', /verified/.test(d3on.led) && !/UNVERIFIED/.test(d3on.led), d3on.led);
+} else {
+  ok('A60 模式隔离：截断时仍在外层预算内应答', d3on.ms < minOuter && d3on.preMs < minOuter, `post=${d3on.ms} pre=${d3on.preMs} minOuter=${minOuter}`);
+  ok('A60 模式隔离：截断时台账仍新写一条（不是被宿主静默杀掉）', d3on.ledDelta === 1, `delta=${d3on.ledDelta} last=${d3on.led}`);
+  ok('A60 模式隔离：截断时给诚实 UNVERIFIED 且不假装还原', /UNVERIFIED/.test(d3on.led) && /未确认|人工确认/.test(d3on.out) && !/已还原并复验/.test(d3on.out), `led=${d3on.led} out=${d3on.out.slice(0, 100)}`);
+  ok('A60 模式隔离：截断有时间依据（不是有余量却拒绝干活）', Number.isFinite(reserveDefault) && d3on.ms >= deadlineDefault - reserveDefault, `ms=${d3on.ms} deadline-reserve=${deadlineDefault - reserveDefault}`);
+}
 
 // A60-4 非空转：关掉 deadline 后同一慢写入确实跑满预算 ⇒ 证明 A60-1 省下的时间来自钳制，不是 stub 变快了。
 setCase('d4', 1079, 583);
@@ -539,6 +559,40 @@ const d4pre = run57('d4', 'PreToolUse', 'mcp_call', SAFE_STEPS, { timeout: 90000
 setCase('d4', 2157, 637);
 const d4post = run57('d4', 'PostToolUse', 'mcp_call', SAFE_STEPS, { session: d4pre.sid, writeCmd: `node "${NEVER_WRITE}" set %X% %Y%`, timeout: 90000, env: { CUA_GUARD_WRITE_TIMEOUT_MS: '7000' } });
 ok('A60 非空转：关闭 deadline 后同一慢写入跑满预算（耗时 > deadline）', d4post.ms > deadlineDefault, `ms=${d4post.ms} deadline=${deadlineDefault}`);
+
+// --- A60b：余量不足就**根本不起进程**（2026-11-13 负载实测立的判据）---
+// 实测出处 D:/tmp/qo-merge-11557d3a/probe-cost-summary.json：load=8 时超时收尸比 timeout 多花 444ms，
+// 而旧 budget() 在时间用尽时返回 1ms，仍要付一整个进程创建（648ms；shell:true 快 stub 往返 2675ms）。
+// 这三条静态钉住机制本身，下面两组行为用例钉住效果——都不依赖机器负载，idle/loaded 同一判据。
+ok('A60b budget 扣掉起进程余量（钳 timeout ≠ 钳总耗时）', /const budget = \(want\) => Math\.max\(1, Math\.floor\(Math\.min\(want, remainingMs\(\) - SPAWN_RESERVE_MS\)\)\);/.test(guardSource), 'budget formula');
+const gatedPrimitives = ['readViaDriverOnce', 'writeStubOnce', 'writeDriverOnce', 'writeUser32Once'];
+const gateFirst = gatedPrimitives.filter(n => new RegExp('function ' + n + '\\([^)]*\\) \\{\\n  if \\(noTimeToSpawn\\(\\)\\)').test(guardSource));
+ok('A60b 四个起进程原语都以 noTimeToSpawn() 门控开头', gateFirst.length === gatedPrimitives.length, `gated=${gateFirst.length}/${gatedPrimitives.length} ${JSON.stringify(gateFirst)}`);
+ok('A60b readSettled 先判时间再读（旧式先读后判会白起一个 1ms 预算的进程）', /for \(let i = 0; i < tries; i\+\+\) \{\n    if \(noTimeToSpawn\(\)\) break;[\s\S]{0,120}?last = cursorRead\(\);/.test(guardSource), 'readSettled order');
+
+// deadline == reserve ⇒ 门控从进程一启动就关着：无论机器多忙，读取/写入都必须是 0 次。
+// reserve **故意不显式传**，用真源默认值 ⇒ 把默认值改坏（如改成 0）的变异体会在这里红。
+ok('A60b 起进程余量默认值取到了真源（非空转）', Number.isFinite(reserveDefault) && reserveDefault > 0, 'reserve=' + reserveDefault);
+setCase('rsv1', 1079, 583);
+const rsv1mr = path.join(SANDBOX, 'rsv1-r.txt'), rsv1mw = path.join(SANDBOX, 'rsv1-w.txt');
+const rsv1pre = run57('rsv1', 'PreToolUse', 'mcp_call', SAFE_STEPS, { readCmd: `node "${COUNTED}" read`, env: { CUA_STUB_MARKER: path.join(SANDBOX, 'rsv1-pre-r.txt') }, timeout: 90000 });
+setCase('rsv1', 2157, 637);
+const rsv1led = ledgerCount();
+const rsv1post = run57('rsv1', 'PostToolUse', 'mcp_call', SAFE_STEPS, { session: rsv1pre.sid, readCmd: `node "${COUNTED}" read`, writeCmd: `node "${COUNTED_WRITE}" set %X% %Y%`, env: { CUA_STUB_MARKER: rsv1mr, CUA_STUB_WRITE_MARKER: rsv1mw, CUA_GUARD_DEADLINE_MS: String(reserveDefault) }, timeout: 90000 });
+ok('A60b 余量用尽时零读取（deadline=reserve ⇒ 门控从一开始就关着）', reads(rsv1mr) === 0, 'reads=' + reads(rsv1mr));
+ok('A60b 余量用尽时零写入', reads(rsv1mw) === 0, 'writes=' + reads(rsv1mw));
+ok('A60b 余量用尽时台账仍新写一条并点名读不到', ledgerCount() === rsv1led + 1 && /cursor-unreadable/.test(lastLedger()), `delta=${ledgerCount() - rsv1led} last=${lastLedger()}`);
+ok('A60b 余量用尽时 fail-open 语义不变（合法 JSON + continue，不 deny）', !!rsv1post.json && rsv1post.json.continue === true, (rsv1post.err || rsv1post.out || '').slice(0, 120));
+ok('A60b 余量用尽时不假装还原（光标仍在被劫持位、文案不报已还原）', readCase('rsv1').x === 2157 && !/已还原并复验/.test(rsv1post.out || ''), JSON.stringify(readCase('rsv1')));
+ok('A60b 余量用尽时仍在外层预算内应答', rsv1post.ms < minOuter && rsv1pre.ms < minOuter, `post=${rsv1post.ms} pre=${rsv1pre.ms} minOuter=${minOuter}`);
+
+// 余量真的缩短了子进程预算：同一慢读取、同一 deadline，只差 reserve ⇒ 用**差分**判，机器负载被两边共同吸收。
+setCase('rsv2', 1079, 583);
+const rsv2a = run57('rsv2', 'PreToolUse', 'mcp_call', SAFE_STEPS, { readCmd: `node "${NEVER_READ}" read`, env: { CUA_GUARD_DEADLINE_MS: '3000', CUA_GUARD_SPAWN_RESERVE_MS: '1200' }, timeout: 90000 });
+setCase('rsv2off', 1079, 583);
+const rsv2b = run57('rsv2off', 'PreToolUse', 'mcp_call', SAFE_STEPS, { readCmd: `node "${NEVER_READ}" read`, env: { CUA_GUARD_DEADLINE_MS: '3000', CUA_GUARD_SPAWN_RESERVE_MS: '0' }, timeout: 90000 });
+ok('A60b 非空转：reserve=0 时同一慢读取跑满 deadline', rsv2b.ms >= 3000, `ms=${rsv2b.ms}`);
+ok('A60b 余量确实缩短子进程预算（差分 ≥600ms，负载无关）', rsv2b.ms - rsv2a.ms >= 600, `reserve1200=${rsv2a.ms}ms reserve0=${rsv2b.ms}ms diff=${rsv2b.ms - rsv2a.ms}`);
 
 console.log(`\n=== ${pass} passed, ${fail} failed ===`);
 try { fs.rmSync(SANDBOX, { recursive: true, force: true }); } catch (e) {}

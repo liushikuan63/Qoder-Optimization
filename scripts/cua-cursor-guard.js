@@ -81,21 +81,34 @@ const READ_RETRY_GAP_MS = Number(process.env.CUA_GUARD_READ_RETRY_GAP_MS || 150)
 // A60：内部预算必须服从**外层 hook 预算**。现役实测：.qoder 侧走 post-tool-dispatcher（每守卫 8000ms），
 // .qoder-cn 侧直连 timeout=10s —— 都小于 A35/A57 放宽后的 12000/15000。若不钳制，负载下宿主会先把守卫杀掉：
 // 台账、UNVERIFIED 与「需人工确认」提示全丢，光标留在被劫持的位置且**无人被告知**，比放宽预算前更差。
-// 修法＝守卫自带总 deadline（默认 6500ms，给输出与台账留余量），每个子进程预算按**剩余时间**钳制；
+// 修法＝守卫自带总 deadline（默认 5500ms，给输出与台账留余量），每个子进程预算按**剩余时间**钳制；
 // 时间用尽就不再重试/不再复读，直接给诚实判定。拦截范围、deny 文案与 fail-open 语义都不变。
 // CUA_GUARD_DEADLINE_MS=0 关闭钳制（测试慢 stub 用例要单独验预算与重试本身时用；生产默认开启）。
-const DEADLINE_MS = Number(process.env.CUA_GUARD_DEADLINE_MS || 6500);
-// 用 process.uptime() 而不是「模块加载时刻」：负载下 node 启动本身就要吃掉几百毫秒到几秒，
+// A60b（2026-11-13 负载实测下调 6500→5500）：进程内**任何**时钟都量不到「OS 创建 node 进程」这一段。
+// 实测 load=8：preChild（父进程起算→子 timeOrigin）904–1387ms、退出+管道排空 112–164ms，合计最坏 1551ms；
+// 而 process.uptime() 与 performance.timeOrigin 口径一致（origin-up≈0，自举段已被 uptime 计入）⇒ 换时钟无用。
+// 6500 + 1551 = 8051 > 外层 8000，所以旧默认值在负载下**必然**越界，与是否晚起子进程无关。
+// 5500 + 1551 = 7051，留约 950ms 余量。出处：D:/tmp/qo-merge-11557d3a/probe-cost-summary.json。
+const DEADLINE_MS = Number(process.env.CUA_GUARD_DEADLINE_MS || 5500);
+// 用 process.uptime() 而不是「模块加载时刻」：负载下 node 自举本身就要吃掉几百毫秒，
 // 从模块加载起算会让总耗时超出外层预算（守卫自己以为还剩时间，宿主已经把它杀了）。
 const remainingMs = () => (DEADLINE_MS > 0 ? Math.max(0, DEADLINE_MS - process.uptime() * 1000) : Infinity);
 const outOfTime = () => remainingMs() <= 0;
+// A60b：钳 timeout ≠ 钳总耗时。实测 load=8：超时收尸比 timeout 多花 444ms；而 budget() 旧式在时间用尽时
+// 返回 1ms，仍要付一整个进程创建（实测 648ms，带 shell 的快 stub 往返更是 2675ms）⇒ 越预算的隐形来源。
+// 修法＝留「起子进程 + 收尸 + 输出台账」的余量：余量不足就**根本不起进程**，直接给诚实判定。
+const SPAWN_RESERVE_MS = Number(process.env.CUA_GUARD_SPAWN_RESERVE_MS || 1200);
+const noTimeToSpawn = () => remainingMs() <= SPAWN_RESERVE_MS;
 // 必须取整：实测 execFileSync 的 timeout 传小数会立刻抛 ERR_OUT_OF_RANGE（不是超时，是参数校验），
 // 那样每次被钳制的调用都会瞬间失败 ⇒ 守卫在 deadline 开启时读不到光标、静默 fail-open。
 // 由 A60 模式隔离用例（deadline 开着数读/写次数）抓住，已点名。
-const budget = (want) => Math.max(1, Math.floor(Math.min(want, remainingMs())));
+// A60b：再扣掉 SPAWN_RESERVE_MS，使「子进程被杀 + 收尸」落在 deadline 之内而不是之外。
+// 调用点必须先用 noTimeToSpawn() 挡一道：余量不足时这里的 max(1,…) 只是兜底，不该被用来起进程。
+const budget = (want) => Math.max(1, Math.floor(Math.min(want, remainingMs() - SPAWN_RESERVE_MS)));
 const validPos = (p) => !!(p && Number.isFinite(p.x) && Number.isFinite(p.y));
 
 function readViaDriverOnce() {
+  if (noTimeToSpawn()) return null;   // A60b：余量不足就不起进程（1ms 预算也要付整个进程创建）
   if (process.env.CUA_GUARD_READ_CMD) {
     if (process.env.CUA_GUARD_TEST_STUBS !== '1') return null;
     try { return JSON.parse(runStub(process.env.CUA_GUARD_READ_CMD, budget(READ_TIMEOUT_MS))); } catch (e) { return null; }
@@ -106,7 +119,7 @@ function readViaDriverOnce() {
 
 function cursorRead() {
   let viaDriver = readViaDriverOnce();
-  if (!validPos(viaDriver) && !outOfTime()) {
+  if (!validPos(viaDriver) && !noTimeToSpawn()) {
     // 一次重试：负载尖峰通常是瞬时的，重读一次即可拿回快照，避免整轮守卫静默失效。
     sleepSync(READ_RETRY_GAP_MS);
     viaDriver = readViaDriverOnce();
@@ -115,7 +128,7 @@ function cursorRead() {
   // 测试密闭门控：仅在显式测试模式下生效，生产路径逐字节不变。
   // 没有它，stub 超时会回落到真实桌面 GetCursorPos，用例既不稳定又可能误动用户指针。
   if (process.env.CUA_GUARD_TEST_STUBS === '1' && process.env.CUA_GUARD_TEST_NO_USER32 === '1') return null;
-  if (outOfTime()) return null;   // A60：时间用尽就不再拉起 powershell，交给上层给诚实判定
+  if (noTimeToSpawn()) return null;   // A60/A60b：余量不足就不再拉起 powershell，交给上层给诚实判定
   try {
     const ps = `Add-Type -MemberDefinition 'using System;using System.Runtime.InteropServices;public struct P{public int X;public int Y;}public static class C{[DllImport("user32.dll")] public static extern bool GetCursorPos(out P p);}' -Name CC -Namespace Cg; $v=New-Object Cg+P; [void][Cg.CC]::GetCursorPos([ref]$v); "$($v.X),$($v.Y)"`;
     const s = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: budget(PS_READ_TIMEOUT_MS) }).trim();
@@ -132,9 +145,11 @@ const WRITE_TIMEOUT_MS = Number(process.env.CUA_GUARD_WRITE_TIMEOUT_MS || 12000)
 const PS_WRITE_TIMEOUT_MS = Number(process.env.CUA_GUARD_PS_WRITE_TIMEOUT_MS || 15000);
 const WRITE_RETRY_GAP_MS = Number(process.env.CUA_GUARD_WRITE_RETRY_GAP_MS || 150);
 function writeStubOnce(cmd, x, y) {
+  if (noTimeToSpawn()) return false;   // A60b：余量不足就不起进程，交由上层给诚实判定
   try { runStub(cmd.replace('%X%', x).replace('%Y%', y), budget(WRITE_TIMEOUT_MS)); return true; } catch (e) { return false; }
 }
 function writeDriverOnce(x, y) {
+  if (noTimeToSpawn()) return false;   // A60b：同上
   try {
     execFileSync(DRIVER, ['call', 'move_cursor', '--args', JSON.stringify({ x, y, scope: 'desktop' })], { encoding: 'utf8', timeout: budget(WRITE_TIMEOUT_MS) });
     return true;
@@ -144,13 +159,13 @@ function cursorWrite(x, y) {
   if (process.env.CUA_GUARD_WRITE_CMD) {
     if (process.env.CUA_GUARD_TEST_STUBS !== '1') return 'stub-fail';
     if (writeStubOnce(process.env.CUA_GUARD_WRITE_CMD, x, y)) return 'stub';
-    if (outOfTime()) return 'stub-fail';   // A60：没时间重试也要给诚实判定，别被外层杀掉
+    if (noTimeToSpawn()) return 'stub-fail';   // A60/A60b：没时间重试也要给诚实判定，别被外层杀掉
     sleepSync(WRITE_RETRY_GAP_MS);
     return writeStubOnce(process.env.CUA_GUARD_WRITE_CMD, x, y) ? 'stub' : 'stub-fail';
   }
   if (DRIVER) {
     if (writeDriverOnce(x, y)) return 'driver';
-    if (!outOfTime()) {
+    if (!noTimeToSpawn()) {
       sleepSync(WRITE_RETRY_GAP_MS);
       if (writeDriverOnce(x, y)) return 'driver';
     }
@@ -162,19 +177,20 @@ function cursorWriteUser32(x, y) {
   if (process.env.CUA_GUARD_WRITE2_CMD) {
     if (process.env.CUA_GUARD_TEST_STUBS !== '1') return 'stub2-fail';
     if (writeStubOnce(process.env.CUA_GUARD_WRITE2_CMD, x, y)) return 'stub2';
-    if (outOfTime()) return 'stub2-fail';
+    if (noTimeToSpawn()) return 'stub2-fail';
     sleepSync(WRITE_RETRY_GAP_MS);
     return writeStubOnce(process.env.CUA_GUARD_WRITE2_CMD, x, y) ? 'stub2' : 'stub2-fail';
   }
   // 测试密闭门控（同上）：禁止用例回落到真实 SetCursorPos，避免误动用户指针。
   if (process.env.CUA_GUARD_TEST_STUBS === '1' && process.env.CUA_GUARD_TEST_NO_USER32 === '1') return 'test-no-user32';
-  if (outOfTime()) return 'failed';
+  if (noTimeToSpawn()) return 'failed';
   if (writeUser32Once(x, y)) return 'user32';
-  if (outOfTime()) return 'failed';
+  if (noTimeToSpawn()) return 'failed';
   sleepSync(WRITE_RETRY_GAP_MS);
   return writeUser32Once(x, y) ? 'user32' : 'failed';
 }
 function writeUser32Once(x, y) {
+  if (noTimeToSpawn()) return false;   // A60b：同上
   try {
     const ps = `Add-Type -MemberDefinition 'using System;using System.Runtime.InteropServices;public static class S{[DllImport("user32.dll")] public static extern bool SetCursorPos(int x,int y);}' -Name SS -Namespace Cs; [void][Cs.SS]::SetCursorPos(${x},${y})`;
     execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: budget(PS_WRITE_TIMEOUT_MS) });
@@ -187,9 +203,10 @@ function samePos(a, b) { return !!(a && b && a.x === b.x && a.y === b.y); }
 function readSettled(target, tries = 3, gapMs = 120) {
   let last = null;
   for (let i = 0; i < tries; i++) {
+    if (noTimeToSpawn()) break;   // A60b：先判时间再读——旧式先读后判，时间用尽仍会起一个 1ms 预算的进程（实测负载下 648ms）
     last = cursorRead();
     if (samePos(last, target)) return last;
-    if (outOfTime()) break;   // A60：时间用尽就停止复读，把剩余时间留给诚实判定与台账
+    if (noTimeToSpawn()) break;   // A60/A60b：时间用尽就停止复读，把剩余时间留给诚实判定与台账
     if (i < tries - 1) sleepSync(gapMs);
   }
   return last;
@@ -341,7 +358,7 @@ if (event === 'PostToolUse') {
   // A60：外层预算用尽时不再走第二跳（否则会被宿主杀掉，连 UNVERIFIED 与人工确认提示都发不出来）
   let how = cursorWrite(st.before.x, st.before.y);
   let after = readSettled(st.before);
-  if (!samePos(after, st.before) && !outOfTime()) {
+  if (!samePos(after, st.before) && !noTimeToSpawn()) {
     how += '+' + cursorWriteUser32(st.before.x, st.before.y);
     after = readSettled(st.before);
   }
