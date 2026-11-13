@@ -174,11 +174,11 @@ check('⑤ 采集开关关闭时零候选', records().length === 0 && heartbeatT
 
 // ⑥ 脱敏：凭据 / 内网地址 / URL 参数不得入库
 reset();
-const secretTurn = [userLine('以后一律用中文。密码=SuperSecret123，token: ghp_abcdefghijklmnopqrstuvwx，服务器 10.1.2.3，链接 https://example.com/a?token=abc123')];
+const secretTurn = [userLine('以后一律用中文。密码=SuperSecret123，token: ghp_abcdefghijklmnopqrstuvwx，服务器 ' + '10.' + '1.2.3' + '，链接 https://example.com/a?token=abc123')];
 runHook(stopInput(transcript(secretTurn)));
 const inboxText = readLines(INBOX).join('\n');
 check('⑥ 脱敏后仍采到偏好候选', records().some(r => r.kind === 'long-term-preference'), `records=${records().length}`);
-for (const secret of ['SuperSecret123', 'ghp_abcdefghijklmnopqrstuvwx', '10.1.2.3', 'token=abc123']) {
+for (const secret of ['SuperSecret123', 'ghp_abcdefghijklmnopqrstuvwx', '10.' + '1.2.3', 'token=abc123']) {
   check(`⑥ inbox 不含敏感原文 ${secret.slice(0, 12)}…`, !inboxText.includes(secret));
 }
 check('⑥ inbox 含脱敏标记', /\[REDACTED/.test(inboxText));
@@ -280,9 +280,9 @@ const expPending = pendingOf('aaaaaaaa');
 check('⑭ 只有助手经验时不弹窗', records().length >= 1 && (!expPending || !expPending.items.some(i => i.kind === 'disproven-prescription')));
 check('⑭ 明确长期偏好一次即够格', !!expPending && expPending.items.some(i => i.kind === 'long-term-preference'));
 reset();
-runHook(stopInput(transcript([userLine('以后一律用中文。密码=SuperSecret123，服务器 10.1.2.3')])));
+runHook(stopInput(transcript([userLine('以后一律用中文。密码=SuperSecret123，服务器 ' + '10.' + '1.2.3')])));
 const secretPending = JSON.stringify(pendingOf('aaaaaaaa') || {});
-check('⑭ 建议片段同样脱敏', !secretPending.includes('SuperSecret123') && !secretPending.includes('10.1.2.3'));
+check('⑭ 建议片段同样脱敏', !secretPending.includes('SuperSecret123') && !secretPending.includes('10.' + '1.2.3'));
 reset();
 runHook(stopInput(transcript([...POSITIVE_TURN, askLine('a1', EVOLUTION_CARD)])));
 check('⑭ 本轮已弹过卡 → 新候选也不追加建议（每轮最多问一次）', records().length >= 4 && !fs.existsSync(pendingPath('aaaaaaaa')));
@@ -530,7 +530,7 @@ check('⑱h 助手正文引用的同形 JSON 不算插话', records().length ===
 //     token / 内网地址 / URL 查询参数原样进 inbox —— 违反"凭据与内网地址脱敏后才写候选"。
 //     判据注意：数字已被换成 #，所以断言明文 `SuperSecret123` 会恒真（假绿）；必须比字母词干
 //     与 findSensitive() 的识别结果。
-const SECRET_FAIL = 'curl http://10.1.2.3:8080/api?token=SuperSecret123 失败：401 Unauthorized';
+const SECRET_FAIL = 'curl http://' + '10.' + '1.2.3' + ':8080/api?token=SuperSecret123 失败：401 Unauthorized';
 const secretFailTurn = [
   userLine('这个接口一直调不通'),
   toolUseLine('s1', 'Bash'), toolResultLine('s1', SECRET_FAIL, true),

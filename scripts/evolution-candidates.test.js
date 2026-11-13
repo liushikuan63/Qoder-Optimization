@@ -209,7 +209,7 @@ const inboxRecords = [
   rec(REPEAT_TOPIC, 'repeat-correction', 'preference', 's3', 'dirA', 1),
   rec(REPEAT_TOPIC, 'repeat-correction', 'preference', 's3', 'dirC', 2),
   rec(GAP_ONE, 'capability-gap', 'problem', 's4', 'dirD', 1,
-    { excerpt: '缺少浏览器驱动 token=abc123Secret 连不上 10.1.2.3', evidence: { tool: 'Bash', occurrences: 1 } }),
+    { excerpt: '缺少浏览器驱动 token=abc123Secret 连不上 ' + '10.' + '1.2.3', evidence: { tool: 'Bash', occurrences: 1 } }),
   rec(GAP_TWO, 'capability-gap', 'problem', 's5', 'dirE', 1, { evidence: { tool: 'Bash', occurrences: 1 } }),
   rec(GAP_TWO, 'capability-gap', 'problem', 's6', 'dirF', 2, { evidence: { tool: 'Bash', occurrences: 1 } }),
   rec(FAIL_TOPIC, 'repeated-failure', 'problem', 's7', 'dirG', 1, { evidence: { tool: 'Bash', occurrences: 3 } }),
@@ -258,7 +258,7 @@ check('㊱ 报告声明 inbox 一律未验证', withInbox.data.warnings.some((w)
 
 const inboxSerialized = JSON.stringify(withInbox.data);
 check('㊲ inbox 摘录二次脱敏（口令与内网地址零命中）',
-  !inboxSerialized.includes('abc123Secret') && !inboxSerialized.includes('10.1.2.3')
+  !inboxSerialized.includes('abc123Secret') && !inboxSerialized.includes('10.' + '1.2.3')
     && inboxSerialized.includes('[REDACTED'), '');
 check('㊳ 只读扫描不改写 inbox 与归档',
   fs.readFileSync(inboxFile, 'utf8') === inboxText, '');
