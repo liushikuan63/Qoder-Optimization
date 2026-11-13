@@ -37,12 +37,21 @@ function fake(name, code, sleepSec) {
   return p;
 }
 
+/**
+ * A65：确定性用例（干净零输出 / 漂移必报 / 悬空引用）不该被「负载下起 bash 的 OS 开销」判红。
+ * 实测：同一测试隔离跑 4.5s 全绿，在全量套件里 34s 且两条断言红——红因是桩脚本（立即 exit）
+ * 光是 spawn 就超过了写死的 8000ms 时间片，守卫如实报「超时未跑完」，于是零输出断言拿到 446B。
+ * 这里默认给足时间片，把「环境慢」与「被测行为错」分开；**显式传入的 env 一律覆盖默认值**，
+ * 所以预算类用例（小预算 / 跳过 / 超时）的判据一字未改。默认值本身另有两条用例守住（见文件末尾）。
+ */
+const ROOMY = { GUARD_BUDGET_MS: '45000', GUARD_RESERVE_MS: '600', GUARD_PER_CALL_CAP_MS: '40000' };
+
 function run(env) {
   const t0 = Date.now();
   const r = spawnSync(NODE, [path.join(SB, '.qoder', 'scripts', 'global-config-guard.js')], {
     encoding: 'utf8',
     input: JSON.stringify({ hook_event_name: 'SessionStart', session_id: 'gcg-test', cwd: SB }),
-    env: Object.assign({}, process.env, { HOME: SB, USERPROFILE: SB, QODER_HOME: path.join(SB, '.qoder') }, env || {}),
+    env: Object.assign({}, process.env, { HOME: SB, USERPROFILE: SB, QODER_HOME: path.join(SB, '.qoder') }, ROOMY, env || {}),
     timeout: 60000,
   });
   return { ms: Date.now() - t0, out: (r.stdout || '') + (r.stderr || ''), code: r.status };
@@ -141,6 +150,31 @@ for (const extension of ['cjs', 'mjs']) {
   r = run();
   check('遗漏的' + extension + '引用必须报出', r.code === 0 && ctxOf(r).includes('missing.' + extension), r.out.slice(0, 180));
 }
+
+// ---------- ⑥ A65：时间片开关本身也要被守住（放宽 ≠ 关掉超时路径，默认值不许漂） ----------
+// 给小片仍必须如实报超时：证明开关只是把「环境慢」与「脚本慢」分开，没有把诚实降级改成静默通过。
+reset();
+fake('sync-global-config.sh', 0, 3);
+fake('sync-memory.sh', 0, 0);
+r = run({ GUARD_BUDGET_MS: '20000', GUARD_PER_CALL_CAP_MS: '1500' });
+check('A65 显式小时间片仍如实报超时（1500ms）',
+  ctxOf(r).includes('超时未跑完') && ctxOf(r).includes('只分到 1500ms'), ctxOf(r).slice(0, 110));
+
+// 模式隔离：不给开关时默认时间片必须仍是 8000ms（现役路径行为与改动前一致）。
+reset();
+fake('sync-global-config.sh', 0, 9);
+fake('sync-memory.sh', 0, 0);
+r = run({ GUARD_BUDGET_MS: '20000', GUARD_PER_CALL_CAP_MS: '' });
+check('A65 模式隔离：不给开关时默认时间片仍是 8000ms',
+  ctxOf(r).includes('超时未跑完') && ctxOf(r).includes('只分到 8000ms'), ctxOf(r).slice(0, 110));
+
+// 反空断言：给足时间片时，慢检查必须**真的跑完**（耗时 ≥ sleep），不是被跳过冒充健康。
+reset();
+fake('sync-global-config.sh', 0, 3);
+fake('sync-memory.sh', 0, 0);
+r = run();
+check('A65 给足时间片时慢检查真的跑完（不是跳过冒充健康）',
+  r.out.trim() === '' && r.code === 0 && r.ms >= 3000, `退${r.code} 输出 ${r.out.length}B 实测 ${r.ms}ms`);
 
 for (const dir of sandboxes) {
   try { fs.rmSync(dir, { recursive: true, force: true }); } catch { console.log('测试沙箱仍被超时子进程占用，暂保留：' + dir); }

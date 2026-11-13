@@ -31,7 +31,12 @@ const BASH = (() => {
  */
 const BUDGET_MS = Number(process.env.GUARD_BUDGET_MS) > 0 ? Number(process.env.GUARD_BUDGET_MS) : 11000;
 const RESERVE_MS = Number(process.env.GUARD_RESERVE_MS) > 0 ? Number(process.env.GUARD_RESERVE_MS) : 600;
-const PER_CALL_CAP_MS = 8000;
+// 每一路检查的时间片上限。默认 8000ms **不变**：不给开关时行为与改动前逐字节一致（模式隔离）。
+// 只有显式设置 GUARD_PER_CALL_CAP_MS 才放宽，用途是把「起 bash 的 OS 开销」与「脚本本身慢」分开：
+// 负载机器上 spawn 本身就可能 >8s（实测套件内 34s 跑完同一测试、隔离只要 4.5s），
+// 会让「干净沙箱零输出」这类确定性断言被环境判红，而不是被测行为判红（A65）。
+// 超时/跳过仍照实出声，fail-open 与拦截范围均未改动。
+const PER_CALL_CAP_MS = Number(process.env.GUARD_PER_CALL_CAP_MS) > 0 ? Number(process.env.GUARD_PER_CALL_CAP_MS) : 8000;
 const DEADLINE = Date.now() + BUDGET_MS;
 
 function readStdin() {

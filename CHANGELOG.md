@@ -38,6 +38,7 @@ During the 0.x line, minor versions may contain breaking changes.
 - Docs: correct the resident-skill count to the catalog's `tier=core` truth (5, not 12), rewrite the memory-archive directory tree to the 8 scripts actually shipped, and correct the exec-hook counts in both READMEs — now gated by `.github/doc-test-tally.test.js` so the tallies cannot drift from the implementation again.
 
 - Installer hook guards treat the shipped timeout as a floor, not the only legal value: a larger positive-integer local headroom (the author's live profile runs 12 hooks at 30s) is preserved and named instead of failing the whole deploy closed, while shorter or non-integer timeouts still abort; `completeSettings` no longer silently downgrades a preserved local headroom, and legacy stop-gate 10 is still accepted but normalized to the shipped default.
+- `global-config-guard.js`: the per-check time slice is now overridable (`GUARD_PER_CALL_CAP_MS`, default unchanged at 8000ms) so the self-test can separate "the OS took long to spawn bash" from "the checked script is slow". Under full-suite load even a stub that exits immediately could exceed the hardcoded slice, so the guard honestly reported a timeout and deterministic assertions (clean sandbox means zero output) went red for environmental reasons. Default behaviour, interception scope and fail-open semantics are unchanged; the self-test now pins the default slice, proves a small slice still reports timeouts honestly, and proves a roomy slice really runs the slow check instead of skipping it.
 ### 中文摘要
 - 新增接续档案自动清理（默认关闭，需在 `<store>/prune.json` 开启）：`prune` 默认干跑，`--apply` 才把超期、孤儿（来源 transcript 已消失）或空会话目录移入隔离批次并写逐文件 SHA-256 清单；自动绑定会话按 `retentionDays`（默认 90 天）过期，孤儿宽限 7 天，手工命名任务档案除非 `--include-manual` 否则保留，当前会话与新鲜 `capture.lock` 永远排除，`SessionStart` 每 `intervalHours`（默认 24 小时）最多执行一次。
 - 新增 `prune --recover`（恢复崩溃中断批次）、`prune --list-quarantine`、移动前/过程中写 in-progress 清单、每次 apply 追加 `prune-audit.jsonl` 审计，以及 `prune-cache.json` 检查缓存，避免重复打开未变化的数据库。
@@ -66,6 +67,7 @@ During the 0.x line, minor versions may contain breaking changes.
 - 文档：常驻技能数改为 catalog `tier=core` 真值（5，不是 12），记忆归档目录树按实物重写为 8 个脚本，两份 README 的执行 hook 计数按实现更正，并新增 `.github/doc-test-tally.test.js` 把文档条数与实现钉在一起（再漂移即红）。
 
 - 安装器 hook 守卫把随包 timeout 当作下限而非唯一合法值：更大的正整数本地余量（本机现役 12 条 hook 为 30s）原样保留并点名，不再让整个部署 fail-closed 拒绝；更短或非正整数仍一律判冲突；`completeSettings` 不再把保留的本地余量静默降回默认，legacy stop-gate 10 仍被接受但落盘归正为随包默认。
+- `global-config-guard.js`：每路检查的时间片改为可覆盖（`GUARD_PER_CALL_CAP_MS`，默认仍 8000ms 不变），让自测能把「起 bash 的 OS 开销」与「被检脚本本身慢」分开。全量套件负载下连立即退出的桩脚本都可能超过写死的时间片，守卫如实报超时，于是「干净沙箱零输出」这类确定性断言被环境判红。默认行为、拦截范围与 fail-open 语义均未变；自测另钉住默认时间片、证明给小片时仍如实报超时、并证明给足时间片时慢检查是真的跑完而不是被跳过冒充健康。
 ## [0.1.5] - 2026-11-10
 
 ### Changed
