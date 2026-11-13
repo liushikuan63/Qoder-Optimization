@@ -27,9 +27,12 @@ function redactUrl(raw) {
 
 function redact(text) {
   let value = String(text);
+  // URL 必须先脱敏（A31，2026-11-13）：先替换 IP/凭据会把内网 URL 打成
+  // http://[REDACTED_IP]:8080/api?token=[REDACTED]，而 URL 正则在自产占位符的 ] 处截断，
+  // 于是路径与参数名残留、取值虽已脱敏却仍暴露接口形状。先整条 URL 处理就没有这个缝。
+  value = value.replace(/\bhttps?:\/\/[^\s<>"')\]]+/gi, redactUrl);
   for (const pattern of SECRET_PATTERNS) value = value.replace(pattern.regex, pattern.replacement);
-  value = value.replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+@/gi, '$1[REDACTED]@');
-  return value.replace(/\bhttps?:\/\/[^\s<>"')\]]+/gi, redactUrl);
+  return value.replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+@/gi, '$1[REDACTED]@');
 }
 
 function findSensitive(text) {
@@ -40,7 +43,10 @@ function findSensitive(text) {
     if (pattern.regex.test(value)) hits.push(pattern.label);
     pattern.regex.lastIndex = 0;
   }
-  if (/\b[a-z][a-z0-9+.-]*:\/\/[^\s/@]+@/i.test(value)) hits.push('URL_CREDENTIALS');
+  // 不把自己的占位符当凭据（与上面 CREDENTIAL 的 (?!\[REDACTED…\]) 同一约定）：
+  // 非 http scheme 脱敏后仍保留 `postgres://[REDACTED]@`，旧判据会再报一次 URL_CREDENTIALS，
+  // 使「脱敏后必须干净」这条不变量对 DSN 类文本恒假（2026-11-13 A/B 实测：改前改后同样误报）。
+  if (/\b[a-z][a-z0-9+.-]*:\/\/(?!\[REDACTED\]@)[^\s/@]+@/i.test(value)) hits.push('URL_CREDENTIALS');
   const urls = value.match(/\bhttps?:\/\/[^\s<>"')\]]+/gi) || [];
   if (urls.some(url => redactUrl(url) !== url)) hits.push('URL');
   return [...new Set(hits)];
