@@ -44,15 +44,20 @@ function run(event, toolName, input, opts = {}) {
     CUA_GUARD_WRITE_CMD: opts.writeCmd || `node "${STUB}" set %X% %Y%`,
     CUA_GUARD_TEST_STUBS: '1',
     CUA_GUARD_BIN: '',
+    // A60：默认关闭总 deadline 钳制，让 A35/A57 的慢 stub 用例能单独验「预算 + 重试」本身
+    // （它们故意要跑 6.5s 以上）。生产默认是开启的，由 A60 专项用例 + 跨文件一致性断言守住。
+    CUA_GUARD_DEADLINE_MS: '0',
   }, opts.env || {});
+  if (opts.deadline === 'default') delete env.CUA_GUARD_DEADLINE_MS;   // 用守卫自己的生产默认值
   if (opts.write2Cmd) env.CUA_GUARD_WRITE2_CMD = opts.write2Cmd;
   else delete env.CUA_GUARD_WRITE2_CMD;
   if (opts.disable === '1') env.CUA_GUARD_DISABLE = '1';
+  const t0 = Date.now();
   try {
     const out = execFileSync(process.execPath, [GUARD], { input: JSON.stringify(payload), env, encoding: 'utf8', timeout: opts.timeout || DEFAULT_TIMEOUT });
-    return { out, json: (() => { try { return JSON.parse(out); } catch (e) { return null; } })(), sid: payload.session_id };
+    return { out, ms: Date.now() - t0, json: (() => { try { return JSON.parse(out); } catch (e) { return null; } })(), sid: payload.session_id };
   } catch (e) {
-    return { err: String(e.stdout || e.message).slice(0, 300), sid: payload.session_id };
+    return { err: String(e.stdout || e.message).slice(0, 300), ms: Date.now() - t0, sid: payload.session_id };
   }
 }
 const decision = (r) => r.json && r.json.hookSpecificOutput && r.json.hookSpecificOutput.permissionDecision;
@@ -254,6 +259,8 @@ const SAFE_STEPS = { toolName: 'mcp__cua_driver__run_steps', arguments: { pid: 1
 const reads = (marker) => { try { return Number(fs.readFileSync(marker, 'utf8')) || 0; } catch (e) { return 0; } };
 // 账本只看最后一行：整文件正则会匹配到前面用例留下的同名记录 ⇒ 恒真假绿（A57 必须逐轮取证）。
 const lastLedger = () => { const l = fs.readFileSync(path.join(STATE, 'decisions.log'), 'utf8').trim().split('\n'); return l[l.length - 1]; };
+// 账本行数：用来证明「本轮真的新写了一条判定」。只看最后一行会被上一用例的记录满足（审查抓出的假绿面）。
+const ledgerCount = () => { try { return fs.readFileSync(path.join(STATE, 'decisions.log'), 'utf8').trim().split('\n').length; } catch (e) { return 0; } };
 
 // A57 写入侧 stub：慢写入（忙等后才落位）／首次慢写入（隔离重试）／慢且永不落位（负对照）／只数写入次数
 const SLOW_WRITE = path.join(SANDBOX, 'slow-write.cjs');
@@ -276,7 +283,8 @@ fs.writeFileSync(SLOW_FIRST_WRITE, [
 fs.writeFileSync(SLOW_NOOP_WRITE, ["const fs=require('fs');", `const t=Date.now();while(Date.now()-t<${DELAY}){}`, "process.exit(0);"].join('\n'));
 fs.writeFileSync(COUNTED_WRITE, [
   "const fs=require('fs');",
-  "if(process.argv[2]==='set'){const m=process.env.CUA_STUB_MARKER;let n=0;try{n=Number(fs.readFileSync(m,'utf8'))||0;}catch(e){}fs.writeFileSync(m,String(n+1));}",
+  // 写入计数用独立 marker：与读取计数共用一个 env 时无法分别断言读/写次数（A60 模式隔离要两个都数）。
+  "if(process.argv[2]==='set'){const m=process.env.CUA_STUB_WRITE_MARKER||process.env.CUA_STUB_MARKER;let n=0;try{n=Number(fs.readFileSync(m,'utf8'))||0;}catch(e){}fs.writeFileSync(m,String(n+1));}",
   ...SET_LINES,
 ].join('\n'));
 // A35 用例全部密闭：禁止回落到真实桌面 user32（读/写都不许），否则断言不稳定且可能误动用户指针。
@@ -335,8 +343,10 @@ setCua(2157, 637);
 run35('PostToolUse', 'mcp_call', SAFE_STEPS, { session: a4pre.sid, readCmd: `node "${COUNTED}" read`, writeCmd: `node "${COUNTED}" set %X% %Y%`, env: { CUA_STUB_MARKER: m4 }, timeout: 30000 });
 const a4after = JSON.parse(fs.readFileSync(CURSOR, 'utf8'));
 ok('A35 模式隔离：无负载路径仍还原成功', a4after.x === 1079 && a4after.y === 583, JSON.stringify(a4after));
-// 基线 4 次是改前字节**实测值**（Pre 1 + Post 1 + readSettled 2；首版我猜 5，按实测改正并点名）。
-ok('A35 模式隔离：无负载路径读取次数与改前一致（未多跑重试）', reads(m4) === 4, 'reads=' + reads(m4) + '（改前实测基线 4）');
+// 基线 4 次是改前字节**实测值**（首版我猜 5，按实测改正并点名）。组成也已按实测纠正：
+// COUNTED 对**读与写都计数**，所以 4 = Pre 读 1 + Post 读 1 + 还原写 1 + 沉降复读 1，
+// 不是首版注释写的「readSettled 2」——A60-3 用独立 marker 分开数读/写后证实（3 读 + 1 写）。
+ok('A35 模式隔离：无负载路径 stub 调用次数与改前一致（读+写，未多跑重试）', reads(m4) === 4, 'calls=' + reads(m4) + '（改前实测基线 4）');
 
 // A35-5 负对照：预算放宽不得削弱拦截范围（慢读取下前台点击仍必须 deny）。
 const a5 = run35('PreToolUse', 'mcp__cua-driver__click', { pid: 1, x: 10, y: 10, delivery_mode: 'foreground' }, { readCmd: `node "${SLOW_ALWAYS}" read`, timeout: 90000 });
@@ -358,9 +368,11 @@ ok('A35 读取预算可配且默认已放宽（12000/15000）', /CUA_GUARD_READ_
 setCase('b1', 1079, 583);
 const b1pre = run57('b1', 'PreToolUse', 'mcp_call', SAFE_STEPS, { timeout: 90000 });
 setCase('b1', 2157, 637);
+const b1led = ledgerCount();
 const b1post = run57('b1', 'PostToolUse', 'mcp_call', SAFE_STEPS, { session: b1pre.sid, writeCmd: `node "${SLOW_WRITE}" set %X% %Y%`, timeout: 90000 });
 const b1after = readCase('b1');
 ok('A57 慢写入下光标仍被还原', b1after.x === 1079 && b1after.y === 583, JSON.stringify(b1after));
+ok('A57 慢写入本轮确实新写了一条判定（非取上一用例的账本行）', ledgerCount() === b1led + 1, `before=${b1led} after=${ledgerCount()}`);
 ok('A57 慢写入在预算内成功（账本 via=stub|verified，不再 stub-fail）', /via=stub\|verified/.test(lastLedger()), lastLedger());
 ok('A57 慢写入下仍报已还原并复验', /已还原并复验/.test(b1post.out || ''), (b1post.out || '').slice(0, 140));
 
@@ -369,24 +381,33 @@ setCase('b2', 1079, 583);
 const m5 = path.join(SANDBOX, 'm5.txt');
 const b2pre = run57('b2', 'PreToolUse', 'mcp_call', SAFE_STEPS, { timeout: 90000 });
 setCase('b2', 2157, 637);
-run57('b2', 'PostToolUse', 'mcp_call', SAFE_STEPS, {
+const b2led = ledgerCount();
+const b2post = run57('b2', 'PostToolUse', 'mcp_call', SAFE_STEPS, {
   session: b2pre.sid, writeCmd: `node "${SLOW_FIRST_WRITE}" set %X% %Y%`, timeout: 90000,
   env: { CUA_STUB_MARKER: m5, CUA_GUARD_WRITE_TIMEOUT_MS: String(RETRY_BUDGET) },
 });
 const b2after = readCase('b2');
+// 审查抓出的假绿面：本用例原先不看输出、也不看账本增量 ⇒ 守卫被 harness 杀掉时，孤儿写入满足光标断言、
+// 上一用例的 verified 行满足账本断言、m5>=2 也被孤儿满足 ⇒ 全绿。三条都补上，缺一不可。
+ok('A57 重试用例：守卫本轮真的应答了（有合法 JSON 输出）', !!b2post.json && !!b2post.json.hookSpecificOutput, (b2post.err || b2post.out || '').slice(0, 120));
+ok('A57 重试用例：本轮新写了一条判定账本', ledgerCount() === b2led + 1, `before=${b2led} after=${ledgerCount()}`);
 ok('A57 首次写入超时后重试成功（光标还原）', b2after.x === 1079 && b2after.y === 583, JSON.stringify(b2after));
 ok('A57 写入 stub 确实被调用了多次（超时+重试，非空转）', reads(m5) >= 2, 'writes=' + reads(m5));
 ok('A57 重试用例非空转：每次写入预算 < 首次延迟（否则首次就不会超时）', RETRY_BUDGET < FIRST_DELAY, `budget=${RETRY_BUDGET} firstDelay=${FIRST_DELAY}`);
 ok('A57 重试成功后账本 verified', /via=stub\|verified/.test(lastLedger()), lastLedger());
+ok('A57 重试成功后仍报已还原并复验', /已还原并复验/.test(b2post.out || ''), (b2post.out || '').slice(0, 140));
 
 // A57-3 兜底通道（stub2）慢写入：driver 空写不落位时，user32 兜底通道也必须扛得住同样的负载。
 setCase('b3', 1079, 583);
 const b3pre = run57('b3', 'PreToolUse', 'mcp_call', SAFE_STEPS, { timeout: 90000 });
 setCase('b3', 2157, 637);
-run57('b3', 'PostToolUse', 'mcp_call', SAFE_STEPS, { session: b3pre.sid, writeCmd: NOOP_WRITE, write2Cmd: `node "${SLOW_WRITE}" set %X% %Y%`, timeout: 90000 });
+const b3led = ledgerCount();
+const b3post = run57('b3', 'PostToolUse', 'mcp_call', SAFE_STEPS, { session: b3pre.sid, writeCmd: NOOP_WRITE, write2Cmd: `node "${SLOW_WRITE}" set %X% %Y%`, timeout: 90000 });
 const b3after = readCase('b3');
 ok('A57 兜底通道慢写入仍能落位', b3after.x === 1079 && b3after.y === 583, JSON.stringify(b3after));
+ok('A57 兜底通道本轮新写了一条判定账本', ledgerCount() === b3led + 1, `before=${b3led} after=${ledgerCount()}`);
 ok('A57 兜底通道在预算内成功（账本两跳 via=stub+stub2|verified）', /via=stub\+stub2\|verified/.test(lastLedger()), lastLedger());
+ok('A57 兜底通道成功仍报已还原并复验', /已还原并复验/.test(b3post.out || ''), (b3post.out || '').slice(0, 140));
 
 // A57-4 负对照：写入永久失败（立即退出 1）时，重试不得把失败说成还原 —— UNVERIFIED + 人工确认必须保留。
 setCase('b4', 1079, 583);
@@ -428,10 +449,96 @@ ok('A57 写入预算可配且默认已放宽（12000/15000）', /CUA_GUARD_WRITE
 ok('A57 写入四通道无写死预算（全部走常量）', wRegion.length > 0 && !/timeout:\s*\d+/.test(wRegion) && !/runStub\([\s\S]*?,\s*\d+\)/.test(wRegion), 'literal write timeout left');
 const retryHits = (wRegion.match(/sleepSync\(WRITE_RETRY_GAP_MS\)/g) || []).length;
 ok('A57 四条写入通道各一次重试（stub/driver/stub2/user32）', retryHits === 4, 'retryHits=' + retryHits);
+// 审查抓出的两个绕过面：① 只数 sleepSync 时「删掉 driver 重试、在别处补一个 sleep」仍绿；
+// ② 只查「region 内无写死数字」时，把 user32 的 PS_WRITE_TIMEOUT_MS 换成 WRITE_TIMEOUT_MS 也仍绿。
+// 改成逐通道钉住**调用点用的常量**与**尝试次数**（定义行用 lookbehind 排除）。
+const countOf = (re) => (wRegion.match(re) || []).length;
+const driverCalls = countOf(/(?<!function )writeDriverOnce\(x, y\)/g);
+const user32Calls = countOf(/(?<!function )writeUser32Once\(x, y\)/g);
+ok('A57 driver 写通道用 WRITE_TIMEOUT_MS 且恰好两次尝试', /'move_cursor', '--args'[\s\S]{0,200}?timeout: budget\(WRITE_TIMEOUT_MS\)/.test(wRegion) && driverCalls === 2, `calls=${driverCalls}`);
+ok('A57 user32 写通道用 PS_WRITE_TIMEOUT_MS 且恰好两次尝试', /SetCursorPos\(\$\{x\},\$\{y\}\)[\s\S]{0,220}?timeout: budget\(PS_WRITE_TIMEOUT_MS\)/.test(wRegion) && user32Calls === 2, `calls=${user32Calls}`);
+ok('A57 stub/stub2 写通道各恰好两次尝试', countOf(/writeStubOnce\(process\.env\.CUA_GUARD_WRITE_CMD/g) === 2 && countOf(/writeStubOnce\(process\.env\.CUA_GUARD_WRITE2_CMD/g) === 2, `stub=${countOf(/writeStubOnce\(process\.env\.CUA_GUARD_WRITE_CMD/g)} stub2=${countOf(/writeStubOnce\(process\.env\.CUA_GUARD_WRITE2_CMD/g)}`);
+// 生产写通道（driver / user32）没有行为级覆盖：driver 需要真 exe、user32 会动真实指针，
+// 用例一律密闭（CUA_GUARD_BIN:'' + NO_USER32）⇒ 只能静态钉住调用点，此缺口已点名，不当成已覆盖。
 // harness 预算下界由守卫预算推导：读重试 2× + 写重试 2× + user32 兜底 1×（readSettled 的完整最坏链路更大，
 // 跑到那条链路的用例显式传 timeout；这里守的是负载 A/B 里实测到的 harness-no-response 形态）。
 const worstChain = 2 * rDriver + 2 * budgetAfter(/CUA_GUARD_WRITE_TIMEOUT_MS \|\| (\d+)/) + budgetAfter(/CUA_GUARD_PS_WRITE_TIMEOUT_MS \|\| (\d+)/);
 ok('A57 harness 默认预算覆盖「读重试+写重试+兜底」链路', Number.isFinite(worstChain) && DEFAULT_TIMEOUT >= worstChain, `default=${DEFAULT_TIMEOUT} worst=${worstChain}`);
+
+// --- A60：内部预算必须服从外层 hook 预算，否则负载下宿主先杀守卫 ⇒ 台账/UNVERIFIED/人工确认全丢 ---
+// 外层预算从**真实载体**读，不拍数字：同目录的 post-tool-dispatcher.js（现役 .qoder 侧走它，每守卫 8000ms），
+// 以及仓库里的 hooks/hooks.example.json（.qoder-cn 侧直连 timeout=10s）。现役树没有 hooks 样例时只用 dispatcher。
+const dispatcherSrc = fs.readFileSync(path.join(__dirname, 'post-tool-dispatcher.js'), 'utf8');
+const outerDispatcher = Number((dispatcherSrc.match(/POST_TOOL_GUARD_TIMEOUT_MS \|\| (\d+)/) || [])[1]);
+const hooksExamplePath = path.join(__dirname, '..', 'hooks', 'hooks.example.json');
+let outerExample = Infinity;
+if (fs.existsSync(hooksExamplePath)) {
+  const ex = JSON.parse(fs.readFileSync(hooksExamplePath, 'utf8'));
+  const ts = [];
+  for (const ev of ['PreToolUse', 'PostToolUse']) for (const e of (ex.hooks && ex.hooks[ev]) || []) for (const h of e.hooks || []) if (/cua-cursor-guard\.js/.test(h.command || '')) ts.push(Number(h.timeout) * 1000);
+  if (ts.length) outerExample = Math.min(...ts);
+}
+const minOuter = Math.min(outerDispatcher, outerExample);
+const deadlineDefault = budgetAfter(/CUA_GUARD_DEADLINE_MS \|\| (\d+)/);
+ok('A60 外层预算取到了真实来源（非空转）', Number.isFinite(minOuter) && minOuter > 0, `dispatcher=${outerDispatcher} example=${outerExample}`);
+ok('A60 守卫总 deadline 留余量后仍小于外层预算', Number.isFinite(deadlineDefault) && deadlineDefault + 1000 <= minOuter, `deadline=${deadlineDefault} minOuter=${minOuter}`);
+
+// 20s 忙等且永不落位的写入 / 20s 忙等的读取：模拟负载下远超外层预算的往返
+const NEVER_WRITE = path.join(SANDBOX, 'never-write.cjs');
+const NEVER_READ = path.join(SANDBOX, 'never-read.cjs');
+fs.writeFileSync(NEVER_WRITE, ["const fs=require('fs');", "const t=Date.now();while(Date.now()-t<20000){}", "process.exit(0);"].join('\n'));
+fs.writeFileSync(NEVER_READ, ["const fs=require('fs');", "const t=Date.now();while(Date.now()-t<20000){}", "process.stdout.write(fs.readFileSync(process.env.CUA_STUB_CURSOR,'utf8'));"].join('\n'));
+
+// A60-1 生产默认 deadline + 慢写入 ⇒ 必须在外层预算内给出**诚实判定**（不是被宿主静默杀掉）。
+setCase('d1', 1079, 583);
+const d1pre = run57('d1', 'PreToolUse', 'mcp_call', SAFE_STEPS, { deadline: 'default', timeout: 90000 });
+setCase('d1', 2157, 637);
+const d1led = ledgerCount();
+const d1post = run57('d1', 'PostToolUse', 'mcp_call', SAFE_STEPS, { session: d1pre.sid, writeCmd: `node "${NEVER_WRITE}" set %X% %Y%`, write2Cmd: `node "${NEVER_WRITE}" set %X% %Y%`, deadline: 'default', timeout: 90000 });
+ok('A60 慢写入下守卫在外层预算内应答（不会被宿主静默杀掉）', d1post.ms < minOuter, `ms=${d1post.ms} minOuter=${minOuter}`);
+// deadline 从**进程启动**起算（process.uptime），所以总耗时应该≈deadline+小尾巴，而不是「node 启动 + deadline」。
+// 无负载时两者差别小于余量、区分不开；负载下启动开销变大时这条才会红（负载 A/B 覆盖），已点名。
+ok('A60 慢写入总耗时≈deadline+余量（启动开销已被计入）', d1post.ms < deadlineDefault + 1000, `ms=${d1post.ms} deadline=${deadlineDefault}`);
+ok('A60 慢写入下仍给出合法判定输出', !!d1post.json && !!d1post.json.hookSpecificOutput, (d1post.err || d1post.out || '').slice(0, 120));
+ok('A60 慢写入下账本新写一条且为 UNVERIFIED', ledgerCount() === d1led + 1 && /UNVERIFIED/.test(lastLedger()), `delta=${ledgerCount() - d1led} last=${lastLedger()}`);
+ok('A60 慢写入下仍提示人工确认（不是静默失败）', /未确认|人工确认/.test(d1post.out || ''), (d1post.out || '').slice(0, 140));
+
+// A60-2 生产默认 deadline + 慢读取 ⇒ Pre 也要在外层预算内应答，且 fail-open 语义不变、不假装能还原。
+setCase('d2', 1079, 583);
+const d2 = run57('d2', 'PreToolUse', 'mcp_call', SAFE_STEPS, { readCmd: `node "${NEVER_READ}" read`, deadline: 'default', timeout: 90000 });
+ok('A60 慢读取下 Pre 也在外层预算内应答', d2.ms < minOuter, `ms=${d2.ms} minOuter=${minOuter}`);
+ok('A60 慢读取总耗时≈deadline+余量（启动开销已被计入）', d2.ms < deadlineDefault + 1000, `ms=${d2.ms} deadline=${deadlineDefault}`);
+ok('A60 慢读取下 Pre 仍 allow（fail-open 语义不变）', decision(d2) === 'allow', decision(d2) + ' ' + (d2.err || '').slice(0, 80));
+ok('A60 读不到就不写快照（不假装 Post 能还原）', !fs.existsSync(path.join(STATE, `${d2.sid}.json`)), d2.sid);
+
+// A60-3 模式隔离：deadline 开 vs 关，同一份快 stub 的读/写次数必须完全相同（A/B，不靠我手算基线）。
+// 首版我把读取次数期望写成 4 ⇒ 假红：COUNTED 对**读与写都计数**，A35 的 4 其实是 3 读 + 1 写；
+// 这里读/写用独立 marker 分开数，按实测契约改成 3，并另加开/关对照防「两边一起变」的恒真。
+const isoRun = (tag, useDefault) => {
+  setCase(tag, 1079, 583);
+  const mr = path.join(SANDBOX, `${tag}-r.txt`), mw = path.join(SANDBOX, `${tag}-w.txt`);
+  const o = { readCmd: `node "${COUNTED}" read`, writeCmd: `node "${COUNTED_WRITE}" set %X% %Y%`, env: { CUA_STUB_MARKER: mr, CUA_STUB_WRITE_MARKER: mw }, timeout: 90000 };
+  if (useDefault) o.deadline = 'default';
+  const pre = run57(tag, 'PreToolUse', 'mcp_call', SAFE_STEPS, o);
+  setCase(tag, 2157, 637);
+  const post = run57(tag, 'PostToolUse', 'mcp_call', SAFE_STEPS, Object.assign({ session: pre.sid }, o));
+  return { reads: reads(mr), writes: reads(mw), after: readCase(tag), out: post.out || '' };
+};
+const d3on = isoRun('d3', true);
+const d3off = isoRun('d3off', false);
+ok('A60 模式隔离：deadline 开/关的读取次数相同', d3on.reads === d3off.reads, `on=${d3on.reads} off=${d3off.reads}`);
+ok('A60 模式隔离：deadline 开/关的写入次数相同', d3on.writes === d3off.writes, `on=${d3on.writes} off=${d3off.writes}`);
+ok('A60 模式隔离：无负载读取次数是 3（Pre 1 + Post 1 + 沉降复读 1）', d3on.reads === 3, 'reads=' + d3on.reads);
+ok('A60 模式隔离：无负载写入次数是 1（成功就不重试）', d3on.writes === 1, 'writes=' + d3on.writes);
+ok('A60 模式隔离：deadline 开着无负载仍还原成功', d3on.after.x === 1079 && d3on.after.y === 583, JSON.stringify(d3on.after));
+ok('A60 模式隔离：无负载仍报已还原并复验', /已还原并复验/.test(d3on.out), d3on.out.slice(0, 120));
+
+// A60-4 非空转：关掉 deadline 后同一慢写入确实跑满预算 ⇒ 证明 A60-1 省下的时间来自钳制，不是 stub 变快了。
+setCase('d4', 1079, 583);
+const d4pre = run57('d4', 'PreToolUse', 'mcp_call', SAFE_STEPS, { timeout: 90000 });
+setCase('d4', 2157, 637);
+const d4post = run57('d4', 'PostToolUse', 'mcp_call', SAFE_STEPS, { session: d4pre.sid, writeCmd: `node "${NEVER_WRITE}" set %X% %Y%`, timeout: 90000, env: { CUA_GUARD_WRITE_TIMEOUT_MS: '7000' } });
+ok('A60 非空转：关闭 deadline 后同一慢写入跑满预算（耗时 > deadline）', d4post.ms > deadlineDefault, `ms=${d4post.ms} deadline=${deadlineDefault}`);
 
 console.log(`\n=== ${pass} passed, ${fail} failed ===`);
 try { fs.rmSync(SANDBOX, { recursive: true, force: true }); } catch (e) {}
