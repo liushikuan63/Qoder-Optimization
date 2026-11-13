@@ -31,6 +31,13 @@ const DOCS = [
     applyGuard: false,
     claims: [
       { script: 'huge-output-guard.test.js', reSrc: 'huge-output-guard\\.test\\.js`（\\*\\*(\\d+) 条\\*\\*' },
+      // F95：同族过期计数第四处——README 的 stop-gate 条数曾同时写 336（命令注释）与 432（自测入口），
+      // 实跑早已 501→506，而本门禁当时只覆盖 huge-output-guard，于是这两处**静默漂移、门禁恒绿**。
+      // 现在把「自测入口」那一行的三个条数全部纳入核对；命令注释里的重复数字已删除，避免第二真相。
+      // 每条 reSrc 只匹配反引号+全角括号形态，故各自恰好命中 1 次（命中数由本门禁自己断言）。
+      { script: 'stop-gate.test.js', reSrc: 'stop-gate\\.test\\.js`（(\\d+) 条' },
+      { script: 'tmp-sweeper.test.js', reSrc: 'tmp-sweeper\\.test\\.js`（(\\d+) 条' },
+      { script: 'tmp-round-scan.test.js', reSrc: 'tmp-round-scan\\.test\\.js`（(\\d+) 条' },
     ],
   },
   {
@@ -68,6 +75,18 @@ function measuredTally(script, args = []) {
     const total = Number(p[1]) + Number(p[2]);
     assert.ok(total > 0, script + ' 一个用例都没有（空集会让比对恒真）');
     assert.ok(Number(p[2]) > 0, script + ' 一个负对照都没有（只跑正例的自测抓不住回归）');
+    return total;
+  }
+  // stop-gate 自测收尾打 `N/N passed; cases=N`（F95：把它纳入门禁时发现的第四种输出格式）。
+  // 三个数字必须互相一致：只取第一个数会让「输出被截断」或「cases 与分母不符」蒙混过关。
+  const s = out.match(/(\d+)\/(\d+) passed; cases=(\d+)/);
+  if (s) {
+    const passed = Number(s[1]);
+    const total = Number(s[2]);
+    const cases = Number(s[3]);
+    assert.equal(passed, total, script + ' 有失败判据（passed ≠ 分母）');
+    assert.equal(cases, total, script + ' 收尾 cases 与分母不一致（输出被截断或格式已变）');
+    assert.ok(total > 0, script + ' 一条判据都没有（空集会让比对恒真）');
     return total;
   }
   // evidence 自测只打 PASS/FAIL 行 + 收尾标记：数 PASS 行，并要求标记存在且非空集。

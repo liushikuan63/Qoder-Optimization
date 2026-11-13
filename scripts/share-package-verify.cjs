@@ -27,26 +27,55 @@ const DESC_MAX = 300;
 const DOCTOR = path.join(__dirname, 'skills-doctor.cjs');
 
 function carrierCaps() {
+  // F93：旧实现解析失配/读文件抛错时静默 return {}，载体放宽全部丢失 ⇒ 载体技能被按 300 误判超限，
+  // 且原因被吞掉（红得不可归因，看起来像「描述真超长」）。改为显式回传错误，由 verify() 判红并点名。
+  // 空集同样不算查过：解析出 0 条上限也报错，避免「表在但一条都没读到」被当成没有载体。
   try {
     const t = fs.readFileSync(DOCTOR, 'utf8');
     const m = t.match(/const DESC_CARRIERS = \{([\s\S]*?)\n\};/);
-    if (!m) return {};
+    if (!m) return { caps: {}, error: 'skills-doctor.cjs 里找不到 DESC_CARRIERS 定义' };
     const caps = {};
     const re = /'([a-z0-9-]+)':\s*\{\s*max:\s*(\d+)/g;
     let x;
     while ((x = re.exec(m[1]))) caps[x[1]] = Number(x[2]);
-    return caps;
-  } catch {
-    return {};
+    if (Object.keys(caps).length === 0) return { caps, error: 'DESC_CARRIERS 解析出 0 条上限（空集不算查过）' };
+    return { caps, error: null };
+  } catch (e) {
+    return { caps: {}, error: '读取 skills-doctor.cjs 失败：' + (e && e.code ? e.code : String(e)) };
   }
 }
 
-function walk(dir, base, out) {
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+function walk(dir, base, out, errors) {
+  let entries;
+  // F96：读不出目录时旧实现直接抛错 ⇒ 校验器崩溃 exit 1，而「崩溃」不等于「判红」，
+  // 调用方按退出码 2 判违规的逻辑会把它当成另一类失败。改为收集错误、由 verify() 显式判红。
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
+  catch (e) { errors.push(path.relative(base, dir).replace(/\\/g, '/') + '/ 读不出(' + (e && e.code ? e.code : e) + ')'); return out; }
+  for (const e of entries) {
     const p = path.join(dir, e.name);
     const rel = path.relative(base, p).replace(/\\/g, '/');
-    if (e.isDirectory()) walk(p, base, out);
+    if (e.isDirectory()) walk(p, base, out, errors);
     else out.push(rel);
+  }
+  return out;
+}
+
+// F94：walk 只收文件，于是**空的** backups/ 或 node_modules/ 目录一个条目都不产生 ⇒ 垃圾判据漏检。
+// 目录单独收（带尾斜杠，正好命中 JUNK 里的 `backups\/` / `node_modules\/`）。
+// 不能把目录混进 walk 的 files：零字节判据会对目录 statSync().size===0 恒真，把每个目录都误判成零字节文件。
+// F96：① 符号链接的 Dirent.isDirectory() 为 false，旧写法会整个漏收 ⇒ 名为 node_modules 的链接逃检；
+//       现在链接也登记名字，但**不递归**（避免环与越界跟随）。② 读不出的目录同样收集错误而非崩溃。
+function walkDirs(dir, base, out, errors) {
+  let entries;
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
+  catch (e) { errors.push(path.relative(base, dir).replace(/\\/g, '/') + '/ 读不出(' + (e && e.code ? e.code : e) + ')'); return out; }
+  for (const e of entries) {
+    const isDir = e.isDirectory();
+    const isLink = e.isSymbolicLink();
+    if (!isDir && !isLink) continue;
+    const p = path.join(dir, e.name);
+    out.push(path.relative(base, p).replace(/\\/g, '/') + '/');
+    if (isDir && !isLink) walkDirs(p, base, out, errors);
   }
   return out;
 }
@@ -60,26 +89,40 @@ function descOf(file) {
 function verify(pkgDir, agentsPath) {
   const fails = [];
   const passes = [];
-  const caps = carrierCaps();
+  const { caps, error: capsError } = carrierCaps();
+  if (capsError) fails.push(`载体上限表不可用：${capsError}（不得静默按 300 判所有技能）`);
 
   // 4. 必需件
   const required = ['VERSION', 'catalog.json', 'skills-manifest.json', 'Qoder-AI编码通用规则.md', 'README-安装说明.md', 'INDEX.md'];
   const missing = required.filter((f) => !fs.existsSync(path.join(pkgDir, f)));
   missing.length ? fails.push(`必需件缺失: ${missing.join(', ')}`) : passes.push(`必需件齐 (${required.length})`);
 
-  const files = walk(pkgDir, pkgDir, []);
+  const readErrors = [];
+  const files = walk(pkgDir, pkgDir, [], readErrors);
 
   // 2. 垃圾文件
   // `.bak` 必须带右边界：备份命名真源是 backup-file.js 的 BAK_RE = /^(.*)\.bak(?:[-._].*)?$/，
   // 即 `.bak` 后只能跟 `-`/`_`/`.` 分隔的后缀或结束。旧写法裸 `\.bak` 把 `notes.bakery.md`
   // 这种正常文档也判成垃圾（2026-11-12 probe-f77-79 F79-A/A2 修前红：exit 2）。
   // 目录形 `foo.bak/x.md` 仍要拦，所以边界是「后缀 + (/ 或 结束)」。
-  const JUNK = /(^|\/)(\.export-|backups\/|node_modules\/|\.DS_Store$|Thumbs\.db$)|\.bak(?:[-._][^/]*)?(\/|$)|\.log$/i;
-  const junk = files.filter((f) => JUNK.test(f));
+  // F96：`backups`/`node_modules` 加右边界 `(\/|$)`，这样**同名文件**（无尾斜杠）也拦得住。
+  const JUNK = /(^|\/)(\.export-|backups(\/|$)|node_modules(\/|$)|\.DS_Store$|Thumbs\.db$)|\.bak(?:[-._][^/]*)?(\/|$)|\.log$/i;
+  // F96：目录登记带尾斜杠，会让 JUNK 里以 `$` 结尾的分支（.log$ / .DS_Store$ / Thumbs.db$）对
+  // `x.log/` 这类**目录名**失效（W22 实测 regex=false）。故目录同时按「带斜杠」与「去尾斜杠」两种形态各测一次。
+  const junkDirs = walkDirs(pkgDir, pkgDir, [], readErrors).filter((d) => JUNK.test(d) || JUNK.test(d.slice(0, -1)));
+  const junk = files.filter((f) => JUNK.test(f)).concat(junkDirs);
   junk.length ? fails.push(`垃圾文件 ${junk.length} 个: ${junk.slice(0, 5).join(', ')}`) : passes.push('无垃圾文件（.bak/日志/node_modules/.export-*）');
+  if (readErrors.length) fails.push(`目录读不出 ${readErrors.length} 处（崩溃不算判红，必须显式失败）: ${readErrors.slice(0, 5).join(', ')}`);
 
   // 3. 零字节
-  const empty = files.filter((f) => fs.statSync(path.join(pkgDir, f)).size === 0);
+  // F96：statSync 对断链/无权限项会抛错，旧写法直接崩溃 exit 1；改为收集并显式判红。
+  const empty = [];
+  const statErrors = [];
+  for (const f of files) {
+    try { if (fs.statSync(path.join(pkgDir, f)).size === 0) empty.push(f); }
+    catch (e) { statErrors.push(f + '(' + (e && e.code ? e.code : e) + ')'); }
+  }
+  if (statErrors.length) fails.push(`文件 stat 失败 ${statErrors.length} 个（不得崩溃冒充判红）: ${statErrors.slice(0, 5).join(', ')}`);
   empty.length ? fails.push(`零字节文件 ${empty.length} 个: ${empty.slice(0, 5).join(', ')}`) : passes.push('无零字节文件');
 
   // 1. 描述长度
@@ -254,6 +297,42 @@ function selftest() {
   const junk = path.join(tmp, 'junk'); base(junk); mk(junk, 'ok-skill', '短描述');
   fs.writeFileSync(path.join(junk, 'a.bak'), 'x');
   expectCase('负例', '.bak', run(junk), 2, '.bak 应判红', '垃圾文件');
+
+  // F94 负对照：**空的** backups/ 与 node_modules/ 目录。修前 walk 只收文件 ⇒ 空目录一个条目都不产生 ⇒ 恒绿。
+  const emptyBackups = path.join(tmp, 'empty-backups'); base(emptyBackups); mk(emptyBackups, 'ok-skill', '短描述');
+  fs.mkdirSync(path.join(emptyBackups, 'backups'), { recursive: true });
+  expectCase('负例', '空backups目录', run(emptyBackups), 2, '空 backups/ 目录应判红（没有文件不等于没有垃圾）', '垃圾文件');
+  const emptyNm = path.join(tmp, 'empty-nm'); base(emptyNm); mk(emptyNm, 'ok-skill', '短描述');
+  fs.mkdirSync(path.join(emptyNm, 'node_modules'), { recursive: true });
+  expectCase('负例', '空node_modules目录', run(emptyNm), 2, '空 node_modules/ 目录应判红', '垃圾文件');
+
+  // F96 负对照：目录名命中 JUNK 里以 `$` 结尾的分支。修前目录登记带尾斜杠 ⇒ `x.log/` 不匹配 `\.log$` ⇒ 漏检。
+  for (const [tag, name] of [['dir-log', 'x.log'], ['dir-dsstore', '.DS_Store'], ['dir-thumbs', 'Thumbs.db']]) {
+    const root = path.join(tmp, tag); base(root); mk(root, 'ok-skill', '短描述');
+    fs.mkdirSync(path.join(root, name), { recursive: true });
+    expectCase('负例', '目录名' + name, run(root), 2, '名为 ' + name + ' 的目录应判红（尾斜杠不得让 $ 分支失效）', '垃圾文件');
+  }
+  // F96 负对照：同名**文件**（无尾斜杠）也要拦，证明 `(\/|$)` 右边界真生效而不是只匹配目录。
+  const nmFile = path.join(tmp, 'nm-file'); base(nmFile); mk(nmFile, 'ok-skill', '短描述');
+  fs.writeFileSync(path.join(nmFile, 'node_modules'), 'x\n');
+  expectCase('负例', 'node_modules同名文件', run(nmFile), 2, '名为 node_modules 的文件应判红', '垃圾文件');
+  // 说明：walk/walkDirs 的「目录读不出」与 statSync 失败两条错误收集路径，本轮**无确定性夹具覆盖**
+  // （Windows 下造 EPERM/断链需特权且不稳定），按 [静态] 登记，不假装测过。
+
+  // F93 正/负对照：载体放宽必须真生效，且上限真被 enforcing（不是「载体＝无限制」）。
+  // CARRIER 的 max 取自 skills-doctor.cjs 的 DESC_CARRIERS（现读＝460），不手写死数字来源。
+  const CARRIER = 'mechanize-rule-into-hook-guard';
+  const carrierOk = path.join(tmp, 'carrier-ok'); base(carrierOk); mk(carrierOk, CARRIER, 'x'.repeat(400));
+  expectCase('正例', '载体400', run(carrierOk), 0, '载体技能 400 字符（>300 但 ≤460）应判绿', 'VERDICT=CLEAN');
+  const carrierOver = path.join(tmp, 'carrier-over'); base(carrierOver); mk(carrierOver, CARRIER, 'x'.repeat(470));
+  expectCase('负例', '载体470', run(carrierOver), 2, '载体技能 470 字符（>460 上限）应判红', 'description 超限');
+
+  // F93 负对照：载体上限表不可用时必须显式判红并点名，不得静默按 300 判所有技能。
+  // 手法：把校验器副本放进一个旁边没有 skills-doctor.cjs 的目录，DOCTOR 随 __dirname 解析 ⇒ 必然读不到。
+  const noDoctor = path.join(tmp, 'no-doctor'); fs.mkdirSync(noDoctor, { recursive: true });
+  fs.copyFileSync(__filename, path.join(noDoctor, 'share-package-verify.cjs'));
+  const rNoDoctor = spawnSync(process.execPath, [path.join(noDoctor, 'share-package-verify.cjs'), carrierOk], { encoding: 'utf8' });
+  expectCase('负例', '载体表缺失', rNoDoctor, 2, '副本旁无 skills-doctor.cjs ⇒ 应判红并点名载体表不可用', '载体上限表不可用');
 
   // 负例 3：零字节
   const zero = path.join(tmp, 'zero'); base(zero); mk(zero, 'ok-skill', '短描述');

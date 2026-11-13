@@ -34,7 +34,7 @@
 ## 怎么验
 
 ```bash
-node ~/.qoder/scripts/stop-gate.test.js        # 501 条：各规则违规必红 + 对照组必绿 + 真实历史原文回放 + 台账 + 防死循环 + fail-open + R6b 阻塞过期复核 + R6 持有豁免 + R10 安装/更新询问 + R11 发布后部署询问
+node ~/.qoder/scripts/stop-gate.test.js        # 条数见文末「自测入口」（该处受 doc-test-tally 门禁核对）：各规则违规必红 + 对照组必绿 + 真实历史原文回放 + 台账 + 防死循环 + fail-open + R6b 阻塞过期复核 + R6 持有豁免 + R10 安装/更新询问 + R11 发布后部署询问
 echo '{"last_assistant_message":"剩下的待办要继续下一格吗？","session_id":"t"}' | node ~/.qoder/scripts/stop-gate.js
 node ~/.qoder/scripts/stop-gate.js --report 7   # 按规则汇总近 7 天命中；台账为空会显式打"零命中"
 node ~/.qoder/scripts/rules-reminder.test.js   # 条数以本轮实测为准：注入/心跳/请求回注/目标候选/自进化/B05 + 联网与工具缺口正例、引用/禁联网/只读/禁下载负例及变异对照
@@ -115,8 +115,8 @@ Edit 回显 849KB、Bash 无上限输出 454KB、子代理报告 382KB。
 | 层 | 入口 | 行为 | 怎么验 |
 |---|---|---|---|
 | PreToolUse 守卫 | `~/.qoder/scripts/huge-output-guard.js`（两侧 settings.json 已挂） | ① `Read` 大文件（>40KB 或 >600 行；**末行无换行也算一行**，单行 300KB 的压缩 JSON 同样拦）→ **deny**；带了 offset/limit 也**按真实行字节数**再判一次（limit 按行数限流，对单行大文件等于没限；只带 offset ＝读到 EOF，按余量算）；② `Bash` 命中 `cat`/`grep`/`git log`/`mvn`/`npm test`/`find`/`ls -R` 等形态且无任何**有效**限流（管道 / 重定向到**文件** / head / tail / `-l` / `-c` / `-m` / `--oneline`；`2>&1`、`1>&2` 是 fd 复制，输出仍进上下文，**不算**限流）→ 默认**自动追加 `\| head -100` 后放行**（只读查询语义不变；要恢复"拦下让我改命令"用 `HOG_MODE=deny` 或配置 `hogMode`）；head/tail 上界失效不算限流：`-c 5M`/`-c 5MB`/`-n 2K` 按后缀换算，`-n +K`/`-c +K` 是"一路输出到末尾"，认不出的后缀按无界处理；③ 双引号内联脚本（`node -e` / `python -c` / `bash -c` …）里出现反引号 → **deny**（带引号 heredoc 的**正文**豁免，正文之外照拦）；④ `Agent` 提示词末尾追加"只回结论、≤300 字"硬约束（**改输入而不是拒绝**，子代理本身是必要的） | `node scripts/huge-output-guard.test.js`（**121 条**：该拦的拦、该放的放，每处漏判都配负对照；含自测抓出来的真问题：`/-l\b/` 匹配不到 `grep -rl` 的组合短参、`find` 带 `-name` 仍可能上千行、单行大文件被算成 0 行、`head -c 5M` 被读成 5 字节、heredoc 豁免被整条命令借走、显式 offset/limit 早退跳过字节投影、`2>&1` 被当成重定向到文件、**胖行混在瘦行里被"全文平均行长"投影吃掉**）。条数由 `node --test .github/doc-test-tally.test.js` 实跑比对，写过期会判红 |
-| 会话体积哨兵 | `stop-gate.js` 规则 **R7**（Stop hook） | 会话 transcript ≥ 25MB（`STOP_GATE_SESSION_MB` 可调）时拦停，要求先交接（队列 + 台账 + 明说"建议开新会话"） | `node stop-gate.test.js`（27/27）+ R7 专项两端自检（26MB 拦 / 小会话放行） |
-| **阻塞过期复核** | `stop-gate.js` 规则 **R6b**（Stop hook） | 队列里 `- [~] … 阻塞：` 若**声称某文件正脏/被持有**，收尾前实测这些文件（`git ls-files` 解析 → `git status --porcelain`）：全部干净 ⇒ 判"这条阻塞已过期"并拦停——现在开工，或换成新的真实条件。**三道保守闸门**：① 只判含脏态词（脏/持有/在途/未提交/正被/并行会话）的条目，"等数据产出/等关卡"这类与文件无关的不判；② 含 git 查不了的条件（凭据/端口/上游规格/真机/模拟器/mvn）整条跳过；③ 提到的文件有一个在版本清单里找不到就整条不判（**不许把"查不到"当"已过期"**）。git 跑不动 ⇒ fail-open | `node stop-gate.test.js`（44/44，含 6 条 R6b：过期必拦 2 条 + 确实脏/无脏态声明/文件查不到/含凭据 各放行对照）；真队列冒烟：V03-d 那条"heroes=0"过期阻塞被拦出、修文案后静默 |
+| 会话体积哨兵 | `stop-gate.js` 规则 **R7**（Stop hook） | 会话 transcript ≥ 25MB（`STOP_GATE_SESSION_MB` 可调）时拦停，要求先交接（队列 + 台账 + 明说"建议开新会话"） | `node stop-gate.test.js`（条数见文末自测入口）+ R7 专项两端自检（26MB 拦 / 小会话放行） |
+| **阻塞过期复核** | `stop-gate.js` 规则 **R6b**（Stop hook） | 队列里 `- [~] … 阻塞：` 若**声称某文件正脏/被持有**，收尾前实测这些文件（`git ls-files` 解析 → `git status --porcelain`）：全部干净 ⇒ 判"这条阻塞已过期"并拦停——现在开工，或换成新的真实条件。**三道保守闸门**：① 只判含脏态词（脏/持有/在途/未提交/正被/并行会话）的条目，"等数据产出/等关卡"这类与文件无关的不判；② 含 git 查不了的条件（凭据/端口/上游规格/真机/模拟器/mvn）整条跳过；③ 提到的文件有一个在版本清单里找不到就整条不判（**不许把"查不到"当"已过期"**）。git 跑不动 ⇒ fail-open | `node stop-gate.test.js`（条数见文末自测入口；含 6 条 R6b：过期必拦 2 条 + 确实脏/无脏态声明/文件查不到/含凭据 各放行对照）；真队列冒烟：V03-d 那条"heroes=0"过期阻塞被拦出、修文案后静默 |
 | 规则层 | `AGENTS.md` §任务处理 | 写清"上下文体积是回合的生死线"+ 正误对照 | `sync-global-config.sh --check`（12 文件逐字节一致） |
 
 **现场验证（同一会话内触发，不是只跑单测）**：
@@ -298,11 +298,11 @@ Post 是另一个事件面（要看返回），塞进 `risky-match-guard` 就等
 |---|---|---|
 | R15 授权判定把"不要自动清理"当成授权 | 否定式优先；"不用问 / 无需询问"不算否定；只认明确授权词，不再把单独出现的"自动清理"当授权 | stop-gate：否定授权必拦 + 两种肯定式放行 |
 | 只看命令文本/散文即算闭环 | 自动清理必须 `--apply --json`；解析 `entries / deleted / recommended.preserve / failed`，要求本轮探测条目全部被删除或保留、`failed=0`、`--since` 与本轮用户消息偏差 ≤10 分钟 | R14/R15：未来/超期 since、failed、未覆盖均拦 |
-| 按顶层 mtime 命中后整棵删目录 | 只自动删"本轮新建"（birthtime ≥ since）；仅被修改的旧目录默认保留，`--only` 或 `--include-modified` 才删 | tmp-round-scan 142 条（含旧目录只修改用例） |
+| 按顶层 mtime 命中后整棵删目录 | 只自动删"本轮新建"（birthtime ≥ since）；仅被修改的旧目录默认保留，`--only` 或 `--include-modified` 才删 | tmp-round-scan 条数见文末自测入口（含旧目录只修改用例） |
 | 并行会话产物被按时间窗误删 | `--session <8位会话id>` 只自动删名字含本会话令牌的条目；`--only` 精确指定；`--apply` 只允许 canonicalRoot（越界需 `--force`） | tmp-round-scan `--session` / 边界负对照 |
-| 未分类扩展名永不超期，压缩包/大件长期滞留 | 图片/文本 3 天、媒体 7 天、压缩包/文档/脚本 15 天、未分类 30 天兜底 | tmp-sweeper 40 条 |
+| 未分类扩展名永不超期，压缩包/大件长期滞留 | 图片/文本 3 天、媒体 7 天、压缩包/文档/脚本 15 天、未分类 30 天兜底 | tmp-sweeper 条数见文末自测入口 |
 | 证据目录只靠中心前缀清单，容易漏登记 | 目录内 `.keep` / `.evidence.json` 自声明，扫描与自动清理都整棵保留 | tmp-sweeper / tmp-round-scan `.keep` 用例 |
 | 分享包产物与旧回滚点永久删除 | `--include-share-package` 默认移入 `<root>/.trash/<时间戳>`，保留 7 天后回收；`--no-trash` 才永久删 | tmp-round-scan 隔离区用例 |
 | 临时根总量失控没有提醒 | SessionStart 调 `tmp-sweeper --usage`，超过 5GB 或 2000 个顶层条目时提醒，24h 节流 | session-budget 水位用例 |
 
-**自测入口**：`node ~/.qoder/scripts/stop-gate.test.js`（501 条）、`tmp-sweeper.test.js`（40 条）、`tmp-round-scan.test.js`（142 条）、`session-budget.test.js`（全过）。
+**自测入口**：`node ~/.qoder/scripts/stop-gate.test.js`（511 条）、`tmp-sweeper.test.js`（40 条）、`tmp-round-scan.test.js`（142 条）、`session-budget.test.js`（全过）。
