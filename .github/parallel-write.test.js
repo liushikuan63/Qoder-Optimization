@@ -279,3 +279,76 @@ for (const foreignPath of ['src/A.txt', 'src\\a.txt']) {
     assert.equal(fs.existsSync(path.join(manifest.units[0].path, foreignPath)), true);
   });
 }
+
+// —— A29：收据原子写的瞬时 EPERM/EBUSY 退避重试（2026-11-13 用户采纳候选）——
+// 注入发生在真实子进程里（NODE_OPTIONS --require 换掉 fs.renameSync），不是 stub 被测函数；
+// 尝试次数与失败次数落盘计数，所以「重试了几次」是可失败读数，不靠退出码猜。
+function renameFault(f, code, failTimes) {
+  const marker = path.join(f.base, 'rename-attempts.json'), preload = path.join(f.base, 'rename-fault.cjs');
+  f.put(preload, [
+    "const fs = require('node:fs'), path = require('node:path');",
+    'const original = fs.renameSync, marker = ' + JSON.stringify(marker) + ', code = ' + JSON.stringify(code) + ';',
+    'let left = ' + failTimes + ';',
+    'fs.renameSync = function (from, to, ...rest) {',
+    "  if (path.basename(String(to)) === 'run.json') {",
+    '    let s = { attempts: 0, failures: 0 };',
+    "    try { s = JSON.parse(fs.readFileSync(marker, 'utf8')); } catch {}",
+    '    s.attempts++;',
+    '    const fail = left > 0;',
+    '    if (fail) { left--; s.failures++; }',
+    '    fs.writeFileSync(marker, JSON.stringify(s));',
+    '    if (fail) { const e = new Error(code + ": operation not permitted, rename"); e.code = code; throw e; }',
+    '  }',
+    '  return original(from, to, ...rest);',
+    '};',
+  ].join('\n'));
+  return { preload, read: () => JSON.parse(fs.readFileSync(marker, 'utf8')) };
+}
+const prepareArgs = f => ['prepare', '--plan', f.planFile, '--repo', f.repo, '--out', f.out, '--approved-plan', digestPlan(validatePlan(f.plan)), '--write-opt-in'];
+const withPreload = fault => ({ NODE_OPTIONS: '--require=' + JSON.stringify(fault.preload) });
+
+for (const code of ['EPERM', 'EBUSY']) {
+  test('receipt rename survives a transient ' + code + ' and still prepares', t => {
+    const f = fixture(t), fault = renameFault(f, code, 2);
+    const r = f.run(prepareArgs(f), withPreload(fault));
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    const s = fault.read();
+    assert.equal(s.failures, 2, JSON.stringify(s)); // 注入确实触发过，判据非空转
+    const manifest = JSON.parse(fs.readFileSync(path.join(f.out, 'run.json'), 'utf8'));
+    assert.equal(manifest.status, 'PREPARED');
+    assert.equal(manifest.units.length, 2);
+  });
+}
+
+test('persistent EPERM stays a hard failure with bounded retries', t => {
+  const f = fixture(t), fault = renameFault(f, 'EPERM', 99);
+  const r = f.run(prepareArgs(f), withPreload(fault));
+  assert.notEqual(r.status, 0, r.stdout + r.stderr);
+  assert.equal(JSON.parse(r.stderr).code, 'EPERM');
+  const s = fault.read();
+  // 初始收据写在 try 之外（prepare 先 writeReceipt 再进 try），失败时不会再写 PREPARE_FAILED 收据，
+  // 因此这条路径的硬上限就是单次调用的 5 次尝试——不是无上限重试，也不是静默成功。
+  assert.equal(s.attempts, 5, JSON.stringify(s));
+  assert.equal(s.failures, 5, JSON.stringify(s));
+  assert.equal(fs.existsSync(path.join(f.out, 'run.json')), false); // 绝不把失败静默当成功
+});
+
+test('unrelated rename errors are not retried', t => {
+  const f = fixture(t), fault = renameFault(f, 'ENOENT', 99);
+  const r = f.run(prepareArgs(f), withPreload(fault));
+  assert.notEqual(r.status, 0, r.stdout + r.stderr);
+  assert.equal(JSON.parse(r.stderr).code, 'ENOENT');
+  const s = fault.read();
+  assert.equal(s.attempts, 1, JSON.stringify(s)); // 非 EPERM/EBUSY 立即上抛：一次就够，绝不退避重试
+  assert.equal(s.failures, 1, JSON.stringify(s));
+});
+
+test('without injection the receipt path is unchanged', t => {
+  const f = fixture(t), fault = renameFault(f, 'EPERM', 0);
+  const r = f.run(prepareArgs(f), withPreload(fault));
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const s = fault.read();
+  assert.equal(s.failures, 0, JSON.stringify(s));
+  assert.ok(s.attempts >= 1, JSON.stringify(s)); // 计数非空转：真的发生过 rename
+  assert.equal(JSON.parse(fs.readFileSync(path.join(f.out, 'run.json'), 'utf8')).status, 'PREPARED');
+});

@@ -118,10 +118,24 @@ function worktrees(repo) {
   return entries;
 }
 
+// Windows 上刚写完的临时收据可能被扫描/索引器短暂持柄，rename 瞬时 EPERM/EBUSY
+// （2026-11-12 全量套件 v7 实测一次；双地点各单跑 3 次 6/6 绿，归因瞬时抖动而非代码缺陷）。
+// 只对这两个码做有限退避重试：其它错误立即上抛，重试耗尽也上抛原错误——绝不把失败静默当成功。
+const RECEIPT_RENAME_RETRY_CODES = new Set(['EPERM', 'EBUSY']);
+const RECEIPT_RENAME_ATTEMPTS = 5; // 退避 20/40/80/160ms，合计约 300ms，不做无上限重试
+const sleepSync = ms => { try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); } catch {} };
+function renameReceipt(temp, file) {
+  for (let attempt = 1; ; attempt++) {
+    try { fs.renameSync(temp, file); return; } catch (error) {
+      if (!RECEIPT_RENAME_RETRY_CODES.has(error && error.code) || attempt >= RECEIPT_RENAME_ATTEMPTS) throw error;
+      sleepSync(20 * 2 ** (attempt - 1));
+    }
+  }
+}
 function writeReceipt(dir, value) {
   const file = path.join(dir, 'run.json'), temp = path.join(dir, '.receipt-' + crypto.randomUUID());
   fs.writeFileSync(temp, JSON.stringify(value, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
-  fs.renameSync(temp, file);
+  renameReceipt(temp, file);
 }
 
 function noSpecialTree(repo, commit) {
