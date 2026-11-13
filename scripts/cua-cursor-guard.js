@@ -72,19 +72,37 @@ function runStub(command, timeout) {
 }
 
 // --- cursor read/write: driver first (fast, no compile), user32 fallback ---
+// A35：负载下 stub/驱动往返会超过原来的 4s/6s 预算 ⇒ 读不到光标 ⇒ Pre 不写快照、Post 早退不还原（fail-open）。
+// 窄修＝只放宽**读取**预算并加一次重试；拦截范围、deny 文案、fail-open 语义与写入预算都不动。
+// 无负载时首次读取即成功 ⇒ 不触发重试、不触及预算上限，路径行为与改前一致（模式隔离由测试的读取计数守住）。
+const READ_TIMEOUT_MS = Number(process.env.CUA_GUARD_READ_TIMEOUT_MS || 12000);
+const PS_READ_TIMEOUT_MS = Number(process.env.CUA_GUARD_PS_READ_TIMEOUT_MS || 15000);
+const READ_RETRY_GAP_MS = Number(process.env.CUA_GUARD_READ_RETRY_GAP_MS || 150);
+const validPos = (p) => !!(p && Number.isFinite(p.x) && Number.isFinite(p.y));
+
+function readViaDriverOnce() {
+  if (process.env.CUA_GUARD_READ_CMD) {
+    if (process.env.CUA_GUARD_TEST_STUBS !== '1') return null;
+    try { return JSON.parse(runStub(process.env.CUA_GUARD_READ_CMD, READ_TIMEOUT_MS)); } catch (e) { return null; }
+  }
+  if (!DRIVER) return null;
+  try { return JSON.parse(execFileSync(DRIVER, ['call', 'get_cursor_position'], { encoding: 'utf8', timeout: READ_TIMEOUT_MS })); } catch (e) { return null; }
+}
+
 function cursorRead() {
-  const viaDriver = (() => {
-    if (process.env.CUA_GUARD_READ_CMD) {
-      if (process.env.CUA_GUARD_TEST_STUBS !== '1') return null;
-      try { return JSON.parse(runStub(process.env.CUA_GUARD_READ_CMD, 4000)); } catch (e) { return null; }
-    }
-    if (!DRIVER) return null;
-    try { return JSON.parse(execFileSync(DRIVER, ['call', 'get_cursor_position'], { encoding: 'utf8', timeout: 4000 })); } catch (e) { return null; }
-  })();
-  if (viaDriver && Number.isFinite(viaDriver.x) && Number.isFinite(viaDriver.y)) return { x: viaDriver.x, y: viaDriver.y, via: 'driver' };
+  let viaDriver = readViaDriverOnce();
+  if (!validPos(viaDriver)) {
+    // 一次重试：负载尖峰通常是瞬时的，重读一次即可拿回快照，避免整轮守卫静默失效。
+    sleepSync(READ_RETRY_GAP_MS);
+    viaDriver = readViaDriverOnce();
+  }
+  if (validPos(viaDriver)) return { x: viaDriver.x, y: viaDriver.y, via: 'driver' };
+  // 测试密闭门控：仅在显式测试模式下生效，生产路径逐字节不变。
+  // 没有它，stub 超时会回落到真实桌面 GetCursorPos，用例既不稳定又可能误动用户指针。
+  if (process.env.CUA_GUARD_TEST_STUBS === '1' && process.env.CUA_GUARD_TEST_NO_USER32 === '1') return null;
   try {
     const ps = `Add-Type -MemberDefinition 'using System;using System.Runtime.InteropServices;public struct P{public int X;public int Y;}public static class C{[DllImport("user32.dll")] public static extern bool GetCursorPos(out P p);}' -Name CC -Namespace Cg; $v=New-Object Cg+P; [void][Cg.CC]::GetCursorPos([ref]$v); "$($v.X),$($v.Y)"`;
-    const s = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 6000 }).trim();
+    const s = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: PS_READ_TIMEOUT_MS }).trim();
     const [x, y] = s.split(',').map(Number);
     if (Number.isFinite(x) && Number.isFinite(y)) return { x, y, via: 'user32' };
   } catch (e) {}
@@ -109,6 +127,8 @@ function cursorWriteUser32(x, y) {
     if (process.env.CUA_GUARD_TEST_STUBS !== '1') return 'stub2-fail';
     try { runStub(process.env.CUA_GUARD_WRITE2_CMD.replace('%X%', x).replace('%Y%', y), 4000); return 'stub2'; } catch (e) { return 'stub2-fail'; }
   }
+  // 测试密闭门控（同上）：禁止用例回落到真实 SetCursorPos，避免误动用户指针。
+  if (process.env.CUA_GUARD_TEST_STUBS === '1' && process.env.CUA_GUARD_TEST_NO_USER32 === '1') return 'test-no-user32';
   try {
     const ps = `Add-Type -MemberDefinition 'using System;using System.Runtime.InteropServices;public static class S{[DllImport("user32.dll")] public static extern bool SetCursorPos(int x,int y);}' -Name SS -Namespace Cs; [void][Cs.SS]::SetCursorPos(${x},${y})`;
     execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 6000 });

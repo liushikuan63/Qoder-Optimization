@@ -35,16 +35,16 @@ function run(event, toolName, input, opts = {}) {
     CUA_GUARD_STATE_DIR: STATE,
     CUA_GUARD_CONFIG: CFG,
     CUA_STUB_CURSOR: CURSOR,
-    CUA_GUARD_READ_CMD: `node "${STUB}" read`,
+    CUA_GUARD_READ_CMD: opts.readCmd || `node "${STUB}" read`,
     CUA_GUARD_WRITE_CMD: opts.writeCmd || `node "${STUB}" set %X% %Y%`,
     CUA_GUARD_TEST_STUBS: '1',
     CUA_GUARD_BIN: '',
-  });
+  }, opts.env || {});
   if (opts.write2Cmd) env.CUA_GUARD_WRITE2_CMD = opts.write2Cmd;
   else delete env.CUA_GUARD_WRITE2_CMD;
   if (opts.disable === '1') env.CUA_GUARD_DISABLE = '1';
   try {
-    const out = execFileSync(process.execPath, [GUARD], { input: JSON.stringify(payload), env, encoding: 'utf8', timeout: 20000 });
+    const out = execFileSync(process.execPath, [GUARD], { input: JSON.stringify(payload), env, encoding: 'utf8', timeout: opts.timeout || 20000 });
     return { out, json: (() => { try { return JSON.parse(out); } catch (e) { return null; } })(), sid: payload.session_id };
   } catch (e) {
     return { err: String(e.stdout || e.message).slice(0, 300), sid: payload.session_id };
@@ -208,6 +208,105 @@ ok('allow_shell_gui=true opens the bypass gate', !decision(t26) || decision(t26)
 const t27 = run('PreToolUse', 'mcp_call', { toolName: 'mcp__cua_driver__move_cursor', arguments: { x: 1, y: 1, scope: 'desktop' } });
 ok('desktop warp STILL denied when only shell_gui is allowed', decision(t27) === 'deny', decision(t27));
 fs.writeFileSync(CFG, JSON.stringify({}));
+
+// --- A35：负载下读取超预算 ⇒ 快照缺失/光标读不到 ⇒ Post 阶段 fail-open 早退不还原 ---
+// 用「慢 stub」确定性复现负载机制（不靠真跑 8 个忙等进程）：读取耗时超过预算就等价于负载下的超时。
+const SLOW_ALWAYS = path.join(SANDBOX, 'slow-always.cjs');
+const SLOW_FIRST = path.join(SANDBOX, 'slow-first.cjs');
+const FAIL_ALWAYS = path.join(SANDBOX, 'fail-always.cjs');
+const COUNTED = path.join(SANDBOX, 'counted.cjs');
+const DELAY = 4500;                       // > 改前 4000ms 读取预算
+fs.writeFileSync(SLOW_ALWAYS, [
+  "const fs=require('fs');",
+  `const d=${DELAY};const t=Date.now();while(Date.now()-t<d){}`,   // 忙等，模拟负载下的慢响应
+  "process.stdout.write(fs.readFileSync(process.env.CUA_STUB_CURSOR,'utf8'));",
+].join('\n'));
+fs.writeFileSync(SLOW_FIRST, [
+  "const fs=require('fs');",
+  "const m=process.env.CUA_STUB_MARKER;",
+  "let n=0;try{n=Number(fs.readFileSync(m,'utf8'))||0;}catch(e){}",
+  "n++;fs.writeFileSync(m,String(n));",
+  `if(n===1){const t=Date.now();while(Date.now()-t<5000){}}`,      // 首次超预算，之后立即返回
+  "process.stdout.write(fs.readFileSync(process.env.CUA_STUB_CURSOR,'utf8'));",
+].join('\n'));
+fs.writeFileSync(FAIL_ALWAYS, "process.exit(1);");
+fs.writeFileSync(COUNTED, [
+  "const fs=require('fs');",
+  "const m=process.env.CUA_STUB_MARKER;",
+  "let n=0;try{n=Number(fs.readFileSync(m,'utf8'))||0;}catch(e){}",
+  "fs.writeFileSync(m,String(n+1));",
+  "if(process.argv[2]==='set'){const p=JSON.parse(fs.readFileSync(process.env.CUA_STUB_CURSOR,'utf8'));p.x=Number(process.argv[3]);p.y=Number(process.argv[4]);fs.writeFileSync(process.env.CUA_STUB_CURSOR,JSON.stringify(p));process.exit(0);}",
+  "process.stdout.write(fs.readFileSync(process.env.CUA_STUB_CURSOR,'utf8'));",
+].join('\n'));
+
+const SAFE_STEPS = { toolName: 'mcp__cua_driver__run_steps', arguments: { pid: 1, steps: [{ click: { x: 4, y: 4 } }] } };
+const reads = (marker) => { try { return Number(fs.readFileSync(marker, 'utf8')) || 0; } catch (e) { return 0; } };
+// A35 用例全部密闭：禁止回落到真实桌面 user32（读/写都不许），否则断言不稳定且可能误动用户指针。
+const run35 = (event, tool, input, opts = {}) => run(event, tool, input, Object.assign({}, opts, { env: Object.assign({ CUA_GUARD_TEST_NO_USER32: '1' }, opts.env || {}) }));
+
+// A35-1 预算：读取慢于改前 4000ms 预算时，快照必须仍拿到、光标必须仍还原。
+setCua(1079, 583);
+const a1pre = run35('PreToolUse', 'mcp_call', SAFE_STEPS, { readCmd: `node "${SLOW_ALWAYS}" read`, timeout: 90000 });
+ok('A35 慢读取下仍拿到光标快照（预算够用）', fs.existsSync(path.join(STATE, `${a1pre.sid}.json`)), 'snapshot missing -> Post 会 no-snapshot 早退');
+setCua(2157, 637);
+run35('PostToolUse', 'mcp_call', SAFE_STEPS, { session: a1pre.sid, readCmd: `node "${SLOW_ALWAYS}" read`, timeout: 90000 });
+const a1after = JSON.parse(fs.readFileSync(CURSOR, 'utf8'));
+ok('A35 慢读取下光标仍被还原（不再 fail-open 早退）', a1after.x === 1079 && a1after.y === 583, JSON.stringify(a1after));
+
+// A35-2 重试：首次读取超预算、第二次立即成功 ⇒ 必须靠一次重试救回（隔离「重试」这一处）。
+setCua(1079, 583);
+const m2 = path.join(SANDBOX, 'm2.txt');
+const a2pre = run35('PreToolUse', 'mcp_call', SAFE_STEPS, {
+  readCmd: `node "${SLOW_FIRST}" read`, timeout: 90000,
+  env: { CUA_STUB_MARKER: m2, CUA_GUARD_READ_TIMEOUT_MS: '400' },
+});
+ok('A35 首次读取超时后重试成功（快照仍在）', fs.existsSync(path.join(STATE, `${a2pre.sid}.json`)), 'snapshot missing');
+setCua(2157, 637);
+run35('PostToolUse', 'mcp_call', SAFE_STEPS, {
+  session: a2pre.sid, readCmd: `node "${SLOW_FIRST}" read`, timeout: 90000,
+  env: { CUA_STUB_MARKER: m2, CUA_GUARD_READ_TIMEOUT_MS: '400' },
+});
+const a2after = JSON.parse(fs.readFileSync(CURSOR, 'utf8'));
+ok('A35 重试路径下光标仍被还原', a2after.x === 1079 && a2after.y === 583, JSON.stringify(a2after));
+ok('A35 stub 确实被调用了多次（超时+重试，非空转）', reads(m2) >= 2, 'reads=' + reads(m2));
+
+// A35-3 负对照：读取彻底失败时，fail-open 语义必须保持不变（不改成 deny、不抛错）。
+setCua(1079, 583);
+const a3pre = run35('PreToolUse', 'mcp_call', SAFE_STEPS, { readCmd: `node "${FAIL_ALWAYS}" read`, timeout: 30000 });
+ok('A35 负对照：读取全失败仍 allow（拦截范围未被改动）', decision(a3pre) === 'allow', decision(a3pre) + ' ' + (a3pre.out || '').slice(0, 80));
+setCua(2157, 637);
+const a3post = run35('PostToolUse', 'mcp_call', SAFE_STEPS, { session: a3pre.sid, readCmd: `node "${FAIL_ALWAYS}" read`, timeout: 30000 });
+ok('A35 负对照：无快照时 Post 仍 continue:true（fail-open 语义不变）', !!a3post.json && a3post.json.continue === true, (a3post.out || '').slice(0, 120));
+const a3after = JSON.parse(fs.readFileSync(CURSOR, 'utf8'));
+ok('A35 负对照：读不到就不擅自写光标（仍是 2157,637）', a3after.x === 2157 && a3after.y === 637, JSON.stringify(a3after));
+
+// A35-4 模式隔离：快 stub（无负载）路径的读取次数必须与改前一致 —— 不许多跑重试。
+setCua(1079, 583);
+const m4 = path.join(SANDBOX, 'm4.txt');
+const a4pre = run35('PreToolUse', 'mcp_call', SAFE_STEPS, { readCmd: `node "${COUNTED}" read`, writeCmd: `node "${COUNTED}" set %X% %Y%`, env: { CUA_STUB_MARKER: m4 }, timeout: 30000 });
+setCua(2157, 637);
+run35('PostToolUse', 'mcp_call', SAFE_STEPS, { session: a4pre.sid, readCmd: `node "${COUNTED}" read`, writeCmd: `node "${COUNTED}" set %X% %Y%`, env: { CUA_STUB_MARKER: m4 }, timeout: 30000 });
+const a4after = JSON.parse(fs.readFileSync(CURSOR, 'utf8'));
+ok('A35 模式隔离：无负载路径仍还原成功', a4after.x === 1079 && a4after.y === 583, JSON.stringify(a4after));
+// 基线 4 次是改前字节**实测值**（Pre 1 + Post 1 + readSettled 2；首版我猜 5，按实测改正并点名）。
+ok('A35 模式隔离：无负载路径读取次数与改前一致（未多跑重试）', reads(m4) === 4, 'reads=' + reads(m4) + '（改前实测基线 4）');
+
+// A35-5 负对照：预算放宽不得削弱拦截范围（慢读取下前台点击仍必须 deny）。
+const a5 = run35('PreToolUse', 'mcp__cua-driver__click', { pid: 1, x: 10, y: 10, delivery_mode: 'foreground' }, { readCmd: `node "${SLOW_ALWAYS}" read`, timeout: 90000 });
+ok('A35 负对照：慢读取下前台点击仍 deny（拦截范围未变）', decision(a5) === 'deny', decision(a5));
+
+// A35-6 窄修边界：密闭门控必须双重 gated（只在测试模式生效），写入预算必须原样未动。
+const gateHits = (guardSource.match(/CUA_GUARD_TEST_STUBS === '1' && process\.env\.CUA_GUARD_TEST_NO_USER32 === '1'/g) || []).length;
+ok('A35 密闭门控双重 gated 且读写各一处（生产路径不受影响）', gateHits === 2, 'hits=' + gateHits);
+// 首版用 `[^)]*` 匹配写入 stub 调用，但真实字节含 `.replace('%X%', x)` 的内层括号 ⇒ 未改动副本也判红
+// （被变异探针的 control 判据抓住，已点名）。改成抽出实际预算数字再比对，红时能报出真值。
+const budgetAfter = (re) => { const m = guardSource.match(re); return m ? Number(m[1]) : null; };
+const wStub1 = budgetAfter(/runStub\(process\.env\.CUA_GUARD_WRITE_CMD[\s\S]{0,120}?,\s*(\d+)\)/);
+const wStub2 = budgetAfter(/runStub\(process\.env\.CUA_GUARD_WRITE2_CMD[\s\S]{0,120}?,\s*(\d+)\)/);
+const wDriver = budgetAfter(/'move_cursor', '--args'[\s\S]{0,160}?timeout:\s*(\d+)/);
+const wUser32 = budgetAfter(/SetCursorPos\(\$\{x\},\$\{y\}\)[\s\S]{0,200}?timeout:\s*(\d+)/);
+ok('A35 窄修只动读取：写入预算仍是 4000/4000/4000/6000', wStub1 === 4000 && wStub2 === 4000 && wDriver === 4000 && wUser32 === 6000, `stub=${wStub1} stub2=${wStub2} driver=${wDriver} user32=${wUser32}`);
+ok('A35 读取预算可配且默认已放宽（12000/15000）', /CUA_GUARD_READ_TIMEOUT_MS \|\| 12000/.test(guardSource) && /CUA_GUARD_PS_READ_TIMEOUT_MS \|\| 15000/.test(guardSource), 'read budgets not raised');
 
 console.log(`\n=== ${pass} passed, ${fail} failed ===`);
 try { fs.rmSync(SANDBOX, { recursive: true, force: true }); } catch (e) {}
