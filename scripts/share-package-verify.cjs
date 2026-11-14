@@ -484,16 +484,23 @@ function parseArgs(argv) {
   return opts;
 }
 
-const opts = parseArgs(process.argv.slice(2));
-if (opts.errors.length) {
-  for (const e of opts.errors) console.error('参数错误：' + e);
-  console.error(USAGE);
-  process.exit(2);
+// 判据出口：供仓库侧「载体入包契约门」复用同一份 DESC_MAX / 载体上限 / 描述解析，
+// 避免生成侧与入包侧各写一套阈值（曾导致 >300 在生成侧只预警、入包侧硬红）。
+// CLI 行为逐字不变：下面的参数解析与退出只在直接执行时跑，被 require 时不产生副作用。
+module.exports = { DESC_MAX, carrierCaps, descOf, verify, selftest };
+
+if (require.main === module) {
+  const opts = parseArgs(process.argv.slice(2));
+  if (opts.errors.length) {
+    for (const e of opts.errors) console.error('参数错误：' + e);
+    console.error(USAGE);
+    process.exit(2);
+  }
+  if (opts.selftest) process.exit(selftest());
+  if (!opts.dir || !fs.existsSync(opts.dir)) { console.error(USAGE); process.exit(2); }
+  if (opts.agents && !fs.existsSync(opts.agents)) {
+    console.error('--agents 指向的文件不存在：' + opts.agents + '（不静默跳过文档一致性校验）');
+    process.exit(2);
+  }
+  process.exit(verify(path.resolve(opts.dir), opts.agents));
 }
-if (opts.selftest) process.exit(selftest());
-if (!opts.dir || !fs.existsSync(opts.dir)) { console.error(USAGE); process.exit(2); }
-if (opts.agents && !fs.existsSync(opts.agents)) {
-  console.error('--agents 指向的文件不存在：' + opts.agents + '（不静默跳过文档一致性校验）');
-  process.exit(2);
-}
-process.exit(verify(path.resolve(opts.dir), opts.agents));

@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 // 新增规则/技能/MCP/记忆/hook/agent 前的只读预检：同类、冲突、限额、截断风险。
-// 用法：node carrier-preflight.cjs --type <skill|rule|memory|mcp|hook|agent> --name <名称> [--description <描述>] [--path <计划文件>] [--json]
+// 用法：node carrier-preflight.cjs --type <skill|rule|memory|mcp|hook|agent> --name <名称> [--description <描述>] [--path <计划文件>] [--package <分享包仓库根>] [--json]
 // 退出码：0 = 无阻断（可能含 REVIEW 提醒）；1 = 存在重名/硬限额阻断；2 = 参数错误。
+// --package：载体要进公开分享包时给出仓库根，描述上限改用**包侧同一真源**（share-package-verify 的
+//   DESC_MAX + skills-doctor 的 DESC_CARRIERS）并**硬拦**。不给该参数时行为逐字不变（300 仍只是注入成本预警），
+//   因为本机专用技能不进包、长描述合法（实测现役 238 个里 26 个超 300，一律硬拦会误伤）。
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -17,6 +20,14 @@ const TYPE = arg('type');
 const NAME = arg('name');
 const DESC = arg('description');
 const PLAN_PATH = arg('path');
+const PACKAGE_ROOT = arg('package');
+if (argv.includes('--package')) {
+  const verifier = PACKAGE_ROOT && path.join(PACKAGE_ROOT, 'scripts', 'share-package-verify.cjs');
+  if (!PACKAGE_ROOT || !path.isAbsolute(PACKAGE_ROOT) || argv.filter(item => item === '--package').length !== 1 || !fs.existsSync(verifier)) {
+    console.error('--package 需要唯一的绝对仓库根，且其 scripts/share-package-verify.cjs 必须存在（读不到包侧上限真源时不得静默退回 300 预警）');
+    process.exit(2);
+  }
+}
 const JSON_OUT = argv.includes('--json');
 const TYPES = ['skill', 'rule', 'memory', 'mcp', 'hook', 'agent'];
 if (!TYPES.includes(TYPE) || !NAME) {
@@ -135,6 +146,23 @@ if (!proposedDesc && PLAN_PATH && fs.existsSync(PLAN_PATH)) proposedDesc = front
 if (TYPE === 'skill' && proposedDesc) {
   if (proposedDesc.length > 1024) blockers.push(`技能 description ${proposedDesc.length} 字符，超过 frontmatter 上限 1024`);
   else if (proposedDesc.length > 300) warnings.push(`技能 description ${proposedDesc.length} 字符，超过 CN 可见预警线 300（每轮注入成本）`);
+}
+// 入包契约：显式 --package 时改用包侧同一真源并硬拦，消除「生成侧只预警、入包侧硬红」的两侧不同源。
+if (TYPE === 'skill' && PACKAGE_ROOT) {
+  let pkg = null;
+  try { pkg = require(path.join(PACKAGE_ROOT, 'scripts', 'share-package-verify.cjs')); }
+  catch (e) { blockers.push(`包侧上限真源读不出（${e && e.message ? e.message : String(e)}）：不得静默跳过入包描述校验`); }
+  if (pkg) {
+    const { caps, error } = pkg.carrierCaps();
+    if (error || !caps || !Object.keys(caps).length) {
+      blockers.push(`包侧载体上限表不可用（${error || '解析出 0 条'}）：不得退回按 300 误判载体技能`);
+    } else if (!proposedDesc) {
+      blockers.push('给了 --package 但拿不到 description（--description 或 --path 至少给一个）：入包描述校验空转');
+    } else {
+      const cap = caps[NAME] || pkg.DESC_MAX;
+      if (proposedDesc.length > cap) blockers.push(`入包 description ${proposedDesc.length} 字符 > 包侧上限 ${cap}${caps[NAME] ? '（载体豁免）' : ''}：main push 的包契约门会判红，先裁到上限内并保留独占路由线索`);
+    }
+  }
 }
 if (TYPE === 'skill' && PLAN_PATH && fs.existsSync(PLAN_PATH)) {
   const bodyLines = lineCount(read(PLAN_PATH));

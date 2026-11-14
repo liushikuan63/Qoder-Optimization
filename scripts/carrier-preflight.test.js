@@ -40,7 +40,7 @@ function caseRun(name, setupFn, args, assertFn) {
   const { sb, q } = setup();
   try {
     if (setupFn) setupFn(q);
-    const r = run(sb, args);
+    const r = run(sb, typeof args === 'function' ? args(q) : args);
     const detail = `exit=${r.code} ${r.json ? r.json.verdict : ''}`;
     check(name, assertFn(r), detail);
   } finally {
@@ -69,6 +69,25 @@ caseRun('同名 agent → 阻断', null, ['--type', 'agent', '--name', 'agent-a'
 caseRun('MEMORY 超 200 行 → 阻断', (q) => writeMore(path.join(q, 'memory', 'MEMORY.md'), 201), ['--type', 'memory', '--name', 'new-memory'], (r) => r.code === 1 && r.json && r.json.blockers.some((x) => x.includes('200')));
 caseRun('AGENTS 超 190 行 → 阻断', (q) => writeMore(path.join(q, 'AGENTS.md'), 191), ['--type', 'rule', '--name', 'new-rule'], (r) => r.code === 1 && r.json && r.json.blockers.some((x) => x.includes('190')));
 caseRun('非法类型 → 参数错误', null, ['--type', 'unknown', '--name', 'x'], (r) => r.code === 2);
+
+// --package：入包描述上限改用包侧同一真源并硬拦；不给该参数时行为必须逐字不变。
+const REPO = path.join(__dirname, '..');
+const desc = (n) => 'x'.repeat(n);
+caseRun('入包 短描述 → 放行', null, ['--type', 'skill', '--name', 'pkg-new-skill', '--description', desc(179), '--package', REPO], (r) => r.code === 0 && r.json && r.json.verdict !== 'BLOCK');
+caseRun('入包 恰好 300 → 放行（边界）', null, ['--type', 'skill', '--name', 'pkg-new-skill', '--description', desc(300), '--package', REPO], (r) => r.code === 0 && r.json && !r.json.blockers.some((x) => x.includes('入包 description')));
+caseRun('入包 301 → 硬拦', null, ['--type', 'skill', '--name', 'pkg-new-skill', '--description', desc(301), '--package', REPO], (r) => r.code === 1 && r.json && r.json.blockers.some((x) => x.includes('入包 description 301') && x.includes('300')));
+caseRun('入包 载体豁免名 400 字符 → 放行', null, ['--type', 'skill', '--name', 'mechanize-rule-into-hook-guard', '--description', desc(400), '--package', REPO], (r) => r.code === 0 && r.json && !r.json.blockers.some((x) => x.includes('入包 description')));
+caseRun('入包 载体豁免名超其上限 → 硬拦', null, ['--type', 'skill', '--name', 'mechanize-rule-into-hook-guard', '--description', desc(461), '--package', REPO], (r) => r.code === 1 && r.json && r.json.blockers.some((x) => x.includes('461') && x.includes('460') && x.includes('载体豁免')));
+caseRun('不给 --package 时 301 仍只预警（默认行为不变）', null, ['--type', 'skill', '--name', 'pkg-new-skill', '--description', desc(301)], (r) => r.code === 0 && r.json && !r.json.blockers.some((x) => x.includes('入包 description')) && r.json.warnings.some((x) => x.includes('300')));
+caseRun('入包 但拿不到 description → 判空转阻断', null, ['--type', 'skill', '--name', 'pkg-new-skill', '--package', REPO], (r) => r.code === 1 && r.json && r.json.blockers.some((x) => x.includes('空转')));
+caseRun('--package 指向不存在的路径 → 参数错误', null, ['--type', 'skill', '--name', 'pkg-new-skill', '--description', desc(10), '--package', path.join(os.tmpdir(), 'phantom-pkg-root-9f3c')], (r) => r.code === 2);
+caseRun('--package 缺值 → 参数错误', null, ['--type', 'skill', '--name', 'pkg-new-skill', '--package'], (r) => r.code === 2);
+caseRun('--package 相对路径 → 参数错误', null, ['--type', 'skill', '--name', 'pkg-new-skill', '--package', 'relative/pkg'], (r) => r.code === 2);
+caseRun('包侧真源读不出 → 阻断而非静默跳过', (q) => {
+  const fake = path.join(q, 'fake-pkg', 'scripts');
+  fs.mkdirSync(fake, { recursive: true });
+  fs.writeFileSync(path.join(fake, 'share-package-verify.cjs'), "throw new Error('boom-9f3c');\n");
+}, (q) => ['--type', 'skill', '--name', 'pkg-new-skill', '--description', desc(10), '--package', path.join(q, 'fake-pkg')], (r) => r.code === 1 && r.json && r.json.blockers.some((x) => x.includes('真源读不出')));
 
 console.log(fail === 0 ? '\nALL PASS' : `\n${fail} FAILURE(S)`);
 process.exit(fail === 0 ? 0 : 1);
