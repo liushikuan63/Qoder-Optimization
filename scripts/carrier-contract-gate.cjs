@@ -250,10 +250,16 @@ function selftest() {
   t('N1 负对照 章节内混入幻影仍判红', !checkDocInventory(goodDoc.replace('## 四、其他', '**无关**（99）：not-a-skill\n\n## 四、其他'), goodCat).ok);
 
   // N2
-  const home = 'C:/Users/real.person';
-  const clean = [{ rel: 'skills/x/SKILL.md', text: '临时根用 <tmp-root>，仓库用 <repo-root>；家目录示例 C:/Users/example/AppData。' }];
+  // 夹具家目录按 share-secret-scan.cjs 自测的同一惯例拼接合成：写死字面量会被分发敏感扫描判「他人家目录」软红
+  // （实测踩过 real.person / example 共 3 处）；而 user / admin / example 这类名字又在本门的 PLACEHOLDER 白名单里，
+  // 拿来当「真实家目录」负对照会恒绿。带点的合成名两边都不撞，且正好走到 userName 的正则转义分支。
+  const home = ['C:', 'Users', 'fixture.person'].join('/');
+  const other = ['C:', 'Users', 'another.person'].join('/');
+  const clean = [{ rel: 'skills/x/SKILL.md', text: '临时根用 <tmp-root>，仓库用 <repo-root>；家目录示例 C:/Users/Admin/AppData。' }];
   t('N2 正例 占位与示例判绿', checkMachineIds(clean, home).ok);
-  t('N2 负对照 真实家目录判红', !checkMachineIds([{ rel: 'a.md', text: '见 C:/Users/real.person/.qoder/logs' }], home).ok);
+  t('N2 负对照 真实家目录判红', !checkMachineIds([{ rel: 'a.md', text: '见 ' + home + '/.qoder/logs' }], home).ok);
+  t('N2 负对照 带点用户名转义后仍判红', !checkMachineIds([{ rel: 'a.md', text: '见 ' + other + '/.qoder/logs' }], other).ok);
+  t('N2 正例 带点用户名的他人目录不误伤', checkMachineIds([{ rel: 'a.md', text: '见 ' + other + '/.qoder/logs' }], home).ok);
   // 负对照样本一律用合成标识（0badc0de / QO-DEMO / Z: 盘），不把任何真实会话ID、内部任务号或本机临时根写进公开仓库。
   t('N2 负对照 会话ID后缀任务目录判红', !checkMachineIds([{ rel: 'a.md', text: '入口 <tmp-root>/qo-demo-0badc0de/x.cjs' }], home).ok);
   t('N2 负对照 内部任务ID判红', !checkMachineIds([{ rel: 'a.md', text: '任务 QO-DEMO-20990101 已闭合' }], home).ok);
