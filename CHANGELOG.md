@@ -6,6 +6,8 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-15
+
 ### Added
 - Add `long-task-merge-takeover` skill (on-demand): a playbook for merging two or more long-running tasks whose release criteria deadlocked each other into a single serial session, then carrying the takeover through to release and deployment. Covers proving the deadlock before merging, takeover inventory with re-verification of inherited truth from disk (never from a summary), the final-HEAD rerun gate, and three-way deployment that keeps the newer live file byte-for-byte. Ships the evidence discipline that makes the claims falsifiable (exit codes read from disk rather than through a pipe, negative controls, single-variable A/B proof, red-before-fix, byte verification plus rollback material, zero out-of-scope touches), a pitfall/countermeasure table, and a quantified speedup section: 11 full-suite rounds cost about 4.6 hours, of which 6 red rounds (about 2.6 hours) produced nothing releasable — the highest-leverage fix is a seconds-level targeted-test gate in front of the full suite, not treating the suite as a defect probe.
 - Ship two sanitized references with that skill: a worked 0.1.7 example (readings, pitfalls and their fixes, public commit anchors) and the speedup evidence table (per-round duration / exit / green / red). Machine-specific absolute paths are generalized to `<repo-root>` / `<tmp-root>` placeholders, and session IDs, internal task numbers, process IDs and local config hashes are removed; the reusable lessons and quantitative readings are kept.
@@ -13,6 +15,7 @@ During the 0.x line, minor versions may contain breaking changes.
 - Add `carrier-preflight.cjs --package <repo-root>`: when a carrier is destined for the public package, the description cap is taken from the **package-side single source** (`share-package-verify`'s `DESC_MAX` plus `skills-doctor`'s `DESC_CARRIERS`) and enforced as a blocker. Previously the live side only warned above 300 while the package side hard-failed, so a carrier could be legal at authoring time and illegal on merge. Without the flag, behaviour is unchanged — machine-only skills legitimately carry longer descriptions (26 of 238 live skills exceed 300). An unreadable package-side source, or `--package` with no description available, blocks rather than silently skipping.
 
 ### Changed
+- Integrate two commits that landed on `main` from another contributor while this batch was being verified: `tier-skills` now resolves a bound library junction to its real target and falls back to a byte-verified copy+delete when a promote/demote crosses volumes (the old rename-only move threw `EXDEV`), and CN local customizations were upstreamed into the package source (`skills-router` gained a `references/codex-capabilities.md`). Zero file overlap with this batch, so the merge is content-clean; no existing tag was rewritten.
 - `share-package-verify.cjs`: export `DESC_MAX`, `carrierCaps`, `descOf`, `verify` and `selftest`, and wrap the CLI in a `require.main` guard so requiring it has no side effects. CLI behaviour is unchanged; its 57-case self-test (14 positive / 43 negative) stays green on both the repo and the installed client.
 - Fix the hand-written skill inventory in `Qoder-AI编码通用规则.md`: it listed 133 skills against a catalog of 135 (missing `image-detail-inspect` and `long-task-merge-takeover`), and 7 of its 12 "resident" marks were actually `tier=library` in both the live client and the package. Add the two missing skills, drop the seven incorrect marks and sync the group counts. `check-release.js` only validates the generated `SKILLS-清单.md`, so this hand-written list had no detector — gate check N1 now covers it.
 - Write the authoring norms back into the existing carriers instead of adding a parallel document: `skill-authoring-closure` (package-bound preflight, single-source caps, run the gate before the suite, update the hand-written inventory in the same batch, sync every cross-client copy when a script's exports change), `verify-package` (the gate's nine criteria and its advisory split) and `update-share-package` (new step 3b: the gate must be green before the full suite, because the suite is a release gate and not a defect probe).
@@ -22,6 +25,7 @@ During the 0.x line, minor versions may contain breaking changes.
 - Rebuild package metadata again for the new gate script: 322 → 323 catalog entries. Skill count stays 135 and version stays 0.1.7.
 
 ### 中文摘要
+- 并入本批验证期间另一贡献者推到 `main` 的两笔：`tier-skills` 晋升/降级现在会把已绑定库的 junction 解析到真实目标，跨卷时改用「逐字节校验的复制＋删除」兜底（原先只 rename 会抛 `EXDEV`）；CN 本地定制上游化进包源（`skills-router` 新增 `references/codex-capabilities.md`）。与本批**零文件重叠**，合并无内容冲突；未改写任何已有 tag。
 - 新增 `scripts/carrier-contract-gate.cjs`：仓库侧**秒级**载体入包契约门，新增/修改 skill、rule、command、agent、hook、script 后在**提交与出包之前**跑。九项判据＝触发短语唯一性、技能引用完整性、8 处计数声明点的元数据漂移、description 上限、手写技能清单一致性、本批改动载体正文的机器专属标识、版本三载体一致＋最新已发布节脚注、HOOKS 表脚本存在且入 catalog、git 跟踪垃圾件。已有检测器一律 delegate，不造第二份真源。硬违约 exit 1；存量债（历史缺脚注、合法 helper 未接线、Windows 域技能里作为主题内容的盘符路径）列 advisory 不阻断。附 43 条自测，每项判据都配能失败的反例。
 - 新增 `carrier-preflight.cjs --package <仓库根>`：载体要进公开包时，描述上限改用**包侧同一真源**（`share-package-verify` 的 `DESC_MAX` ＋ `skills-doctor` 的 `DESC_CARRIERS`）并**硬拦**。此前生成侧 >300 只预警、包侧硬红，导致"生成时合法、合并时违约"。不带该参数时行为不变——本机专用技能长描述合法（现役 238 个里 26 个超 300）。包侧真源读不出、或给了 `--package` 却拿不到 description，一律判阻断而非静默跳过。
 - `share-package-verify.cjs` 导出 `DESC_MAX`/`carrierCaps`/`descOf`/`verify`/`selftest`，CLI 包进 `require.main` 守卫使 require 无副作用；CLI 行为不变，其 57 条自测（14 正例/43 负例）在仓库与现役两侧均绿。
@@ -870,7 +874,8 @@ During the 0.x line, minor versions may contain breaking changes.
 ### Contributors / 贡献者
 - @liushikuan63
 
-[Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.1.6...HEAD
+[Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.0
 [0.1.7]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.7
 [0.1.6]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.6
 [0.1.5]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.5

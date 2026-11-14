@@ -3,7 +3,7 @@
 **An opt-in toolkit for making Qoder workflows more repeatable and verifiable.** It adds rules, on-demand skills, hooks, commands, scripts, and MCP templates through Qoder's extension points; it does not modify Qoder itself.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.1.7-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](VERSION)
 [![Node](https://img.shields.io/badge/node-24-brightgreen.svg)](https://nodejs.org)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20(primary)-lightgrey.svg)](#requirements-and-limits)
 
@@ -22,6 +22,7 @@ No clone required — pick a version and download it. Every release carries a re
 
 | Version | Released | Highlights | Download |
 |---|---|---|---|
+| 0.2.0 | 2026-11-15 | Carrier authoring contract gate: 9 seconds-level checks run before the full suite, description caps single-sourced from the package side into `carrier-preflight --package`, authoring norms written back into existing carriers, hand-written skill inventory repaired to 135; adds the `long-task-merge-takeover` playbook and cross-volume promote/demote for bound skill libraries | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.0/Qoder-Optimization-0.2.0.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.0) |
 | 0.1.7 | 2026-11-14 | Precise image reading: crop / zoom / tile skill with Pillow-only metrics and same-bbox A/B compare, a proactive post-Read hook and rule; optional RapidOCR offline bundle ships as a separate release asset | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.7/Qoder-Optimization-0.1.7.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.7) |
 | 0.1.6 | 2026-11-13 | Evolution capture with user-decided carrier changes; continuity archive pruning; guard and package-verifier hardening | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.6/Qoder-Optimization-0.1.6.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.6) |
 | 0.1.5 | 2026-11-10 | Kickoff confirmation gate; optional kickoff card at install; package installs all shipped skills; audited tier override | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.5/Qoder-Optimization-0.1.5.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.5) |
@@ -168,7 +169,7 @@ Details: [installation and tiers](README-安装说明.md), [working rules](Qoder
 
 ### Catalog snapshot
 
-In the catalog generated on 2026-11-14, 5 core skill descriptions total 1,083 characters; all 135 skill descriptions total 28,131 characters. The core descriptions are 3.8% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
+In the catalog generated on 2026-11-15, 5 core skill descriptions total 1,083 characters; all 135 skill descriptions total 28,131 characters. The core descriptions are 3.8% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
 
 ### Requirements and limits
 
@@ -215,6 +216,7 @@ MIT; see [LICENSE](LICENSE). This is an unofficial community project and is not 
 
 | 版本 | 发布日期 | 主要内容 | 下载 |
 |---|---|---|---|
+| 0.2.0 | 2026-11-15 | 载体入包契约门：9 项秒级判据先于全量套件跑、描述上限改由包侧单一真源经 `carrier-preflight --package` 硬拦、生成规范回写既有载体、手写技能清单修到 135；新增 `long-task-merge-takeover` 超长任务合并接管范式，以及已绑定技能库的跨卷晋升/降级 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.0/Qoder-Optimization-0.2.0.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.0) |
 | 0.1.7 | 2026-11-14 | 精确识图：裁剪/放大/分块技能（Pillow 零依赖量化与同 bbox A/B 对比）、Read 后主动触发 hook 与规则；可选 RapidOCR 离线 bundle 作为独立 Release 资产 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.7/Qoder-Optimization-0.1.7.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.7) |
 | 0.1.6 | 2026-11-13 | 自进化采集与载体改动由用户拍板；接续档案自动清理；守卫与包校验器加固 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.6/Qoder-Optimization-0.1.6.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.6) |
 | 0.1.5 | 2026-11-10 | 开工确认门禁；安装时可选常驻开工提示卡；读取包安装全部随包技能；可审计的分层覆盖 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.5/Qoder-Optimization-0.1.5.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.5) |
@@ -363,7 +365,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 
 ### 目录快照
 
-截至 2026-11-14 生成的目录，5 个常驻技能的描述共 1,083 字符；135 个技能的描述共 28,131 字符。常驻描述占全部技能描述文本的 3.8%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
+截至 2026-11-15 生成的目录，5 个常驻技能的描述共 1,083 字符；135 个技能的描述共 28,131 字符。常驻描述占全部技能描述文本的 3.8%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
 
 ### 环境与限制
 
@@ -399,14 +401,14 @@ node ~/.qoder/scripts/build-skills-index.cjs
 
 ### Optional OCR bundle for image detail / 图像细读的可选 OCR 附件
 
-`image-detail-inspect` needs a local Python 3 with Pillow for its core crop / zoom / metrics / compare commands; the package ships neither. OCR cross-check is optional and degrades with exit 5 when absent. For intranet machines, download the separate asset `Qoder-Optimization-0.1.7-ocr-bundle-cp314-win_amd64.zip` (official PyPI wheels + 3 ONNX models + a per-file sha256 manifest) and install it with `scripts/install-ocr-offline.py --bundle <dir> --target <OCR_LIB>` (`--no-index`, zero network). That asset is bound to CPython 3.14 / Windows x64; other platforms install from PyPI. Models and wheels are deliberately kept out of both the core ZIP and the MCP offline bundle.
+`image-detail-inspect` needs a local Python 3 with Pillow for its core crop / zoom / metrics / compare commands; the package ships neither. OCR cross-check is optional and degrades with exit 5 when absent. For intranet machines, download the separate asset `Qoder-Optimization-0.2.0-ocr-bundle-cp314-win_amd64.zip` (official PyPI wheels + 3 ONNX models + a per-file sha256 manifest) and install it with `scripts/install-ocr-offline.py --bundle <dir> --target <OCR_LIB>` (`--no-index`, zero network). That asset is bound to CPython 3.14 / Windows x64; other platforms install from PyPI. Models and wheels are deliberately kept out of both the core ZIP and the MCP offline bundle. The 0.2.0 OCR bundle is the **same bytes** as the v0.1.7 asset (identical SHA-256): its content is version-independent tooling, so it was re-published under the 0.2.0 name rather than rebuilt.
 
-图像细读技能的核心裁剪/放大/量化/对比需本机 Python 3 + Pillow，包内不带；OCR 交叉核对可选，缺失时以 exit 5 明确降级。内网机取独立资产 `Qoder-Optimization-0.1.7-ocr-bundle-cp314-win_amd64.zip`（官方 PyPI wheels＋3 个 ONNX 模型＋逐件 sha256 清单），用 `scripts/install-ocr-offline.py --bundle <目录> --target <OCR_LIB>` 零网络安装（内部 `--no-index`）。该资产绑定 CPython 3.14 / Windows x64，其他平台走 PyPI。模型与 wheels 有意不进核心包与 MCP 离线附件。
+图像细读技能的核心裁剪/放大/量化/对比需本机 Python 3 + Pillow，包内不带；OCR 交叉核对可选，缺失时以 exit 5 明确降级。内网机取独立资产 `Qoder-Optimization-0.2.0-ocr-bundle-cp314-win_amd64.zip`（官方 PyPI wheels＋3 个 ONNX 模型＋逐件 sha256 清单），用 `scripts/install-ocr-offline.py --bundle <目录> --target <OCR_LIB>` 零网络安装（内部 `--no-index`）。该资产绑定 CPython 3.14 / Windows x64，其他平台走 PyPI。模型与 wheels 有意不进核心包与 MCP 离线附件。0.2.0 的 OCR bundle 与 v0.1.7 资产**逐字节相同**（SHA-256 一致）：其内容是与包版本无关的工具链，因此按 0.2.0 名字重新发布，而不是重新构建。
 
 <!-- offline-bundle:start -->
 ### Optional offline bundle / 可选离线附件
 
-The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.7/Qoder-Optimization-0.1.7-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
+The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.0/Qoder-Optimization-0.2.0-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
 
 核心包不含 MCP 离线二进制；需要时单独下载离线附件，核对各自的 .sha256 后解压到同一目录。无需离线组件时只取核心包；链接仅在对应版本发布后可用。
 <!-- offline-bundle:end -->
