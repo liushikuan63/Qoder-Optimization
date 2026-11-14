@@ -142,8 +142,10 @@ function checkConsistency() {
       const ok = samples.filter((s) => !s.timedOut);
       return ok.length ? Math.min(...ok.map((s) => s.ms)) : Infinity;
     };
-    for (let i = 0; i < 2 && fastest() > b.budgetMs; i++) {
-      const again = sh(path.join(SCRIPTS, b.script), b.args, 60000);
+    for (let i = 0; i < 2 && Number.isFinite(fastest()) && fastest() > b.budgetMs; i++) {
+      // 已超时的那一路不再复核：60s 超时本身已是结论，再跑只会把最坏耗时叠到用例预算之外。
+      // 复核只为分辨「瞬时停摆」与「真慢」，给到预算的 3 倍足够（下限 20s）。
+      const again = sh(path.join(SCRIPTS, b.script), b.args, Math.max(20000, b.budgetMs * 3));
       samples.push({ ms: again.ms, timedOut: again.timedOut });
     }
     const bestMs = fastest();
@@ -185,7 +187,8 @@ function checkConsistency() {
       if (r) { sum += r.ms; seen++; }
     }
     if (seen === c.scripts.length && sum > c.totalMs) {
-      add('warn', '健全性', `${c.consumer} 内实测合计 ${(sum / 1000).toFixed(1)}s（每路取最快实测）已超总预算 ${(c.totalMs / 1000).toFixed(0)}s ⇒ 开台时后一路检查会被跳过（它会明说"未检查"，但那一半体检等于没做）`,
+      const sumText = Number.isFinite(sum) ? (sum / 1000).toFixed(1) + 's' : '至少一路超时';
+      add('warn', '健全性', `${c.consumer} 内实测合计 ${sumText}（每路取最快实测）已超总预算 ${(c.totalMs / 1000).toFixed(0)}s ⇒ 开台时后一路检查会被跳过（它会明说"未检查"，但那一半体检等于没做）`,
         '让慢的那个脚本支持快速模式（只报不逐文件比对）');
     }
   }
