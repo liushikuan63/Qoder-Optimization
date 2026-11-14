@@ -397,6 +397,12 @@ node ~/.qoder/scripts/build-skills-index.cjs
 
 项目采用 MIT 许可证，见 [LICENSE](LICENSE)。这是非官方社区项目，与 Qoder 官方无隶属或背书关系。`mcp/offline/` 下的第三方文件遵循各自许可证；相关说明见 [mcp/offline/LICENSE-cua-driver.txt](mcp/offline/LICENSE-cua-driver.txt)。
 
+### Optional OCR bundle for image detail / 图像细读的可选 OCR 附件
+
+`image-detail-inspect` needs a local Python 3 with Pillow for its core crop / zoom / metrics / compare commands; the package ships neither. OCR cross-check is optional and degrades with exit 5 when absent. For intranet machines, download the separate asset `Qoder-Optimization-0.1.7-ocr-bundle-cp314-win_amd64.zip` (official PyPI wheels + 3 ONNX models + a per-file sha256 manifest) and install it with `scripts/install-ocr-offline.py --bundle <dir> --target <OCR_LIB>` (`--no-index`, zero network). That asset is bound to CPython 3.14 / Windows x64; other platforms install from PyPI. Models and wheels are deliberately kept out of both the core ZIP and the MCP offline bundle.
+
+图像细读技能的核心裁剪/放大/量化/对比需本机 Python 3 + Pillow，包内不带；OCR 交叉核对可选，缺失时以 exit 5 明确降级。内网机取独立资产 `Qoder-Optimization-0.1.7-ocr-bundle-cp314-win_amd64.zip`（官方 PyPI wheels＋3 个 ONNX 模型＋逐件 sha256 清单），用 `scripts/install-ocr-offline.py --bundle <目录> --target <OCR_LIB>` 零网络安装（内部 `--no-index`）。该资产绑定 CPython 3.14 / Windows x64，其他平台走 PyPI。模型与 wheels 有意不进核心包与 MCP 离线附件。
+
 <!-- offline-bundle:start -->
 ### Optional offline bundle / 可选离线附件
 
@@ -404,9 +410,3 @@ The core ZIP excludes MCP offline binaries. Download the [offline bundle](https:
 
 核心包不含 MCP 离线二进制；需要时单独下载离线附件，核对各自的 .sha256 后解压到同一目录。无需离线组件时只取核心包；链接仅在对应版本发布后可用。
 <!-- offline-bundle:end -->
-
-### Optional OCR bundle for image detail / 图像细读的可选 OCR 附件
-
-`image-detail-inspect` needs a local Python 3 with Pillow for its core crop / zoom / metrics / compare commands; the package ships neither. OCR cross-check is optional and degrades with exit 5 when absent. For intranet machines, download the separate asset `Qoder-Optimization-0.1.7-ocr-bundle-cp314-win_amd64.zip` (official PyPI wheels + 3 ONNX models + a per-file sha256 manifest) and install it with `scripts/install-ocr-offline.py --bundle <dir> --target <OCR_LIB>` (`--no-index`, zero network). That asset is bound to CPython 3.14 / Windows x64; other platforms install from PyPI. Models and wheels are deliberately kept out of both the core ZIP and the MCP offline bundle.
-
-图像细读技能的核心裁剪/放大/量化/对比需本机 Python 3 + Pillow，包内不带；OCR 交叉核对可选，缺失时以 exit 5 明确降级。内网机取独立资产 `Qoder-Optimization-0.1.7-ocr-bundle-cp314-win_amd64.zip`（官方 PyPI wheels＋3 个 ONNX 模型＋逐件 sha256 清单），用 `scripts/install-ocr-offline.py --bundle <目录> --target <OCR_LIB>` 零网络安装（内部 `--no-index`）。该资产绑定 CPython 3.14 / Windows x64，其他平台走 PyPI。模型与 wheels 有意不进核心包与 MCP 离线附件。
