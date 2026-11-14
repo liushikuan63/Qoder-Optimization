@@ -78,6 +78,8 @@ const check = (label, ok, detail) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${l
 buildSandbox();
 let r = audit();
 check('基线：健康沙箱零告警', r.code === 0, `exit=${r.code}`);
+// A66：基线红时把审计自己的输出带出来——否则只看得到 exit=1，无法分辨「真违规」与「负载把耗时检查打成假告警」。
+if (r.code !== 0) console.log('     基线审计输出：' + r.out.replace(/\n/g, ' | ').slice(0, 600));
 
 // ── 逐项植入违规 ──
 const cases = [
