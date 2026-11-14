@@ -34,6 +34,33 @@ function fileSnapshot(file) {
 }
 const sameFile = (a, b) => !a || !b ? a === b : a.ino === b.ino && a.dev === b.dev && a.hash === b.hash;
 
+function treeHash(dir) {
+  const out = {};
+  (function walk(d, rel) {
+    for (const entry of fs.readdirSync(d, { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : 1)) {
+      const r = rel ? rel + '/' + entry.name : entry.name;
+      if (entry.isDirectory()) walk(path.join(d, entry.name), r);
+      else if (entry.isFile()) out[r] = createHash('sha256').update(fs.readFileSync(path.join(d, entry.name))).digest('hex');
+      else throw new Error('技能目录含非普通文件，不迁移：' + r);
+    }
+  })(dir, '');
+  return out;
+}
+
+// 同卷用原子 rename；跨卷（绑定迁移库在他盘）退化为逐字节校验的 copy+delete。
+// 校验失败即清理目标并抛错，源保持不动，绝不静默丢数据。
+function moveTree(from, to) {
+  try { fs.renameSync(from, to); return; }
+  catch (error) { if (error.code !== 'EXDEV') throw error; }
+  fs.cpSync(from, to, { recursive: true, errorOnExist: true, force: false });
+  const source = treeHash(from);
+  if (JSON.stringify(source) !== JSON.stringify(treeHash(to))) {
+    fs.rmSync(to, { recursive: true, force: true });
+    throw new Error('跨卷复制校验失败，已清理目标并保留源：' + path.basename(from));
+  }
+  fs.rmSync(from, { recursive: true, force: true });
+}
+
 function publishFile(file, staged, expected, stage, applied) {
   if (!sameFile(fileSnapshot(file), expected)) throw new Error('元数据在规划后已变化：' + path.basename(file));
   const item = { file, backup: path.join(stage, 'prior-' + applied.length), moved: false, owned: null };
@@ -120,7 +147,12 @@ function main(argv) {
   if (overrideCore && (!only.length || restoreAll || restore.length)) throw new Error('--override-core 只配合显式 --demote/--only 名单使用，且不能用于恢复');
   const root = clientRoot();
   const resident = path.join(root, 'skills');
-  const library = path.join(root, 'skills-library');
+  let library = path.join(root, 'skills-library');
+  // 绑定的迁移库常是跨卷 junction：解析到真实目标后按普通目录操作（跨卷走校验 copy）。
+  // 未绑定的链接仍拒绝，避免把未知链接当库写入。
+  try {
+    if (fs.lstatSync(library).isSymbolicLink() && require('./capability-roots.cjs').readBindings(root)) library = fs.realpathSync(library);
+  } catch (error) { if (error.code !== 'ENOENT') throw error; }
   const residentFile = path.join(root, RESIDENT_FILE);
   const assertTiers = () => {
     for (const dir of [resident, library]) {
@@ -169,7 +201,7 @@ function main(argv) {
   let preserve = false;
   try {
     fs.mkdirSync(restoring ? resident : library, { recursive: true });
-    for (const item of plan) { assertTiers(); fs.renameSync(item.from, item.to); moved.push(item); }
+    for (const item of plan) { assertTiers(); moveTree(item.from, item.to); moved.push(item); }
     // Collect into our private stage. A failed resident CAS must not leave an
     // index pointing at tier moves that are about to be rolled back.
     const code = "const fs=require('node:fs'),b=require(process.argv[1]);const entries=b.collectSkills();if(!Array.isArray(entries))throw new Error('invalid index entries');fs.writeFileSync(process.argv[2],JSON.stringify({generated_at:new Date().toISOString(),count:entries.length,entries},null,1),{flag:'wx',mode:0o600});fs.writeFileSync(process.argv[3],b.renderCatalog(entries),{flag:'wx',mode:0o600});";
@@ -191,7 +223,7 @@ function main(argv) {
       try {
         assertTiers();
         if (fs.existsSync(item.from)) throw new Error('原位置出现其他内容');
-        fs.renameSync(item.to, item.from);
+        moveTree(item.to, item.from);
       } catch { failed.push(item.name); }
     }
     failed.push(...rollbackFiles(applied, stage));
