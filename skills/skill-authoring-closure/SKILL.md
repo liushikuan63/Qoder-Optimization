@@ -44,16 +44,26 @@ GitHub 查询和下载走官方 gh；通道失败先区分网络、认证与内�
 
 ```bash
 node ~/.qoder/scripts/carrier-preflight.cjs --type skill --name <技能名>
+
+# 载体要进公开分享包时**必须**加 --package：描述上限改用包侧同一真源并硬拦
+node ~/.qoder/scripts/carrier-preflight.cjs --type skill --name <技能名> \
+  --description "<描述>" --package <分享包仓库根>
 ```
 
 - 看三件事：`PASS`、同类候选（相似度高就要考虑并入而不是新建）、限额（AGENTS / MEMORY / 技能数量）。
 - 定级：元/跨域高频或被硬引用 → `~/.qoder/skills/`；单领域 → `~/.qoder/skills-library/`；拿不准默认进库。
+- **两侧限额不同源曾是真的坑**：不带 `--package` 时 >300 只是注入成本**预警**（本机专用技能长描述合法，实测现役 238 个里 26 个超 300），而包侧 `share-package-verify` 对 >300 是**硬红**且 main push 也跑这道门 ⇒ 生成时"合法"、入包必违约。要入包就带 `--package`，让它在生成阶段就拦下。
+- `--package` 读不到包侧真源、或给了却拿不到 description，一律**判阻断**而不是静默跳过（空转等于没校验）。
 
 ## 5. 写盘与元数据校验
 
 - 目录名 = `name`，hyphen-case；frontmatter 用 `---` 包住；`description` **单行** ≤1024 字符。
 - 常驻 description 还须满足 `skills-doctor.cjs` 的当前上限（默认 300；仅已登记载体按其例外表），扩写前先量长度。压缩描述不得删除独有路由词，改后重跑原查询；领域技能仍留在按需库，不为方便检索上收常驻。
+- **要入包的载体**：上限以包侧 `share-package-verify.cjs` 的 `DESC_MAX` + `skills-doctor.cjs` 的 `DESC_CARRIERS` 为**唯一真源**（不要在生成侧另写一份阈值）；超限先裁到上限内并保留独占路由线索，不要靠入包时才发现。
 - 正文控制在 500 行内；`references/` 按需拆；不要 README/CHANGELOG。
+- **入包前必跑仓库侧契约门**（秒级，先于全量套件）：`node scripts/carrier-contract-gate.cjs`。它把触发词撞车、引用悬空、8 处计数声明点漂移、描述超限、手写技能清单漏列/错标常驻、本批机器专属标识、版本三载体与最新脚注、HOOKS 接线、git 跟踪垃圾件一次查完；硬违约修掉再进套件。判据与 advisory 分工见 `/verify-package`。
+- **新增技能必须同批更新手写清单**：`Qoder-AI编码通用规则.md` 的「推荐技能清单」章节是**手写**的，`check-release.js` 只校验生成物 `SKILLS-清单.md`，所以漏列/错标常驻不会被它抓到——契约门 N1 专门补这个缺口（曾漏列 2 个技能、12 个常驻标记里 7 个实为 library）。
+- **改脚本出口要同步所有依赖它的跨侧副本**：给 `share-package-verify.cjs` 加 `module.exports` 后，只同步 `carrier-preflight` 会让现役自测 6 处 exit=2（现役旧版 require 即执行 CLI）。改完两侧都跑自测，别只跑仓库侧。
 - 自带脚本必须实测：1 条正向 + 每个失败分支的负对照（缺参、文件不存在、无命中），并把退出码写进技能。
 
 ```bash

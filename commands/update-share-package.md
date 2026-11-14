@@ -12,8 +12,9 @@ description: 更新分享包 Qoder-Optimization（0.0.x）：先同步远端，�
 1. 核对本轮授权、目标仓库与指定版本。先检查工作区和本地提交，真实 fetch 后保留本地修复合并；推送前再同步。指定版本已存在时核对标签和资产，不擅自顺延、覆盖或改旧标签。
 2. 公开仓库是交付源。本机 pack-share-extras.js 是私有白名单导出器，不能覆盖仓库 pack-share-extras.cjs，更不能把整个用户配置拷入公开仓库；私人文稿、凭据、暂停状态与本机队列不提交或入包。
 3. 在源码仓库预演 `node scripts/pack-share-extras.cjs . --version <版本>`，检查差异并备份后才加 --apply。它只重建包内元数据，不复制本机资料。同步 VERSION 两行、catalog.package.version、manifest.version、双语 README、清单、计数、下载链接和许可证。
+3b. **载体入包契约门（秒级，必做，先于全量套件）**：`node scripts/carrier-contract-gate.cjs`（判据与分工详见 `/verify-package`）。新增/修改 skill、rule、command、agent、hook、script 后，九项判据在秒级抓出过去只有 24–27 分钟全量套件才暴露的冲突：触发词撞车、引用悬空、8 处计数声明点漂移、description 超包侧上限、手写技能清单漏列/错标常驻、本批载体正文的机器专属标识、版本三载体与最新脚注、HOOKS 表接线、git 跟踪垃圾件。**硬违约必须修掉再进全量套件**；advisory（历史脚注债、合法 helper 未接线、存量 Windows 域技能里的正当盘符路径）报告但不阻断。理由：一次合并任务 11 轮全量套件 ≈4.6h、其中 6 轮红 ≈2.6h 白跑，最高杠杆就是把缺陷检测从套件前移到秒级门——**全量套件是放行门，不是找缺陷的探针**。
 4. 文案逐段核对模型、工具、作者和使用者的主体—动作—对象及限定。“模型换个方式又从头踩一遍”不能改成“换个人”；真实同事反馈和安装体验仍保留。数字集合、条数与术语检查不代替语义核对。
-5. 按锁文件准备依赖，在隔离 HOME/USERPROFILE/TEMP/TMP/TMPDIR 下运行 `.github/run-tests.js`；Windows 非临时场景沙箱不能落在守卫识别的临时根。扫描和产物校验独立执行，不能修改安全边界或跳过 Git hooks 凑绿。
+5. 按锁文件准备依赖，在隔离 HOME/USERPROFILE/TEMP/TMP/TMPDIR 下运行 `.github/run-tests.js`；Windows 非临时场景沙箱不能落在守卫识别的临时根。扫描和产物校验独立执行，不能修改安全边界或跳过 Git hooks 凑绿。**前置**：第 3b 步契约门必须已绿；门红时先修违约，不要拿全量套件当缺陷探针。
 6. 仅提交明确文件。用 `.github/build-release.js <标签> <仓库外产物目录> <已验提交>` 从 Git 跟踪文件白名单构建：无空格同名顶层目录、核心 ZIP 与可选离线附件 ZIP（各带 .sha256）、分区并集 == 提交文件集、独立解包逐成员比对；平台相关字节（gzip OS 字节）两端归一化。构建失败不推送或发布。
 7. 获准推送标签后检查真实 Actions。draft 一律按 REST 返回的 release id 读回（不按 tag 查 draft）；对同名资产下载比摘要，不一致就停止、不替换；再从公开 Release 下载两份资产，验证摘要、版本、范围与包内 register/search/install。认证下载与匿名可达分别报告。
 8. 官方 gh 认证覆盖同一批准批次到远端验收结束；OAuth 权限变化单独批准，已停止任务不恢复。更新本机队列与实际完成统计，未验证项直说。

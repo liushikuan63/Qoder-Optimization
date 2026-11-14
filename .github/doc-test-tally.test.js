@@ -47,6 +47,8 @@ const DOCS = [
     applyGuard: false,
     claims: [
       { script: 'share-package-verify.cjs', args: ['--selftest'], reSrc: '校验器自身自测（(\\d+) 条' },
+      // 仓库侧契约门纳入同一道「声明条数＝实跑条数」机制，避免新门的自测计数成为下一个静默漂移点。
+      { script: 'carrier-contract-gate.cjs', args: ['--selftest'], reSrc: '门自身的正负对照自测（(\\d+) 条' },
     ],
   },
 ];

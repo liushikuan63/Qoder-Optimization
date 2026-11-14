@@ -10,7 +10,7 @@ description: 打包前校验分享包——描述长度、垃圾文件、零字�
 
 ```bash
 # 只校验目录
-node ~/.qoder/scripts/share-package-verify.cjs "D:/tmp/Qoder-Optimization-0.0.2"
+node ~/.qoder/scripts/share-package-verify.cjs "<tmp-root>/Qoder-Optimization-<版本>"
 
 # 额外校验规则文档第一节是否与 AGENTS.md 逐字节一致
 node ~/.qoder/scripts/share-package-verify.cjs "<包目录>" --agents ~/.qoder/AGENTS.md
@@ -18,6 +18,44 @@ node ~/.qoder/scripts/share-package-verify.cjs "<包目录>" --agents ~/.qoder/A
 # 校验器自身自测（57 条：14 正例 / 43 负例）
 node ~/.qoder/scripts/share-package-verify.cjs --selftest
 ```
+
+## 提交前的仓库侧契约门（秒级，先跑这个）
+
+`share-package-verify` 校验的是**已构建的包目录**；新增/修改 skill、rule、command、agent、hook、script 后，
+在**提交与出包之前**先跑仓库侧契约门，把过去只有 24–27 分钟全量套件才暴露的冲突提前到秒级：
+
+```bash
+# 在公开仓库根跑（默认 base=origin/main，只扫本批改动的载体正文）
+node scripts/carrier-contract-gate.cjs
+
+# 指定上游基线 / 机器可读输出
+node scripts/carrier-contract-gate.cjs --base origin/main --json
+
+# 门自身的正负对照自测（41 条：每项判据都配了能失败的反例）
+node scripts/carrier-contract-gate.cjs --selftest
+```
+
+退出码：0 全绿 / 1 有硬违约 / 2 用法或环境错误。**硬违约必须修掉再提交**，不得为了凑绿放宽判据。
+
+九项判据（已有检测器一律 delegate，不复制判据）：
+
+| 项 | 判据 | 真源 |
+|---|---|---|
+| C1 | 触发短语唯一性（新技能触发词不得与既有技能撞） | `skill-trigger-uniqueness.cjs` |
+| C2 | 技能引用完整性（不得悬空、不得引用未随包件） | `skill-reference-integrity.cjs --check` |
+| C3 | 包元数据无漂移（8 处计数声明点 + catalog/manifest） | `pack-share-extras.cjs --check` |
+| C4 | description 上限（载体按 `DESC_CARRIERS` 放宽） | `share-package-verify.cjs` 的 `DESC_MAX`/`carrierCaps` |
+| N1 | 手写技能清单一致性（分组计数、合计、常驻标记⊆core、无漏列无幻影） | 本门 |
+| N2 | **本批**载体正文的机器专属标识（真实家目录/会话ID后缀/内部任务ID/机器临时根） | 本门 |
+| N3 | 版本三载体一致 + 最新已发布节脚注 | 本门 |
+| N4 | HOOKS 表脚本存在且入 catalog | 本门 |
+| N5 | git 跟踪垃圾件（`.bak`/`.log`/`node_modules` 等会随包） | 本门 |
+
+**为什么 N2 只扫本批改动件**：存量 Windows 域技能（`disk-junction-migration`、`powershell-windows-display-interop`、
+`clean-disk` 等）正文里的盘符路径是**正当主题内容**，一刀切禁盘符会误伤 35 件。历史债列 advisory 不阻断。
+
+**advisory（报告但不阻断）**：历史 CHANGELOG 节缺脚注、名字像 hook 但属合法 helper 的未接线脚本
+（`hook-crash-guard.js`、`run-package-hook.cjs` 等）、存量载体正文里的机器路径。
 
 ## 判据（任一不过 → 退出码 2）
 
