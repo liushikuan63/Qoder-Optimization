@@ -843,6 +843,7 @@ During the 0.x line, minor versions may contain breaking changes.
 - @liushikuan63
 
 [Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.1.6...HEAD
+[0.1.7]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.7
 [0.1.6]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.6
 [0.1.5]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.5
 [0.1.4]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.4
