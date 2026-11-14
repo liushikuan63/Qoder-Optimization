@@ -8,7 +8,7 @@
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 135,
-  "script": 173,
+  "script": 174,
   "command": 12,
   "agent": 2
  },
@@ -2171,6 +2171,20 @@
    },
    "source": "scripts/capture-window.ps1",
    "dependencies": []
+  },
+  {
+   "id": "script:carrier-contract-gate.cjs",
+   "category": "script",
+   "name": "carrier-contract-gate.cjs",
+   "status": "shipped",
+   "source": "scripts/carrier-contract-gate.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:share-package-verify.cjs",
+    "script:skill-description.cjs"
+   ]
   },
   {
    "id": "script:carrier-preflight.cjs",
