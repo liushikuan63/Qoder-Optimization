@@ -100,14 +100,34 @@ mkfake() { # $1=根；建一套假 HOME（两侧 AGENTS.md/rules 一致 + 空记
   cp "$S" "$SCRIPTS/sync-global-config.sh" "$G/.qoder/scripts/"
 }
 host_path() { if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s\n' "$1"; fi; }
-run_guard() { local fixtureHome; fixtureHome="$(host_path "$1")"; HOME="$fixtureHome" USERPROFILE="$fixtureHome" QODER_HOME="$fixtureHome/.qoder" node "$G_JS" < /dev/null; }
+# A66：守卫每路检查的时间片默认 8000ms（A65 起可由 GUARD_PER_CALL_CAP_MS 显式放宽）。
+# 负载机器上「起 bash」本身就可能超片，守卫会如实报超时——但 T10/T12 是**行为**断言
+# （分叉必须被点名 / 干净必须零输出），被环境饿死就变成假红。这里只给行为用例显式给足时间片，
+# 断言本身一条不放宽。T9 是**及时性**断言：原来的 8000ms 绝对上限比守卫自己的总预算
+# （BUDGET_MS 默认 11000）还严，属用例设计缺陷；改为显式给定预算并断言「不超过自己的预算 + 余量」，
+# 守卫若无视预算挂死，仍然必红。
+GUARD_T9_BUDGET_MS=11000
+GUARD_T9_LIMIT_MS=$(( GUARD_T9_BUDGET_MS + 2600 ))
+run_guard() {
+  local fixtureHome mode
+  fixtureHome="$(host_path "$1")"; mode="${2:-default}"
+  if [ "$mode" = roomy ]; then
+    HOME="$fixtureHome" USERPROFILE="$fixtureHome" QODER_HOME="$fixtureHome/.qoder" \
+      GUARD_BUDGET_MS=45000 GUARD_RESERVE_MS=600 GUARD_PER_CALL_CAP_MS=40000 node "$G_JS" < /dev/null
+  elif [ "$mode" = budget ]; then
+    HOME="$fixtureHome" USERPROFILE="$fixtureHome" QODER_HOME="$fixtureHome/.qoder" \
+      GUARD_BUDGET_MS="$GUARD_T9_BUDGET_MS" GUARD_RESERVE_MS=600 GUARD_PER_CALL_CAP_MS=10000 node "$G_JS" < /dev/null
+  else
+    HOME="$fixtureHome" USERPROFILE="$fixtureHome" QODER_HOME="$fixtureHome/.qoder" node "$G_JS" < /dev/null
+  fi
+}
 
-echo "== T9 guard 独立 HOME 冒烟：应 <8s 内正常退出"
+echo "== T9 guard 独立 HOME 冒烟：应在自己的预算内正常退出（预算 ${GUARD_T9_BUDGET_MS}ms + 余量）"
 mkfake "$T/g9"
-t0=$(date +%s%N); out=$(run_guard "$T/g9"); rc=$?; t1=$(date +%s%N)
+t0=$(date +%s%N); out=$(run_guard "$T/g9" budget); rc=$?; t1=$(date +%s%N)
 ms=$(( (t1 - t0) / 1000000 ))
 echo "      guard 输出: [$out]   [${ms}ms]"
-if [ "$rc" = 0 ] && [ "$ms" -lt 8000 ]; then ok "T9 guard 冒烟 ${ms}ms"; else bad "T9 guard 冒烟" "rc=$rc ms=$ms" "rc=0 且 <8000ms" "" ""; fi
+if [ "$rc" = 0 ] && [ "$ms" -lt "$GUARD_T9_LIMIT_MS" ]; then ok "T9 guard 冒烟 ${ms}ms"; else bad "T9 guard 冒烟" "rc=$rc ms=$ms" "rc=0 且 <${GUARD_T9_LIMIT_MS}ms" "" ""; fi
 
 echo "== T10 guard 端到端（假 HOME + 植入记忆分叉）：必须报出来"
 mkfake "$T/g10"
@@ -115,7 +135,7 @@ printf 'x1\n' > "$T/g10/.qoder/memory/x.md"
 printf 'x2\n' > "$T/g10/.qoder-cn/memory/x.md"
 printf '%s\n' '# 索引' '- [X](x.md) — x' > "$T/g10/.qoder/memory/MEMORY.md"
 cp "$T/g10/.qoder/memory/MEMORY.md" "$T/g10/.qoder-cn/memory/"
-out=$(run_guard "$T/g10"); rc=$?
+out=$(run_guard "$T/g10" roomy); rc=$?
 if [ "$rc" = 0 ] && [[ "$out" == *"memory 检查异常"* ]] && [[ "$out" == *"x.md"* ]]; then ok "T10 guard 报出记忆分叉"; else bad "T10 guard 报出记忆分叉" "rc=$rc" "0 且含 memory 检查异常+x.md" "" "$out"; fi
 
 echo "== T11 量具崩了不许假绿：PATH 里没有 md5sum 时必须报「无法比对」"
@@ -128,7 +148,7 @@ mkfake "$T/g12"
 printf '%s\n' '# 索引' '- [M](m.md) — m' > "$T/g12/.qoder/memory/MEMORY.md"
 printf 'm body\n' > "$T/g12/.qoder/memory/m.md"
 cp "$T/g12/.qoder/memory/MEMORY.md" "$T/g12/.qoder/memory/m.md" "$T/g12/.qoder-cn/memory/"
-out=$(run_guard "$T/g12"); rc=$?
+out=$(run_guard "$T/g12" roomy); rc=$?
 if [ "$rc" = 0 ] && [ -z "$out" ]; then ok "T12 guard 干净时静默"; else bad "T12 guard 干净时静默" "rc=$rc 输出=$out" "exit 0 且空输出" "" "$out"; fi
 
 rm -rf "$T"

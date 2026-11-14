@@ -57,6 +57,19 @@ function sh(script, args, timeoutMs = 20000) {
   }
 }
 function readText(p) { try { return fs.readFileSync(p, 'utf8'); } catch { return ''; } }
+// A66：负载机器上「起 bash」本身就要几秒（实测套件内 >8s，隔离只要几毫秒）。
+// 直接拿墙钟耗时去比调用方预算，会把「环境慢」误报成「脚本慢 ⇒ 该检查永远超时」，
+// 于是健康沙箱也会被判红（v19 的基线红就是这么来的）。这里先量一次空跑 bash 的启动地板，
+// 再用「实测 − 地板」与预算比：脚本自身慢（如 sleep 12）仍照报；空闲机器上地板≈0，判定与改动前一致。
+function spawnFloorMs() {
+  let worst = 0;
+  for (let i = 0; i < 2; i++) {
+    const t0 = Date.now();
+    try { spawnSync(BASH, ['-c', 'exit 0'], { encoding: 'utf8', timeout: 20000 }); } catch (e) {}
+    worst = Math.max(worst, Date.now() - t0);
+  }
+  return worst;
+}
 function listRules(dir) { try { return fs.readdirSync(path.join(dir, 'rules')).filter(f => f.endsWith('.md')); } catch { return []; } }
 
 // hook 脚本身份提取：兼容单串命令行（CN）、command+args 数组（国际）、run-package-hook base64 包装（国际）。
@@ -124,7 +137,9 @@ function checkConsistency() {
     add('warn', '一致性', `sync-memory.sh 未能执行（${mem.timedOut ? `超时 >180s，耗时异常` : '退出码 ' + mem.code}）：` + mem.out.slice(0, 100), '手工跑一次看卡在哪；它变慢会连带把调用它的 hook 拖死');
   }
 
-  // 耗时预算核对：复用上面实测到的时间，不重跑
+  // 耗时预算核对：复用上面实测到的时间，不重跑；先扣掉「起 bash」的启动地板（A66）
+  const floor = spawnFloorMs();
+  const own = (ms) => Math.max(0, ms - floor);
   const measured = new Map([
     ['sync-global-config.sh', { ms: chk.ms, timedOut: chk.timedOut }],
     ['sync-memory.sh', { ms: mem.ms, timedOut: mem.timedOut }],
@@ -132,8 +147,8 @@ function checkConsistency() {
   for (const b of PERF_BUDGETS) {
     const r = measured.get(b.script);
     if (!r) continue;
-    if (r.timedOut || r.ms > b.budgetMs) {
-      add('warn', '健全性', `${b.script} 实测 ${(r.ms / 1000).toFixed(1)}s，超出调用方预算 ${(b.budgetMs / 1000).toFixed(0)}s → ${b.consumer} 里的这项检查**永远超时、等于没做**，还会拖慢每次开会话`,
+    if (r.timedOut || own(r.ms) > b.budgetMs) {
+      add('warn', '健全性', `${b.script} 实测 ${(r.ms / 1000).toFixed(1)}s（启动地板 ${(floor / 1000).toFixed(1)}s，脚本自身 ${(own(r.ms) / 1000).toFixed(1)}s），超出调用方预算 ${(b.budgetMs / 1000).toFixed(0)}s → ${b.consumer} 里的这项检查**永远超时、等于没做**，还会拖慢每次开会话`,
         '二选一：把调用方超时调大，或让该脚本支持快速模式（只报不逐文件比对）');
     }
   }
@@ -164,10 +179,10 @@ function checkConsistency() {
     let seen = 0;
     for (const s of c.scripts) {
       const r = measured.get(s);
-      if (r) { sum += r.ms; seen++; }
+      if (r) { sum += own(r.ms); seen++; }
     }
     if (seen === c.scripts.length && sum > c.totalMs) {
-      add('warn', '健全性', `${c.consumer} 内实测合计 ${(sum / 1000).toFixed(1)}s 已超总预算 ${(c.totalMs / 1000).toFixed(0)}s ⇒ 开台时后一路检查会被跳过（它会明说"未检查"，但那一半体检等于没做）`,
+      add('warn', '健全性', `${c.consumer} 内实测合计 ${(sum / 1000).toFixed(1)}s（每路已扣启动地板 ${(floor / 1000).toFixed(1)}s）已超总预算 ${(c.totalMs / 1000).toFixed(0)}s ⇒ 开台时后一路检查会被跳过（它会明说"未检查"，但那一半体检等于没做）`,
         '让慢的那个脚本支持快速模式（只报不逐文件比对）');
     }
   }

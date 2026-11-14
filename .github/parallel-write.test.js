@@ -15,7 +15,11 @@ function fixture(t) {
   const env = { ...process.env, HOME: path.join(base, 'home'), USERPROFILE: path.join(base, 'home'), GIT_TERMINAL_PROMPT: '0' };
   for (const key of Object.keys(env)) if (/^GIT_/i.test(key) && key !== 'GIT_TERMINAL_PROMPT') delete env[key];
   const git = (cwd, args) => {
-    const r = spawnSync('git', ['-c', 'user.name=Parallel Fixture', '-c', 'user.email=fixture@example.invalid', ...args], { cwd, env, encoding: 'utf8', timeout: 30000 });
+    // A66：这里的超时是「防真挂死」的硬上限，不是产品判据。原来写死 30s，低于本机实测最坏耗时：
+    // conditional-filters 正对照（required=true 的过滤器 + 前面若干夹具跑过之后）实测要 38.3s，
+    // 于是被自己的超时掐断、报成用例失败（v18/v19 均如此；单跑该用例只要 8.1s）。
+    // 抬到 90s 仍保留硬上限：真挂死照样判红，所有断言一条不放宽、照跑。
+    const r = spawnSync('git', ['-c', 'user.name=Parallel Fixture', '-c', 'user.email=fixture@example.invalid', ...args], { cwd, env, encoding: 'utf8', timeout: 90000 });
     assert.equal(r.status, 0, r.stdout + r.stderr); return r.stdout.trim();
   };
   const put = (file, body) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, body); };
