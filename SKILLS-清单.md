@@ -1,6 +1,6 @@
-# Qoder-Optimization - 0.1.6 技能清单
+# Qoder-Optimization - 0.1.7 技能清单
 
-共 133 个源码随包技能：常驻 5 / 按需 128。机器可读版见 skills-manifest.json 与 catalog.json。
+共 134 个源码随包技能：常驻 5 / 按需 129。机器可读版见 skills-manifest.json 与 catalog.json。
 
 默认按需选择安装，安装时按使用习惯询问是否常驻；层级默认值与依赖以 catalog 为准，最终常驻数量由使用者决定。
 
@@ -36,6 +36,7 @@
 - `goal-driven-execution`（按需）—— 目标化执行：把长任务设成"带可失败判据的目标"，逐格推进、每格落盘，直到判据全绿才算完成；后台任务按「启动 ≠ 完成」闭环（等完成通知不轮询、核对真实退出码与日志终态标记、通过验收再进依赖步骤）。当任务是中大型 / 跨多回合 / 容易半途跑偏或"看起来做完了其实没做完"时使用。触发词：设个目标、持续推进、盯到完成、别中途跑偏、长任务、多步骤、任务目标、Goal 模式、完成判据、什么时候算做完、后台任务、完成通知、退出码透传、DELIVERY_VERIFIED、启动不等于完成。不用于：小改动与单点修复（直接做）、纯探索类问题（先给结论）。
 - `hid-device-protocol-probe`（按需）—— Windows 上不用厂商软件、从 PowerShell 探 USB HID 收发通路——用 SetupAPI 加 HidP_GetCaps 枚举每个 collection 的 UsagePage 与 Usage 及报告长度找厂商命令通道；用 joyGetPosEx 证明手柄真的在；读写各放可取消工作线程；发只读查询帧按回复直方图区分发不出去与设备答了但客户端收不到。用于手柄、2.4G 接收器、外设配置工具卡在同步转圈且不报错，或 HID P-Invoke 读数离谱如 CreateFile err=123、ReadFile err=87、探针睡死。
 - `i-have-adhd`（按需）—— 仅限"无需深度思考 / 无复杂步骤 / 非强逻辑性"的小型任务调用（复杂任务不要调用）。Shape output for a reader with ADHD：lead with the next action, number multi-step work, restate state across turns, suppress tangents, give specific time estimates, make wins visible. Invoke with /i-have-adhd; stays on until "stop adhd mode".
+- `image-detail-inspect`（按需）—— 图像细节增强读取：大图先被降采样导致小字/小目标读不出时，用网格总览定位→按 bbox 裁剪放大→逐块读→按源坐标拼回整图。Pillow 零依赖，单块压到 1.5MB 内避开 Read 守卫；坐标往返与可读性 A/B 有自测。触发词：看不清、精确识图、识别不准、小字、放大图片、读细节、裁剪放大、图像细读、拼细节、imgdetail。不用于生成图验收→image-result-visual-verify；加密文档→encrypted-office-visual-inspection；SPA 截图→headless-spa-screenshot。
 - `injected-context-slimming`（按需）—— 每轮注入文件（AGENTS.md / MEMORY.md / 索引领航类长文）的无损瘦身流水线：先量化再动手 → 备份 → 只压叙述不删判据 → 覆盖断言逐条证明没丢 → 双侧同写验收。触发词：阅读压力、上下文太大、AGENTS 太长、MEMORY 超行、规则文件瘦身、压缩规则、注入体积、降 token、超红线转索引。不用于：技能描述瘦身（→skill-description-route-cue-rewrite）、技能降量（→skill-trim-with-capability-transfer）、两侧记忆不一致（→memory-bank-divergence-repair）。
 - `java-architect`（按需）—— Use when building, configuring, or debugging enterprise Java applications with Spring Boot 3.x, microservices, or reactive programming。中文触发：Java 架构、Spring Boot 分层、模块边界、接口设计、JVM 组件。分工：本技能管架构取向与疑难排查，Spring 脚手架与端点实现走 springboot-patterns。
 - `java-quality`（按需）—— Java code quality：Checkstyle, SpotBugs, PMD, SonarJava — static analysis, code style, best practices. Use for Java/Spring Boot/Maven/Gradle projects asking about Checkstyle, SpotBugs, PMD, Java code smells, or Java best practices. Not for SonarQube server administration.

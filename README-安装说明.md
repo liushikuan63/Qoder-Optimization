@@ -1,4 +1,4 @@
-# Qoder-Optimization-0.1.6 安装说明
+# Qoder-Optimization-0.1.7 安装说明
 
 ## 包内容与落点
 
@@ -40,7 +40,7 @@ node scripts/install-package.cjs --yes --install skill:parallel-orchestration --
 
 ## 完整工作流：分享包复现通用本机效果
 
-新客户端默认 `complete`，确认安装后落地公开工作流的 12 个技能（**5 个常驻 + 7 个按需**，常驻集与 catalog `tier=core` 一致）、完整依赖、`/checkpoint` 与 `/fact`、AGENTS 托管规则及 `rules/long-task.md`、`rules/vibe-coding.md`，并接入五类事件共 17 条 hook。AGENTS 和规则中的原有内容保留，托管段有摘要登记；托管段被本地修改时先审查。其他专业技能和 MCP、插件、SQLite 接续仍单独选择。
+新客户端默认 `complete`，确认安装后落地公开工作流的 12 个技能（**5 个常驻 + 7 个按需**，常驻集与 catalog `tier=core` 一致）、完整依赖、`/checkpoint` 与 `/fact`、AGENTS 托管规则及 `rules/long-task.md`、`rules/vibe-coding.md`，并接入五类事件共 18 条 hook。AGENTS 和规则中的原有内容保留，托管段有摘要登记；托管段被本地修改时先审查。其他专业技能和 MCP、插件、SQLite 接续仍单独选择。
 
 ```bash
 # 先看计划；全新客户端默认完整工作流
@@ -54,7 +54,7 @@ node scripts/install-package.cjs --profile routing --yes --client-root <客户�
 node <客户端目录>/scripts/workflow-profile.cjs <客户端目录>
 ```
 
-完整工作流使用 `command` 可执行文件与 `args` 数组，避免 shell 解释客户端路径；16 条守卫经白名单 launcher 显式绑定客户端，规则提醒也显式绑定。已验证的宿主为 Qoder 0.5.1 / worker 1.1.79-hotfix.7，其原生 runner 支持这一协议。其他版本需核对原生 exec hook 支持；旧宿主可保留 routing，不能把不执行的完整接线算通过。宿主禁用 hook 或工作目录不受信任时不会成为已触发；安装器保留禁用选择并报告冲突。
+完整工作流使用 `command` 可执行文件与 `args` 数组，避免 shell 解释客户端路径；17 条守卫经白名单 launcher 显式绑定客户端，规则提醒也显式绑定。已验证的宿主为 Qoder 0.5.1 / worker 1.1.79-hotfix.7，其原生 runner 支持这一协议。其他版本需核对原生 exec hook 支持；旧宿主可保留 routing，不能把不执行的完整接线算通过。宿主禁用 hook 或工作目录不受信任时不会成为已触发；安装器保留禁用选择并报告冲突。
 
 只升级有可信旧来源且本地原样的能力。旧登记指向已变化仓库时，可用 `--previous-catalog <可信旧包/catalog.json>` 提供已核验旧源；文件仍须完整相同。没有可追溯来源或含本地定制的项保持 `REVIEW_UPDATE`，不会用本地副本伪造旧基线。完整基础受阻返回 `ACTIVATION_BLOCKED / 3`，旧 hook 与包指针保留；事务备份和并发冲突均有恢复目录。
 
@@ -136,7 +136,7 @@ node scripts/install-continuity.cjs --yes --no-auto-bind # 只接线，仍按会
 - **按使用记录给建议，不自动改层级**：`skill-load --record` 记录一次检索需求，实际采用后运行 `skill-usage.cjs log <名> --source use`；`skill-usage.cjs report` 查看 30/90 天使用，`suggest` 按阈值给建议——按需技能 30 天 ≥3 次或 90 天 ≥5 次建议晋升；用户自选常驻且 90 天未用建议降级；包内 CORE 默认常驻不建议降级。建议必须先用 `AskUserQuestion` 确认，再运行 `tier-skills --promote/--demote --apply`。原生 Skill 调用无法被脚本自动观测，未显式 log 的使用不进入统计。
 - 包内 5 个常驻只是**默认起点**（基础路由与跨域元技能），不是要求接收者照搬的数量。常驻越多，每轮注入的描述越长；以「这条技能是否靠描述自动命中」为准，不靠堆数量。
 
-包内实物：133 个技能（5 常驻 + 128 按需）；常驻描述 1083 字符，全部技能描述 27678 字符，占比 3.9%。按 catalog 计算，不是接收者的已安装数量；5 只是默认起点，常驻数量由使用者按习惯在安装时与使用中决定。
+包内实物：134 个技能（5 常驻 + 129 按需）；常驻描述 1083 字符，全部技能描述 27952 字符，占比 3.9%。按 catalog 计算，不是接收者的已安装数量；5 只是默认起点，常驻数量由使用者按习惯在安装时与使用中决定。
 
 ## 按需加装（分享包索引）
 
@@ -210,3 +210,5 @@ node scripts/install-continuity.cjs --yes --no-auto-bind # 只接线，仍按会
 - Node.js ≥24.16（安装器与接续功能使用内置模块，包括归档 CRC 与 SQLite；不适用于 Node 20）。独立 MCP 安装器只需 Node 18+。
 - `office-docs` 需另行安装锁定依赖，`node_modules` 不随包。默认按需落点使用 `npm ci --ignore-scripts --prefix <客户端目录>/skills-library/office-docs`；显式装到core时使用安装器实际打印的目录。不自动联网装包。
 - Git Bash（Windows）：`sync-*.sh` 与部分守卫要用 bash；非 Windows 直接用系统 bash。
+- `image-detail-inspect`（图像细读）需本机 **Python 3 + Pillow**，包内不带解释器与 Pillow。核心裁剪/放大/量化/对比只依赖 Pillow；自检（可失败，缺 Pillow 必红）：`"<PY>" -c "import PIL; print(PIL.__version__)"`，再跑 `"<PY>" <客户端目录>/skills-library/image-detail-inspect/scripts/selftest.py`。Windows 上 PATH 里的 `python` 可能是应用商店占位程序，用实际解释器的绝对路径。
+- 该技能的 **OCR 交叉核对是可选增强**，未安装时 `imgdetail.py ocr` 以 exit 5 明确降级，不影响核心功能。联网安装：`"<PY>" -m pip install --target <OCR_LIB> rapidocr onnxruntime`（官方 PyPI）。内网零网络：取 Release 的独立资产 `Qoder-Optimization-<版本>-ocr-bundle-cp314-win_amd64.zip`（wheels＋3 个 .onnx 模型＋逐件 sha256 的 manifest.json），解压后 `"<PY>" scripts/install-ocr-offline.py --bundle <解压目录> --target <OCR_LIB>`（内部 `--no-index`，不触网）；运行时用 `IMGDETAIL_OCR_LIB=<OCR_LIB>` 指认库目录。OCR 模型与 wheels **不进核心包也不进 MCP 离线附件**：它们按解释器版本与平台绑定，随包会把包绑死到一个 Python 版本。详见技能内 `references/ocr.md`。

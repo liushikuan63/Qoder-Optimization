@@ -25,7 +25,8 @@
     { "hooks": [ { "type": "command", "command": "<node> \"<客户端目录>/scripts/cua-cursor-guard.js\"", "timeout": 10 } ] },
     { "hooks": [ { "type": "command", "command": "<node> \"<客户端目录>/scripts/auth-lock-guard.js\"", "timeout": 10 } ] },
     { "matcher": "^Bash$", "hooks": [ { "type": "command", "command": "<node> \"<客户端目录>/scripts/attempt-lock-guard.js\"", "timeout": 10 } ] },
-    { "matcher": "^Bash$|^Read$|^Agent$|^Task$|mcp_call", "hooks": [ { "type": "command", "command": "<node> \"<客户端目录>/scripts/tool-payload-guard.js\"", "timeout": 10 } ] }
+    { "matcher": "^Bash$|^Read$|^Agent$|^Task$|mcp_call", "hooks": [ { "type": "command", "command": "<node> \"<客户端目录>/scripts/tool-payload-guard.js\"", "timeout": 10 } ] },
+    { "matcher": "^Read$", "hooks": [ { "type": "command", "command": "<node> \"<客户端目录>/scripts/image-detail-trigger.js\"", "timeout": 10 } ] }
     ]
   }
 }

@@ -26,6 +26,9 @@ const HOOKS = [
   ['PostToolUse', 'auth-lock-guard.js', 10],
   ['PostToolUse', 'attempt-lock-guard.js', 10, '^Bash$'],
   ['PostToolUse', 'tool-payload-guard.js', 10, '^Bash$|^Read$|^Agent$|^Task$|mcp_call'],
+  // 0.1.7：Read 图片后主动提醒精确识图（其余静默、fail-open）。
+  // 此前该脚本只随包复制、未进接线表 ⇒ 装了也不会触发，属"能力在包里但机制没接上"的缺口。
+  ['PostToolUse', 'image-detail-trigger.js', 10, '^Read$'],
 ];
 const CORE_SKILLS = ['concurrent-edit-attribution-check', 'continuation-state-audit', 'goal-driven-execution', 'safe-text-editing', 'self-evolution', 'ship-clean-pr', 'skills-router', 'structured-edit-safety', 'verify-before-claim', 'verify-ui-in-browser', 'vibe-coding-workflow', 'vibecoding-doc'];
 const COMPLETE_IDS = [...new Set(['script:run-package-hook.cjs', 'script:workflow-profile.cjs', 'script:work-queue-check.js', 'command:checkpoint', 'command:fact', ...HOOKS.map(hook => 'script:' + hook[1]), ...CORE_SKILLS.map(name => 'skill:' + name)])];

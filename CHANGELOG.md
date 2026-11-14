@@ -6,6 +6,26 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-11-14
+
+### Added
+- Add `image-detail-inspect` skill: crop / zoom / tile an image so fine detail survives the vision pipeline's downscaling. Grid overview, source-coordinate mapping, per-tile 1.5 MB budget, Pillow-only texture / hue / saturation / contrast / lighting metrics (`stats`), same-bbox same-scale A/B `compare`, and a falsifiable self-test (negative controls, coordinate roundtrip, readability A/B, blank-region anti-hallucination). Model vision is the primary reader; optional RapidOCR cross-check ships with offline-bundle build / install scripts (`--no-index`, zero network) for intranet use.
+- Add `scripts/image-detail-trigger.js` PostToolUse hook (matcher `^Read$`): after reading an image, nudge proactive precise recognition; silent otherwise, fail-open.
+- Add `image-precision-trigger` rule: proactively load `image-detail-inspect` when precise recognition is needed or base recognition is imprecise.
+- Wire `image-detail-trigger.js` into the installer's hook table (`PostToolUse`, matcher `^Read$`), so a fresh complete installation actually fires the reminder instead of only copying the script; exec hooks go 17 → 18 and the count assertions in `workflow-profile.test.js`, `doc-test-tally.test.js` and both README languages follow. Document the Python 3 + Pillow prerequisite with a falsifiable self-check, and ship the optional RapidOCR wheels/models as a **separate** release asset (`-ocr-bundle-cp314-win_amd64.zip`) rather than mixing them into the core ZIP or the MCP offline bundle.
+
+### Changed
+- `verify-before-claim` / `verify-ui-in-browser`: require local-sample zoom comparison (same bbox / scale, pixel + attribute deltas, blank negative control) instead of judging visual consistency from a global thumbnail; cover non-text attributes (texture, color / saturation, contrast, lighting).
+- `verify-ui-in-browser`: add two falsifiable front-end assertion groups — text/control legibility from computed styles against WCAG contrast thresholds (body ≥ 4.5:1, large/disabled ≥ 3:1, dark-theme override traps such as link buttons painted over, near-black radio labels, translucent dialogs), and mode/state-switch completeness that asserts every block that must show or hide per mode and binds the hide condition to the mode itself rather than to the selected data, with a switch-back negative case.
+
+### 中文摘要
+- 新增 `image-detail-inspect` 技能：裁剪/放大/分块让细节躲过视觉管线降采样，含网格总览、源坐标回写、单块 1.5MB 预算、Pillow 零依赖的纹理/色相/饱和/对比/光影量化（`stats`）、同 bbox 同倍率 A/B `compare` 与可失败自测（负对照、坐标往返、可读性 A/B、空白区降幻觉）。模型视觉为主读者，可选 RapidOCR 交叉核对附离线 bundle 构建/安装脚本（`--no-index` 零网络）供内网使用。
+- 新增 `scripts/image-detail-trigger.js` PostToolUse hook（matcher `^Read$`）：Read 图片后主动提醒精确识图，其余静默、fail-open。
+- 新增 `image-precision-trigger` 规则：需要精确识图或基础识别不精确时主动加载 `image-detail-inspect`。
+- 把 `image-detail-trigger.js` 接进安装器 hook 表（`PostToolUse`，matcher `^Read$`）：此前只随包复制脚本、不接线，装了也不会触发；exec hook 由 17 → 18，`workflow-profile.test.js`、`doc-test-tally.test.js` 与 README 中英两处计数同步。补 Python 3 + Pillow 前置说明与可失败自检；可选 RapidOCR 的 wheels/模型作为**独立** Release 资产（`-ocr-bundle-cp314-win_amd64.zip`）交付，不混进核心包与 MCP 离线附件。
+- `verify-before-claim` / `verify-ui-in-browser`：视觉一致性必须做局部采样放大对比（同 bbox/倍率、像素差＋属性差、空白负对照），不得只凭全局缩略图；纳入纹理/色彩饱和/对比/光影等非文字属性。
+- `verify-ui-in-browser`：补两组可失败的前台断言——① 文字/控件清晰度按计算样式核 WCAG 对比度（正文 ≥4.5:1、大文本与禁用态 ≥3:1，暗色主题重点查 link 按钮铺底、近黑单选标签、弹窗透底叠影）；② 模式/状态切换完整性，对每个模式下应显示/应隐藏的每个区块下断言，隐藏条件绑定**模式本身**而非选中数据，并带切回恢复的负向用例。
+
 ## [0.1.6] - 2026-11-13
 
 ### Added

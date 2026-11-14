@@ -1,6 +1,6 @@
 {
  "package_name": "Qoder-Optimization",
- "version": "0.1.6",
+ "version": "0.1.7",
  "generated": "2026-11-13",
  "skills": [
   {
@@ -152,6 +152,11 @@
    "name": "i-have-adhd",
    "tier": "library",
    "files": 1
+  },
+  {
+   "name": "image-detail-inspect",
+   "tier": "library",
+   "files": 6
   },
   {
    "name": "injected-context-slimming",

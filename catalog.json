@@ -2,13 +2,13 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.1.6"
+  "version": "0.1.7"
  },
- "generated": "2026-11-13",
+ "generated": "2026-11-14",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
-  "skill": 133,
-  "script": 172,
+  "skill": 134,
+  "script": 173,
   "command": 12,
   "agent": 2
  },
@@ -433,6 +433,20 @@
     "tier": "library"
    },
    "source": "skills/i-have-adhd",
+   "dependencies": []
+  },
+  {
+   "id": "skill:image-detail-inspect",
+   "category": "skill",
+   "name": "image-detail-inspect",
+   "status": "shipped",
+   "tier": "library",
+   "description": "图像细节增强读取：大图先被降采样导致小字/小目标读不出时，用网格总览定位→按 bbox 裁剪放大→逐块读→按源坐标拼回整图。Pillow 零依赖，单块压到 1.5MB 内避开 Read 守卫；坐标往返与可读性 A/B 有自测。触发词：看不清、精确识图、识别不准、小字、放大图片、读细节、裁剪放大、图像细读、拼细节、imgdetail。不用于生成图验收→image-result-visual-verify；加密文档→encrypted-office-visual-inspection；SPA 截图→headless-spa-screenshot。",
+   "source": "skills/image-detail-inspect",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
    "dependencies": []
   },
   {
@@ -2901,6 +2915,17 @@
    "dependencies": [
     "script:huge-output-guard.js"
    ]
+  },
+  {
+   "id": "script:image-detail-trigger.js",
+   "category": "script",
+   "name": "image-detail-trigger.js",
+   "status": "shipped",
+   "source": "scripts/image-detail-trigger.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": []
   },
   {
    "id": "script:import-memory.cjs",

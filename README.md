@@ -3,7 +3,7 @@
 **An opt-in toolkit for making Qoder workflows more repeatable and verifiable.** It adds rules, on-demand skills, hooks, commands, scripts, and MCP templates through Qoder's extension points; it does not modify Qoder itself.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.1.6-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.1.7-blue.svg)](VERSION)
 [![Node](https://img.shields.io/badge/node-24-brightgreen.svg)](https://nodejs.org)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20(primary)-lightgrey.svg)](#requirements-and-limits)
 
@@ -22,6 +22,7 @@ No clone required — pick a version and download it. Every release carries a re
 
 | Version | Released | Highlights | Download |
 |---|---|---|---|
+| 0.1.7 | 2026-11-14 | Precise image reading: crop / zoom / tile skill with Pillow-only metrics and same-bbox A/B compare, a proactive post-Read hook and rule; optional RapidOCR offline bundle ships as a separate release asset | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.7/Qoder-Optimization-0.1.7.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.7) |
 | 0.1.6 | 2026-11-13 | Evolution capture with user-decided carrier changes; continuity archive pruning; guard and package-verifier hardening | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.6/Qoder-Optimization-0.1.6.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.6) |
 | 0.1.5 | 2026-11-10 | Kickoff confirmation gate; optional kickoff card at install; package installs all shipped skills; audited tier override | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.5/Qoder-Optimization-0.1.5.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.5) |
 | 0.1.4 | 2026-11-10 | Capability routing stability; clarity and capability self-checks; request-scoped advice dedupe | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.4/Qoder-Optimization-0.1.4.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.4) |
@@ -68,11 +69,11 @@ AI coding assistants can lose track of process: a check may be claimed without e
 
 | Included | Count | Examples |
 |---|---:|---|
-| Skills | 133 | Verification, code review, delivery, databases, documents, desktop automation |
-| Scripts | 172 | Guardrails, self-tests, packaging, validation, tool helpers |
+| Skills | 134 | Verification, code review, delivery, databases, documents, desktop automation |
+| Scripts | 173 | Guardrails, self-tests, packaging, validation, tool helpers |
 | Commands | 12 | Clarification, checkpoints, skill search, cleanup |
 | Sub-agents | 2 | Runtime-truth and post-deployment verification |
-| Catalog entries | 319 | Skills, scripts, commands, and agents |
+| Catalog entries | 321 | Skills, scripts, commands, and agents |
 
 ### How it fits together
 
@@ -94,7 +95,7 @@ For a guided setup, give the repository to Qoder and ask it to inspect your curr
 
 For a manual setup, follow the [installation guide](README-安装说明.md). The installer puts every shipped skill into the on-demand library by default (`--skills-scope all`); use `--skills-scope base` for the core set only. Do not copy `skills/` wholesale by hand.
 
-Start with `install.cmd` on Windows, or `node scripts/install-package.cjs` elsewhere. A fresh installation defaults to the complete portable workflow: 5 public core skills, managed rules, required helpers and 17 exec hooks across five events. Existing routing installations retain their choice; select `--profile complete` to upgrade. Personal rules, accounts, private memory and optional integrations are preserved separately. The package checks installed capabilities, updates only verified unchanged older copies, and asks about missing general or explicitly preferred capabilities. It wires task routing so relevant installed capabilities can prompt for use. Optional SQLite continuity remains a separate explicit choice (`--continuity` or `install-continuity.cjs`); accepted continuity installs auto-bind supported sessions while preserving explicit disables.
+Start with `install.cmd` on Windows, or `node scripts/install-package.cjs` elsewhere. A fresh installation defaults to the complete portable workflow: 5 public core skills, managed rules, required helpers and 18 exec hooks across five events. Existing routing installations retain their choice; select `--profile complete` to upgrade. Personal rules, accounts, private memory and optional integrations are preserved separately. The package checks installed capabilities, updates only verified unchanged older copies, and asks about missing general or explicitly preferred capabilities. It wires task routing so relevant installed capabilities can prompt for use. Optional SQLite continuity remains a separate explicit choice (`--continuity` or `install-continuity.cjs`); accepted continuity installs auto-bind supported sessions while preserving explicit disables.
 
 After setup, run the checks from the client directory you configured:
 
@@ -167,7 +168,7 @@ Details: [installation and tiers](README-安装说明.md), [working rules](Qoder
 
 ### Catalog snapshot
 
-In the catalog generated on 2026-11-13, 5 core skill descriptions total 1,083 characters; all 133 skill descriptions total 27,678 characters. The core descriptions are 3.9% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
+In the catalog generated on 2026-11-14, 5 core skill descriptions total 1,083 characters; all 134 skill descriptions total 27,952 characters. The core descriptions are 3.9% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
 
 ### Requirements and limits
 
@@ -214,6 +215,7 @@ MIT; see [LICENSE](LICENSE). This is an unofficial community project and is not 
 
 | 版本 | 发布日期 | 主要内容 | 下载 |
 |---|---|---|---|
+| 0.1.7 | 2026-11-14 | 精确识图：裁剪/放大/分块技能（Pillow 零依赖量化与同 bbox A/B 对比）、Read 后主动触发 hook 与规则；可选 RapidOCR 离线 bundle 作为独立 Release 资产 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.7/Qoder-Optimization-0.1.7.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.7) |
 | 0.1.6 | 2026-11-13 | 自进化采集与载体改动由用户拍板；接续档案自动清理；守卫与包校验器加固 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.6/Qoder-Optimization-0.1.6.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.6) |
 | 0.1.5 | 2026-11-10 | 开工确认门禁；安装时可选常驻开工提示卡；读取包安装全部随包技能；可审计的分层覆盖 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.5/Qoder-Optimization-0.1.5.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.5) |
 | 0.1.4 | 2026-11-10 | 能力推荐稳定性；含混与能力自检；按请求去重 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.4/Qoder-Optimization-0.1.4.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.4) |
@@ -262,11 +264,11 @@ AI 编码助手常见的问题包括：没有证据就声称验证通过、失�
 
 | 内容 | 数量 | 示例 |
 |---|---:|---|
-| 技能 | 133 | 验证、代码评审、交付、数据库、文档、桌面自动化 |
-| 脚本 | 172 | 守卫、自测、打包、校验与工具补强 |
+| 技能 | 134 | 验证、代码评审、交付、数据库、文档、桌面自动化 |
+| 脚本 | 173 | 守卫、自测、打包、校验与工具补强 |
 | 命令 | 12 | 需求澄清、接续检查、技能检索、清理 |
 | 子智能体 | 2 | 运行期真值核验、部署后验收 |
-| 目录条目 | 319 | 技能、脚本、命令与子智能体 |
+| 目录条目 | 321 | 技能、脚本、命令与子智能体 |
 
 ### 工作方式
 
@@ -288,7 +290,7 @@ Hooks      在配置的流程节点运行检查
 
 手动安装请按[安装说明](README-安装说明.md)操作。安装器默认把全部随包技能装入按需库（`--skills-scope all`），只要核心集时用 `--skills-scope base`；不要手工整目录复制 `skills/`。
 
-Windows 从包根 `install.cmd` 开始，其他平台运行 `node scripts/install-package.cjs`。新装默认完整工作流：5 个公开核心技能、托管规则、必要依赖和五类事件共 17 条 exec hook；已有 routing 保留，显式 `--profile complete` 升级。个人规则、账号、私人记忆和可选集成分别保留。安装包主动核对已有能力，只更新可证明未被本地修改的旧副本；缺失仅通用或符合明确偏好时询问安装，其他跳过，并把相关已装能力接入任务询问与路由。SQLite 接续记忆仍需单独显式选择（`--continuity` 或 `install-continuity.cjs`），启用后自动绑定并保留会话关闭选择。
+Windows 从包根 `install.cmd` 开始，其他平台运行 `node scripts/install-package.cjs`。新装默认完整工作流：5 个公开核心技能、托管规则、必要依赖和五类事件共 18 条 exec hook；已有 routing 保留，显式 `--profile complete` 升级。个人规则、账号、私人记忆和可选集成分别保留。安装包主动核对已有能力，只更新可证明未被本地修改的旧副本；缺失仅通用或符合明确偏好时询问安装，其他跳过，并把相关已装能力接入任务询问与路由。SQLite 接续记忆仍需单独显式选择（`--continuity` 或 `install-continuity.cjs`），启用后自动绑定并保留会话关闭选择。
 
 安装后，在所使用客户端的目录中运行：
 
@@ -361,7 +363,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 
 ### 目录快照
 
-截至 2026-11-13 生成的目录，5 个常驻技能的描述共 1,083 字符；133 个技能的描述共 27,678 字符。常驻描述占全部技能描述文本的 3.9%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
+截至 2026-11-14 生成的目录，5 个常驻技能的描述共 1,083 字符；134 个技能的描述共 27,952 字符。常驻描述占全部技能描述文本的 3.9%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
 
 ### 环境与限制
 
@@ -398,7 +400,13 @@ node ~/.qoder/scripts/build-skills-index.cjs
 <!-- offline-bundle:start -->
 ### Optional offline bundle / 可选离线附件
 
-The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.6/Qoder-Optimization-0.1.6-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
+The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.1.7/Qoder-Optimization-0.1.7-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
 
 核心包不含 MCP 离线二进制；需要时单独下载离线附件，核对各自的 .sha256 后解压到同一目录。无需离线组件时只取核心包；链接仅在对应版本发布后可用。
 <!-- offline-bundle:end -->
+
+### Optional OCR bundle for image detail / 图像细读的可选 OCR 附件
+
+`image-detail-inspect` needs a local Python 3 with Pillow for its core crop / zoom / metrics / compare commands; the package ships neither. OCR cross-check is optional and degrades with exit 5 when absent. For intranet machines, download the separate asset `Qoder-Optimization-0.1.7-ocr-bundle-cp314-win_amd64.zip` (official PyPI wheels + 3 ONNX models + a per-file sha256 manifest) and install it with `scripts/install-ocr-offline.py --bundle <dir> --target <OCR_LIB>` (`--no-index`, zero network). That asset is bound to CPython 3.14 / Windows x64; other platforms install from PyPI. Models and wheels are deliberately kept out of both the core ZIP and the MCP offline bundle.
+
+图像细读技能的核心裁剪/放大/量化/对比需本机 Python 3 + Pillow，包内不带；OCR 交叉核对可选，缺失时以 exit 5 明确降级。内网机取独立资产 `Qoder-Optimization-0.1.7-ocr-bundle-cp314-win_amd64.zip`（官方 PyPI wheels＋3 个 ONNX 模型＋逐件 sha256 清单），用 `scripts/install-ocr-offline.py --bundle <目录> --target <OCR_LIB>` 零网络安装（内部 `--no-index`）。该资产绑定 CPython 3.14 / Windows x64，其他平台走 PyPI。模型与 wheels 有意不进核心包与 MCP 离线附件。

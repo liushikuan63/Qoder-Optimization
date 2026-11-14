@@ -218,7 +218,9 @@ test('F87：claim.args 真的被传给脚本（校验器不带 --selftest 只打
 // ── F102：文档声明的 hook 条数必须等于实现真值 ────────────────────────────────
 // 同族过期计数第五处，且是**结构计数**不是自测条数，所以不能塞进 DOCS（那套靠跑自测取数）。
 // 实测：0.1.5 的 HOOKS=15 ⇒ exec hook 16；0.1.6 新增 Stop/evolution-capture.cjs ⇒ HOOKS=16 ⇒ exec hook 17
-// （隔离沙箱干净升级后 settings.json 实测 17：UserPromptSubmit 3 / Stop 2 / SessionStart 2 / PreToolUse 6 / PostToolUse 4）。
+// 0.1.7 新增 PostToolUse/image-detail-trigger.js（matcher ^Read$）⇒ HOOKS=17 ⇒ exec hook 18
+// （0.1.6 隔离沙箱干净升级后 settings.json 实测 17：UserPromptSubmit 3 / Stop 2 / SessionStart 2 / PreToolUse 6 / PostToolUse 4；
+//   0.1.7 接入 image-detail-trigger 后 PostToolUse 5 ⇒ 合计 18。下列四处文档数字必须跟着实现走。）
 // 而 README.md 英中两处与 README-安装说明.md 两处仍写 16 / 15 ⇒ 四处静默漂移，四道包契约门禁都抓不到。
 // 真值一律从 scripts/workflow-profile.cjs 现读，不在本文件硬编码数字（硬编码＝第二真相）。
 const HOOK_DOCS = [
