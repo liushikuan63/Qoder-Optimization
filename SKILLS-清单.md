@@ -1,6 +1,6 @@
 # Qoder-Optimization - 0.1.7 技能清单
 
-共 134 个源码随包技能：常驻 5 / 按需 129。机器可读版见 skills-manifest.json 与 catalog.json。
+共 135 个源码随包技能：常驻 5 / 按需 130。机器可读版见 skills-manifest.json 与 catalog.json。
 
 默认按需选择安装，安装时按使用习惯询问是否常驻；层级默认值与依赖以 catalog 为准，最终常驻数量由使用者决定。
 
@@ -50,6 +50,7 @@
 - `local-reverse-proxy-triage`（按需）—— 本机反向代理/中转层（回环转发、UA 改写、鉴权前置、SSE 透传）的超时归属与加固：先证明运行态代码==磁盘代码；把超时分为客户端首包、代理自身、上游慢/限流三类；自签证书假慢上游做头延迟与非 2xx 正负对照；加固含早期头+心跳阈值、keepAlive、EADDRINUSE 接管、日志轮转。触发词：本地反代排障、超时归属、CLIENT_DISCONNECTED、假慢上游、心跳保活、keepAliveTimeout、EADDRINUSE 接管；不用于：生产 nginx/网关变更（infra-ops，需批准）。
 - `local-rust-engineering`（按需）—— 补充 Rust 所有权、错误、异步并发和测试边界；用于相关 Rust 实现与缺陷，不用于纯文案或只有前端的修改。
 - `local-spring-mybatis`（按需）—— 补充 Spring 与 MyBatis 的事务、参数绑定、映射和查询性能检查；用于这些后端实现问题。触发词：MyBatis、Mapper、XML 映射、事务、参数绑定、N+1、慢查询。不替代本机环境预检。
+- `long-task-merge-takeover`（按需）—— 超长任务合并接管与串行收口范式：多会话互锁先判死锁→合并单会话串行→接管盘点与继承真值核验→最终HEAD重跑→发布→三路部署保留现役较新；附磁盘退出码、负对照、单变量证明、改前红、字节核实+回滚料、面外零触碰等纪律、踩坑对策与耗时分解提速措施。触发：超长任务、任务合并、接管、死锁、串行收口、发布部署、经验范式、复盘沉淀、提速、耗时优化。不用于普通单步任务。
 - `mechanize-rule-into-hook-guard`（按需）—— 把提示词里的纪律做成会判红的门禁 hook 取证流水线：缺口取证 → carrier-preflight 问限额 → 判据抽成 core 真源，PreToolUse 拦 / PostToolUse 记账 → 红与负对照自测 → 逐断言变异验证 → 台账非空核查 → RFC5737 真机探针 → 两侧接线与周检复跑。触发词：机制化、做成 hook、加门禁、加守卫、guard、这条规则没生效、反复违反、为什么没拦住、连败三次、停手上报、hook 是否生效、两侧接线一致性、config-doctor、事件×命令集合、生成物被覆盖、分发包落后、台账取证、假绿、负对照、变异测试。不用于：认证/锁定签名与防锁号现场操作（db-credential-auth-lock-safety）；同域旧版 mechanize-rule-as-hook-guard、enforcement-hook-lifecycle 已并入本 Skill。
 - `memory-bank-divergence-repair`（按需）—— 双侧记忆分叉修复：先核对共同基线与删除意图，再三方合并；无可信基线时只报告差异，不用行集大小判新旧。触发词：记忆分叉、sync-memory 报分叉、两侧记忆不一致、memory drift、索引不自洽。不用于：单条记忆更新、注入文件瘦身（→injected-context-slimming）、分享包并入（→merge-inbound-qoder-package）。
 - `memory-entry-update`（按需）—— 在用户明确要求更新特定长期信息时，同步已有记忆正文、frontmatter description 与 MEMORY.md 索引，备份后定点编辑并验证。触发：更新记忆、记忆索引同步、记忆维护、记忆条目、周检0告警。只读审阅仅给差异；不用于新增条目、临时进度、排错配方、代码结构或凭据审计。

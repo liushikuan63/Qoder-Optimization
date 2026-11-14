@@ -69,11 +69,11 @@ AI coding assistants can lose track of process: a check may be claimed without e
 
 | Included | Count | Examples |
 |---|---:|---|
-| Skills | 134 | Verification, code review, delivery, databases, documents, desktop automation |
+| Skills | 135 | Verification, code review, delivery, databases, documents, desktop automation |
 | Scripts | 173 | Guardrails, self-tests, packaging, validation, tool helpers |
 | Commands | 12 | Clarification, checkpoints, skill search, cleanup |
 | Sub-agents | 2 | Runtime-truth and post-deployment verification |
-| Catalog entries | 321 | Skills, scripts, commands, and agents |
+| Catalog entries | 322 | Skills, scripts, commands, and agents |
 
 ### How it fits together
 
@@ -168,7 +168,7 @@ Details: [installation and tiers](README-安装说明.md), [working rules](Qoder
 
 ### Catalog snapshot
 
-In the catalog generated on 2026-11-14, 5 core skill descriptions total 1,083 characters; all 134 skill descriptions total 27,952 characters. The core descriptions are 3.9% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
+In the catalog generated on 2026-11-14, 5 core skill descriptions total 1,083 characters; all 135 skill descriptions total 28,131 characters. The core descriptions are 3.8% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
 
 ### Requirements and limits
 
@@ -264,11 +264,11 @@ AI 编码助手常见的问题包括：没有证据就声称验证通过、失�
 
 | 内容 | 数量 | 示例 |
 |---|---:|---|
-| 技能 | 134 | 验证、代码评审、交付、数据库、文档、桌面自动化 |
+| 技能 | 135 | 验证、代码评审、交付、数据库、文档、桌面自动化 |
 | 脚本 | 173 | 守卫、自测、打包、校验与工具补强 |
 | 命令 | 12 | 需求澄清、接续检查、技能检索、清理 |
 | 子智能体 | 2 | 运行期真值核验、部署后验收 |
-| 目录条目 | 321 | 技能、脚本、命令与子智能体 |
+| 目录条目 | 322 | 技能、脚本、命令与子智能体 |
 
 ### 工作方式
 
@@ -363,7 +363,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 
 ### 目录快照
 
-截至 2026-11-14 生成的目录，5 个常驻技能的描述共 1,083 字符；134 个技能的描述共 27,952 字符。常驻描述占全部技能描述文本的 3.9%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
+截至 2026-11-14 生成的目录，5 个常驻技能的描述共 1,083 字符；135 个技能的描述共 28,131 字符。常驻描述占全部技能描述文本的 3.8%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
 
 ### 环境与限制
 

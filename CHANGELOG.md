@@ -6,6 +6,18 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Added
+- Add `long-task-merge-takeover` skill (on-demand): a playbook for merging two or more long-running tasks whose release criteria deadlocked each other into a single serial session, then carrying the takeover through to release and deployment. Covers proving the deadlock before merging, takeover inventory with re-verification of inherited truth from disk (never from a summary), the final-HEAD rerun gate, and three-way deployment that keeps the newer live file byte-for-byte. Ships the evidence discipline that makes the claims falsifiable (exit codes read from disk rather than through a pipe, negative controls, single-variable A/B proof, red-before-fix, byte verification plus rollback material, zero out-of-scope touches), a pitfall/countermeasure table, and a quantified speedup section: 11 full-suite rounds cost about 4.6 hours, of which 6 red rounds (about 2.6 hours) produced nothing releasable — the highest-leverage fix is a seconds-level targeted-test gate in front of the full suite, not treating the suite as a defect probe.
+- Ship two sanitized references with that skill: a worked 0.1.7 example (readings, pitfalls and their fixes, public commit anchors) and the speedup evidence table (per-round duration / exit / green / red). Machine-specific absolute paths are generalized to `<repo-root>` / `<tmp-root>` placeholders, and session IDs, internal task numbers, process IDs and local config hashes are removed; the reusable lessons and quantitative readings are kept.
+
+### Changed
+- Rebuild package metadata for the new skill: 134 → 135 shipped skills (5 resident + 130 on-demand) and 321 → 322 catalog entries, with `SKILLS-清单.md`, `INDEX.md`, both README languages and the general-rules document regenerated from the catalog. Package version stays 0.1.7 — this entry is unreleased and no new tag or Release is published for it.
+
+### 中文摘要
+- 新增 `long-task-merge-takeover` 技能（按需）：把「放行判据互相依赖形成死锁」的多个超长任务合并成单会话串行，并接管推到发布与部署的范式。含先证明死锁再合并、接管盘点与继承真值现读磁盘（不采信摘要）、最终 HEAD 重跑放行门、三路部署逐字节保留现役较新；配套可失败的证据纪律（退出码取自磁盘不经管道、负对照、单变量 A/B 证明、改前红、字节核实＋回滚料、部署面外零触碰）、踩坑对策表与量化提速节：11 轮全量套件约 4.6 小时，其中 6 轮红约 2.6 小时白跑，最高杠杆是在全量套件前加秒级靶测试门，而不是拿套件当缺陷探针。
+- 该技能随包两份已脱敏 references：0.1.7 完整实例（读数、踩坑与修复、公开提交锚点）与提速证据表（逐轮耗时/exit/绿/红）。机器专属绝对路径泛化为 `<repo-root>` / `<tmp-root>` 占位，去掉会话 ID、内部任务编号、进程 PID 与本机配置哈希，保留可复用经验与量化读数。
+- 重建包元数据：随包技能 134 → 135（5 常驻 + 130 按需）、目录条目 321 → 322，`SKILLS-清单.md`、`INDEX.md`、README 中英两版与通用规则文档按 catalog 重新生成。包版本保持 0.1.7——本条属未发布内容，不为此打新 tag 或发新 Release。
+
 ## [0.1.7] - 2026-11-14
 
 ### Added

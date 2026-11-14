@@ -7,7 +7,7 @@
  "generated": "2026-11-14",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
-  "skill": 134,
+  "skill": 135,
   "script": 173,
   "command": 12,
   "agent": 2
@@ -629,6 +629,20 @@
     "tier": "library"
    },
    "source": "skills/local-spring-mybatis",
+   "dependencies": []
+  },
+  {
+   "id": "skill:long-task-merge-takeover",
+   "category": "skill",
+   "name": "long-task-merge-takeover",
+   "status": "shipped",
+   "tier": "library",
+   "description": "超长任务合并接管与串行收口范式：多会话互锁先判死锁→合并单会话串行→接管盘点与继承真值核验→最终HEAD重跑→发布→三路部署保留现役较新；附磁盘退出码、负对照、单变量证明、改前红、字节核实+回滚料、面外零触碰等纪律、踩坑对策与耗时分解提速措施。触发：超长任务、任务合并、接管、死锁、串行收口、发布部署、经验范式、复盘沉淀、提速、耗时优化。不用于普通单步任务。",
+   "source": "skills/long-task-merge-takeover",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
    "dependencies": []
   },
   {

@@ -224,6 +224,11 @@
    "files": 4
   },
   {
+   "name": "long-task-merge-takeover",
+   "tier": "library",
+   "files": 3
+  },
+  {
    "name": "mechanize-rule-into-hook-guard",
    "tier": "library",
    "files": 7
