@@ -59,7 +59,12 @@ test('skill-trigger-uniqueness', async (t) => {
 
   await t.test('the shipped repository has no duplicate trigger phrase', () => {
     const result = scan(REPO);
-    assert.equal(result.skills, 133, '覆盖面必须是仓库全量技能，不是现役常驻集');
+    // 覆盖面真值＝仓库 skills/*/SKILL.md 目录全量（与 scan 同一来源），不硬编码技能数：
+    // 新增/删除技能时本判据自动跟随；scan 漏扫任一技能仍会红（result.skills != 目录全量），故不是放宽。
+    const dirCount = fs.readdirSync(path.join(REPO, 'skills'), { withFileTypes: true })
+      .filter((e) => e.isDirectory() && fs.existsSync(path.join(REPO, 'skills', e.name, 'SKILL.md'))).length;
+    assert.ok(dirCount > 0, '技能目录数必须为正，否则本判据恒真');
+    assert.equal(result.skills, dirCount, '覆盖面必须是仓库全量技能（skills/*/SKILL.md 现算），不是现役常驻集');
     assert.deepEqual(result.parseErrors, []);
     assert.equal(result.duplicateGroups, 0, JSON.stringify(result.duplicates));
     assert.equal(result.uniquePhrases, result.phrases);

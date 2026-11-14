@@ -58,7 +58,7 @@ test('覆盖面等于仓库技能目录全量，且当前无精确短语重复',
   const dirCount = fs.readdirSync(path.join(repo, 'skills'), { withFileTypes: true }).filter(entry => entry.isDirectory()).length;
   const result = scan(repo);
   assert.equal(result.skills, dirCount, '校验器必须扫到每一个技能目录，不得只扫常驻集');
-  assert.ok(result.skills >= 133, '本轮基线 133 个技能');
+  assert.ok(result.skills >= 134, '本轮基线 134 个技能（0.1.7 新增 image-detail-inspect）');
   assert.deepEqual(result.parseErrors, []);
   assert.equal(result.duplicateGroups, 0, JSON.stringify(result.duplicates));
   assert.equal(result.phrases, result.uniquePhrases);
