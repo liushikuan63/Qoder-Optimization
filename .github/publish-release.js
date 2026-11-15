@@ -24,6 +24,49 @@ function changelogNotes(root, version) {
   } catch { return null; }
 }
 
+
+// 中文摘要单一真源＝CHANGELOG 对应版本节的 ### 中文摘要；tag 附注与 Release 正文都从这里取，不手抄。
+function chineseSummary(root, version) {
+  const notes = changelogNotes(root, version);
+  if (!notes) return null;
+  const lines = notes.split(String.fromCharCode(10));
+  const start = lines.findIndex(line => /^###\s*中文摘要\s*$/.test(line));
+  if (start < 0) return null;
+  const body = [];
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^#{2,3}\s/.test(lines[i])) break;
+    body.push(lines[i]);
+  }
+  const bullets = body.filter(line => line.trim().startsWith('- '));
+  return bullets.length ? bullets.join(String.fromCharCode(10)) : null;
+}
+
+function composeTagMessage(root, version) {
+  const zh = chineseSummary(root, version);
+  if (!zh) throw new Error('CHANGELOG [' + version + '] 缺少非空中文摘要，拒绝生成 tag 附注');
+  return 'Qoder-Optimization ' + version + String.fromCharCode(10, 10) + '### 中文摘要' + String.fromCharCode(10, 10) + zh + String.fromCharCode(10);
+}
+
+// 0.1.6/0.1.7 的 tag 附注只有英文一行（用户 2026-11-15 指出的遗漏）。0.2.0 起硬拦：
+// 附注必须含中文摘要标题且至少一条非空条目；轻量 tag（无附注）一律拒绝。
+function assertTagMessage(message, version) {
+  const text = String(message == null ? '' : message);
+  if (!/中文摘要/.test(text)) throw new Error('tag ' + version + ' 附注缺中文摘要（0.2.0 起硬拦；轻量 tag 或英文一行都不放行）');
+  const bullets = text.split(String.fromCharCode(10)).filter(line => line.trim().startsWith('- '));
+  if (!bullets.length) throw new Error('tag ' + version + ' 附注的中文摘要为空');
+  return true;
+}
+
+// 读远端 tag 对象附注。type=commit 表示轻量 tag，没有附注 ⇒ 返回 null 由调用方判红。
+function remoteTagMessage(invoke, repo, tag) {
+  const ref = JSON.parse(invoke(['api', 'repos/' + repo + '/git/ref/tags/' + tag]));
+  const obj = ref && ref.object ? ref.object : null;
+  if (!obj || !obj.sha) throw new Error('remote tag ref is unreadable: ' + tag);
+  if (obj.type !== 'tag') return null;
+  const tagObj = JSON.parse(invoke(['api', 'repos/' + repo + '/git/tags/' + obj.sha]));
+  return tagObj && typeof tagObj.message === 'string' ? tagObj.message : null;
+}
+
 function publishRelease({ repo, tag, dest, gh = officialGh, root = process.cwd() }) {
   if (!/^[A-Za-z0-9][A-Za-z0-9_.-]*\/[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(repo || '') || !/^v\d+\.\d+\.\d+$/.test(tag || '')) throw new Error('invalid repository or tag');
   const invoke = (args, allow404 = false) => {
@@ -54,6 +97,8 @@ function publishRelease({ repo, tag, dest, gh = officialGh, root = process.cwd()
   }
   const remoteCommit = invoke(['api', `repos/${repo}/commits/${tag}`, '--jq', '.sha']).trim();
   if (remoteCommit !== evidence.commit) throw new Error('remote tag does not match the tested source commit');
+  // tag 附注中文摘要硬判据（在上传/发布任何资产之前判，失败即停、远端零改动）
+  assertTagMessage(remoteTagMessage(invoke, repo, tag), tag);
   const byId = id => JSON.parse(invoke(['api', `repos/${repo}/releases/${id}`]));
   const reconcileLatest = published => {
     const version = item => !item.draft && !item.prerelease && /^v\d+\.\d+\.\d+$/.test(item.tag_name || '')
@@ -146,10 +191,16 @@ function publishRelease({ repo, tag, dest, gh = officialGh, root = process.cwd()
   }
 }
 
-module.exports = { publishRelease };
+module.exports = { publishRelease, changelogNotes, chineseSummary, composeTagMessage, assertTagMessage, remoteTagMessage };
 if (require.main === module) {
   try {
-    const [tag, dest, repo = process.env.GITHUB_REPOSITORY] = process.argv.slice(2);
+    const argv = process.argv.slice(2);
+    if (argv[0] === '--print-tag-message') {
+      if (!/^v\d+\.\d+\.\d+$/.test(argv[1] || '')) throw new Error('usage: node .github/publish-release.js --print-tag-message <vX.Y.Z>');
+      process.stdout.write(composeTagMessage(process.cwd(), argv[1].slice(1)));
+      process.exit(0);
+    }
+    const [tag, dest, repo = process.env.GITHUB_REPOSITORY] = argv;
     if (!dest || process.argv.length > 5) throw new Error('usage: node .github/publish-release.js <vX.Y.Z> <dist-dir> [owner/repo]');
     const result = publishRelease({ repo, tag, dest: path.resolve(dest) });
     console.log(`VERIFIED ${result.url} sha256=${result.sha256} latest=${result.latestTag}`);

@@ -416,7 +416,7 @@ test('a tracked private file blocks the build rather than being silently exporte
   assert.equal(fs.existsSync(path.join(f.base, 'dist/Qoder-Optimization-0.0.2.zip')), false);
 }));
 
-function publicationFixture(f, { existing = true, mismatch = false, error = false, wrongCommit = false, draft = false, history = [], listHistory = true, latestTag, stuckLatest = false, afterPromotion } = {}) {
+function publicationFixture(f, { existing = true, mismatch = false, error = false, wrongCommit = false, draft = false, history = [], listHistory = true, latestTag, stuckLatest = false, afterPromotion, tagKind = 'tag', tagMessage = 'Qoder-Optimization 0.0.2\n\n### 中文摘要\n- 夹具摘要条目。\n' } = {}) {
   const dest = path.join(f.base, 'publish');
   fs.mkdirSync(dest);
   const name = 'Qoder-Optimization-0.0.2';
@@ -433,6 +433,9 @@ function publicationFixture(f, { existing = true, mismatch = false, error = fals
   const gh = args => {
     calls.push(args);
     if (args[0] === 'api' && args[1].includes('/commits/')) return { status: 0, stdout: wrongCommit ? 'b'.repeat(40) : commit };
+    // tag 附注中文摘要判据要读的两个端点（0.2.0 起硬拦；夹具默认给合格附注）
+    if (args[0] === 'api' && args[1].includes('/git/ref/tags/')) return { status: 0, stdout: JSON.stringify({ object: { type: tagKind, sha: 'c'.repeat(40) } }) };
+    if (args[0] === 'api' && args[1].includes('/git/tags/')) return { status: 0, stdout: JSON.stringify({ message: tagMessage }) };
     if (args[0] === 'api') {
       if (error) return { status: 1, stderr: 'gh: Forbidden (HTTP 403)' };
       const method = args.includes('POST') ? 'POST' : args.includes('PATCH') ? 'PATCH' : 'GET';
@@ -501,6 +504,26 @@ test('remote tag mismatch stops before release operations', () => withFixture(f 
   const p = publicationFixture(f, { wrongCommit: true });
   assert.throws(() => publishRelease({ repo: 'example/project', tag: 'v0.0.2', ...p }), /remote tag/);
   assert.equal(p.calls.length, 1);
+}));
+
+// 0.1.6/0.1.7 的真实遗漏形态：tag 附注只有英文一行。0.2.0 起必须在上传任何资产之前判红。
+test('an English-only tag annotation stops before any asset upload', () => withFixture(f => {
+  const p = publicationFixture(f, { tagMessage: 'Qoder-Optimization 0.0.2\n' });
+  assert.throws(() => publishRelease({ repo: 'example/project', tag: 'v0.0.2', ...p }), /缺中文摘要/);
+  assert.equal(p.calls.some(c => c[1] === 'upload'), false, '判红后不得上传任何资产');
+  assert.equal(p.calls.some(c => c[1] === 'release' && c[2] === 'create'), false);
+}));
+
+test('a lightweight tag without annotation stops before any asset upload', () => withFixture(f => {
+  const p = publicationFixture(f, { tagKind: 'commit' });
+  assert.throws(() => publishRelease({ repo: 'example/project', tag: 'v0.0.2', ...p }), /缺中文摘要/);
+  assert.equal(p.calls.some(c => c[1] === 'upload'), false);
+}));
+
+test('a Chinese-summary heading with zero bullets stops before any asset upload', () => withFixture(f => {
+  const p = publicationFixture(f, { tagMessage: 'Qoder-Optimization 0.0.2\n\n### 中文摘要\n' });
+  assert.throws(() => publishRelease({ repo: 'example/project', tag: 'v0.0.2', ...p }), /中文摘要为空/);
+  assert.equal(p.calls.some(c => c[1] === 'upload'), false);
 }));
 
 test('new releases stay draft until both uploaded assets pass download verification', () => withFixture(f => {
