@@ -51,7 +51,7 @@ function composeTagMessage(root, version) {
 // 附注必须含中文摘要标题且至少一条非空条目；轻量 tag（无附注）一律拒绝。
 function assertTagMessage(message, version) {
   const text = String(message == null ? '' : message);
-  if (!/中文摘要/.test(text)) throw new Error('tag ' + version + ' 附注缺中文摘要（0.2.0 起硬拦；轻量 tag 或英文一行都不放行）');
+  if (!/中文摘要/.test(text)) throw new Error('tag ' + version + ' 附注缺中文摘要（0.2.0 起硬拦；轻量 tag 或英文一行都不放行）。若附注本有标题却消失，多半是 git 默认 cleanup=strip 把 "### 中文摘要" 当注释删了：改用 git tag -a --cleanup=verbatim -F <附注> 重打');
   const bullets = text.split(String.fromCharCode(10)).filter(line => line.trim().startsWith('- '));
   if (!bullets.length) throw new Error('tag ' + version + ' 附注的中文摘要为空');
   return true;

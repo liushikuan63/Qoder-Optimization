@@ -6,6 +6,12 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Fixed
+- Tag annotations must be created with `git tag -a --cleanup=verbatim`. Git's default `cleanup=strip` silently deletes lines starting with `#`, so the `### 中文摘要` heading vanished from the first v0.2.0 tag while all twelve bullets survived — the new annotation check rejected it, and the tag was deleted and re-pushed with `verbatim`. The publisher's error now names this root cause and the fix, `update-share-package.md` step 6 requires the flag, and a negative control locks the exact stripped shape (bullets present, heading gone). These criteria ship in the repo so packaging on any other machine is held to the same rule.
+
+### 中文摘要
+- 打 tag 必须用 `git tag -a --cleanup=verbatim`：git 默认 `cleanup=strip` 会把 `#` 开头的行当注释删掉，v0.2.0 首次打 tag 时 `### 中文摘要` 标题被静默吃掉、12 条条目还在，被新判据拦下后删 tag 重推才修好。发布器错误信息现在直接点名这个根因与改法，发布命令第 6 步强制该参数，并加一条负对照锁住「条目齐全但标题消失」的真实形态。判据随仓库推送，其他电脑打包时同样受约束。
+
 ## [0.2.0] - 2026-11-15
 
 ### Added

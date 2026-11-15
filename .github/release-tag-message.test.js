@@ -56,6 +56,15 @@ test('负对照：英文一行附注（0.1.6/0.1.7 的真实形态）必须判�
   assert.throws(() => assertTagMessage('Qoder-Optimization 0.1.7\n', 'v0.1.7'), /缺中文摘要/);
 });
 
+// 0.2.0 首次打 tag 的真实事故：git 默认 cleanup=strip 把 "### 中文摘要" 当注释删掉，
+// 附注只剩标题行与条目。条目齐全也照样判红，且错误信息要指出 cleanup 这个根因。
+test('负对照：标题被 git cleanup 吃掉（条目仍在）必须判红并指出根因', () => {
+  const stripped = 'Qoder-Optimization 0.2.0\n\n- 新增载体入包契约门。\n- 描述上限单一真源。\n';
+  assert.throws(() => assertTagMessage(stripped, 'v0.2.0'), /缺中文摘要/);
+  assert.throws(() => assertTagMessage(stripped, 'v0.2.0'), /cleanup=strip/);
+  assert.throws(() => assertTagMessage(stripped, 'v0.2.0'), /--cleanup=verbatim/);
+});
+
 test('负对照：有标题但零条目必须判红', () => {
   assert.throws(() => assertTagMessage('Qoder-Optimization 0.2.0\n\n### 中文摘要\n', 'v0.2.0'), /中文摘要为空/);
 });
