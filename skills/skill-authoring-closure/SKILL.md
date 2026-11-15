@@ -42,6 +42,19 @@ GitHub 查询和下载走官方 gh；通道失败先区分网络、认证与内�
 
 ## 4. 载体预检与定级
 
+**先增量消解冲突，不要每次全仓扫描**（2026-11-15 用户定策）：生成/更新 skill、rule、command、agent、hook 时先跑
+
+```bash
+node ~/.qoder/scripts/carrier-conflict-resolve.cjs --root <仓库或客户端根> \
+  --type <类型> --name <名> --file <候选文件> [--package <仓库根>] [--apply]
+```
+
+- 按 mtime+size 增量维护载体索引（实测 149 个载体：冷 155ms、warm 100ms 且 **0 次重解析**；同一改动跑全量契约门要 1274ms），只判候选与既有载体的冲突，不扫全仓正文。
+- **自主消解**只做确定性、可逆、只改候选文件的事：重复触发词从候选删掉、保留独有线素；超上限先删已被既有载体覆盖的路由词再压填充词，独有线素一个不许丢。`--apply` 才写盘并自动留 `.bak-conflict-resolve` 备份。
+- **必须停下问用户**的三种：同名冲突（绝不自动覆盖）、触发词全重复（给并入目标，同域不装第二个）、压缩后仍超限或会丢独有线素。既有载体的合并一律由用户拍板，脚本不写它。
+- 触发词抽取复用 `skill-trigger-uniqueness.cjs`、描述上限复用 `share-package-verify.cjs`，**不造第二份判据**。
+- **全量契约门只在提交/出包前跑一次**，不要把它当每次编辑的探针。
+
 ```bash
 node ~/.qoder/scripts/carrier-preflight.cjs --type skill --name <技能名>
 

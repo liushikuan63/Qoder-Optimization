@@ -6,10 +6,14 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Added
+- Add `scripts/carrier-conflict-resolve.cjs`: incremental conflict detection and autonomous resolution when authoring or updating a skill, rule, command, agent or hook, so a full-repository scan is no longer the price of every edit. The carrier index is invalidated by mtime+size (measured on 149 carriers: 155 ms cold, 100 ms warm with **zero re-parses**, versus 1274 ms for the full contract gate on the same change). Resolution is deterministic, reversible and touches only the candidate file: duplicate trigger phrases are dropped while unique routing words are kept, and an over-cap description first sheds routing words already covered by an existing carrier, then filler — never truncating a unique routing word. Name collisions, fully-duplicate triggers (with a merge target) and unresolvable over-cap descriptions stop for a user decision; the existing carrier is never written. Trigger extraction reuses `skill-trigger-uniqueness.cjs` and the cap reuses `share-package-verify.cjs`, so there is no second source of truth. `skill-authoring-closure` now runs this before the full gate, which is reserved for commit/package time. Ships a 14-case embedded self-test plus an independent 12-case sandbox test that proves the incrementality criterion can fail.
+
 ### Fixed
 - Tag annotations must be created with `git tag -a --cleanup=verbatim`. Git's default `cleanup=strip` silently deletes lines starting with `#`, so the `### 中文摘要` heading vanished from the first v0.2.0 tag while all twelve bullets survived — the new annotation check rejected it, and the tag was deleted and re-pushed with `verbatim`. The publisher's error now names this root cause and the fix, `update-share-package.md` step 6 requires the flag, and a negative control locks the exact stripped shape (bullets present, heading gone). These criteria ship in the repo so packaging on any other machine is held to the same rule.
 
 ### 中文摘要
+- 新增 `scripts/carrier-conflict-resolve.cjs`：生成/更新 skill、rule、command、agent、hook 时**增量检测并自主消解冲突**，不再每次编辑都付全仓扫描的代价。载体索引按 mtime+size 失效（实测 149 个载体：冷 155ms、warm 100ms 且 **0 次重解析**；同一改动跑全量契约门要 1274ms）。消解只做确定性、可逆、只改候选文件的事：重复触发词删掉但保留独有线素；超上限先删已被既有载体覆盖的路由词再压填充词，**绝不截断独有线素**。同名冲突、触发词全重复（给并入目标）、压不下或会丢线素三种停下问用户，既有载体一律不写。触发词抽取复用 `skill-trigger-uniqueness.cjs`、上限复用 `share-package-verify.cjs`，不造第二份真源。`skill-authoring-closure` 改为先跑它，全量门只在提交/出包前跑一次。附 14 条内嵌自测＋12 条独立沙箱测试，后者证明「增量」这条判据本身能失败。
 - 打 tag 必须用 `git tag -a --cleanup=verbatim`：git 默认 `cleanup=strip` 会把 `#` 开头的行当注释删掉，v0.2.0 首次打 tag 时 `### 中文摘要` 标题被静默吃掉、12 条条目还在，被新判据拦下后删 tag 重推才修好。发布器错误信息现在直接点名这个根因与改法，发布命令第 6 步强制该参数，并加一条负对照锁住「条目齐全但标题消失」的真实形态。判据随仓库推送，其他电脑打包时同样受约束。
 
 ## [0.2.0] - 2026-11-15

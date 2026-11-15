@@ -8,7 +8,7 @@
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 135,
-  "script": 174,
+  "script": 176,
   "command": 12,
   "agent": 2
  },
@@ -2171,6 +2171,35 @@
    },
    "source": "scripts/capture-window.ps1",
    "dependencies": []
+  },
+  {
+   "id": "script:carrier-conflict-resolve.cjs",
+   "category": "script",
+   "name": "carrier-conflict-resolve.cjs",
+   "status": "shipped",
+   "source": "scripts/carrier-conflict-resolve.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:skill-description.cjs",
+    "script:skill-trigger-uniqueness.cjs"
+   ]
+  },
+  {
+   "id": "script:carrier-conflict-resolve.test.js",
+   "category": "script",
+   "name": "carrier-conflict-resolve.test.js",
+   "status": "shipped",
+   "source": "scripts/carrier-conflict-resolve.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:carrier-conflict-resolve.cjs",
+    "script:skill-description.cjs",
+    "script:skill-trigger-uniqueness.cjs"
+   ]
   },
   {
    "id": "script:carrier-contract-gate.cjs",
