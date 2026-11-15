@@ -31,7 +31,7 @@ node scripts/carrier-contract-gate.cjs
 # 指定上游基线 / 机器可读输出
 node scripts/carrier-contract-gate.cjs --base origin/main --json
 
-# 门自身的正负对照自测（43 条：每项判据都配了能失败的反例）
+# 门自身的正负对照自测（53 条：每项判据都配了能失败的反例）
 node scripts/carrier-contract-gate.cjs --selftest
 ```
 

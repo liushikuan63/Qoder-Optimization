@@ -4,7 +4,7 @@
 
 ## 仓库与产物
 
-- 仓库：`D:\Java\GitHub\Qoder-Optimization`（默认分支 `main`，发布 tag `vX.Y.Z`）。
+- 仓库：`<repo-root>`（本仓库的本地 checkout，默认分支 `main`，发布 tag `vX.Y.Z`）。
 - 正式 ZIP 顶层 = `Qoder-Optimization-X.Y.Z`（无空格）；`VERSION` 第一行 `vX.Y.Z`、第二行 `YYYY-MM-DD`。
 - 主 zip 与离线 zip 各带 `.sha256`，共 4 个 Release 资产。
 - 主 ZIP 不含 `mcp/offline/`，该目录只随离线包；两包成员无遗漏、无交集，数量以本次 `build.json` 为准，历史版本计数不能套用。
@@ -32,7 +32,7 @@
 
 ## 隔离消费者探针的 Windows 坑
 
-- 隔离 HOME 放 `D:/UserData/...`，不要放 `/tmp`（沙箱豁免会让探针失去隔离意义）。
+- 隔离 HOME 放 `<data-root>/…`（非系统盘的用户数据目录），不要放 `/tmp`（沙箱豁免会让探针失去隔离意义）。
 - `npm ci --prefix` 经 `cmd.exe` 会保留字面引号并报 `EUSAGE`；用 `process.execPath` 直调 `npm-cli.js`，参数用数组。
 - 5 字符短回复曾绕过 stop-gate 的 `noText<8` 门槛；消费者夹具必须覆盖短回复、空输出与失败路径。
 - 解压 zip 后先对齐顶层目录再做 `diff -r`，否则整树误报。

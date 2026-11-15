@@ -129,6 +129,11 @@ jobs:
           PKG="$(node -p "JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP + '/dist/build.json', 'utf8')).package")"
           node scripts/share-secret-scan.cjs "${RUNNER_TEMP}/dist/${PKG}"
 
+      - name: Scan distribution for machine-specific paths
+        run: |
+          PKG="$(node -p "JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP + '/dist/build.json', 'utf8')).package")"
+          node scripts/carrier-contract-gate.cjs --root "${RUNNER_TEMP}/dist/${PKG}" --machine-ids --scan-all
+
       - name: Publish only after remote asset comparison
         if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         env:
