@@ -359,6 +359,11 @@
    "files": 1
   },
   {
+   "name": "production-readiness-audit",
+   "tier": "library",
+   "files": 4
+  },
+  {
    "name": "proxy-rule-surgery",
    "tier": "library",
    "files": 2

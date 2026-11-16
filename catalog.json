@@ -7,8 +7,8 @@
  "generated": "2026-11-15",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
-  "skill": 135,
-  "script": 176,
+  "skill": 136,
+  "script": 178,
   "command": 12,
   "agent": 2
  },
@@ -1011,6 +1011,20 @@
     "tier": "library"
    },
    "source": "skills/powershell-windows-display-interop",
+   "dependencies": []
+  },
+  {
+   "id": "skill:production-readiness-audit",
+   "category": "skill",
+   "name": "production-readiness-audit",
+   "status": "shipped",
+   "tier": "library",
+   "description": "清单式生产就绪审查：先判每项是否适用本产品，不适用直接跳过；适用项只读取证据，查不到写无法确认；按泄露·资金·中断排序输出前十问题与文件定位，全程只读待批准。触发词：生产就绪、上线前体检、清单式审查、production readiness、安全问卷证据。不用于 diff 评审、方案反例审查或验证选档。",
+   "source": "skills/production-readiness-audit",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
    "dependencies": []
   },
   {
@@ -3390,6 +3404,30 @@
    "dependencies": [
     "script:client-root.js",
     "script:hook-crash-guard.js"
+   ]
+  },
+  {
+   "id": "script:readiness-report-check.cjs",
+   "category": "script",
+   "name": "readiness-report-check.cjs",
+   "status": "shipped",
+   "source": "scripts/readiness-report-check.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": []
+  },
+  {
+   "id": "script:readiness-report-check.test.js",
+   "category": "script",
+   "name": "readiness-report-check.test.js",
+   "status": "shipped",
+   "source": "scripts/readiness-report-check.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:readiness-report-check.cjs"
    ]
   },
   {

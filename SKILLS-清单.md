@@ -1,6 +1,6 @@
 # Qoder-Optimization - 0.2.0 技能清单
 
-共 135 个源码随包技能：常驻 5 / 按需 130。机器可读版见 skills-manifest.json 与 catalog.json。
+共 136 个源码随包技能：常驻 5 / 按需 131。机器可读版见 skills-manifest.json 与 catalog.json。
 
 默认按需选择安装，安装时按使用习惯询问是否常驻；层级默认值与依赖以 catalog 为准，最终常驻数量由使用者决定。
 
@@ -77,6 +77,7 @@
 - `postgresql-optimization`（按需）—— Expert in PostgreSQL performance tuning, query optimization, and database administration. Specializes in EXPLAIN analysis, indexing strategies, connection pooling, partitioning, and production-grade PostgreSQL operations.
 - `postgresql-table-design`（按需）—— Design a PostgreSQL-specific schema. Covers best-practices, data types, indexing, constraints, performance patterns, and advanced features
 - `powershell-windows-display-interop`（按需）—— 用 PowerShell Add-Type P-Invoke 读或改 Windows 显示栈——EDID 块、HDR 与自动色彩管理、HDR 状态取证、当前分辨率、刷新率、像素时钟、位深、显示器友好名。用于 DisplayConfigGetDeviceInfo 或 EnumDisplaySettings 返回 TRUE 或 hr=0 却字段全空、设备信息调用对每种类型都回 hr=0x1F 或 0x7A、EDID 扩展块解析成乱码、Add-Type 编不过内联 C#（CS0266、ToString 字符字面量、缺 Desktop 程序集）、模式或路径结构体读回全 0。
+- `production-readiness-audit`（按需）—— 清单式生产就绪审查：先判每项是否适用本产品，不适用直接跳过；适用项只读取证据，查不到写无法确认；按泄露·资金·中断排序输出前十问题与文件定位，全程只读待批准。触发词：生产就绪、上线前体检、清单式审查、production readiness、安全问卷证据。不用于 diff 评审、方案反例审查或验证选档。
 - `proxy-rule-surgery`（按需）—— 批量、持久地修改 FlClash/mihomo 分流规则并证明生效。触发词：FlClash 规则、mihomo 分流、config.yaml 被覆盖、rules 表、database.sqlite、按进程名杀被拦、出口 IP 对比、cdn-cgi/trace。含备份、按 schema 写入、精确 PID 重启、UI 启动兜底与负对照。不用于本机自建反代（local-reverse-proxy-triage）。
 - `python-anti-patterns`（按需）—— Use this skill when reviewing Python code for common anti-patterns to avoid。中文触发：Python 脚本 FastAPI 异步 类型注解 模式规范 评审
 - `python-backend-guidelines`（按需）—— FastAPI/Django backend patterns and best practices

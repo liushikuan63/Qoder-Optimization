@@ -3,7 +3,7 @@
 > 文档：Qoder AI 编码通用规则（可分享版）。
 > 版本：0.2.0；制作日期：2026-11-15。版本、计数与目录由公开包元数据同步；是否已发布以对应 Release 为准。
 > 内容：全局开发纪律 + 21 条领域 / 流程规则 + 可选能力目录。按使用者习惯取舍，不默认全装；材料不是授权来源。
-> 包内技能 135 个（5 常驻 + 130 按需），不等于接收者已安装数量；常驻数量由使用者按习惯在安装时与使用中决定。
+> 包内技能 136 个（5 常驻 + 131 按需），不等于接收者已安装数量；常驻数量由使用者按习惯在安装时与使用中决定。
 > 先读《Qoder-个人规则生成提示词.md》；catalog.json/INDEX.md 提供按需检索。任何权限、MCP、hook 接线变更仍按平台要求单独批准。
 
 ## 一、全局开发规则
@@ -672,7 +672,7 @@ glob: ["**/*.vue"]
 
 **规则与技能治理**（18）：concurrent-edit-attribution-check、continuation-state-audit、goal-driven-execution、mechanize-rule-into-hook-guard、memory-bank-divergence-repair、memory-entry-update、pause-writer-before-shared-file-edit、rules-conflict-audit、self-evolution、skill-authoring-closure、skill-description-route-cue-rewrite、skill-reference-integrity-audit、skill-tiering-lazy-load、skill-trim-with-capability-transfer、skills-router（常驻）、structured-edit-safety、vibe-coding-workflow、vibecoding-doc（常驻）
 
-**交付 / 运维 / 文档**（20）：desktop-update-push-triage、disk-junction-migration、electron-app-stuck-spinner-triage、electron-asar-code-forensics、electron-tray-icon-diagnosis、github-accelerator、long-task-merge-takeover、office-docs、ship-clean-pr（常驻）、shipped-app-js-patch-hygiene、user-side-deploy-verify、verify-before-claim（常驻）、verify-ui-in-browser（常驻）、verify-windows-cmd-tool、windows-desktop-keyboard-automation、windows-elevated-changes-from-git-bash、windows-gitbash-command-safety、windows-powershell-from-gitbash、windows-relocated-install-path-repair、windows-ui-forensics-powershell
+**交付 / 运维 / 文档**（21）：desktop-update-push-triage、disk-junction-migration、electron-app-stuck-spinner-triage、electron-asar-code-forensics、electron-tray-icon-diagnosis、github-accelerator、long-task-merge-takeover、office-docs、production-readiness-audit、ship-clean-pr（常驻）、shipped-app-js-patch-hygiene、user-side-deploy-verify、verify-before-claim（常驻）、verify-ui-in-browser（常驻）、verify-windows-cmd-tool、windows-desktop-keyboard-automation、windows-elevated-changes-from-git-bash、windows-gitbash-command-safety、windows-powershell-from-gitbash、windows-relocated-install-path-repair、windows-ui-forensics-powershell
 
 **后端 / 数据**（37）：java-architect、java-quality、kafka-best-practices、nginx-config-builder、nodejs-backend-patterns、oracledb、postgresql-optimization、postgresql-table-design、python-anti-patterns、python-backend-guidelines、python-dataviz、python-error-handling、python-performance-optimization、python-programmer、python-project-structure、python-testing-patterns、python-type-safety、rabbitmq-expert、redis-clustering、redis-connections、redis-core、redis-observability、redis-search、redis-security、redis-semantic-cache、spring-aop、spring-boot-actuator、spring-boot-cache、spring-boot-event-driven-patterns、spring-boot-resilience4j、spring-boot-rest-api-standards、spring-boot-test-patterns、spring-events、springboot-patterns、springboot-verification、umi3-to-umi4-upgrade、vue-expert
 
