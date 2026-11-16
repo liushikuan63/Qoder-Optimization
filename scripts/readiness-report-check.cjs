@@ -26,7 +26,20 @@ const RISKS = ['data-leak', 'money-loss', 'outage', 'other'];
 const MAX_TOP = 10;
 const MAX_REPORT_BYTES = 4 * 1024 * 1024;
 const ID_ROW = /^\|\s*([A-Z]{2,4}-\d{2})\s*\|/gm;
-const DEFAULT_CHECKLIST = path.join(__dirname, '..', 'skills', 'production-readiness-audit', 'references', 'checklist.md');
+// 默认清单真源按安装分层解析：catalog 声明 tier=library ⇒ 安装后落在 skills-library/；
+// 仓库布局与 core 层安装在 skills/。只写死 skills/ 会让 library 层安装的默认调用 ENOENT（exit 2），
+// 而仓库内自测恒绿（仓库布局就是 skills/）——判据必须覆盖真实安装形态。
+const CHECKLIST_REL = path.join('production-readiness-audit', 'references', 'checklist.md');
+const CHECKLIST_ROOTS = ['skills-library', 'skills'];
+function resolveDefaultChecklist(base = path.join(__dirname, '..')) {
+  for (const root of CHECKLIST_ROOTS) {
+    const candidate = path.join(base, root, CHECKLIST_REL);
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  // 两层都不存在时返回首选路径，由调用方按 ENOENT 明确报错，不静默兜底成空清单。
+  return path.join(base, CHECKLIST_ROOTS[0], CHECKLIST_REL);
+}
+const DEFAULT_CHECKLIST = resolveDefaultChecklist();
 
 const text = value => typeof value === 'string' && value.trim().length > 0;
 const severityRank = value => SEVERITIES.indexOf(value);
@@ -260,7 +273,7 @@ function main(argv) {
   process.exitCode = result.ok ? 0 : 1;
 }
 
-module.exports = { verify, checklistIds, readReport, SEVERITIES, RISKS, KINDS, MAX_TOP, DEFAULT_CHECKLIST };
+module.exports = { verify, checklistIds, readReport, SEVERITIES, RISKS, KINDS, MAX_TOP, DEFAULT_CHECKLIST, resolveDefaultChecklist, CHECKLIST_ROOTS };
 
 if (require.main === module) {
   try { main(process.argv.slice(2)); }

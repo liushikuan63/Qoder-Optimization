@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const { verify, checklistIds, DEFAULT_CHECKLIST } = require('./readiness-report-check.cjs');
+const { verify, checklistIds, DEFAULT_CHECKLIST, resolveDefaultChecklist, CHECKLIST_ROOTS } = require('./readiness-report-check.cjs');
 
 const CLI = path.join(__dirname, 'readiness-report-check.cjs');
 const CHECKLIST = ['| ID | 检查项 |', '| --- | --- |', '| AAA-01 | a |', '| AAA-02 | b |', '| BBB-01 | c |'].join('\n');
@@ -337,4 +337,51 @@ test('CLI：默认清单就是随包清单，未知参数 exit 2', () => fixture
   assert.strictEqual(fs.existsSync(DEFAULT_CHECKLIST), true);
   const reportFile = write(root, 'r.json', JSON.stringify(baseReport(root)));
   assert.strictEqual(cli([reportFile, '--bogus']).status, 2);
+}));
+
+// 安装分层覆盖：catalog 声明 tier=library，安装后清单在 skills-library/ 而非 skills/。
+// 沙箱把脚本复制到 <root>/scripts/，只建对应层，验证「默认路径」在真实安装形态下可用。
+function tierSandbox(root, tier) {
+  const scriptsDir = path.join(root, 'scripts');
+  fs.mkdirSync(scriptsDir, { recursive: true });
+  const cliCopy = path.join(scriptsDir, 'readiness-report-check.cjs');
+  fs.copyFileSync(CLI, cliCopy);
+  const markdown = fs.readFileSync(DEFAULT_CHECKLIST, 'utf8');
+  if (tier) write(root, path.join(tier, 'production-readiness-audit', 'references', 'checklist.md'), markdown);
+  const reportFile = write(root, 'r.json', '[]');
+  const r = spawnSync(process.execPath, [cliCopy, reportFile, '--json'], { encoding: 'utf8' });
+  return { r, markdown, ids: checklistIds(markdown).length };
+}
+
+test('分层解析：library 优先、core 回退、两层皆无返回首选而不静默兜底', () => fixture(root => {
+  const rel = path.join('production-readiness-audit', 'references', 'checklist.md');
+  assert.deepStrictEqual(CHECKLIST_ROOTS, ['skills-library', 'skills']);
+  assert.strictEqual(resolveDefaultChecklist(root), path.join(root, 'skills-library', rel));
+  write(root, path.join('skills', rel), 'core');
+  assert.strictEqual(resolveDefaultChecklist(root), path.join(root, 'skills', rel));
+  write(root, path.join('skills-library', rel), 'library');
+  assert.strictEqual(resolveDefaultChecklist(root), path.join(root, 'skills-library', rel));
+}));
+
+test('library 层安装形态：只有 skills-library 时默认调用读到随包清单（不再 ENOENT）', () => fixture(root => {
+  const { r, ids } = tierSandbox(root, 'skills-library');
+  assert.strictEqual(r.status, 1, r.stdout + r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.strictEqual(out.verdict, 'VIOLATIONS');
+  assert.strictEqual(out.readings.checklistIds, ids);
+  assert.ok(ids >= 140, '随包清单 ID 数异常：' + ids);
+}));
+
+test('core 层安装形态：只有 skills 时默认调用同样可用', () => fixture(root => {
+  const { r, ids } = tierSandbox(root, 'skills');
+  assert.strictEqual(r.status, 1, r.stdout + r.stderr);
+  assert.strictEqual(JSON.parse(r.stdout).readings.checklistIds, ids);
+}));
+
+test('负对照：两层皆无时默认调用必须 exit 2 ENOENT，不得静默通过', () => fixture(root => {
+  const { r } = tierSandbox(root, null);
+  assert.strictEqual(r.status, 2, r.stdout + r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.strictEqual(out.code, 'ENOENT');
+  assert.ok(String(out.message).includes('skills-library'), out.message);
 }));
