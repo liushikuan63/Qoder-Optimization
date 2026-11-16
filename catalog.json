@@ -9,7 +9,7 @@
  "counts": {
   "skill": 138,
   "script": 178,
-  "command": 12,
+  "command": 13,
   "agent": 2
  },
  "entries": [
@@ -4383,6 +4383,17 @@
     "mode": "copy-file"
    },
    "source": "commands/fact.md",
+   "dependencies": []
+  },
+  {
+   "id": "command:grill-me",
+   "category": "command",
+   "name": "grill-me",
+   "status": "shipped",
+   "source": "commands/grill-me.md",
+   "install": {
+    "mode": "copy-file"
+   },
    "dependencies": []
   },
   {

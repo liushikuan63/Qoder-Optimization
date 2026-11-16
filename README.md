@@ -72,9 +72,9 @@ AI coding assistants can lose track of process: a check may be claimed without e
 |---|---:|---|
 | Skills | 138 | Verification, code review, delivery, databases, documents, desktop automation |
 | Scripts | 178 | Guardrails, self-tests, packaging, validation, tool helpers |
-| Commands | 12 | Clarification, checkpoints, skill search, cleanup |
+| Commands | 13 | Clarification, checkpoints, skill search, cleanup |
 | Sub-agents | 2 | Runtime-truth and post-deployment verification |
-| Catalog entries | 330 | Skills, scripts, commands, and agents |
+| Catalog entries | 331 | Skills, scripts, commands, and agents |
 
 ### How it fits together
 
@@ -268,9 +268,9 @@ AI 编码助手常见的问题包括：没有证据就声称验证通过、失�
 |---|---:|---|
 | 技能 | 138 | 验证、代码评审、交付、数据库、文档、桌面自动化 |
 | 脚本 | 178 | 守卫、自测、打包、校验与工具补强 |
-| 命令 | 12 | 需求澄清、接续检查、技能检索、清理 |
+| 命令 | 13 | 需求澄清、接续检查、技能检索、清理 |
 | 子智能体 | 2 | 运行期真值核验、部署后验收 |
-| 目录条目 | 330 | 技能、脚本、命令与子智能体 |
+| 目录条目 | 331 | 技能、脚本、命令与子智能体 |
 
 ### 工作方式
 

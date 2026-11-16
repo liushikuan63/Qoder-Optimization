@@ -114,6 +114,15 @@ test('中置信提示按开工确认卡确认，但不得制造第二道确认�
   assert.ok(note.includes('说明假设后按卡确认'));
   assert.ok(note.includes('不要为内部命名或参数增加第二道确认门'));
 });
+test('grill 指引只作为 C 档收敛选项：高/中置信可升级，无信号不出现', () => {
+  for (const level of ['high', 'medium']) {
+    const note = buildAmbiguityNote({ level, signals: ['泛化动作'] });
+    for (const phrase of ['grill', '1–3 轮', '每轮 ≤4 问', '2–4 个真实备选']) {
+      assert.ok(note.includes(phrase), level + ' 缺少 ' + phrase);
+    }
+  }
+  assert.ok(!buildAmbiguityNote({ level: null, signals: [] }).includes('grill'));
+});
 test('无信号时不注入', () => {
   assert.equal(buildAmbiguityNote({ level: null, signals: [] }), '');
   assert.equal(buildAmbiguityNote(null), '');
