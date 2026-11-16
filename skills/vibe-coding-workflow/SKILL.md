@@ -116,7 +116,7 @@ node ~/.qoder/skills-library/vibe-coding-workflow/scripts/route-phase.js --selft
 - **先判适用性**：按产品类型裁剪清单，不适用项写理由跳过；**不为凑清单加无用功能**。
 - **适用项只读取证据**：四态定性（`finding` / `pass` / `not-applicable` / `unverified`），查不到写「无法确认」并说明缺什么，不写「已检查，未发现问题」。
 - **前十问题按确定规则排**：严重度降序 → 风险类别（泄露 / 资金 / 中断）→ ID 升序，每条带文件 / 配置定位与建议修法。
-- **报告过校验器才算完成**：`node ~/.qoder/scripts/readiness-report-check.cjs "<报告路径>/readiness-report.json" --json`，exit 0 才放行；exit 1 按违约修报告（不是改校验器凑绿），exit 2 是清单 / 用法错（fail-closed，**不得当通过**）。
+- **报告过校验器才算完成**：`node ~/.qoder/scripts/readiness-report-check.cjs "<报告路径>/readiness-report.json" --json`，exit 0 才放行；exit 1 按违约修报告（不是改校验器凑绿），exit 2 是清单 / 用法错（fail-closed，**不得当通过**）。报告路径与退出码记账；**未执行写「未执行 + 原因」，不得写成已通过**。
 - 审计**只读**、结论**不是实施授权**：整改逐项批准后回到 ③ / ④ 重跑验证。认证 / 支付 / 迁移 / 权限 / 并发仍需人工复核，责任归属见该技能 `../production-readiness-audit/references/human-ownership.md`（agent 做过 ≠ 有人负责）。
 
 细则与报告契约见 `vibecoding-doc` §8.1。小任务（改一行文案、单点修复）不套用本审计。
