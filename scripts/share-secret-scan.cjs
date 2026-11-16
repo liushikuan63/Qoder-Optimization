@@ -41,6 +41,8 @@ function looksRealSecret(v, literal = true) {
   if (!v || v.length < 12) return false;
   if (!/[A-Za-z]/.test(v) || !/[0-9]/.test(v)) return false;
   if (!/^[A-Za-z0-9_\-/.+=:]+$/.test(v)) return false;
+  // Design tokens such as `--ly-h1-mega` are CSS custom property names, not credentials.
+  if (/^--[A-Za-z][A-Za-z0-9-]*$/.test(v)) return false;
   if (/(your|example|placeholder|dummy|sample|changeme|secret|token|password|apikey|api_key|xxxx)/i.test(v)) return false;
   // Exempt the unquoted value expression itself. Nearby comments or markup
   // cannot turn a literal password into an environment lookup.
@@ -116,22 +118,33 @@ function selftest() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'secretscan-'));
   const dirty = path.join(dir, 'dirty.md');
   const clean = path.join(dir, 'clean.md');
+  const dirtyJson = path.join(dir, 'dirty.json');
+  const cleanJson = path.join(dir, 'clean.json');
   // 夹具在源码里拆开写：包内文本不含完整凭据形状（否则本扫描器会把自己判红），运行时拼出来仍能被抓
   const fakeAppId = 'wx' + '0742b9f3c1' + 'a8d4e5';
   const fakePwd = 'S3cr3t' + 'Value9x77';
+  const fakeToken = 'Ab3x' + 'k9QzLm77';
   const fakeHost = 'build-07.' + 'corp';
   const fakeIp = '10.' + '23.45.67';
   const fakeHome = ['/home', 'someone', 'config'].join('/');
   fs.writeFileSync(dirty, `appid ${fakeAppId} 与 password = "${fakePwd}" 以及主机 ${fakeHost} ${fakeIp} ${fakeHome}\n`);
   fs.writeFileSync(clean, '示例：`wx' + '1234567890' + 'abcdef` 是占位，password = <从凭据文件取>，api_key = process.env.OPENAI_API_KEY，文档用 IP 见 RFC5737 的 192.0.2.1\n版本10.12.5；pm-skills.local.md；./home/home.component；$T/case/home/.qoder\n');
+  fs.writeFileSync(dirtyJson, JSON.stringify({ token: fakeToken }));
+  fs.writeFileSync(cleanJson, JSON.stringify({ token: '--ly-h1-mega', password: '--t-h1', secret: '--ly-h1-quiet' }));
   const dh = scanText(fs.readFileSync(dirty, 'utf8'));
   const ch = scanText(fs.readFileSync(clean, 'utf8'));
+  const djh = scanText(fs.readFileSync(dirtyJson, 'utf8'));
+  const cjh = scanText(fs.readFileSync(cleanJson, 'utf8'));
   const okHard = dh['真实微信AppID'] >= 1 && dh['凭据键值'] >= 1 && dh['内网后缀主机'] >= 1 && dh['私网IP示例'] >= 1 && dh['他人家目录'] >= 1;
   const okClean = Object.keys(ch).length === 0;
+  const okJsonHard = djh['凭据键值'] >= 1;
+  const okJsonClean = Object.keys(cjh).length === 0;
   fs.rmSync(dir, { recursive: true, force: true });
   console.log('脏夹具命中类别 = ' + Object.keys(dh).join(',') + ' → ' + (okHard ? 'OK 能判红' : 'RED 抓不到'));
   console.log('干净夹具类别 = ' + (Object.keys(ch).join(',') || '无') + ' → ' + (okClean ? 'OK 不误判硬类别' : 'RED 误判'));
-  process.exit(okHard && okClean ? 0 : 1);
+  console.log('JSON 真密钥 = ' + Object.keys(djh).join(',') + ' → ' + (okJsonHard ? 'OK 能判红' : 'RED 抓不到'));
+  console.log('JSON 设计 token = ' + (Object.keys(cjh).join(',') || '无') + ' → ' + (okJsonClean ? 'OK 不误判' : 'RED 误判'));
+  process.exit(okHard && okClean && okJsonHard && okJsonClean ? 0 : 1);
 }
 
 if (process.argv.includes('--selftest')) selftest();

@@ -41,6 +41,18 @@ test('scanner still rejects a credential-like value and does not disclose it', (
   assert.equal((result.stdout + result.stderr).includes(value), false);
 }));
 
+test('JSON design tokens (CSS custom property names) are not credentials, real-looking tokens still are', () => fixture(f => {
+  fs.writeFileSync(f.input, JSON.stringify({ token: '--ly-h1-mega', password: '--t-h1', secret: '--ly-h1-quiet' }));
+  const clean = f.run(f.input);
+  assert.equal(clean.status, 0, clean.stdout + clean.stderr);
+  const value = ['Ab3x', 'k9QzLm77'].join('');
+  fs.writeFileSync(f.input, JSON.stringify({ token: value }));
+  const dirty = f.run(f.input);
+  assert.equal(dirty.status, 2, dirty.stdout + dirty.stderr);
+  assert.ok(dirty.stdout.includes('凭据键值'), dirty.stdout);
+  assert.equal((dirty.stdout + dirty.stderr).includes(value), false);
+}));
+
 for (const encoding of ['utf16le', 'utf16be']) {
   test('scanner decodes BOM-marked ' + encoding + ' text instead of silently skipping it', () => fixture(f => {
     const value = ['R4nd0m', 'Value42Plus'].join('');

@@ -207,7 +207,8 @@ function paths(ledger) { return ledger.files.map(item => item.path); }
   const hits = original.split(guard).length - 1;
   check('变异命中调用点（盘符守卫存在且唯一）', hits === 1, 'hits=' + hits);
   fs.writeFileSync(mutant, original.replace(guard, 'if (!SCHEME.test(entry.evidenceRef)) {'));
-  write(good.map(entry => ({ ...entry, evidenceRef: driveForms[0] })));
+  // 用真正的盘符形态做变异输入：POSIX 的 /tmp 绝对路径不命中 scheme 正则，摘掉守卫也照旧验存在性，测不出变异。
+  write(good.map(entry => ({ ...entry, evidenceRef: driveForms[2] })));
   const mutRun = spawnSync(process.execPath, [mutant, '--repo', dir, '--since', WINDOW.since, '--until', WINDOW.until, '--records', recordsFile, '--check'], { encoding: 'utf8' });
   check('变异负对照：摘掉盘符守卫后同一伪登记又变满覆盖（判据能失败）',
     mutRun.status === 0 && /COVERAGE FULL/.test(mutRun.stdout) && /全量已覆盖/.test(mutRun.stdout), 'exit=' + mutRun.status);

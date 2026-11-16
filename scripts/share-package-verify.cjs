@@ -189,7 +189,7 @@ function verify(pkgDir, agentsPath) {
     const unsafe = entries.filter((e) => typeof e.source !== 'string' || !e.source.trim()
       || path.isAbsolute(e.source) || path.isAbsolute(normSep(e.source))
       || normSep(e.source).split('/').includes('..') || !insidePkg(e.source));
-    const absent = entries.filter((e) => !unsafe.includes(e) && !fs.existsSync(path.join(pkgDir, e.source)));
+    const absent = entries.filter((e) => !unsafe.includes(e) && !fs.existsSync(path.join(pkgDir, normSep(e.source))));
     if (unsafe.length || absent.length) {
       fails.push(`catalog 来源无效/缺失 ${unsafe.length + absent.length} 条: ` + [...unsafe, ...absent].slice(0, 5).map((e) => e.id || e.source).join(', '));
     } else if (entries.length > 0) passes.push(`catalog 来源存在 (${entries.length} 条)`);

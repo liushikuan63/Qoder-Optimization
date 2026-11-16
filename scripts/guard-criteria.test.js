@@ -80,9 +80,20 @@ check('C11 负对照 管道到 wc 仍放行', !hb(`cat "${BIG}" | wc -l`).blocke
 // ---- C12: isTempish semantics ----
 const egEnv = { EDIT_GUARD_STATE_DIR: path.join(SB, 'eg') };
 const mk = (dir, name) => { fs.mkdirSync(dir, { recursive: true }); const p = path.join(dir, name); fs.writeFileSync(p, 'x'.repeat(5000)); return p; };
-// edit-guard 的夹具必须放在**非临时根**下：os.tmpdir() 里的文件会被 isTempish 正确跳过，
-// 那样正对照根本不会触发（本项目已踩过两次）。
-const EG_BASE = path.join('D:/qoder-release-sandbox', 'qo-guard-criteria-' + process.pid);
+// edit-guard 的夹具必须放在**非临时根、且不在任何 git 仓内**的位置：临时根会被 isTempish 正确跳过，
+// 落在仓库里又会被 git 覆盖豁免跳过——两种情况下正对照都不会触发（本项目已踩过三次）。
+const outsideGit = (dir) => {
+  let cur = path.resolve(dir);
+  let topRepo = null;
+  for (;;) {
+    if (fs.existsSync(path.join(cur, '.git'))) topRepo = cur;
+    const up = path.dirname(cur);
+    if (up === cur) break;
+    cur = up;
+  }
+  return topRepo ? path.dirname(topRepo) : path.resolve(dir);
+};
+const EG_BASE = path.join(outsideGit(process.cwd()), 'qo-guard-criteria-' + process.pid);
 fs.rmSync(EG_BASE, { recursive: true, force: true });
 const plainDir = path.join(EG_BASE, 'plain');
 const tmpNamedDir = path.join(EG_BASE, 'proj', 'tmp');

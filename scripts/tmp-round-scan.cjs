@@ -185,10 +185,15 @@ function collectRegisteredEvidence(docRoots) {
       let text = ''
       try { text = fs.readFileSync(full, 'utf8') } catch (err) { scan.unreadableFiles.push({ path: full, error: why(err) }); continue }
       scan.mdFiles++
-      for (const m of text.matchAll(/[A-Za-z]:[\\/][^\s`'")\]，。；]+/g)) {
-        const raw = m[0].replace(/[.,;:]+$/, '')
-        found.add(raw.replace(/\\/g, '/').toLowerCase())
-        found.add(raw.toLowerCase())
+      // 登记路径既可能是 Windows 盘符绝对路径，也可能是 POSIX 绝对路径（/tmp/...、/home/...）。
+      // POSIX 分支要求前面不是单词字符/冒号/点/斜杠，避免把 URL 的路径段当成登记。
+      const pathPatterns = [/[A-Za-z]:[\\/][^\s`'")\]，。；]+/g, /(?<![\w:.\/-])\/[^\s`'")\]，。；]+/g];
+      for (const re of pathPatterns) {
+        for (const m of text.matchAll(re)) {
+          const raw = m[0].replace(/[.,;:]+$/, '')
+          found.add(raw.replace(/\\/g, '/').toLowerCase())
+          found.add(raw.toLowerCase())
+        }
       }
     }
   }
