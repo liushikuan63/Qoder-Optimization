@@ -20,6 +20,7 @@ During the 0.x line, minor versions may contain breaking changes.
 - 发布门修复：包内设计 token（形如 `--ly-h1-mega` 的 CSS 自定义属性名）曾被密钥扫描误判为凭据键值、阻断发布扫描；现明确 CSS 自定义属性名一律不按凭据处理，并在自测中加入 JSON 真密钥正/负对照，确保真密钥仍判红。
 
 - 跨平台验证补齐：修复 4 组只在 POSIX 失败的自测与判据——证据登记支持 POSIX 绝对路径、edit-guard 夹具移到任何 git 仓之外、包校验的来源存在性先归一化分隔符、盘符守卫变异对照改用真实盘符形态；Linux 容器与 Windows 全量回归均全绿。
+- 视觉成品最终检测项补强：`verify-ui-in-browser` 新增五项最终清单（真实运行、关键部位 1:1/2–4× 放大、审美 rubric、运行期行为矩阵、证据落盘），`verify-before-claim` 加交叉引用；把 `image-detail-inspect` 与 `impeccable` 从可选工具变成可失败验收判据。
 
 
 ### English Summary
@@ -34,6 +35,7 @@ During the 0.x line, minor versions may contain breaking changes.
 - Distribution gate fix: design tokens (`--ly-h1-mega`-style CSS custom property names) were misread as credential key-values and blocked the release scan; CSS custom property names are now excluded explicitly, with JSON fixtures proving a real-looking token still turns the scan red.
 
 - Cross-platform verification: four checks that only failed on POSIX are fixed — evidence registration now recognizes POSIX absolute paths, edit-guard fixtures live outside any git repository, package source existence checks normalize separators first, and the drive-letter guard mutation uses a real drive form; the full suite is green on both a Linux container and Windows.
+- Strengthen the visual delivery gate: `verify-ui-in-browser` now carries a five-item final checklist (real run, 1:1/2–4x detail crops, aesthetic rubric, runtime behavior matrix, evidence capture), and `verify-before-claim` cross-references it; `image-detail-inspect` and `impeccable` become fail-able acceptance criteria rather than optional tools.
 
 
 ### Contributors / 贡献者
