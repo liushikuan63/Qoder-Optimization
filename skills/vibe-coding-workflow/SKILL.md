@@ -107,6 +107,20 @@ node ~/.qoder/skills-library/vibe-coding-workflow/scripts/route-phase.js "改了
 node ~/.qoder/skills-library/vibe-coding-workflow/scripts/route-phase.js --selftest   # 自测路由表
 ```
 
+## 交付前：最终检测审计（③④ 完成后必跑）
+
+五阶段管「怎么把功能做出来」，**不管「整个产品能不能上生产」**。③ 的模块最小验证与 ④ 的调试记录全绿，只证明本轮改动按判据工作；越权读他人数据、租户串号、备份恢复没演练、密钥进日志、回滚不可用、值班没人签字，这些不在模块验证的覆盖里。
+
+所以交付 / 上线前固定加一道**最终检测审计**，调用 `production-readiness-audit`（不是第六个阶段，是 ③④ 的出口判据）：
+
+- **先判适用性**：按产品类型裁剪清单，不适用项写理由跳过；**不为凑清单加无用功能**。
+- **适用项只读取证据**：四态定性（`finding` / `pass` / `not-applicable` / `unverified`），查不到写「无法确认」并说明缺什么，不写「已检查，未发现问题」。
+- **前十问题按确定规则排**：严重度降序 → 风险类别（泄露 / 资金 / 中断）→ ID 升序，每条带文件 / 配置定位与建议修法。
+- **报告过校验器才算完成**：`node ~/.qoder/scripts/readiness-report-check.cjs "<报告路径>/readiness-report.json" --json`，exit 0 才放行；exit 1 按违约修报告（不是改校验器凑绿），exit 2 是清单 / 用法错（fail-closed，**不得当通过**）。
+- 审计**只读**、结论**不是实施授权**：整改逐项批准后回到 ③ / ④ 重跑验证。认证 / 支付 / 迁移 / 权限 / 并发仍需人工复核，责任归属见该技能 `../production-readiness-audit/references/human-ownership.md`（agent 做过 ≠ 有人负责）。
+
+细则与报告契约见 `vibecoding-doc` §8.1。小任务（改一行文案、单点修复）不套用本审计。
+
 ## 与别的技能衔接
 
 - 需求还只有感觉词（"酷 / 极简 / 硬核"）⇒ 先用 `vibecoding-doc` 固化成四层产物（AGENTS / spec / plan / tasks），再进①。
@@ -114,9 +128,11 @@ node ~/.qoder/skills-library/vibe-coding-workflow/scripts/route-phase.js --selft
 - 仓库有 `.qoder/repowiki/` ⇒ **先查 wiki 再动手**（技能 `write-repowiki`），别从 grep 冷启动。
 - 多个模块/跨端可同时开工时 ⇒ 先走 `parallel-orchestration` 判定并行与写入隔离，别在五阶段里私自并发写。
 - 任务跨多回合、容易半途跑偏 ⇒ 用 `goal-driven-execution` 设可失败判据并逐格落盘。
+- 交付 / 上线前的最终检测审计 ⇒ `production-readiness-audit`（清单式生产就绪审查 + 报告校验器）；本技能只负责在 ③④ 出口调用它，不代替它取证。
 
 ## 边界
 
 - **阶段门禁不是仪式**：①的准入没齐就进②，代价会在④集中还回来。
 - **小任务不套用**：改一行文案、单点修复走常规流程即可。五阶段是给"新建完整项目 / 跨多模块改造"这类任务的。
 - **不发明数字**：业务指标不编造；内部超时等实现参数可选合理默认值并注明，影响验收或安全的未知指标才待确认。
+- **最终检测审计不替代阶段准入**：①② 的准入没齐，审计只会把需求与架构缺口报成 finding；它也不替代人工复核与责任签字。

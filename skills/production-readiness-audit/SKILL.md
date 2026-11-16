@@ -9,6 +9,8 @@ description: 清单式生产就绪审查：先判每项是否适用本产品，�
 
 用户给来一份长清单（或指着本技能的 [147 条清单](references/checklist.md)），要求「按清单逐项检查我的产品，先别改代码」。目标是产出一份**诚实、完整、可核对**的审查报告：每条要么有证据，要么明说不适用或无法确认。
 
+**固定入口**：vibecoding 四层文档的**最终检测审计阶段**必须调用本技能——`vibecoding-doc` §8.1 与 `vibe-coding-workflow`「交付前：最终检测审计（③④ 完成后必跑）」都把它列为出口判据。理由：typecheck / lint / 单测 / 契约 / e2e 全绿只证明「本轮改动按判据工作」，不证明「整个产品能上生产」。此时被审查对象就是正在开发的产品仓库，报告仍默认落会话工作目录（审查只读），归档进项目 `docs/` 需写入授权。
+
 **不适用**：单个 diff 的评审（`open-code-review-delegate`）、方案/任务卡的反例审查（`counterexample-driven-plan-review`）、验证强度选档与证据纪律（`verify-before-claim`）、云端安全扫描（`security-scan`）。本技能也不负责整改。
 
 ## 0. 先核对授权与对象
@@ -82,3 +84,4 @@ node scripts/readiness-report-check.cjs <report.json> --json
 - 证据纪律与验证选档：`verify-before-claim`。
 - 独立对抗审查（推送前）：`open-code-review-delegate`、`ship-clean-pr`。
 - 方案与任务卡审查：`counterexample-driven-plan-review`。
+- 最终审计的上游入口：`vibecoding-doc` §8.1（四层文档验证闭环）、`vibe-coding-workflow`「交付前：最终检测审计」。

@@ -8,6 +8,7 @@ function dependenciesFor(root, entry) {
   const skillRuntime = {
     'skill:parallel-orchestration': ['script:parallel-context.cjs', 'script:parallel-plan.cjs', 'script:parallel-write.cjs'],
     'skill:concurrent-edit-attribution-check': ['script:backup-file.js'],
+    'skill:production-readiness-audit': ['script:readiness-report-check.cjs'],
     'skill:self-evolution': ['script:carrier-preflight.cjs'],
     'skill:skills-router': ['script:skill-load.cjs'],
     'skill:windows-powershell-from-gitbash': ['script:shell-boundary-probe.cjs'],

@@ -98,6 +98,7 @@ pnpm typecheck && pnpm build
 - [ ] UC1–UC4 手动走通
 - [ ] 并发提交同一时段：一个 201、一个 409 CONFLICT
 - [ ] 后端停掉时页面显示可重试 toast，不白屏
+- [ ] 最终检测审计：`production-readiness-audit` 报告经 `readiness-report-check.cjs` 校验 exit 0（不适用项已写理由，前十问题已处置或已批准延后）
 ````
 
 ## 3. 高配加档（仅 `强度: 大`；小项目不要抄）
@@ -135,11 +136,14 @@ pnpm typecheck && pnpm build
 ## 6. 验收标准
 ```bash
 pnpm typecheck && pnpm test && pnpm build
+node ~/.qoder/scripts/readiness-report-check.cjs "<报告路径>/readiness-report.json" --json
 ```
 - [ ] UC1–UC3 手动走通
 - [ ] 并发提交：一个 201、一个 409 CONFLICT
 - [ ] 非本人取消返回 403，且审计日志有记录
 - [ ] 空态 / 加载态 / 错误态 / 成功态各有一条截图
+- [ ] 最终检测审计：`production-readiness-audit` 覆盖全部清单 ID，报告校验 exit 0；前十问题按泄露 / 资金 / 中断排序，每条有文件定位与处置结论
+- [ ] 权限与审计日志项由人工复核签字（agent 做过 ≠ 有人负责）
 
 ## 7. 技术栈与依赖冻结
 - Vite / React / TypeScript / Tailwind / Zustand / date-fns（待定：执行者选当前 LTS 并回报，或现查后标注查询日期）

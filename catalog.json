@@ -1025,7 +1025,9 @@
     "mode": "copy-skill",
     "tier": "library"
    },
-   "dependencies": []
+   "dependencies": [
+    "script:readiness-report-check.cjs"
+   ]
   },
   {
    "id": "skill:proxy-rule-surgery",
