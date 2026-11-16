@@ -167,7 +167,7 @@ function metadataFor(root, options = {}) {
       if (!line.startsWith('| ' + originalVersion + ' |')) return [line];
       // 这两行是**本次发版**的编辑性摘要，生产者无法从代码推导，每次升版必须手工更新；
       // 留着上一版的文案会让 README 新版本行描述旧内容（四道包契约门禁抓不到这种漂移）。
-      const summary = row++ === 0 ? 'Evolution capture with user-decided carrier changes; continuity archive pruning; guard and package-verifier hardening' : '自进化采集与载体改动由用户拍板；接续档案自动清理；守卫与包校验器加固';
+      const summary = row++ === 0 ? 'Production readiness audit: a checklist-driven, evidence-backed review skill with its report checker, wired into the vibecoding delivery gate; incremental carrier conflict resolution; grill-style requirement interviews folded into clarification' : '生产就绪审计：清单驱动、证据可校验的审查技能与报告校验器，并接入 vibecoding 交付门；载体冲突增量消解；grill 式需求追问并入澄清体系';
       const url = 'https://github.com/liushikuan63/Qoder-Optimization/releases/';
       return [`| ${version} | ${date} | ${summary} | [zip](${url}download/v${version}/${name}-${version}.zip) · [notes](${url}tag/v${version}) |`, line];
     }).join('\n');
