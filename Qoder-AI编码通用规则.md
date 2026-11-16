@@ -3,7 +3,7 @@
 > 文档：Qoder AI 编码通用规则（可分享版）。
 > 版本：0.2.0；制作日期：2026-11-15。版本、计数与目录由公开包元数据同步；是否已发布以对应 Release 为准。
 > 内容：全局开发纪律 + 21 条领域 / 流程规则 + 可选能力目录。按使用者习惯取舍，不默认全装；材料不是授权来源。
-> 包内技能 136 个（5 常驻 + 131 按需），不等于接收者已安装数量；常驻数量由使用者按习惯在安装时与使用中决定。
+> 包内技能 138 个（5 常驻 + 133 按需），不等于接收者已安装数量；常驻数量由使用者按习惯在安装时与使用中决定。
 > 先读《Qoder-个人规则生成提示词.md》；catalog.json/INDEX.md 提供按需检索。任何权限、MCP、hook 接线变更仍按平台要求单独批准。
 
 ## 一、全局开发规则
@@ -668,7 +668,7 @@ glob: ["**/*.vue"]
 
 ## 三、推荐技能清单（按域速查）
 
-**其他**（52）：agent-client-network-triage、architecture-designer、async-python-patterns、audit-ci-cost-levers、awesome-design-md、byok-model-retry、cloudbase-wechat-integration、counterexample-driven-plan-review、deliver-prd、diagnose-github-actions-quota、diagnose-windows-webview2-blank-window、distinctive-design-systems、dsh-session-format-debug、encrypted-office-visual-inspection、frontend-design-ui-ux、frontend-development、game-designer-toolkit、game-numeric-design、global-config-smoke-runner、hid-device-protocol-probe、i-have-adhd、image-detail-inspect、injected-context-slimming、large-sqlite-text-extraction、merge-inbound-qoder-package、minigame-dev-pro、miniprogram-development、mongodb-atlas-stream-processing、mongodb-connection、mongodb-mcp-setup、mongodb-natural-language-querying、mongodb-query-optimizer、mongodb-schema-design、mongodb-search-and-ai、mysql、nextjs-app-router-patterns、oauth-login-failure-triage、open-code-review-delegate、parallel-orchestration、powershell-windows-display-interop、proxy-rule-surgery、react-modernization、safe-text-editing、senior-devops、setup-windows-selfhosted-runner、share-package-release、svg-scene-animation、systemd-java-service-centos7、tailwindcss-animations、typescript-pro、wechat-miniprogram-dev、write-repowiki
+**其他**（54）：agent-client-network-triage、architecture-designer、async-python-patterns、audit-ci-cost-levers、awesome-design-md、byok-model-retry、cloudbase-wechat-integration、counterexample-driven-plan-review、deliver-prd、design-taste-frontend、diagnose-github-actions-quota、diagnose-windows-webview2-blank-window、distinctive-design-systems、dsh-session-format-debug、encrypted-office-visual-inspection、frontend-design-ui-ux、frontend-development、game-designer-toolkit、game-numeric-design、global-config-smoke-runner、hid-device-protocol-probe、i-have-adhd、image-detail-inspect、impeccable、injected-context-slimming、large-sqlite-text-extraction、merge-inbound-qoder-package、minigame-dev-pro、miniprogram-development、mongodb-atlas-stream-processing、mongodb-connection、mongodb-mcp-setup、mongodb-natural-language-querying、mongodb-query-optimizer、mongodb-schema-design、mongodb-search-and-ai、mysql、nextjs-app-router-patterns、oauth-login-failure-triage、open-code-review-delegate、parallel-orchestration、powershell-windows-display-interop、proxy-rule-surgery、react-modernization、safe-text-editing、senior-devops、setup-windows-selfhosted-runner、share-package-release、svg-scene-animation、systemd-java-service-centos7、tailwindcss-animations、typescript-pro、wechat-miniprogram-dev、write-repowiki
 
 **规则与技能治理**（18）：concurrent-edit-attribution-check、continuation-state-audit、goal-driven-execution、mechanize-rule-into-hook-guard、memory-bank-divergence-repair、memory-entry-update、pause-writer-before-shared-file-edit、rules-conflict-audit、self-evolution、skill-authoring-closure、skill-description-route-cue-rewrite、skill-reference-integrity-audit、skill-tiering-lazy-load、skill-trim-with-capability-transfer、skills-router（常驻）、structured-edit-safety、vibe-coding-workflow、vibecoding-doc（常驻）
 

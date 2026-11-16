@@ -1,6 +1,6 @@
 # Qoder-Optimization - 0.2.0 技能清单
 
-共 136 个源码随包技能：常驻 5 / 按需 131。机器可读版见 skills-manifest.json 与 catalog.json。
+共 138 个源码随包技能：常驻 5 / 按需 133。机器可读版见 skills-manifest.json 与 catalog.json。
 
 默认按需选择安装，安装时按使用习惯询问是否常驻；层级默认值与依赖以 catalog 为准，最终常驻数量由使用者决定。
 
@@ -17,6 +17,7 @@
 - `continuation-state-audit`（按需）—— Audit continuation queues/goal files before resuming，claimed done vs real artifacts，detect stale items；也核对当前会话交付结论与原始验收逐项对账。Qoder 异常会话恢复（定位会话、最小窗口读取、单次结构化恢复消息、终态回调＝成功判据）。触发：接续/继续上次/看队列/核对上次完成状态/上次说做完了但没生效/交付结论复核/原始验收对账/会话恢复/异常会话。Not for goal tracking/checkpoint writes（→goal-driven-execution）。
 - `counterexample-driven-plan-review`（按需）—— 反例驱动的只读方案审查。触发词：审方案、任务卡、判据反证、关键词假通过、同源证据冒充复核、固定轮数冒充收敛、计划被当成实施授权。用零写入纯函数探针构造正负反例，核对命令适用性、依赖闭包与验收层级，输出收敛后的任务卡。不用于代码实现或正式验收（verify-before-claim）。
 - `deliver-prd`（按需）—— 产品需求文档（PRD）：目标、范围、用户故事、验收标准与干系人对齐。触发词：PRD、产品需求文档、需求规格、验收标准、干系人对齐、功能立项。不用于：AI 实施四件套 → vibecoding-doc。
+- `design-taste-frontend`（按需）—— 反 AI 味的建站审美技能（tasteskill 2.5）：按行业定调落地页/公司站/产品站，真实照片与产品 UI、统一设计系统、等边布局、入场与微交互，并以真实浏览器 checker 与 finish gate 验收；可评审、重构与打磨现有页面。适用 SaaS、AI、游戏、硬件、门店与服务机构站点；不用于后台管理系统或纯逻辑任务。
 - `desktop-update-push-triage`（按需）—— Windows 客户端（electron-updater + NSIS）更新失败分层取证：读状态文件 lastError 与日志状态机，按 checking→downloading→installing 分段；下载失败查缓存目录符号链接/junction 拦截，安装失败走 NSIS 静默重装（/S，spawn 必 EACCES）；版本三处一致收口。触发词：收不到更新推送、更新不生效、自动更新失败、junction 更新、electron-updater、NSIS 静默重装；不用于：edge-net-check、disk-junction-migration。
 - `diagnose-github-actions-quota`（按需）—— GitHub Actions 无job、零步骤、日志缺失、runner排队或账户限制疑点的只读取证。按实际run、attempt、job、step、annotations与可比成功运行区分原因；短时失败或404不直接判配额。成本优化另用audit-ci-cost-levers。
 - `diagnose-windows-webview2-blank-window`（按需）—— 诊断 Windows WebView2 壳应用白屏、无限转圈或卡在那正在登录（new Outlook olk.exe 与 Microsoft.OutlookForWindows、Edge 系 AppX、任何持有 EBWebView user-data-dir 的应用）。先抓真实窗口把渲染空白与登录流程停滞分开，再按 --user-data-dir 与父进程归属 msedgewebview2、读应用自己的日志，最后用被代理与直连对照证明或否证 WinINET 系统代理继承。用于桌面 WebView2 应用什么都不显示或登录不完。普通浏览器标签打不开网页用 /edge-net-check。
@@ -37,6 +38,7 @@
 - `hid-device-protocol-probe`（按需）—— Windows 上不用厂商软件、从 PowerShell 探 USB HID 收发通路——用 SetupAPI 加 HidP_GetCaps 枚举每个 collection 的 UsagePage 与 Usage 及报告长度找厂商命令通道；用 joyGetPosEx 证明手柄真的在；读写各放可取消工作线程；发只读查询帧按回复直方图区分发不出去与设备答了但客户端收不到。用于手柄、2.4G 接收器、外设配置工具卡在同步转圈且不报错，或 HID P-Invoke 读数离谱如 CreateFile err=123、ReadFile err=87、探针睡死。
 - `i-have-adhd`（按需）—— 仅限"无需深度思考 / 无复杂步骤 / 非强逻辑性"的小型任务调用（复杂任务不要调用）。Shape output for a reader with ADHD：lead with the next action, number multi-step work, restate state across turns, suppress tangents, give specific time estimates, make wins visible. Invoke with /i-have-adhd; stays on until "stop adhd mode".
 - `image-detail-inspect`（按需）—— 图像细节增强读取：大图先被降采样导致小字/小目标读不出时，用网格总览定位→按 bbox 裁剪放大→逐块读→按源坐标拼回整图。Pillow 零依赖，单块压到 1.5MB 内避开 Read 守卫；坐标往返与可读性 A/B 有自测。触发词：看不清、精确识图、识别不准、小字、放大图片、读细节、裁剪放大、图像细读、拼细节、imgdetail。不用于生成图验收→image-result-visual-verify；加密文档→encrypted-office-visual-inspection；SPA 截图→headless-spa-screenshot。
+- `impeccable`（按需）—— 前端界面设计评审与打磨：critique 评分式 UX 评审、audit 可访问性/性能/响应式检查、polish 交付前打磨、bolder/quieter/distill 调强弱、typeset/colorize/layout/animate 排版配色动效、harden/adapt/clarify 边界与文案；含 62 条确定性 AI-slop 检测与真实浏览器验证。用于落地页、仪表盘、组件、表单、设置、空状态与 iOS/Android 界面；不用于纯后端任务。
 - `injected-context-slimming`（按需）—— 每轮注入文件（AGENTS.md / MEMORY.md / 索引领航类长文）的无损瘦身流水线：先量化再动手 → 备份 → 只压叙述不删判据 → 覆盖断言逐条证明没丢 → 双侧同写验收。触发词：阅读压力、上下文太大、AGENTS 太长、MEMORY 超行、规则文件瘦身、压缩规则、注入体积、降 token、超红线转索引。不用于：技能描述瘦身（→skill-description-route-cue-rewrite）、技能降量（→skill-trim-with-capability-transfer）、两侧记忆不一致（→memory-bank-divergence-repair）。
 - `java-architect`（按需）—— Use when building, configuring, or debugging enterprise Java applications with Spring Boot 3.x, microservices, or reactive programming。中文触发：Java 架构、Spring Boot 分层、模块边界、接口设计、JVM 组件。分工：本技能管架构取向与疑难排查，Spring 脚手架与端点实现走 springboot-patterns。
 - `java-quality`（按需）—— Java code quality：Checkstyle, SpotBugs, PMD, SonarJava — static analysis, code style, best practices. Use for Java/Spring Boot/Maven/Gradle projects asking about Checkstyle, SpotBugs, PMD, Java code smells, or Java best practices. Not for SonarQube server administration.

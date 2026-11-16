@@ -35,6 +35,8 @@ This is a DESIGN-SPEC skill, not an implementation skill. Non-negotiable rules:
 7. Keep the rigor that sets us apart: state coverage, flows/edge cases, and accessibility — never skip them.
 </EXTREMELY-IMPORTANT>
 
+配套评审与打磨（不改变本技能「只产出规范、不写 UI 代码」的边界）：界面级评审与检测走 `impeccable`（critique/audit + 62 条确定性 slop 规则）；整页建站审美与真实浏览器收尾门走 `design-taste-frontend`。
+
 # frontend-design-ui-ux
 
 ## Inputs

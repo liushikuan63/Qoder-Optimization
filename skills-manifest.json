@@ -59,6 +59,11 @@
    "files": 4
   },
   {
+   "name": "design-taste-frontend",
+   "tier": "library",
+   "files": 1631
+  },
+  {
    "name": "desktop-update-push-triage",
    "tier": "library",
    "files": 2
@@ -157,6 +162,11 @@
    "name": "image-detail-inspect",
    "tier": "library",
    "files": 6
+  },
+  {
+   "name": "impeccable",
+   "tier": "library",
+   "files": 63
   },
   {
    "name": "injected-context-slimming",

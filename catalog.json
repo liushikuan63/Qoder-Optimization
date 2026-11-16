@@ -7,7 +7,7 @@
  "generated": "2026-11-15",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
-  "skill": 136,
+  "skill": 138,
   "script": 178,
   "command": 12,
   "agent": 2
@@ -167,6 +167,20 @@
     "tier": "library"
    },
    "source": "skills/deliver-prd",
+   "dependencies": []
+  },
+  {
+   "id": "skill:design-taste-frontend",
+   "category": "skill",
+   "name": "design-taste-frontend",
+   "status": "shipped",
+   "tier": "library",
+   "description": "反 AI 味的建站审美技能（tasteskill 2.5）：按行业定调落地页/公司站/产品站，真实照片与产品 UI、统一设计系统、等边布局、入场与微交互，并以真实浏览器 checker 与 finish gate 验收；可评审、重构与打磨现有页面。适用 SaaS、AI、游戏、硬件、门店与服务机构站点；不用于后台管理系统或纯逻辑任务。",
+   "source": "skills/design-taste-frontend",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
    "dependencies": []
   },
   {
@@ -443,6 +457,20 @@
    "tier": "library",
    "description": "图像细节增强读取：大图先被降采样导致小字/小目标读不出时，用网格总览定位→按 bbox 裁剪放大→逐块读→按源坐标拼回整图。Pillow 零依赖，单块压到 1.5MB 内避开 Read 守卫；坐标往返与可读性 A/B 有自测。触发词：看不清、精确识图、识别不准、小字、放大图片、读细节、裁剪放大、图像细读、拼细节、imgdetail。不用于生成图验收→image-result-visual-verify；加密文档→encrypted-office-visual-inspection；SPA 截图→headless-spa-screenshot。",
    "source": "skills/image-detail-inspect",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "dependencies": []
+  },
+  {
+   "id": "skill:impeccable",
+   "category": "skill",
+   "name": "impeccable",
+   "status": "shipped",
+   "tier": "library",
+   "description": "前端界面设计评审与打磨：critique 评分式 UX 评审、audit 可访问性/性能/响应式检查、polish 交付前打磨、bolder/quieter/distill 调强弱、typeset/colorize/layout/animate 排版配色动效、harden/adapt/clarify 边界与文案；含 62 条确定性 AI-slop 检测与真实浏览器验证。用于落地页、仪表盘、组件、表单、设置、空状态与 iOS/Android 界面；不用于纯后端任务。",
+   "source": "skills/impeccable",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
