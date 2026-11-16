@@ -75,20 +75,29 @@ function checkDocInventory(docText, catalog) {
 }
 
 // ---------- N2 本批新增/修改载体正文里的机器专属标识 ----------
-// 只扫本批改动件：存量 Windows 域技能里的盘符路径是正当主题内容，一刀切会误伤。
-function machineIdPatterns(homeDir) {
+// 批处理模式只扫本批改动件：存量 Windows 域技能里的盘符路径是正当主题内容，一刀切会误伤。
+// wholeTree（发布包整体门）放行 bare 机器临时根——D:/tmp 是 AGENTS.md 的 documented 约定示例，
+// 会话专属子目录仍由「会话ID后缀任务目录」抓；用户专属根（数据根/仓库 checkout）两种模式都拦。
+function machineIdPatterns(homeDir, opts = {}) {
+  const wholeTree = !!opts.wholeTree;
   const userName = path.basename(String(homeDir || '')).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const pats = [
     ['真实家目录', userName ? new RegExp('[A-Za-z]:[\\\\/]{1,2}Users[\\\\/]{1,2}' + userName + '\\b', 'gi') : null],
-    ['会话ID后缀任务目录', /\b(?:qo|tmp|evo|merge|evolution)[a-z0-9]*(?:-[a-z0-9]+)*-[0-9a-f]{8}\b/gi],
+    // 路径上下文里的会话任务目录：<分隔符><词>-…-<8位hex>。比旧前缀表宽，能抓 context-continuity-<hex> 等；
+    // 要求前置路径分隔符，避免散文里普通连字符词误伤；(?![0-9a-f]) 钉死恰好 8 位。
+    ['会话ID后缀任务目录', /[\\/][a-z][a-z0-9]*(?:-[a-z0-9]+)*-[0-9a-f]{8}(?![0-9a-f])/gi],
     ['内部任务ID', /\bQO-[A-Z][A-Z0-9]*-\d{6,8}\b/g],
-    ['机器临时根', /\b[A-Za-z]:[\\/]tmp[\\/]/g],
+    // 用户数据根（如 D:/UserData/.qoder*）：分享包应写 <client-root>/<data-root>，不是本机绝对路径。
+    ['用户数据根', /\b[A-Za-z]:[\\/]UserData[\\/]/g],
+    // 本机仓库 checkout（X:/…/GitHub/<repo>）：分享包应写 <repo-root>。
+    ['本机仓库路径', /\b[A-Za-z]:[\\/][^\s"'`<>|]*[\\/]GitHub[\\/][A-Za-z0-9_.-]+/g],
+    wholeTree ? null : ['机器临时根', /\b[A-Za-z]:[\\/]tmp[\\/]/g],
   ];
-  return pats.filter(([, re]) => re);
+  return pats.filter(p => p && p[1]);
 }
-function checkMachineIds(files, homeDir) {
+function checkMachineIds(files, homeDir, opts = {}) {
   const violations = [];
-  const pats = machineIdPatterns(homeDir);
+  const pats = machineIdPatterns(homeDir, opts);
   let scanned = 0;
   for (const { rel, text } of files) {
     scanned++;
@@ -203,6 +212,27 @@ function batchCarrierDocs(root, base) {
   return out;
 }
 
+// 全树载体文档（发布包整体门用）：文件系统遍历，不依赖 git——发布包是解包产物，无 .git。
+function allCarrierDocs(root) {
+  const out = [];
+  const walk = (dir, depth) => {
+    if (depth > 8) return;
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (e.name === 'node_modules' || e.name === '.git' || e.name === 'backups') continue;
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) walk(full, depth + 1);
+      else if (/\.md$/i.test(e.name)) {
+        const rel = path.relative(root, full).split(path.sep).join('/');
+        if (CARRIER_DOC.test(rel)) out.push({ rel, text: fs.readFileSync(full, 'utf8') });
+      }
+    }
+  };
+  for (const sub of ['skills', 'commands', 'agents', 'rules']) walk(path.join(root, sub), 0);
+  return out;
+}
+
 function run(root, opts = {}) {
   const readJson = f => JSON.parse(fs.readFileSync(path.join(root, f), 'utf8'));
   const catalog = readJson('catalog.json');
@@ -266,6 +296,30 @@ function selftest() {
   t('N2 负对照 机器临时根判红', !checkMachineIds([{ rel: 'a.md', text: '产物在 Z:/tmp/foo/bar.log' }], home).ok);
   t('N2 正例 Windows 域正当盘符不误伤', checkMachineIds([{ rel: 'a.md', text: '系统盘 C:/Windows/System32 与程序目录 C:/Program Files' }], home).ok);
   t('N2 正例 空清单判绿但计数为0', checkMachineIds([], home).readings.scanned === 0);
+  // 新增模式（用户数据根 / 本机仓库 checkout / 宽会话目录）+ 全树模式放行 bare 临时根。负对照一律合成 Z: 盘。
+  t('N2 负对照 用户数据根判红', !checkMachineIds([{ rel: 'a.md', text: 'junction 到 Z:/UserData/.qoder/skills' }], home).ok);
+  t('N2 正例 数据根占位判绿', checkMachineIds([{ rel: 'a.md', text: 'junction 到 <data-root>/.qoder/skills' }], home).ok);
+  t('N2 负对照 本机仓库checkout判红', !checkMachineIds([{ rel: 'a.md', text: '仓库 Z:/Java/GitHub/demo-repo（main）' }], home).ok);
+  t('N2 正例 仓库占位判绿', checkMachineIds([{ rel: 'a.md', text: '仓库 <repo-root>（main）' }], home).ok);
+  t('N2 负对照 宽会话目录(context前缀)判红', !checkMachineIds([{ rel: 'a.md', text: '证据 <tmp-root>/context-continuity-0badc0de/x.cjs' }], home).ok);
+  t('N2 全树 放行bare临时根约定', checkMachineIds([{ rel: 'a.md', text: '产物在 Z:/tmp/foo.log，按本机习惯替换' }], home, { wholeTree: true }).ok);
+  t('N2 批处理 bare临时根仍判红', !checkMachineIds([{ rel: 'a.md', text: '产物在 Z:/tmp/foo.log' }], home, { wholeTree: false }).ok);
+  t('N2 全树 仍抓会话专属子目录', !checkMachineIds([{ rel: 'a.md', text: '证据 Z:/tmp/qo-demo-0badc0de/x.cjs' }], home, { wholeTree: true }).ok);
+  t('N2 全树 用户数据根仍判红', !checkMachineIds([{ rel: 'a.md', text: 'Z:/UserData/.qoder/skills' }], home, { wholeTree: true }).ok);
+  // allCarrierDocs：文件系统遍历收载体文档、滤非载体与垃圾目录（发布包无 git）。
+  const fakeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'carrier-all-'));
+  try {
+    fs.mkdirSync(path.join(fakeRoot, 'skills/alpha/references'), { recursive: true });
+    fs.mkdirSync(path.join(fakeRoot, 'skills/alpha/node_modules'), { recursive: true });
+    fs.mkdirSync(path.join(fakeRoot, 'commands'), { recursive: true });
+    fs.writeFileSync(path.join(fakeRoot, 'skills/alpha/SKILL.md'), 'x');
+    fs.writeFileSync(path.join(fakeRoot, 'skills/alpha/references/r.md'), 'x');
+    fs.writeFileSync(path.join(fakeRoot, 'skills/alpha/notes.md'), 'x'); // 非 CARRIER_DOC（技能根杂项）
+    fs.writeFileSync(path.join(fakeRoot, 'skills/alpha/node_modules/n.md'), 'x'); // 垃圾目录跳过
+    fs.writeFileSync(path.join(fakeRoot, 'commands/c.md'), 'x');
+    const got = allCarrierDocs(fakeRoot).map(f => f.rel).sort();
+    t('allCarrierDocs 收SKILL/references/commands滤杂项', JSON.stringify(got) === JSON.stringify(['commands/c.md', 'skills/alpha/SKILL.md', 'skills/alpha/references/r.md']), got.join(','));
+  } finally { fs.rmSync(fakeRoot, { recursive: true, force: true }); }
 
   // N3
   const chgOk = '# Changelog\n\n## [Unreleased]\n\n## [0.1.7] - 2026-11-14\n\n正文\n\n## [0.1.6] - 2026-11-13\n\n正文\n\n[0.1.7]: https://example/0.1.7\n[0.1.6]: https://example/0.1.6\n';
@@ -318,7 +372,7 @@ function selftest() {
 }
 
 function main(argv) {
-  const known = new Set(['--root', '--base', '--json', '--selftest']);
+  const known = new Set(['--root', '--base', '--json', '--selftest', '--machine-ids', '--scan-all']);
   let root = path.join(__dirname, '..');
   let base = '';
   for (let i = 0; i < argv.length; i++) {
@@ -330,6 +384,21 @@ function main(argv) {
     }
   }
   if (argv.includes('--selftest')) return selftest();
+  // 独立机器标识门：供发布 CI 对解包产物整体扫描（--scan-all，无 git 依赖），不要求 catalog.json。
+  if (argv.includes('--machine-ids')) {
+    const scanAll = argv.includes('--scan-all');
+    if (!scanAll && !base) {
+      const r = git(root, ['rev-parse', '--verify', 'origin/main']);
+      if (r) base = 'origin/main';
+    }
+    const files = scanAll ? allCarrierDocs(root) : batchCarrierDocs(root, base);
+    const res = checkMachineIds(files, os.homedir(), { wholeTree: scanAll });
+    if (argv.includes('--json')) { console.log(JSON.stringify({ ok: res.ok, scanAll, violations: res.violations, readings: res.readings }, null, 1)); return res.ok ? 0 : 1; }
+    console.log(`${res.ok ? 'GREEN' : 'RED  '} N2 机器专属标识（${scanAll ? '全树' : '本批'}，scanned=${res.readings.scanned}）`);
+    for (const v of res.violations) console.log('      违约 ' + v);
+    console.log(res.ok ? 'VERDICT=MACHINE_IDS_GREEN' : 'VERDICT=MACHINE_IDS_RED');
+    return res.ok ? 0 : 1;
+  }
   if (!fs.existsSync(path.join(root, 'catalog.json'))) { console.error('不是分享包仓库根（缺 catalog.json）：' + root); return 2; }
   if (!base) {
     const r = git(root, ['rev-parse', '--verify', 'origin/main']);
@@ -347,5 +416,5 @@ function main(argv) {
   return result.ok ? 0 : 1;
 }
 
-module.exports = { checkDocInventory, checkMachineIds, checkVersionSync, checkHookWiring, checkTrackedJunk, checkDescriptions, machineIdPatterns, run, selftest, CARRIER_DOC, JUNK };
+module.exports = { checkDocInventory, checkMachineIds, checkVersionSync, checkHookWiring, checkTrackedJunk, checkDescriptions, machineIdPatterns, allCarrierDocs, run, selftest, CARRIER_DOC, JUNK };
 if (require.main === module) process.exitCode = main(process.argv.slice(2));

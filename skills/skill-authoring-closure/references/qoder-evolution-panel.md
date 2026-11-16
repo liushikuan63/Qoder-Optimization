@@ -3,12 +3,12 @@
 ## 建议存在哪
 
 - 面板来自 Qoder Desktop 应用侧，完整建议文本存在 `<数据目录>\main.sqlite`（本机约 811MB），**不在** `~/.qoder/evolution/`（那是 self-evolution 技能的本地台账）。
-- 数据目录真实路径见 `~/.qoder/desktop/storage/stable/location.v1.json`；本机为 `D:\qoder-data\appdata-roaming\com.qoder.app.stable`。
+- 数据目录真实路径见 `~/.qoder/desktop/storage/stable/location.v1.json`；本机为 `<数据目录>`（非系统盘 appdata-roaming 下的 `com.qoder.app.stable`）。
 - 记录格式：`<建议名>create<完整描述>`；同一建议可能在索引表、记录体、会话 payload 里各出现一次。
 
 ## 不生成建议的头号原因：skills 目录是 junction（2026-10-24 实测）
 
-- 非 CN 客户端：`~/.qoder/skills` 是 junction → `D:\UserData\.qoder\skills` 时，CLI 审核帧已返回 `status:"suggested"` + 合法建议，桌面端仍只写 `skill_evolution_attempts`，`skill_evolution_suggestions` 永远 0 行，日志无任何记录。
+- 非 CN 客户端：`~/.qoder/skills` 是 junction → `<data-root>/.qoder/skills`（非系统盘实体目录）时，CLI 审核帧已返回 `status:"suggested"` + 合法建议，桌面端仍只写 `skill_evolution_attempts`，`skill_evolution_suggestions` 永远 0 行，日志无任何记录。
 - 把 `skills` 换成**同内容 C 盘实体目录**后，同一条建议立即落库（`realpath-probe` pending 0.9）。⇒ **非 CN 的 `~/.qoder/skills` 必须保持实体目录**。
 - junction 不影响 CLI 读取技能（`skill_listing` 仍列出 53 个），失败点在桌面端落库前的路径校验。
 - 同一次审核里的 **update 建议仍会被桌面端丢弃**（只有 create 落库），原因未查。
