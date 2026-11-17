@@ -26,6 +26,7 @@ description: "前台真实运行验收：网页/客户端/小程序/小游戏/Ap
 - 改用 `evaluate_script` 驱动页面：交互用**原生 setter + dispatchEvent** 触发 React onChange。
 - 注意 `textarea` 与 `input` 的 setter 不同；`Illegal invocation` 通常是 prototype setter 用错，或对 `querySelectorAll` 返回的 NodeList 直接调方法。
 - 点击开关、断言 DOM 文案与持久化状态都可以用脚本完成。
+- 同一页面 `evaluate_script` 连续报 `Inspected target navigated or closed` 时**不要试第三次**：执行上下文已被 iframe 导航销毁；改 `take_snapshot` 取证，或直接导航到目标页 / 用同源 iframe harness 做断言。
 - 截图拿不到就明确说明"以 DOM 断言代替视觉检查"，**不要谎报看到了界面**。
 
 ## 三、视口尺寸限制
