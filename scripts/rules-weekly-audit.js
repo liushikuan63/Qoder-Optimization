@@ -273,6 +273,19 @@ function checkSoundness() {
     }
   }
 
+  // 2d-quater. Stop 顺序约束：evolution-capture 必须先于 stop-gate（自进化建议先于清理 R14/R15）。
+  // 接反时首个 Stop 门禁先跑，R19 看不到本轮新候选，清理先触发、建议被拖到清理之后。
+  // entries 按接线顺序展开，下标即顺序；只判两脚本都在的一侧（漏挂由 2c/2d 报，不重复）。
+  for (const [label, byEv] of Object.entries(hookCmds)) {
+    const stopEntries = byEv.Stop || [];
+    const ci = stopEntries.findIndex(e => e.name === 'evolution-capture.cjs');
+    const gi = stopEntries.findIndex(e => e.name === 'stop-gate.js');
+    if (ci >= 0 && gi >= 0 && gi < ci) {
+      add('warn', '健全性', `${label} Stop 接线顺序颠倒：stop-gate.js 在 evolution-capture.cjs 之前`,
+        '把 evolution-capture.cjs 挪到 stop-gate.js 之前（见 hooks/README-hooks.md「Stop 顺序约束」），否则自进化建议被拖到清理之后');
+    }
+  }
+
   // 2d-ter. hook 指向的脚本必须真实存在——接线在、事件对、两侧一致，唯独路径是另一台机器的
   // 用户目录（2026-10-06 实测事故：CN 重装后 hook 指向不存在的脚本；hook 失败是 fail-open
   // ⇒ 台账零行，前面几道检查全都看不见）。必须单独查路径存在性。

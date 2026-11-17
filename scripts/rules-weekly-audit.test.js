@@ -338,6 +338,44 @@ const cases = [
     want: 0,
     expect: /^((?!两侧接线不一致)[\s\S])*$/,
   },
+  // ── Stop 顺序约束（2026-11-17：自进化沉淀必须先于清理；采集在门禁后 ⇒ R19 看不到本轮候选）──
+  {
+    name: 'V41 Stop 接反（gate 在 capture 前）→ 报"顺序颠倒"',
+    plant: () => {
+      w(path.join(H, 'scripts', 'evolution-capture.cjs'), '// stub: 自进化采集\n');
+      const gate = path.join(H, 'scripts', 'stop-gate.js');
+      const capture = path.join(H, 'scripts', 'evolution-capture.cjs');
+      for (const side of [H, C]) {
+        const p = path.join(side, 'settings.json');
+        const c = JSON.parse(fs.readFileSync(p, 'utf8'));
+        c.hooks.Stop = [{ hooks: [
+          { type: 'command', command: 'node ' + gate, timeout: 15 },
+          { type: 'command', command: 'node ' + capture, timeout: 20 },
+        ] }];
+        fs.writeFileSync(p, JSON.stringify(c, null, 2));
+      }
+    },
+    expect: /Stop 接线顺序颠倒[\s\S]{0,120}stop-gate\.js 在 evolution-capture\.cjs 之前/,
+  },
+  {
+    name: 'V41b Stop 顺序正确（capture 在 gate 前）→ 零告警（可失败对照）',
+    plant: () => {
+      w(path.join(H, 'scripts', 'evolution-capture.cjs'), '// stub: 自进化采集\n');
+      const gate = path.join(H, 'scripts', 'stop-gate.js');
+      const capture = path.join(H, 'scripts', 'evolution-capture.cjs');
+      for (const side of [H, C]) {
+        const p = path.join(side, 'settings.json');
+        const c = JSON.parse(fs.readFileSync(p, 'utf8'));
+        c.hooks.Stop = [{ hooks: [
+          { type: 'command', command: 'node ' + capture, timeout: 20 },
+          { type: 'command', command: 'node ' + gate, timeout: 15 },
+        ] }];
+        fs.writeFileSync(p, JSON.stringify(c, null, 2));
+      }
+    },
+    want: 0,
+    expect: /^((?!Stop 接线顺序颠倒)[\s\S])*$/,
+  },
 ];
 
 for (const c of cases) {

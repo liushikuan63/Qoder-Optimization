@@ -12,8 +12,11 @@ const localHookTimeout = (value, shipped) => Number.isInteger(value) && value >=
 const HOOKS = [
   ['UserPromptSubmit', 'session-budget.js', 10],
   ['UserPromptSubmit', 'fact-ledger.cjs', 10, undefined, ['--hook']],
-  ['Stop', 'stop-gate.js', 15],
+  // Stop 顺序约束：采集必须先于门禁（新接线按本表顺序 push）。evolution-capture 先把本轮够格
+  // 候选写进 pending，stop-gate 的 R19 才能在清理门禁 R14/R15 之前弹出自进化建议；
+  // 接反则首个 Stop 门禁先跑、看不到本轮候选，清理先触发。模板 hooks.example.json 同序。
   ['Stop', 'evolution-capture.cjs', 20],
+  ['Stop', 'stop-gate.js', 15],
   ['SessionStart', 'global-config-guard.js', 15],
   ['SessionStart', 'session-budget.js', 10],
   ['PreToolUse', 'edit-guard.js', 10],

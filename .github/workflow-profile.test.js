@@ -55,7 +55,9 @@ test('clean complete installation owns 18 exec hooks, 12 usable core entries and
   const second = f.install(); assert.equal(second.ready, true);
   assert.ok(fs.readFileSync(path.join(f.client, 'settings.json')).equals(settings));
   assert.equal(f.hooks().length, 18);
-  const stop = f.hooks().filter(item => item.event === 'Stop').map(item => JSON.parse(Buffer.from(item.hook.args[1], 'base64url').toString()).script).sort();
+  // Stop 顺序约束：采集必须先于门禁（自进化建议先于清理 R14/R15）。按落盘真实顺序断言，
+  // 不 sort——HOOKS 表把 stop-gate 排回前面时本条必须红（可失败负对照）。
+  const stop = f.hooks().filter(item => item.event === 'Stop').map(item => JSON.parse(Buffer.from(item.hook.args[1], 'base64url').toString()).script);
   assert.deepEqual(stop, ['evolution-capture.cjs', 'stop-gate.js']);
 });
 test('installed async fact hook reads payload cwd and never the launcher cwd', t => {

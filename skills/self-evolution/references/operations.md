@@ -132,7 +132,7 @@ node ~/.qoder/scripts/evolution-capture.cjs --report            # 只读汇总�
 cat ~/.qoder/evolution/control.json                             # enabled=false 即用户已暂停（正常）
 ```
 
-- `sources.inbox.status=missing` 或 `records=0`：先核对两侧 `settings.json` 的 Stop 组是否同时含 `stop-gate.js` 与 `evolution-capture.cjs`，再看心跳；只取证汇报，不静默补接线。
+- `sources.inbox.status=missing` 或 `records=0`：先核对两侧 `settings.json` 的 Stop 组是否同时含 `stop-gate.js` 与 `evolution-capture.cjs`、且 **capture 接在 gate 之前**（接反时 R19 看不到本轮候选，建议被拖到清理之后；周检会报"Stop 接线顺序颠倒"），再看心跳；只取证汇报，不静默补接线。
 - `control.json` 的 `enabled` 非布尔＝配置非法，停下报告，**不重置、不改写**。
 - 采集 hook 永远 `exit 0`（fail-open），不替代平台权限，也不会因为采集失败挡住收尾。
 - 心跳里的 `pending=N` 表示本轮生成了 N 条待弹建议；`ASKED … pending=cleared` 表示本轮已就建议弹窗、状态已消费。只有 `CAPTURE … pending=0` 而用户抱怨"没弹窗"时，先看是不是重复证据、经验族、已拒绝主题或单次能力缺口（都不够格）。

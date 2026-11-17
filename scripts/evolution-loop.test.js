@@ -179,6 +179,22 @@ else {
   check('⑦ 未改动副本仍拦（harness 负对照）', clean.decision === 'block' && !!readJson(PENDING), clean.decision);
 }
 
+// ⑧ 接线模板顺序约束：Stop 组里 capture 必须先于 gate（自进化建议先于清理 R14/R15）。
+// 判据对交换顺序的模板必须判 false（可失败负对照），防止断言恒绿。
+const stopOrderOk = cfg => {
+  const cmds = ((cfg && cfg.hooks && cfg.hooks.Stop) || []).flatMap(g => (g.hooks || []).map(h => String(h.command || '')));
+  const ci = cmds.findIndex(c => c.includes('evolution-capture.cjs'));
+  const gi = cmds.findIndex(c => c.includes('stop-gate.js'));
+  return ci >= 0 && gi >= 0 && ci < gi;
+};
+const templateCfg = readJson(path.join(__dirname, '..', 'hooks', 'hooks.example.json'));
+check('⑧ 模板 Stop 顺序：capture 先于 gate', !!templateCfg && stopOrderOk(templateCfg));
+if (templateCfg) {
+  const swapped = JSON.parse(JSON.stringify(templateCfg));
+  swapped.hooks.Stop.reverse();
+  check('⑧ 交换顺序的模板必判 false（负对照）', stopOrderOk(swapped) === false);
+}
+
 fs.rmSync(SB, { recursive: true, force: true });
 console.log(`\n${fail === 0 ? 'ALL PASS' : 'FAILED'}  fail=${fail}`);
 process.exit(fail === 0 ? 0 : 1);

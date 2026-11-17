@@ -50,14 +50,14 @@ node ~/.qoder/scripts/tool-payload-guard.test.js # 7 条：超阈值出声 / 同
 node ~/.qoder/scripts/disk-sweeper.test.js      # 47 条（水位三档 + 一档按年龄删对 + 硬否决 survives --apply + 归档→manifest→回取→purge 闭环 + **三档未点名不删 / 缺 --apply 拒绝 / 未知 id 退 2 / 只删超限文件不删目录**）。`--simulate-free` 驱动水位，不需要真把盘填满
 node ~/.qoder/scripts/disk-sweeper.js            # 只列清单：一档可清数 / 三档按 id 的体积 / 二档只报 / 建议归档盘；退 1＝该弹窗了
 node ~/.qoder/scripts/edit-guard.test.js        # 19 组（沙箱 HOME）：该提醒的备份/载体预检 + 不该提醒的多类（git 内/小文件/临时路径/备份文件/普通新建/Edit/开关）+ fail-open + 台账
-node ~/.qoder/scripts/rules-weekly-audit.test.js # 22 组（沙箱 HOME）：基线零告警 + **单端（无 ~/.qoder-cn）也必须零告警** + 悬空引用/frontmatter/冲突回归/放宽纪律/hook 缺失/**单边接线**/心跳过期/篇幅/**机制掉了**/耗时超预算/**串行合计越过 hook 超时** 逐项植入必红
+node ~/.qoder/scripts/rules-weekly-audit.test.js # 组数以实际输出为准（沙箱 HOME）：基线零告警 + **单端（无 ~/.qoder-cn）也必须零告警** + 悬空引用/frontmatter/冲突回归/放宽纪律/hook 缺失/**单边接线**/心跳过期/篇幅/**机制掉了**/耗时超预算/**串行合计越过 hook 超时**/**Stop 顺序颠倒（capture 必须先于 gate）** 逐项植入必红
 node ~/.qoder/scripts/global-config-guard.test.js # 7 组（沙箱 HOME，按 pid 独立目录）：健康零输出 + 两类漂移必报 + **检查器跑不起来（退码 2）不许静默** + **两路都慢时总耗时压在预算内且明说跳过了哪一路**（旧写法实测 10s+，会被 hook 的 15s 掐死）
 ```
 
 - 改 `RULES[]` 正则后**必须**跑一次 test：违规用例里含历史真实违规原文（"下一步待你定：…还是留给并行那条线收口？"），改坏了会红。
 - 体检脚本同理：植入单边漂移 + 悬空引用应报，还原后应零输出。
 - 改 `session-budget.js` 的档位/取值来源后跑它自己的 test：**每档都要有"必须触发"的用例**，否则阈值写错也发现不了（该测的另一个方向是"不该触发必须静默"——守卫最容易犯的错是噪声太多被忽略）。
-- 周检 `rules-weekly-audit.js` 同理，测试已落在 `rules-weekly-audit.test.js`（11 类植入必红 + 基线零告警 + 自动修还原），改动周检时**必须**跑它——包括"遵守率"那节：改了 `ADHERENCE` 映射或机制里的规则号，探针失配会立刻红。
+- 周检 `rules-weekly-audit.js` 同理，测试已落在 `rules-weekly-audit.test.js`（多类植入必红 + 基线零告警 + 自动修还原，组数以实际输出为准），改动周检时**必须**跑它——包括"遵守率"那节：改了 `ADHERENCE` 映射或机制里的规则号，探针失配会立刻红。
 
 ## 判据依据（2026-09-19 联网调研后的选型）
 

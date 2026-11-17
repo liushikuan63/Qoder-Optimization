@@ -16,8 +16,8 @@
 | `UserPromptSubmit` | `rules-reminder.js` | 10 | 每轮注入精简纪律（最易被忽略的兜底）+ 回注本轮请求原文 + 目标候选 / 自进化采集 / 工作方式模型判断（新装默认 `--workflow-mode model`；回退 route 时为 B05 关键词选档触发）；命中"再次检查 / 重复检查 / 循环检查"等复核词时追加复核协议摘要（`recheck-protocol.cjs`，普通轮不追加） |
 | `UserPromptSubmit` | `session-budget.js` | 10 | 上下文体积 / 压缩次数 / 接续队列分档提醒 |
 | `UserPromptSubmit` | `fact-ledger.cjs --hook` | 10 | 硬事实登记簿：把 ≤12 条长期硬约束按目录隔离注入每轮；无登记时**零输出**（不占 token）；`/fact` 增删查清 |
-| `Stop` | `stop-gate.js` | 15 | 收尾门禁：拦住"声明下一步却没做 / 该弹窗没弹 / 无视觉证据 / 明确记忆请求无成功证据 / 无主张踢皮球"；检索到可安装/可更新条目却未询问、发布后未询问部署也拦；**自进化两条**：`R18` 拦"已沉淀为规则/技能"却无本轮成功写入证据，`R19` 拦"采集已生成够格新候选却没把建议弹窗交用户拍板"（只读/交接/禁记忆/暂停轮放行，30 分钟窗口内同规则最多拦 2 次后写 `-SUPPRESSED` 台账可见放行）；只读 / 交接 / 旧队列不催办 |
 | `Stop` | `evolution-capture.cjs` | 20 | **自进化确定性采集**：每轮收尾把用户长期偏好 / 重复纠正、工具与 MCP 缺口、同一错误重复失败、助手 `已否证：`/`验证结论：` 笔记脱敏后追加到 `evolution/inbox.jsonl`（候选，`verified:false`），并给出规则/技能/MCP/hook 载体路由建议。**只写候选、心跳与待弹建议，绝不改规则/技能/settings/memory，永不拦截**；只读 / 仅交接 / 禁记忆轮零候选；暂停开关 `evolution/control.json` 的 `enabled=false` 或开关损坏时停采集。判据与提醒层、门禁 R19 共用 `evolution-signal-core.js`。**本轮新增且够格**的候选写 `tmp/evolution-capture/pending-<会话前8位>.json`（≤6 条、24h 过期）交门禁 R19 强制弹窗；本轮已弹过建议卡则不再追加（每轮最多问一次）。`--report [--json]` 只读体检（含 pending/declined）、`--dry-run --transcript <file>` 零写入演算（输出 `wouldPopup`）、`--decline <主题>` 登记用户跳过（只过滤弹窗，inbox 证据保留） |
+| `Stop` | `stop-gate.js` | 15 | 收尾门禁：拦住"声明下一步却没做 / 该弹窗没弹 / 无视觉证据 / 明确记忆请求无成功证据 / 无主张踢皮球"；检索到可安装/可更新条目却未询问、发布后未询问部署也拦；**自进化两条**：`R18` 拦"已沉淀为规则/技能"却无本轮成功写入证据，`R19` 拦"采集已生成够格新候选却没把建议弹窗交用户拍板"（只读/交接/禁记忆/暂停轮放行，30 分钟窗口内同规则最多拦 2 次后写 `-SUPPRESSED` 台账可见放行）；只读 / 交接 / 旧队列不催办 |
 | `SessionStart` | `global-config-guard.js` | 15 | 开台体检：两侧漂移 + 悬空引用（含 `skills/<技能>/scripts/x` 形态），健康时零输出 |
 | `SessionStart` | `session-budget.js` | 10 | 同上（开会话时也看一眼预算与磁盘水位） |
 | `PreToolUse` | `edit-guard.js` | 10 | 改不可回滚文件前的备份提醒（advisory，不拦截）；命中技能 / 规则 / 记忆 / hook / MCP / agent 等载体目录时追加 `carrier-preflight` 提醒 |
@@ -30,6 +30,8 @@
 | `PostToolUse` | `auth-lock-guard.js` | 10 | **认证失败计数器**：只看工具返回里的认证/锁定类签名，按目标（服务别名/主机/账号任一相同）累计，满 3 次后由上面那个 Pre 入口硬拦该目标的一切连接动作（防"重试到把数据库账号锁死"——锁定阈值约 10 次，且只能人工解锁）；`--status` 查看、`--clear ALL` 人工解除。可选 `matcher` 缩小触发面（本机用 `^Bash$|mcp_call|mcp__dbhub__.*`） |
 | `PostToolUse` | `attempt-lock-guard.js` | 10 | **同类连败计数器**：判据在 `attempt-lock-core.js`，同一目标（family + 去开关后的前三个词）连续失败 3 次即由 Pre 入口硬拦下一次同类调用，成功一次清零；覆盖构建 / 测试 / 部署，不限于数据库认证。解封 `attempt-lock-guard.js --clear`，关 `~/.qoder/attempt-lock.json`。本机 matcher `^Bash$` |
 | `PostToolUse` | `tool-payload-guard.js` | 10 | **返回侧体积**：单条工具返回 >2MB（`TPG_BYTES`）当场提示改用摘要推进，同会话同工具只提醒一次；补 Pre 守卫拦不住的"返回才知道多大"。本机 matcher `^Bash$|^Read$|^Agent$|^Task$|mcp_call` |
+
+**Stop 顺序约束（自进化先于清理）**：`evolution-capture.cjs` 必须接在 `stop-gate.js` **之前**——模板与安装器接线表（`scripts/workflow-profile.cjs` 的 `HOOKS`）都已按此顺序。采集先把本轮够格候选写进 pending，门禁 R19 才能在清理门禁 R14/R15 之前拦住收尾、弹出自进化建议；顺序接反时首个 Stop 门禁先跑，R19 看不到本轮新候选，清理先触发、建议被拖到清理之后。周检（`rules-weekly-audit.js`）会核对两侧现役 Stop 接线的这一顺序。
 
 ## 模板脚本与安装 ID
 
