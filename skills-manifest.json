@@ -631,7 +631,7 @@
   {
    "name": "verify-before-claim",
    "tier": "core",
-   "files": 5
+   "files": 6
   },
   {
    "name": "verify-ui-in-browser",

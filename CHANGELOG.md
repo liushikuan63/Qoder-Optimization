@@ -6,6 +6,16 @@ During the 0.x line, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### 中文摘要
+- 强化交付前验证：`verify-before-claim` 新增「交付前返工防线」六问（需求逐条回读 → 改动点与影响面 → 旧入口可用 → 真实入口运行 → 最后一轮改动后复跑 → 返工归因），并新增 `references/rework-guard.md` 给出八类返工形态的可失败判据与正负对照；中大型交付要求把需求覆盖映射进 evidence-audit 报告后再宣布完成。
+- `evidence-audit` 支持需求覆盖与证据时效：报告可声明 `requirements`（每条需求至少映射一个检查，缺映射或映射未验证判红）与 `lastChangeAt`（每条证据记录须带 `finishedAt` 且不早于最后一轮改动）；既有报告格式与退出码不变，新增 10 条自测含变异对照（44/44 通过）。
+- `verify-ui-in-browser` 新增「改动回归矩阵」：改动页面、孪生入口、状态覆盖、数据闭环与用户报告复现逐行取证，缺行即未验证，不得用首页的绿代替。
+
+### English Summary
+- Strengthen pre-delivery verification: `verify-before-claim` gains a six-question rework guard (per-requirement readback, change-impact surface, legacy entry points, real-entry run, re-run after the last edit, rework attribution) plus `references/rework-guard.md` with falsifiable criteria and positive/negative controls for eight common rework patterns; medium and cross-module deliveries must map requirements into an evidence-audit report before claiming completion.
+- `evidence-audit` now supports requirement coverage and evidence freshness: reports may declare `requirements` (every requirement maps to at least one check; missing or unverified mappings fail) and `lastChangeAt` (each evidence record must carry `finishedAt` not earlier than the last edit); existing report formats and exit codes are unchanged, with 10 new self-tests including mutation controls (44/44 pass).
+- `verify-ui-in-browser` gains a change-regression matrix: changed pages, sibling entries, state coverage, data path and user-reported repro are each evidenced per row; a missing row is unverified and a green home page cannot substitute.
+
 ## [0.2.1] - 2026-11-16
 
 ### 中文摘要

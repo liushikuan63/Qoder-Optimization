@@ -230,3 +230,56 @@ test('部分排除只标部分覆盖，不宣布全绿', t => {
   const r = f.run(); assert.equal(r.verdict, 'PARTIAL'); assert.equal(r.exitCode, 1);
   assert.equal(r.counts.accepted, 1); assert.equal(r.counts.excluded, 1);
 });
+// 2026-11-17：交付前返工防线——需求覆盖矩阵与证据时效
+function greenWithCoverage(f) {
+  f.plan.lastChangeAt = '2026-11-17T10:00:00Z';
+  f.plan.requirements = [{ id: 'req-1', text: '需求：修好后原有入口仍可用', checkIds: ['contract'] }];
+  for (const side of ['positive', 'negative']) { f.traces[side].finishedAt = '2026-11-17T10:05:00Z'; f.writeTrace(side); }
+}
+test('需求全覆盖且证据晚于最后一轮改动可通过', t => {
+  const f = fixture(t); greenWithCoverage(f);
+  const r = f.run(); assert.equal(r.exitCode, 0); assert.equal(r.verdict, 'PASS');
+  assert.equal(r.requirementCounts.accepted, 1);
+});
+test('需求没有映射到任何检查判红', t => {
+  const f = fixture(t); greenWithCoverage(f); f.plan.requirements[0].checkIds = [];
+  const r = f.run(); assert.equal(r.exitCode, 1); assert.equal(r.verdict, 'FAIL');
+  assert.equal(r.requirements[0].state, 'REJECTED');
+});
+test('需求映射到未验证检查不完整', t => {
+  const f = fixture(t); greenWithCoverage(f);
+  f.plan.checks[0].status = 'unverified'; f.plan.checks[0].reason = '本轮未完成验证';
+  const r = f.run(); assert.equal(r.exitCode, 1); assert.equal(r.verdict, 'INCOMPLETE');
+  assert.equal(r.requirements[0].state, 'INCOMPLETE');
+});
+test('需求引用不存在的检查判红', t => {
+  const f = fixture(t); greenWithCoverage(f); f.plan.requirements[0].checkIds = ['missing-check'];
+  const r = f.run(); assert.equal(r.exitCode, 1); assert.equal(r.requirements[0].state, 'REJECTED');
+});
+test('证据早于最后一轮改动判红', t => {
+  const f = fixture(t); greenWithCoverage(f);
+  f.traces.negative.finishedAt = '2026-11-17T09:59:00Z'; f.writeTrace('negative');
+  assertBad(f.run(), 'REJECTED');
+});
+test('声明改动时间但记录缺完成时间不完整', t => {
+  const f = fixture(t); greenWithCoverage(f);
+  delete f.traces.positive.finishedAt; f.writeTrace('positive');
+  assertBad(f.run(), 'INCOMPLETE');
+});
+test('需求对应检查全部排除只标部分覆盖，不宣布全绿', t => {
+  const f = fixture(t); greenWithCoverage(f);
+  f.plan.checks[0].status = 'excluded'; f.plan.checks[0].reason = '本轮范围不包含';
+  const r = f.run(); assert.equal(r.exitCode, 1); assert.equal(r.verdict, 'INCOMPLETE');
+  assert.equal(r.requirements[0].state, 'EXCLUDED');
+});
+test('非法lastChangeAt让报告返回参数错误而不是静默通过', t => {
+  const f = fixture(t); greenWithCoverage(f); f.plan.lastChangeAt = '2026-11-17';
+  assert.equal(f.run().exitCode, 2);
+});
+test('变异对照：把需求改指向未验证检查后绿报告必须变红', t => {
+  const f = fixture(t); greenWithCoverage(f);
+  assert.equal(f.run().exitCode, 0);
+  f.plan.requirements[0].checkIds = ['missing-check'];
+  assert.equal(f.run().exitCode, 1);
+  const r = auditFile(f.report); assert.equal(r.verdict, 'FAIL');
+});

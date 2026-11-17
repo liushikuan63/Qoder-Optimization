@@ -8,6 +8,9 @@ const MAX_BYTES = 2 * 1024 * 1024;
 const LEVELS = new Set(['static', 'simulation', 'runtime', 'artifact']);
 const STATES = new Set(['verified', 'unverified', 'hypothesis', 'excluded']);
 const text = s => typeof s === 'string' && s.trim().length > 0;
+const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
+const isoTime = value => typeof value === 'string' && ISO.test(value) && !Number.isNaN(Date.parse(value));
+const CHECK_ID = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 const sha = buf => crypto.createHash('sha256').update(buf).digest('hex');
 function readJson(file) {
   const stat = fs.statSync(file);
@@ -41,7 +44,12 @@ function validPlan(p) {
     Array.isArray(p.checks) && p.checks.length <= 100 && p.checks.every(c =>
       c && typeof c.id === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(c.id) && text(c.claim) && LEVELS.has(c.requiredLevel) && STATES.has(c.status) &&
       (c.status === 'verified' ? text(c.changedVariable) && validRef(c.positive) && validRef(c.negative) : text(c.reason))) &&
-    new Set(p.checks.map(c => c.id)).size === p.checks.length;
+    new Set(p.checks.map(c => c.id)).size === p.checks.length &&
+    (p.lastChangeAt === undefined || isoTime(p.lastChangeAt)) &&
+    (p.requirements === undefined || (Array.isArray(p.requirements) && p.requirements.length >= 1 && p.requirements.length <= 100
+      && p.requirements.every(r => r && typeof r.id === 'string' && CHECK_ID.test(r.id) && text(r.text)
+        && Array.isArray(r.checkIds) && r.checkIds.every(id => typeof id === 'string' && CHECK_ID.test(id)))
+      && new Set(p.requirements.map(r => r.id)).size === p.requirements.length));
 }
 function inside(root, file) {
   const rel = path.relative(root, file);
@@ -69,7 +77,21 @@ function evidence(root, plan, check, ref, side) {
   if (r.termination !== 'completed' || !Number.isInteger(r.exitCode)) return incomplete('证据未正常完成，不能算通过');
   const exp = expectation(ref.expect);
   if (!matches(r, exp)) return reject('实际退出码或输出不符合独立预期');
-  return { state: 'ACCEPTED', issues: [], file: real, result: { exitCode: r.exitCode, stdout: r.stdout, stderr: r.stderr } };
+  return { state: 'ACCEPTED', issues: [], file: real, finishedAt: isoTime(r.finishedAt) ? r.finishedAt : null, result: { exitCode: r.exitCode, stdout: r.stdout, stderr: r.stderr } };
+}
+function requirementResults(plan, results) {
+  if (!Array.isArray(plan.requirements) || !plan.requirements.length) return [];
+  const stateById = new Map(results.map(r => [r.id, r.state]));
+  return plan.requirements.map(req => {
+    const missing = req.checkIds.filter(id => !stateById.has(id));
+    if (!req.checkIds.length) return { id: req.id, state: 'REJECTED', issues: ['需求没有映射到任何检查，等于没验'], checkIds: req.checkIds };
+    if (missing.length) return { id: req.id, state: 'REJECTED', issues: ['引用了不存在的检查：' + missing.join(',')], checkIds: req.checkIds };
+    const states = req.checkIds.map(id => stateById.get(id));
+    if (states.includes('ACCEPTED')) return { id: req.id, state: 'ACCEPTED', issues: [], checkIds: req.checkIds };
+    if (states.includes('REJECTED')) return { id: req.id, state: 'REJECTED', issues: ['需求对应的检查未通过'], checkIds: req.checkIds };
+    if (states.every(state => state === 'EXCLUDED')) return { id: req.id, state: 'EXCLUDED', issues: ['需求对应检查全部显式排除'], checkIds: req.checkIds };
+    return { id: req.id, state: 'INCOMPLETE', issues: ['需求没有已验证证据'], checkIds: req.checkIds };
+  });
 }
 function auditFile(file) {
   let plan, root;
@@ -77,10 +99,11 @@ function auditFile(file) {
     const real = fs.realpathSync(file);
     root = path.dirname(real);
     plan = readJson(real).value;
-    if (!validPlan(plan)) throw new Error('需要schema=1、task/runId/cwd和有效checks（至多100项）');
+    if (!validPlan(plan)) throw new Error('需要schema=1、task/runId/cwd和有效checks（至多100项）；可选requirements与lastChangeAt格式必须有效');
   } catch (error) {
     return { verdict: 'ERROR', exitCode: 2, issues: [error.code ? '报告读取失败（' + error.code + '）' : error.message], results: [] };
   }
+  const lastChange = plan.lastChangeAt === undefined ? null : Date.parse(plan.lastChangeAt);
   const results = plan.checks.map(c => {
     if (c.status !== 'verified') {
       return { id: c.id, state: c.status === 'excluded' ? 'EXCLUDED' : 'INCOMPLETE', issues: [c.status === 'excluded' ? '显式排除项，不计为已验证' : '假设或未验证项，不计为已验证'] };
@@ -93,6 +116,12 @@ function auditFile(file) {
     if (positive.state !== 'ACCEPTED' || negative.state !== 'ACCEPTED') {
       return { id: c.id, state: [positive, negative].some(r => r.state === 'REJECTED') ? 'REJECTED' : 'INCOMPLETE', issues: [...positive.issues, ...negative.issues] };
     }
+    if (lastChange !== null) {
+      for (const [side, record] of [['positive', positive], ['negative', negative]]) {
+        if (!record.finishedAt) return { id: c.id, state: 'INCOMPLETE', issues: [side + ': 缺少 finishedAt，无法证明晚于最后一轮改动'] };
+        if (Date.parse(record.finishedAt) < lastChange) return { id: c.id, state: 'REJECTED', issues: [side + ': 证据早于最后一轮改动（lastChangeAt）'] };
+      }
+    }
     if (positive.file === negative.file || JSON.stringify(positive.result) === JSON.stringify(negative.result)) {
       return { id: c.id, state: 'REJECTED', issues: ['正负对照使用同一记录或相同观察值'] };
     }
@@ -102,10 +131,15 @@ function auditFile(file) {
     return { id: c.id, state: 'ACCEPTED', issues: [] };
   });
   const counts = Object.fromEntries(['ACCEPTED', 'REJECTED', 'INCOMPLETE', 'EXCLUDED'].map(k => [k.toLowerCase(), results.filter(r => r.state === k).length]));
-  const verdict = counts.rejected ? 'FAIL' : counts.incomplete || !counts.accepted ? 'INCOMPLETE' : counts.excluded ? 'PARTIAL' : 'PASS';
+  const requirements = requirementResults(plan, results);
+  const requirementCounts = Object.fromEntries(['ACCEPTED', 'REJECTED', 'INCOMPLETE', 'EXCLUDED'].map(k => [k.toLowerCase(), requirements.filter(r => r.state === k).length]));
+  const failed = counts.rejected > 0 || requirementCounts.rejected > 0;
+  const incomplete = counts.incomplete > 0 || requirementCounts.incomplete > 0 || !counts.accepted;
+  const partial = counts.excluded > 0 || requirementCounts.excluded > 0;
+  const verdict = failed ? 'FAIL' : incomplete ? 'INCOMPLETE' : partial ? 'PARTIAL' : 'PASS';
   return {
-    verdict, exitCode: verdict === 'PASS' ? 0 : 1, counts, results,
-    limits: '仅检查声明类型、记录完整性、哈希、本轮作用域与对照预期；不证明日志来源真实、范围完整、排除项已获授权、因果归因正确或模型行为普适。',
+    verdict, exitCode: verdict === 'PASS' ? 0 : 1, counts, results, requirements, requirementCounts,
+    limits: '仅检查声明类型、记录完整性、哈希、本轮作用域、对照预期、需求覆盖与证据时效；不证明日志来源真实、需求拆分完整、时间顺序真实、范围完整、排除项已获授权、因果归因正确或模型行为普适。',
   };
 }
 // ---------- 从会话记录生成验收草稿（2026-10-27）----------
@@ -228,6 +262,9 @@ if (require.main === module) {
       const issues = result.results.filter(r => r.state !== 'ACCEPTED');
       for (const r of issues.slice(0, 20)) console.log(r.state + ' ' + r.id + ' ' + r.issues.join('；'));
       if (issues.length > 20) console.log('另有 ' + (issues.length - 20) + ' 项；使用--json查看全部');
+      const reqIssues = (result.requirements || []).filter(r => r.state !== 'ACCEPTED');
+      for (const r of reqIssues.slice(0, 20)) console.log('REQ_' + r.state + ' ' + r.id + ' ' + r.issues.join('；'));
+      if (reqIssues.length > 20) console.log('另有 ' + (reqIssues.length - 20) + ' 项需求；使用--json查看全部');
       console.log('证据标签与哈希不证明现场真实性；静态或模拟记录不能证明真实行为。');
     }
     process.exitCode = result.exitCode;

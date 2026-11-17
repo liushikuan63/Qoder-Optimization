@@ -81,6 +81,8 @@ description: "验证证据纪律与通用检查排错：断言可失败、启动
 ```json
 {
   "schema": 1, "task": "本轮任务", "runId": "本轮唯一标识", "cwd": "本轮工作目录",
+  "lastChangeAt": "2026-11-17T10:00:00Z",
+  "requirements": [{ "id": "req-1", "text": "用户需求原话或可验收句", "checkIds": ["contract"] }],
   "checks": [{
     "id": "contract", "claim": "具体可失败声明", "status": "verified",
     "requiredLevel": "static", "changedVariable": "仅换成已知缺陷输入",
@@ -91,6 +93,8 @@ description: "验证证据纪律与通用检查排错：断言可失败、启动
 ```
 
 - 先独立确定 expect，再实际执行并保存正负记录；SHA256用于冻结记录，不是功能正确的期望值。记录必须有 `schema:1`、runId、cwd、level、termination、exitCode、stdout、stderr；termination 区分 completed/skipped/timeout/crashed。
+- `requirements` 把用户需求映射到检查：每条需求至少一个 checkId，被引用的检查必须存在；需求对应检查全部未验证 → INCOMPLETE，全部排除 → PARTIAL（无其它通过项时仍为 INCOMPLETE），任一判红 → FAIL。没有映射的需求同样判红（等于假装检查过）。
+- 声明 `lastChangeAt` 后，每条证据记录必须带 `finishedAt`（ISO 时间）且不早于它；早于最后一轮改动或缺少时间戳都不能算通过。时间戳由采集者声明，只用于排除"改了之后没复跑"，不证明真实先后。
 - requiredLevel 与记录 level 必须对应；不能用 static/simulation/artifact 记录证明 runtime。日志中的level标签仍由采集者声明，必须人工核对来源。
 - status 为 unverified/hypothesis 时给 reason，返回 INCOMPLETE；excluded 必须有 reason，单独列出且不算通过；有已接受项和排除项时返回 PARTIAL（退出1），全空/全排除为 INCOMPLETE，均不能宣布全绿。
 - PASS/退出0仅表示本报告每项证据要求与所给记录一致；正负预期必须交叉核对，若一套预期也匹配另一组记录即拒绝，不能仅因日志时间戳不同判对照有效。缺证、对照失效、输出不符、哈希或轮次变化返回1，坏报告/参数返回2。
@@ -246,6 +250,25 @@ Windows 可只读查询 py 启动器列表与 PythonCore 注册项；分别记�
 ## 十、边界
 
 本地可逆动作（跑测试、写探针、改文件）自主推进；对外可见 / 不可逆动作（推 PR、撤回、删数据、改共享配置）先把发现与选项报告给用户，等拍板。
+
+## 十一、交付前返工防线（收到「检查不细致 / 反复返工」或中大型交付时逐条过）
+
+返工的成本远高于多跑一条判据。宣布"完成 / 已修复"之前按顺序过这六问，缺一项就把结论降为"未验证"：
+
+1. **需求逐条回读**：把用户原话拆成可验收句（并列项、否定项、"顺便"项都算需求），逐条写「改动位置 + 证据」。没有逐条映射的"已完成"不算完成。
+2. **改动点 → 影响面**：列出改动的文件/函数，再列它们的调用方、孪生入口（同族页面/接口/菜单/详情页）、共享组件与旧入口。只验主路径、只验首页是返工第一高发项；存量模块的兼容回归见 `legacy-entry-compat-regression`。
+3. **旧入口保持可用**：原有路由、菜单、列表、按钮与流程要能走通；「没删旧代码」不等于旧功能没坏。
+4. **真实入口运行**：前台按 `verify-ui-in-browser` 的改动回归矩阵逐行取证；服务起本轮实例并带"不存在路径 / 负向用例"对照。构建与单测通过只是前置条件。
+5. **最后一轮改动后复跑**：任何在"最后一次运行判据"之后的编辑都让先前证据失效；拿改动前的绿灯收尾等于假绿。
+6. **返工归因**：用户二次指出问题时先归入四类——漏需求 / 漏影响面 / 假绿（证据读到自己或旧轮次）/ 环境口径差异（界面语言、账号、数据、dev vs 现役），把对应判据补进本轮结论，不只修表象。
+
+**中大型或跨模块交付**：把 1–6 落成 evidence-audit 报告再审计一次——
+
+- 报告顶层写 `requirements: [{id, text, checkIds}]`，每条用户需求至少映射到一个检查；没有映射、或映射的检查未验证，审计判红。
+- 报告顶层写 `lastChangeAt`（最后一次改动的 ISO 时间），每条证据记录写 `finishedAt`；证据早于最后一轮改动会被判红。
+- 运行 `node ~/.qoder/scripts/evidence-audit.cjs <report.json>`，只有 PASS（退出 0）才能宣布完成；INCOMPLETE / PARTIAL 必须继续补证或写明未验证。
+
+典型返工形态与可失败判据见 [references/rework-guard.md](references/rework-guard.md)。
 
 ## 开发交付与实体包
 
