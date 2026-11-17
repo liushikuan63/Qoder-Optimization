@@ -35,6 +35,10 @@ description: "前台真实运行验收：网页/客户端/小程序/小游戏/Ap
 - 窄屏媒体查询分支（如 ≤700px）**无法在真实视口实测**。
 - 响应式改动要么用**注入 CSS 模拟桌面态测量**（可行），要么在总结里**显式标注"该断点未实测"**。
 
+### 多断点实测（2026-11-17 补）
+
+固定视口下的断点实跑路径：用 `responsive-craft` 的 `scripts/preview.js <页面或URL> --breakpoints 375,768,1024,1440` 起多 iframe 预览（每个 iframe 按目标宽度独立渲染），或 headless Edge/CDP 指定窗口尺寸。验收按 [references/multi-breakpoint-checklist.md](references/multi-breakpoint-checklist.md)：横向溢出断言、sticky 生效、触控目标与 IME 文本规则，并做**负对照页判红**——只跑正例出绿是假绿。
+
 ## 四、用户说"打开界面"时
 
 - 用**系统默认浏览器**打开目标地址（Windows：`Start-Process <url>`），并**保持服务运行**，而不是只开一个自动化会话。

@@ -1,6 +1,6 @@
 # Qoder-Optimization - 0.2.1 技能清单
 
-共 138 个源码随包技能：常驻 5 / 按需 133。机器可读版见 skills-manifest.json 与 catalog.json。
+共 139 个源码随包技能：常驻 5 / 按需 134。机器可读版见 skills-manifest.json 与 catalog.json。
 
 默认按需选择安装，安装时按使用习惯询问是否常驻；层级默认值与依赖以 catalog 为准，最终常驻数量由使用者决定。
 
@@ -99,6 +99,7 @@
 - `redis-search`（按需）—— Redis Search：FT.CREATE schema、字段类型（TEXT/TAG/NUMERIC/GEO/VECTOR/JSON）、DIALECT 2、FT.SEARCH/AGGREGATE/HYBRID、HNSW/FLAT 向量与混合检索。触发词：RediSearch、FT.CREATE、FT.SEARCH、Redis 向量检索、Redis HNSW、Redis 混合检索。不用于：LLM 语义缓存 → redis-semantic-cache。
 - `redis-security`（按需）—— Redis 安全：requirepass、ACL 用户与最小权限、TLS、bind/protected-mode、防火墙与危险命令禁用。触发词：Redis ACL、requirepass、TLS、权限加固、protected-mode、危险命令。不用于：监控与告警 → redis-observability。
 - `redis-semantic-cache`（按需）—— Redis LangCache 语义缓存：LLM 响应缓存、相似度阈值、按任务分缓存与自定义属性过滤。触发词：LangCache、语义缓存、LLM 缓存、相似度阈值、Redis Cloud。不用于：RediSearch 全文/向量检索 → redis-search。
+- `responsive-craft`（按需）—— 响应式实现与验收（responsive / breakpoint / viewport）：移动优先、容器查询、clamp 流式排版、sticky/滚动协同、响应式表格与仪表盘；含 13 类 AI 失败模式、8 个设计分叉与 375/768/1024/1440 多断点预览。用于修移动端布局、加断点、做自适应页面或响应式评审；不用于纯后端任务。
 - `rules-conflict-audit`（按需）—— 规则体系冲突与验证主张审计：只读交叉核对 AGENTS、提醒、收尾门禁、领域规则、技能描述和记忆，输出引用、行号、行为影响、具体改文与扩权标注；核对证明力、真实问答、多项阻塞与历史授权反例。报告交付即完成审阅；批准实施后才修改，保留平台强制审批。扩展：技能/文档家族一致性审计——按四层模型核对 description、正文、校验器、规则文件、分享包五个面，正负夹具防校验器假绿，修复后同批同步分享包。触发词：规则冲突、规则审计、规则体系冲突。
 - `safe-text-editing`（按需）—— 改文件与传参的字符安全 playbook。当"内容写出来不对"时用：引号/反斜杠/反引号/`$` 被 shell 先解释、中文进 .cmd 变乱码、CRLF 与 GBK 被改写、整文件覆盖丢内容、替换串手抄失配、管道吞掉退出码、命令成功但改错地方。触发词：编辑出错、字符被吃掉、内容不对、乱码、转义、引号问题、sed 替换没生效、写进去的不是我要的、编码、GBK、CRLF、退出码不对。不用于：纯文本内容校对（走文档类技能）、.cmd 工具的整套改/验/发链（走 verify-windows-cmd-tool）。
 - `self-evolution`（按需）—— 将用户明确的长期偏好、重复纠正、验证过的复用经验和持续能力缺口转为有证据的规则、技能、MCP 或 hook 更新；每轮 Stop 自动把问题与习惯采集成 inbox 候选，收尾用弹窗给推荐建议、由用户决定是否新增或更改，定期扫描给出载体路由；也用于查看、暂停、恢复与回退自动调整。触发词：自进化、学到的规则、暂停自动调整、恢复自进化、撤销最近学到的、查看学到的规则、经验沉淀、证据门槛、采集候选、候选报告、记录用户习惯、收尾建议弹窗、采纳建议、跳过这条建议。不用于：单次临时指令和普通成功任务。

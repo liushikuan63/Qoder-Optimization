@@ -469,6 +469,11 @@
    "files": 3
   },
   {
+   "name": "responsive-craft",
+   "tier": "library",
+   "files": 14
+  },
+  {
    "name": "rules-conflict-audit",
    "tier": "library",
    "files": 1
@@ -631,7 +636,7 @@
   {
    "name": "verify-ui-in-browser",
    "tier": "core",
-   "files": 3
+   "files": 4
   },
   {
    "name": "verify-windows-cmd-tool",

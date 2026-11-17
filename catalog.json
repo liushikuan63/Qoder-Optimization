@@ -7,7 +7,7 @@
  "generated": "2026-11-16",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
-  "skill": 138,
+  "skill": 139,
   "script": 178,
   "command": 13,
   "agent": 2
@@ -1321,6 +1321,20 @@
     "tier": "library"
    },
    "source": "skills/redis-semantic-cache",
+   "dependencies": []
+  },
+  {
+   "id": "skill:responsive-craft",
+   "category": "skill",
+   "name": "responsive-craft",
+   "status": "shipped",
+   "tier": "library",
+   "description": "响应式实现与验收（responsive / breakpoint / viewport）：移动优先、容器查询、clamp 流式排版、sticky/滚动协同、响应式表格与仪表盘；含 13 类 AI 失败模式、8 个设计分叉与 375/768/1024/1440 多断点预览。用于修移动端布局、加断点、做自适应页面或响应式评审；不用于纯后端任务。",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "source": "skills/responsive-craft",
    "dependencies": []
   },
   {

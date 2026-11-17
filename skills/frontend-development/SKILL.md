@@ -1034,6 +1034,22 @@ export class UserListComponent {
 - **Svelte:** Automatic optimization, `$derived`, minimal runtime
 - **Angular:** OnPush, signals, trackBy, pure pipes
 
+### Responsive Implementation (2026-11-17)
+
+按升级顺序选工具：**内在 CSS（`auto-fit` / `flex-wrap` / `clamp()`）→ 容器查询 → 媒体查询**；能用前一层解决就不要往下走。详见 `responsive-craft` 技能。
+
+**AI 生成响应式的高频错误（逐条自查）：**
+- 移动端写 `100vh` → 用 `svh` / `dvh`，避免地址栏吃掉内容。
+- 桌面优先写 `max-width` 反向查询 → 一律移动优先 `min-width`。
+- flex/grid 子项缺 `min-width: 0` → 内容撑破容器、表格溢出。
+- 祖先 `overflow: hidden` → sticky 静默失效；先查溢出祖先。
+- 用 `z-index` 层层加码盖问题 → 先理清 stacking context。
+- 输入框 `font-size < 16px` → iOS 聚焦自动缩放。
+- 只测命名断点 → 连续拖 280–2560px 才抓得到 between-size 失败。
+- 组件绑定视口宽度 → 同一卡片在侧栏与全宽区复用时改用容器查询。
+
+**设计分叉不要默认选**：侧栏在窄屏可做抽屉 / 标签 / 手风琴；数据表可横向滚动 / 卡片化 / 隐藏非关键列——给 2–3 个方案与代价，让用户拍板。
+
 ---
 
 ## Related Skills
@@ -1042,6 +1058,7 @@ export class UserListComponent {
 - **ui-design-system**: Component design systems, accessibility, design tokens
 - **aesthetic**: UI/UX design principles, visual hierarchy, color theory
 - **ui-styling**: Tailwind CSS, styling patterns for all frameworks
+- **responsive-craft**: responsive patterns, design forks, multi-breakpoint preview
 
 **Backend Integration:**
 - **backend-development**: API patterns that frontend consumes
