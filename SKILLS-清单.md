@@ -1,6 +1,6 @@
 # Qoder-Optimization - 0.2.1 技能清单
 
-共 139 个源码随包技能：常驻 5 / 按需 134。机器可读版见 skills-manifest.json 与 catalog.json。
+共 141 个源码随包技能：常驻 5 / 按需 136。机器可读版见 skills-manifest.json 与 catalog.json。
 
 默认按需选择安装，安装时按使用习惯询问是否常驻；层级默认值与依赖以 catalog 为准，最终常驻数量由使用者决定。
 
@@ -11,6 +11,8 @@
 - `async-python-patterns`（按需）—— Master Python asyncio, concurrent programming, and async/await patterns for high-performance applications. Use when building async APIs, concurrent systems, or I/O-bound applications requiring non-blocking operations.
 - `audit-ci-cost-levers`（按需）—— 按真实workflow、run/job/step样本评估GitHub Actions缓存、路径过滤、并发取消、runner与推送频率的收益和代价。区分挂钟时长、计算使用量与费用，沿门禁输入闭包验证；不以零步骤或日志缺失直接判配额。
 - `awesome-design-md`（按需）—— 74 份来自真实产品网站的 DESIGN.md 设计系统文档库（Apple / Stripe / Linear / Vercel / Notion 等）。当用户要「做成 XX 那样」、要设计语言或视觉方向（极简、暗黑电影感、编辑风、复古、奢华），或写前端前需要具体 design token（配色、字号、间距、圆角、阴影、组件规格）时使用。
+- `better-typography`（按需）—— 排版与字体（typography / 字号 / 行高）：字阶、间距、字体选择与可变字体、换行与截断、标点、表单与链接细节，附 CSS/Tailwind 速查表与国际化注意。用于文字渲染与排版评审/精修；不用于整体视觉风格或布局重构。
+- `better-ui`（按需）—— 视觉精修（polish / UI 细节）：圆角、视觉对齐、阴影层级、图标与图标切换、微交互与动效，给精确数值及 CSS/Tailwind/Motion 写法；含 reduced-motion、性能与 RTL。用于界面「不够精致」的打磨与评审；不用于信息架构或交互流程设计。
 - `byok-model-retry`（按需）—— 模型/BYOK 请求失败诊断与验收：401/403/429、空响应、首包超时、配置/网络/协议/流式终包/代理对照、UA 指纹、输出上限/maxOutputTokens、Qoder CN 保存校验与本地中转。默认只读，鉴权失败不重试，密钥只报掩码；覆盖 outerProvider/customModels、providers.qoder-custom-*、openai-responses、general.maxAttempts、QODER_DISABLE_MODEL_RETRY_PAYLOAD_GUARD、QODER_CONFIG_MODEL_RETRY_AFTER_PAYLOAD。
 - `cloudbase-wechat-integration`（按需）—— CloudBase 微信集成指南：小程序微信支付、虚拟支付（wx.requestVirtualPayment）、公众号 JSAPI 支付、Native 扫码支付、公众号 OAuth、openid 处理、支付回调、集成中心生成函数。用于在 CloudBase 上新增/排查/扩展微信支付、虚拟支付、公众号流程。
 - `concurrent-edit-attribution-check`（按需）—— 改共享Git工作区或无版本控制目录（~/.qoder/skills、服务器配置目录）的文件时，发现陌生 .bak、现役文件 md5 与自己刚备份内容不一致、疑似并行会话改了同一文件、或平台拦截 SKILL_HASH_CHANGED 时使用。配方：备份后 md5 三方比对判断改动归属，diff 定位对方改动行，全程定点替换不整文件覆盖，改完断言对方改动仍在；含备份保留策略与复验判据两个坑。两套改动相撞把回归大面积判红时先二分 harness 漂移/产品缺陷，可协调的启动期校验一律 clamp 到语义安全值并暴露在健康端点，不做拒绝启动。触发词：大面积判红、拒绝启动、clamp、领地预检。

@@ -7,7 +7,7 @@
  "generated": "2026-11-16",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
-  "skill": 139,
+  "skill": 141,
   "script": 178,
   "command": 13,
   "agent": 2
@@ -81,6 +81,34 @@
     "tier": "library"
    },
    "source": "skills/awesome-design-md",
+   "dependencies": []
+  },
+  {
+   "id": "skill:better-typography",
+   "category": "skill",
+   "name": "better-typography",
+   "status": "shipped",
+   "tier": "library",
+   "description": "排版与字体（typography / 字号 / 行高）：字阶、间距、字体选择与可变字体、换行与截断、标点、表单与链接细节，附 CSS/Tailwind 速查表与国际化注意。用于文字渲染与排版评审/精修；不用于整体视觉风格或布局重构。",
+   "source": "skills/better-typography",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "dependencies": []
+  },
+  {
+   "id": "skill:better-ui",
+   "category": "skill",
+   "name": "better-ui",
+   "status": "shipped",
+   "tier": "library",
+   "description": "视觉精修（polish / UI 细节）：圆角、视觉对齐、阴影层级、图标与图标切换、微交互与动效，给精确数值及 CSS/Tailwind/Motion 写法；含 reduced-motion、性能与 RTL。用于界面「不够精致」的打磨与评审；不用于信息架构或交互流程设计。",
+   "source": "skills/better-ui",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
    "dependencies": []
   },
   {
