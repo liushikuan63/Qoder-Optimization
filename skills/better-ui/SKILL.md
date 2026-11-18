@@ -1,6 +1,6 @@
 ---
 name: better-ui
-description: 视觉精修（polish / UI 细节）：圆角、视觉对齐、阴影层级、图标与图标切换、微交互与动效，给精确数值及 CSS/Tailwind/Motion 写法；含 reduced-motion、性能与 RTL。用于界面「不够精致」的打磨与评审；不用于信息架构或交互流程设计。
+description: 视觉精修（polish / UI 细节）：圆角、视觉对齐、阴影层级、图标与图标切换、微交互与动效、滚动条视觉语言，给精确数值及 CSS/Tailwind/Motion 写法；含 reduced-motion、性能与 RTL。用于界面「不够精致」的打磨与评审；不用于信息架构或交互流程设计。
 ---
 
 > Qoder 适配：上游 jakubkrehel/skills（MIT），固定 commit `276449a`；纯文档技能，无运行时依赖，相对链接均在技能目录内。来源与许可见仓库 LICENSE。
@@ -90,6 +90,10 @@ Put hover-only styling behind `@media (hover: hover)`. On touch, `:hover` latche
 ## Contain scroll inside overlays
 
 Give scrollable dialogs, drawers, menus and side panels `overscroll-behavior: contain`, so scrolling past their end never scrolls the page behind.
+
+## Scrollbars speak the palette
+
+On any themed surface, never leave the browser-default scrollbar: it reads as a foreign bright slab against a dark or tinted UI. Draw it in the artifact's own language — dense data UIs use an `8px` width (`6px` for nested panels); track takes the darkest surface tone, thumb a mid accent from the palette, hover one step lighter, and arrow buttons hidden (`::-webkit-scrollbar-button { display: none }`). Keep thumb/track WCAG contrast ≥ 3:1 so the grip stays visible. Provide the Firefox fallback (`scrollbar-width: thin; scrollbar-color: <thumb> <track>`), and round the thumb (`border-radius: 4px`) with a transparent border trick only if the track must show through. Constrain independent scroll regions with `max-height: calc(100dvh - <chrome>)` so a short laptop viewport never shows two nested scrollbars. Verify with pixels, not eyes: `verify-ui-in-browser/scripts/assert-scrollbar.py` asserts band width, forbidden legacy colors, track presence and contrast, and must fail on a negative control.
 
 ## Match icon stroke to text weight
 

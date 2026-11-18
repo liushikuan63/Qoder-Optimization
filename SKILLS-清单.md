@@ -1,6 +1,6 @@
-# Qoder-Optimization - 0.2.1 技能清单
+# Qoder-Optimization - 0.2.2 技能清单
 
-共 141 个源码随包技能：常驻 5 / 按需 136。机器可读版见 skills-manifest.json 与 catalog.json。
+共 145 个源码随包技能：常驻 5 / 按需 140。机器可读版见 skills-manifest.json 与 catalog.json。
 
 默认按需选择安装，安装时按使用习惯询问是否常驻；层级默认值与依赖以 catalog 为准，最终常驻数量由使用者决定。
 
@@ -12,13 +12,14 @@
 - `audit-ci-cost-levers`（按需）—— 按真实workflow、run/job/step样本评估GitHub Actions缓存、路径过滤、并发取消、runner与推送频率的收益和代价。区分挂钟时长、计算使用量与费用，沿门禁输入闭包验证；不以零步骤或日志缺失直接判配额。
 - `awesome-design-md`（按需）—— 74 份来自真实产品网站的 DESIGN.md 设计系统文档库（Apple / Stripe / Linear / Vercel / Notion 等）。当用户要「做成 XX 那样」、要设计语言或视觉方向（极简、暗黑电影感、编辑风、复古、奢华），或写前端前需要具体 design token（配色、字号、间距、圆角、阴影、组件规格）时使用。
 - `better-typography`（按需）—— 排版与字体（typography / 字号 / 行高）：字阶、间距、字体选择与可变字体、换行与截断、标点、表单与链接细节，附 CSS/Tailwind 速查表与国际化注意。用于文字渲染与排版评审/精修；不用于整体视觉风格或布局重构。
-- `better-ui`（按需）—— 视觉精修（polish / UI 细节）：圆角、视觉对齐、阴影层级、图标与图标切换、微交互与动效，给精确数值及 CSS/Tailwind/Motion 写法；含 reduced-motion、性能与 RTL。用于界面「不够精致」的打磨与评审；不用于信息架构或交互流程设计。
+- `better-ui`（按需）—— 视觉精修（polish / UI 细节）：圆角、视觉对齐、阴影层级、图标与图标切换、微交互与动效、滚动条视觉语言，给精确数值及 CSS/Tailwind/Motion 写法；含 reduced-motion、性能与 RTL。用于界面「不够精致」的打磨与评审；不用于信息架构或交互流程设计。
 - `byok-model-retry`（按需）—— 模型/BYOK 请求失败诊断与验收：401/403/429、空响应、首包超时、配置/网络/协议/流式终包/代理对照、UA 指纹、输出上限/maxOutputTokens、Qoder CN 保存校验与本地中转。默认只读，鉴权失败不重试，密钥只报掩码；覆盖 outerProvider/customModels、providers.qoder-custom-*、openai-responses、general.maxAttempts、QODER_DISABLE_MODEL_RETRY_PAYLOAD_GUARD、QODER_CONFIG_MODEL_RETRY_AFTER_PAYLOAD。
 - `cloudbase-wechat-integration`（按需）—— CloudBase 微信集成指南：小程序微信支付、虚拟支付（wx.requestVirtualPayment）、公众号 JSAPI 支付、Native 扫码支付、公众号 OAuth、openid 处理、支付回调、集成中心生成函数。用于在 CloudBase 上新增/排查/扩展微信支付、虚拟支付、公众号流程。
 - `concurrent-edit-attribution-check`（按需）—— 改共享Git工作区或无版本控制目录（~/.qoder/skills、服务器配置目录）的文件时，发现陌生 .bak、现役文件 md5 与自己刚备份内容不一致、疑似并行会话改了同一文件、或平台拦截 SKILL_HASH_CHANGED 时使用。配方：备份后 md5 三方比对判断改动归属，diff 定位对方改动行，全程定点替换不整文件覆盖，改完断言对方改动仍在；含备份保留策略与复验判据两个坑。两套改动相撞把回归大面积判红时先二分 harness 漂移/产品缺陷，可协调的启动期校验一律 clamp 到语义安全值并暴露在健康端点，不做拒绝启动。触发词：大面积判红、拒绝启动、clamp、领地预检。
 - `continuation-state-audit`（按需）—— Audit continuation queues/goal files before resuming，claimed done vs real artifacts，detect stale items；也核对当前会话交付结论与原始验收逐项对账。Qoder 异常会话恢复（定位会话、最小窗口读取、单次结构化恢复消息、终态回调＝成功判据）。触发：接续/继续上次/看队列/核对上次完成状态/上次说做完了但没生效/交付结论复核/原始验收对账/会话恢复/异常会话。Not for goal tracking/checkpoint writes（→goal-driven-execution）。
 - `counterexample-driven-plan-review`（按需）—— 反例驱动的只读方案审查。触发词：审方案、任务卡、判据反证、关键词假通过、同源证据冒充复核、固定轮数冒充收敛、计划被当成实施授权。用零写入纯函数探针构造正负反例，核对命令适用性、依赖闭包与验收层级，输出收敛后的任务卡。不用于代码实现或正式验收（verify-before-claim）。
 - `deliver-prd`（按需）—— 产品需求文档（PRD）：目标、范围、用户故事、验收标准与干系人对齐。触发词：PRD、产品需求文档、需求规格、验收标准、干系人对齐、功能立项。不用于：AI 实施四件套 → vibecoding-doc。
+- `design-engineering-catalogue`（按需）—— | Domain navigator for UI craft, visual design, brand, color, typography, mobile design, and interactive design engineering skills. Routes to skills for taste-driven UI, platform design (iOS/Android), components, color science, and the full visual design stack.
 - `design-taste-frontend`（按需）—— 反 AI 味的建站审美技能（tasteskill 2.5）：按行业定调落地页/公司站/产品站，真实照片与产品 UI、统一设计系统、等边布局、入场与微交互，并以真实浏览器 checker 与 finish gate 验收；可评审、重构与打磨现有页面。适用 SaaS、AI、游戏、硬件、门店与服务机构站点；不用于后台管理系统或纯逻辑任务。
 - `desktop-update-push-triage`（按需）—— Windows 客户端（electron-updater + NSIS）更新失败分层取证：读状态文件 lastError 与日志状态机，按 checking→downloading→installing 分段；下载失败查缓存目录符号链接/junction 拦截，安装失败走 NSIS 静默重装（/S，spawn 必 EACCES）；版本三处一致收口。触发词：收不到更新推送、更新不生效、自动更新失败、junction 更新、electron-updater、NSIS 静默重装；不用于：edge-net-check、disk-junction-migration。
 - `diagnose-github-actions-quota`（按需）—— GitHub Actions 无job、零步骤、日志缺失、runner排队或账户限制疑点的只读取证。按实际run、attempt、job、step、annotations与可比成功运行区分原因；短时失败或404不直接判配额。成本优化另用audit-ci-cost-levers。
@@ -42,6 +43,7 @@
 - `image-detail-inspect`（按需）—— 图像细节增强读取：大图先被降采样导致小字/小目标读不出时，用网格总览定位→按 bbox 裁剪放大→逐块读→按源坐标拼回整图。Pillow 零依赖，单块压到 1.5MB 内避开 Read 守卫；坐标往返与可读性 A/B 有自测。触发词：看不清、精确识图、识别不准、小字、放大图片、读细节、裁剪放大、图像细读、拼细节、imgdetail。不用于生成图验收→image-result-visual-verify；加密文档→encrypted-office-visual-inspection；SPA 截图→headless-spa-screenshot。
 - `impeccable`（按需）—— 前端界面设计评审与打磨：critique 评分式 UX 评审、audit 可访问性/性能/响应式检查、polish 交付前打磨、bolder/quieter/distill 调强弱、typeset/colorize/layout/animate 排版配色动效、harden/adapt/clarify 边界与文案；含 62 条确定性 AI-slop 检测与真实浏览器验证。用于落地页、仪表盘、组件、表单、设置、空状态与 iOS/Android 界面；不用于纯后端任务。
 - `injected-context-slimming`（按需）—— 每轮注入文件（AGENTS.md / MEMORY.md / 索引领航类长文）的无损瘦身流水线：先量化再动手 → 备份 → 只压叙述不删判据 → 覆盖断言逐条证明没丢 → 双侧同写验收。触发词：阅读压力、上下文太大、AGENTS 太长、MEMORY 超行、规则文件瘦身、压缩规则、注入体积、降 token、超红线转索引。不用于：技能描述瘦身（→skill-description-route-cue-rewrite）、技能降量（→skill-trim-with-capability-transfer）、两侧记忆不一致（→memory-bank-divergence-repair）。
+- `intermittent-test-red-triage`（按需）—— 聚合套件「单跑绿、套件内红」的间歇失败归因：先按字节差证归属，再用不改真源的插桩副本+忠实 runner env 分层复现，N 次连跑测间歇性，用负载画像 A/B 实测量余量否证假设，查前驱序列与持久化日志；复现不出就写「归因未定」并零并行重跑，绝不放宽判据或把重跑当修复。触发词：间歇红、套件红项、单跑绿套件红、测试超时、重跑不复现、归因未定、零并行。
 - `java-architect`（按需）—— Use when building, configuring, or debugging enterprise Java applications with Spring Boot 3.x, microservices, or reactive programming。中文触发：Java 架构、Spring Boot 分层、模块边界、接口设计、JVM 组件。分工：本技能管架构取向与疑难排查，Spring 脚手架与端点实现走 springboot-patterns。
 - `java-quality`（按需）—— Java code quality：Checkstyle, SpotBugs, PMD, SonarJava — static analysis, code style, best practices. Use for Java/Spring Boot/Maven/Gradle projects asking about Checkstyle, SpotBugs, PMD, Java code smells, or Java best practices. Not for SonarQube server administration.
 - `kafka-best-practices`（按需）—— Apache Kafka best practices for topic design, producer/consumer configuration, exactly-once semantics, Kafka Streams, Connect, and cluster management
@@ -101,7 +103,7 @@
 - `redis-search`（按需）—— Redis Search：FT.CREATE schema、字段类型（TEXT/TAG/NUMERIC/GEO/VECTOR/JSON）、DIALECT 2、FT.SEARCH/AGGREGATE/HYBRID、HNSW/FLAT 向量与混合检索。触发词：RediSearch、FT.CREATE、FT.SEARCH、Redis 向量检索、Redis HNSW、Redis 混合检索。不用于：LLM 语义缓存 → redis-semantic-cache。
 - `redis-security`（按需）—— Redis 安全：requirepass、ACL 用户与最小权限、TLS、bind/protected-mode、防火墙与危险命令禁用。触发词：Redis ACL、requirepass、TLS、权限加固、protected-mode、危险命令。不用于：监控与告警 → redis-observability。
 - `redis-semantic-cache`（按需）—— Redis LangCache 语义缓存：LLM 响应缓存、相似度阈值、按任务分缓存与自定义属性过滤。触发词：LangCache、语义缓存、LLM 缓存、相似度阈值、Redis Cloud。不用于：RediSearch 全文/向量检索 → redis-search。
-- `responsive-craft`（按需）—— 响应式实现与验收（responsive / breakpoint / viewport）：移动优先、容器查询、clamp 流式排版、sticky/滚动协同、响应式表格与仪表盘；含 13 类 AI 失败模式、8 个设计分叉与 375/768/1024/1440 多断点预览。用于修移动端布局、加断点、做自适应页面或响应式评审；不用于纯后端任务。
+- `responsive-craft`（按需）—— 响应式实现与验收（responsive / breakpoint / viewport）：移动优先、容器查询、clamp 流式排版、sticky/滚动协同、响应式表格与仪表盘；含 13+1 类 AI 失败模式（含矮屏族）、8 个设计分叉与 375/768/1024/1440 多断点及 --sizes 宽×高矮屏预览。用于修移动端布局、加断点、做自适应页面或响应式评审；不用于纯后端任务。
 - `rules-conflict-audit`（按需）—— 规则体系冲突与验证主张审计：只读交叉核对 AGENTS、提醒、收尾门禁、领域规则、技能描述和记忆，输出引用、行号、行为影响、具体改文与扩权标注；核对证明力、真实问答、多项阻塞与历史授权反例。报告交付即完成审阅；批准实施后才修改，保留平台强制审批。扩展：技能/文档家族一致性审计——按四层模型核对 description、正文、校验器、规则文件、分享包五个面，正负夹具防校验器假绿，修复后同批同步分享包。触发词：规则冲突、规则审计、规则体系冲突。
 - `safe-text-editing`（按需）—— 改文件与传参的字符安全 playbook。当"内容写出来不对"时用：引号/反斜杠/反引号/`$` 被 shell 先解释、中文进 .cmd 变乱码、CRLF 与 GBK 被改写、整文件覆盖丢内容、替换串手抄失配、管道吞掉退出码、命令成功但改错地方。触发词：编辑出错、字符被吃掉、内容不对、乱码、转义、引号问题、sed 替换没生效、写进去的不是我要的、编码、GBK、CRLF、退出码不对。不用于：纯文本内容校对（走文档类技能）、.cmd 工具的整套改/验/发链（走 verify-windows-cmd-tool）。
 - `self-evolution`（按需）—— 将用户明确的长期偏好、重复纠正、验证过的复用经验和持续能力缺口转为有证据的规则、技能、MCP 或 hook 更新；每轮 Stop 自动把问题与习惯采集成 inbox 候选，收尾用弹窗给推荐建议、由用户决定是否新增或更改，定期扫描给出载体路由；也用于查看、暂停、恢复与回退自动调整。触发词：自进化、学到的规则、暂停自动调整、恢复自进化、撤销最近学到的、查看学到的规则、经验沉淀、证据门槛、采集候选、候选报告、记录用户习惯、收尾建议弹窗、采纳建议、跳过这条建议。不用于：单次临时指令和普通成功任务。
@@ -116,6 +118,7 @@
 - `skill-tiering-lazy-load`（按需）—— 技能分层懒加载 playbook：注入过大时，把 ~/.qoder/skills 拆成「常驻元/高频 + skills-library 按需库」，用 tier-skills 迁移、build-skills-index 重建索引、skill-load 检索；含常驻集拍板、library 回退修补、注入降幅测量、可失败验收、回滚与分享包复现。触发词：技能分层、按需库、skills-library、skill-load 检索。不用于停用合并（skill-trim-with-capability-transfer）、描述瘦身（skill-description-route-cue-rewrite）。
 - `skill-trim-with-capability-transfer`（按需）—— 技能降量的可执行 playbook（停入口、不丢能力）。当用户说「技能太多要精简」「降量 / 停用技能」「同域不装第二个」「几个技能抢同一个触发」「停掉的技能能力不能丢」「skills-disabled 怎么回退」「降量后周检 / 全局体检判红」时使用。按引用关系分档决定谁能停，把只此一家的能力用真代码或规则条目搬进留存内容，同步会被钉死的机械判据，再用周检加提及扫描收口。不用于外部分享包并入（走 merge-inbound-qoder-package）、C 盘腾空间（走 disk-junction-migration）、本机出包发给别人（走 update-share-package）。
 - `skills-router`（常驻）—— 任务能力路由入口。先核对已装与登记包，相关能力先问使用；明确指名或已有授权直接加载。缺失仅通用、明确偏好或本轮选择才问安装，专业不匹配跳过；本地自改先审，有可靠旧基线才更新。技术不确定、版本敏感或工具缺口时主动联网查证与核验下载；试用/安装/接入先问，长期复用获准后落盘。触发词：技能路由、技能索引、skill-load、按需技能、能力安装、能力更新、主动使用、路由回归、联网搜索、工具下载。
+- `spa-loading-hang-triage`（按需）—— Web SPA「加载慢/持续转圈」的取证与修复：按入口缓存、路由分包 404、请求悬挂/超时、页面 loading 复位四条链路定位；用主包 404、瞬时分包 404、持续分包 404、接口悬挂、HTTP 203 五类故障注入验收；修复模板含 index no-store、启动看门狗、分包重试浮层、请求超时、首屏兜底与轮询防叠加。触发词：SPA 转圈、无限加载、白屏、分包 404、chunk 加载失败、请求悬挂、203 误跳登录。不用于 Electron 客户端转圈。
 - `spring-aop`（按需）—— Spring AOP：切面、通知、切点、代理与事务/日志横切。触发词：Spring AOP、切面、@Aspect、通知、切点、代理。不用于：通用 Spring Boot 实现 → spring-boot；Spring 事件 → spring-boot §4。
 - `spring-boot-actuator`（按需）—— Provides patterns to configure Spring Boot Actuator for production-grade monitoring, health probes, secured management endpoints, and Micrometer metrics across JVM services. Use when setting up monitoring, health checks, or metrics for Spring Boot applications.
 - `spring-boot-cache`（按需）—— Provides patterns for implementing Spring Boot caching - configures Redis/Caffeine/EhCache providers with TTL and eviction policies, applies @Cacheable/@CacheEvict/@CachePut annotations, validates cache hit/miss behavior, and exposes metrics via Actuator。中文触发：Redis 缓存 键值 TTL 集群 Spring Boot Java 后端
@@ -134,9 +137,10 @@
 - `umi3-to-umi4-upgrade`（按需）—— umi3 → umi4 / webpack5 升级后的回归排查与恢复：document.ejs 被静默取消（headScripts/links 恢复、#root 注入与 loading 约定）、深色主题样式回归（elementsFromPoint 归因、CSS module hash）、产物/全局变量/无头浏览器三层验证；含 mv 改名备份与字节断言。触发词：umi4 升级、document.ejs 失效、umi 样式回归、升级后白块、loading 不显示、headScripts、CSS module hash、webpack5 迁移；不用于：部署后用户端未生效、一般构建报错。
 - `user-side-deploy-verify`（按需）—— 部署自验全绿 ≠ 用户端生效的三道门：① 入口缓存头审计（首页与 fallback 必须 no-store；有 ETag 无 Cache-Control 即启发式缓存隐患）② 用户侧取证（access.log 按 UA 还原 document 链比对 bundle hash，旧 hash 不 404 时零报错）③ 冷环境复现（新 profile + 登录态 + 截图）。触发词：用户端没生效、复验全绿但用户还是旧版、缓存头、no-store、access.log UA。不用于：部署方自验（frontend-hash-deploy-verify）、浏览器打不开网页（edge-net-check）。
 - `verify-before-claim`（常驻）—— 验证证据纪律与通用检查排错：断言可失败、启动/HTTP独占端口与不存在路径对照、本轮构建退出码、计数前核对状态变化、分发产物字节一致/内容完整/干净环境消费、流式分块/UTF-8反例、运行态版本==磁盘、无证据标未验证。触发：检查排错、模型能力审查、证据审计、验收、测试、判据、全绿、汇报完成、再次检查、重复检查、循环检查。复核历史只作线索，区分静态/模拟/运行时/产物；不用于目标推进或接续。
-- `verify-ui-in-browser`（常驻）—— 前台真实运行验收：网页/客户端/小程序/小游戏/App 的改动必须真跑 + 实际截图并比对预期才算完成，只过单测/构建不算。网页：dev server + 真实浏览器完整路径（含负向用例）、browser-use、SPA fallback 用 content-type 对照；小程序/小游戏：微信开发者工具实际点击 + 截图；App：模拟器/真机 + 截图；客户端：窗口截图。触发：前端验收、UI 验证、打开界面、dev server、playwright。
+- `verify-ui-in-browser`（常驻）—— 前台真实运行验收：网页/客户端/小程序/小游戏/App 的改动必须真跑 + 实际截图并比对预期才算完成，只过单测/构建不算。网页：dev server + 真实浏览器完整路径（含负向用例）、browser-use、SPA fallback 用 content-type 对照；小程序/小游戏：微信开发者工具实际点击 + 截图；App：模拟器/真机 + 截图；客户端：窗口截图。触发：前端验收、UI 验证、打开界面、dev server、playwright、矮屏、滚动条。
 - `verify-windows-cmd-tool`（按需）—— 改/验/发 Windows 纯批处理（.cmd/.bat）控制台工具的闭环：① GBK+CRLF 编辑链（UTF-8 副本 → CRLF → GBK → 装全部副本 → md5 比对）；② 真实控制台验收（start 启动；禁用 MCP launch_app，会剥 APPDATA 造成假故障；capture-window.ps1 截图；SendInput 每键 250–350ms）；③ 无键盘验收；④ cmd 陷阱（chcp 吞 stdin、rmdir 加 nul 断链、NT 路径前缀、选择器 1 基序号）；⑤ 打包后解压逐字节比对。触发：编辑/验收/打包 .cmd 工具。
 - `vibe-coding-workflow`（按需）—— 大需求五阶段流程：需求澄清→架构→逐模块生成→调试→迭代；每阶段检查准入，已授权连续实施时不逐阶段重问；含 spec/plan/tasks 四层载体与 route-phase.js 阶段判定。触发词：五阶段、需求阶段、架构阶段、模块开发、调试、迭代、阶段准入。不用于：单点小改（直接做）、成套任务包→vibecoding-doc、纯文档分层→vibecoding-doc。
+- `vibecoding-batch-append`（按需）—— 向既有 Vibecoding 多文件任务包追加新批次卡（B0x）：先读包内 _AUTHORING 与 scripts/validate.mjs 硬规则，现读核对每条源码行号引用，按八章节模板写卡，同步总发起指令索引与批次表、_FACTS、台账与接续载体，双命令跑校验器，最后一次编辑后刷新校验存档并只加明确路径提交，立卡后停等评审。触发：追加批次、立卡、新增 B0x、批次编号连续性。不用于：从零建包（→vibecoding-doc）、按卡实施（→vibe-coding-workflow）。
 - `vibecoding-doc`（常驻）—— 把模糊需求变成可交给 AI 实施的四层文档：AGENTS.md（地图/命令/禁区）、spec.md（what/why+验收）、plan/tasks（短周期计划）、运行时上下文（按需装载）。按风险定强度：小项目只留宪法+窄契约+验收，字段级模型/完整四态/全量版本冻结仅在跨人、长周期、高风险时加。降本靠稳定前缀缓存与子 agent 隔离，不靠写更长。触发词：写 vibecoding 文档、SPEC、实施规格、AGENTS.md、上下文工程、氛围编程。也用于需求扩维后的文档同步；不用于明确需求的直接实施、架构评审、代码评审。
 - `vue-expert`（按需）—— Builds Vue 3 components with Composition API patterns, configures Nuxt 3 SSR/SSG projects, sets up Pinia stores, scaffolds Quasar/Capacitor mobile apps, implements PWA features, and optimises Vite builds。中文触发：Vue Nuxt Pinia 组件 性能优化 profiling 模式规范 配置 接口
 - `wechat-miniprogram-dev`（按需）—— 微信小程序云开发完整指南。包含项目结构、云函数开发、miniprogram-ci 部署命令、常见问题处理。适用于需要开发、部署微信小程序的场景。中文触发：微信小程序 uni-app 云开发 发布

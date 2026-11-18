@@ -2,12 +2,12 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.2.1"
+  "version": "0.2.2"
  },
- "generated": "2026-11-16",
+ "generated": "2026-11-18",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
-  "skill": 141,
+  "skill": 145,
   "script": 178,
   "command": 13,
   "agent": 2
@@ -103,7 +103,7 @@
    "name": "better-ui",
    "status": "shipped",
    "tier": "library",
-   "description": "视觉精修（polish / UI 细节）：圆角、视觉对齐、阴影层级、图标与图标切换、微交互与动效，给精确数值及 CSS/Tailwind/Motion 写法；含 reduced-motion、性能与 RTL。用于界面「不够精致」的打磨与评审；不用于信息架构或交互流程设计。",
+   "description": "视觉精修（polish / UI 细节）：圆角、视觉对齐、阴影层级、图标与图标切换、微交互与动效、滚动条视觉语言，给精确数值及 CSS/Tailwind/Motion 写法；含 reduced-motion、性能与 RTL。用于界面「不够精致」的打磨与评审；不用于信息架构或交互流程设计。",
    "source": "skills/better-ui",
    "install": {
     "mode": "copy-skill",
@@ -195,6 +195,20 @@
     "tier": "library"
    },
    "source": "skills/deliver-prd",
+   "dependencies": []
+  },
+  {
+   "id": "skill:design-engineering-catalogue",
+   "category": "skill",
+   "name": "design-engineering-catalogue",
+   "status": "shipped",
+   "tier": "library",
+   "description": "| Domain navigator for UI craft, visual design, brand, color, typography, mobile design, and interactive design engineering skills. Routes to skills for taste-driven UI, platform design (iOS/Android), components, color science, and the full visual design stack.",
+   "source": "skills/design-engineering-catalogue",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
    "dependencies": []
   },
   {
@@ -513,6 +527,20 @@
    "tier": "library",
    "description": "每轮注入文件（AGENTS.md / MEMORY.md / 索引领航类长文）的无损瘦身流水线：先量化再动手 → 备份 → 只压叙述不删判据 → 覆盖断言逐条证明没丢 → 双侧同写验收。触发词：阅读压力、上下文太大、AGENTS 太长、MEMORY 超行、规则文件瘦身、压缩规则、注入体积、降 token、超红线转索引。不用于：技能描述瘦身（→skill-description-route-cue-rewrite）、技能降量（→skill-trim-with-capability-transfer）、两侧记忆不一致（→memory-bank-divergence-repair）。",
    "source": "skills/injected-context-slimming",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "dependencies": []
+  },
+  {
+   "id": "skill:intermittent-test-red-triage",
+   "category": "skill",
+   "name": "intermittent-test-red-triage",
+   "status": "shipped",
+   "tier": "library",
+   "description": "聚合套件「单跑绿、套件内红」的间歇失败归因：先按字节差证归属，再用不改真源的插桩副本+忠实 runner env 分层复现，N 次连跑测间歇性，用负载画像 A/B 实测量余量否证假设，查前驱序列与持久化日志；复现不出就写「归因未定」并零并行重跑，绝不放宽判据或把重跑当修复。触发词：间歇红、套件红项、单跑绿套件红、测试超时、重跑不复现、归因未定、零并行。",
+   "source": "skills/intermittent-test-red-triage",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1357,7 +1385,7 @@
    "name": "responsive-craft",
    "status": "shipped",
    "tier": "library",
-   "description": "响应式实现与验收（responsive / breakpoint / viewport）：移动优先、容器查询、clamp 流式排版、sticky/滚动协同、响应式表格与仪表盘；含 13 类 AI 失败模式、8 个设计分叉与 375/768/1024/1440 多断点预览。用于修移动端布局、加断点、做自适应页面或响应式评审；不用于纯后端任务。",
+   "description": "响应式实现与验收（responsive / breakpoint / viewport）：移动优先、容器查询、clamp 流式排版、sticky/滚动协同、响应式表格与仪表盘；含 13+1 类 AI 失败模式（含矮屏族）、8 个设计分叉与 375/768/1024/1440 多断点及 --sizes 宽×高矮屏预览。用于修移动端布局、加断点、做自适应页面或响应式评审；不用于纯后端任务。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1564,6 +1592,20 @@
    "dependencies": [
     "script:skill-load.cjs"
    ]
+  },
+  {
+   "id": "skill:spa-loading-hang-triage",
+   "category": "skill",
+   "name": "spa-loading-hang-triage",
+   "status": "shipped",
+   "tier": "library",
+   "description": "Web SPA「加载慢/持续转圈」的取证与修复：按入口缓存、路由分包 404、请求悬挂/超时、页面 loading 复位四条链路定位；用主包 404、瞬时分包 404、持续分包 404、接口悬挂、HTTP 203 五类故障注入验收；修复模板含 index no-store、启动看门狗、分包重试浮层、请求超时、首屏兜底与轮询防叠加。触发词：SPA 转圈、无限加载、白屏、分包 404、chunk 加载失败、请求悬挂、203 误跳登录。不用于 Electron 客户端转圈。",
+   "source": "skills/spa-loading-hang-triage",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
+   "dependencies": []
   },
   {
    "id": "skill:spring-aop",
@@ -1823,7 +1865,7 @@
    "name": "verify-ui-in-browser",
    "status": "shipped",
    "tier": "core",
-   "description": "前台真实运行验收：网页/客户端/小程序/小游戏/App 的改动必须真跑 + 实际截图并比对预期才算完成，只过单测/构建不算。网页：dev server + 真实浏览器完整路径（含负向用例）、browser-use、SPA fallback 用 content-type 对照；小程序/小游戏：微信开发者工具实际点击 + 截图；App：模拟器/真机 + 截图；客户端：窗口截图。触发：前端验收、UI 验证、打开界面、dev server、playwright。",
+   "description": "前台真实运行验收：网页/客户端/小程序/小游戏/App 的改动必须真跑 + 实际截图并比对预期才算完成，只过单测/构建不算。网页：dev server + 真实浏览器完整路径（含负向用例）、browser-use、SPA fallback 用 content-type 对照；小程序/小游戏：微信开发者工具实际点击 + 截图；App：模拟器/真机 + 截图；客户端：窗口截图。触发：前端验收、UI 验证、打开界面、dev server、playwright、矮屏、滚动条。",
    "install": {
     "mode": "copy-skill",
     "tier": "core"
@@ -1857,6 +1899,20 @@
     "tier": "library"
    },
    "source": "skills/vibe-coding-workflow",
+   "dependencies": []
+  },
+  {
+   "id": "skill:vibecoding-batch-append",
+   "category": "skill",
+   "name": "vibecoding-batch-append",
+   "status": "shipped",
+   "tier": "library",
+   "description": "向既有 Vibecoding 多文件任务包追加新批次卡（B0x）：先读包内 _AUTHORING 与 scripts/validate.mjs 硬规则，现读核对每条源码行号引用，按八章节模板写卡，同步总发起指令索引与批次表、_FACTS、台账与接续载体，双命令跑校验器，最后一次编辑后刷新校验存档并只加明确路径提交，立卡后停等评审。触发：追加批次、立卡、新增 B0x、批次编号连续性。不用于：从零建包（→vibecoding-doc）、按卡实施（→vibe-coding-workflow）。",
+   "source": "skills/vibecoding-batch-append",
+   "install": {
+    "mode": "copy-skill",
+    "tier": "library"
+   },
    "dependencies": []
   },
   {

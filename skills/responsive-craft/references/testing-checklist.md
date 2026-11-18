@@ -44,6 +44,24 @@ Ranked by 2026 device market share and likelihood of catching issues:
 | 9 | 430px | iPhone Pro Max |
 | 10 | 1440px | Large laptop |
 
+### Priority Viewport Heights (short-screen family, added 2026-11-18)
+
+Width-only matrices miss low-height laptops. Pair widths with these heights:
+
+| Priority | Size | Represents |
+|----------|------|-----------|
+| 1 | 1366×768 | Most common laptop panel; the fold that breaks dashboards |
+| 2 | 1280×720 | Budget/older laptops and embedded webviews |
+| 3 | 1920×1080 | Desktop baseline |
+| 4 | 825×785 (or the actual embedded viewport) | Fixed-size agent/browser panels — measure, don't assume |
+
+Height-specific checks (run at each height above, in addition to the 10-point check):
+
+11. **First-screen operability** — primary CTA / search / submit `rect.bottom <= viewport height`; below the fold without a scroll affordance is a failure
+12. **No double scrollbars** — an independently scrolling region (table body, panel) plus page-level vertical overflow > 8px is a failure; constrain the region with `max-height: calc(100dvh - <chrome>)`
+13. **Declared legitimate overflow** — any remaining page vertical overflow > 8px must carry a written reason (e.g. stacked search form at narrow width); silent overflow is a failure
+14. **Height media queries** — compaction/orientation switches keyed on `max-height` (e.g. 800px) actually fire at 768/720; verify computed styles, not just screenshots
+
 ---
 
 ## The 10-Point Check (At Each Viewport)
@@ -67,6 +85,7 @@ Ranked by 2026 device market share and likelihood of catching issues:
 |-----------|---------------|
 | **280px** (Galaxy Fold inner screen) | Overflow here usually signals a deeper problem |
 | **768x1024 portrait** | Tablets in portrait are often treated as desktop incorrectly |
+| **1366×768 / 1280×720 short laptop** | Fixed max-height tables + page overflow = double scrollbars; stacked filters push CTA below the fold |
 | **Browser zoom 200%** | WCAG 2.1 AA requirement. Text must reflow; containers must not overflow |
 | **RTL text** | If localizable, Arabic/Hebrew reverses all directional assumptions |
 | **Long unbreakable strings** | Email addresses, URLs, API keys. Use `overflow-wrap: break-word` |
@@ -93,6 +112,8 @@ Screenshot comparison at key viewports using Playwright or dev-browser:
 const viewports = [
   { width: 375, height: 812, name: 'mobile' },
   { width: 768, height: 1024, name: 'tablet' },
+  { width: 1366, height: 768, name: 'short-laptop' },
+  { width: 1280, height: 720, name: 'short-laptop-s' },
   { width: 1440, height: 900, name: 'desktop' },
 ];
 

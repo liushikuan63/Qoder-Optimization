@@ -185,9 +185,20 @@
       const params = new URLSearchParams(window.location.search);
       const url = params.get('url');
       const bpParam = params.get('breakpoints');
+      const sizesParam = params.get('sizes');
 
       let breakpoints;
-      if (bpParam) {
+      if (sizesParam) {
+        // Height-aware mode: explicit WxH per frame (short-screen testing)
+        breakpoints = sizesParam.split(',').map(s => {
+          const m = s.trim().match(/^(\d+)\s*[xX*]\s*(\d+)$/);
+          if (!m) return null;
+          const width = parseInt(m[1], 10);
+          const height = parseInt(m[2], 10);
+          return { width, height, name: `${width}×${height}` };
+        }).filter(Boolean);
+        if (!breakpoints.length) breakpoints = DEFAULT_BREAKPOINTS;
+      } else if (bpParam) {
         breakpoints = bpParam.split(',').map(w => {
           const width = parseInt(w.trim(), 10);
           return { width, name: BREAKPOINT_NAMES[width] || `${width}px` };
@@ -233,21 +244,25 @@
 
       urlDisplay.textContent = url;
       container.innerHTML = '';
+      // Height-aware frames must not stretch to container height
+      container.style.alignItems = breakpoints.some(bp => bp.height) ? 'flex-start' : 'stretch';
 
       breakpoints.forEach(bp => {
         const frame = document.createElement('div');
         frame.className = 'viewport-frame';
         frame.style.width = `${bp.width + 2}px`; // +2 for borders
+        if (bp.height) frame.style.height = `${bp.height + 33}px`; // + label row
 
         const label = document.createElement('div');
         label.className = 'viewport-label';
         label.innerHTML = `
-          <span class="viewport-label-width">${bp.width}px</span>
+          <span class="viewport-label-width">${bp.height ? `${bp.width}×${bp.height}` : `${bp.width}px`}</span>
           <span class="viewport-label-name">${bp.name}</span>`;
 
         const iframe = document.createElement('iframe');
         iframe.src = url;
         iframe.style.width = `${bp.width}px`;
+        if (bp.height) iframe.style.height = `${bp.height}px`;
         iframe.setAttribute('loading', 'lazy');
 
         frame.appendChild(label);

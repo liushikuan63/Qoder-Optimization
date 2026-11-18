@@ -4,19 +4,29 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 During the 0.x line, minor versions may contain breaking changes.
 
-## [Unreleased]
+## [0.2.2] - 2026-11-18
 
 ### 中文摘要
 - 明确强化验证的边界：`verify-before-claim` 新增「强化验证的边界」，拒绝把「最强模型 / 极限深度思考 / 不节省算力」这类不可观测要求直接当判据，改为三条可失败转换（按风险选档、双盲区证据 + 负对照、逐条证据链）与成本纪律（全量套件只作放行门、不在并行加压下判红）。
 - 强化交付前验证：`verify-before-claim` 新增「交付前返工防线」六问（需求逐条回读 → 改动点与影响面 → 旧入口可用 → 真实入口运行 → 最后一轮改动后复跑 → 返工归因），并新增 `references/rework-guard.md` 给出八类返工形态的可失败判据与正负对照；中大型交付要求把需求覆盖映射进 evidence-audit 报告后再宣布完成。
 - `evidence-audit` 支持需求覆盖与证据时效：报告可声明 `requirements`（每条需求至少映射一个检查，缺映射或映射未验证判红）与 `lastChangeAt`（每条证据记录须带 `finishedAt` 且不早于最后一轮改动）；既有报告格式与退出码不变，新增 10 条自测含变异对照（44/44 通过）。
 - `verify-ui-in-browser` 新增「改动回归矩阵」：改动页面、孪生入口、状态覆盖、数据闭环与用户报告复现逐行取证，缺行即未验证，不得用首页的绿代替。
+- `verify-ui-in-browser` 补齐矮屏维度与机器判据：断点清单加入高度矩阵（1366×768 / 1280×720 / 嵌入式实际视口）、双滚动条与合法溢出声明、同源 iframe harness；新增 `scripts/assert-shortscreen.cjs`（布局断言）与 `scripts/assert-scrollbar.py`（滚动条像素与 WCAG 对比度断言），两者都要求负对照判红；另补 `TaskStop` 树杀失败的回退取证与导航后 `evaluate_script` 续测口径。
+- `responsive-craft` 增「矮屏族」失败模式与 `preview.js --sizes` 宽×高预览：`--breakpoints` 保持宽度模式不变，`--sizes` 让每个 iframe 按精确宽高渲染，暴露双滚动条与首屏 CTA 被挤出 768px 折叠线的缺陷；测试清单同步补高度断点与首屏可操作性检查。
+- `better-ui` 增滚动条视觉语言：主题化站点不留浏览器默认亮条，给出宽度、轨色、thumb 与 WCAG 对比度要求及 Firefox 回退，并把「滚动条」纳入触发词。
+- 新增随包技能：`vibecoding-batch-append`（向既有 Vibecoding 多文件任务包追加批次卡）、`spa-loading-hang-triage`（SPA 转圈/白屏的四链路取证与故障注入验收）、`intermittent-test-red-triage`（聚合套件间歇红的字节差归属与负载 A/B 归因）、`design-engineering-catalogue`（设计工程技能导航；外部兄弟技能链接改为包内可解析文本，避免悬空引用）。
+- 手写技能清单补齐 `better-ui`、`better-typography` 与本次新增技能，修复载体契约门 N1 漏列。
 
 ### English Summary
 - Bound verification escalation: `verify-before-claim` gains a "limits of escalation" section that refuses unobservable directives (strongest model, maximum thinking, never conserve compute) as criteria and converts them into three falsifiable forms — risk-based tiering, two independent evidence channels with a negative control, and a per-claim evidence chain — plus cost discipline (the full suite is a release gate, never a probe, and is not judged under added parallel load).
 - Strengthen pre-delivery verification: `verify-before-claim` gains a six-question rework guard (per-requirement readback, change-impact surface, legacy entry points, real-entry run, re-run after the last edit, rework attribution) plus `references/rework-guard.md` with falsifiable criteria and positive/negative controls for eight common rework patterns; medium and cross-module deliveries must map requirements into an evidence-audit report before claiming completion.
 - `evidence-audit` now supports requirement coverage and evidence freshness: reports may declare `requirements` (every requirement maps to at least one check; missing or unverified mappings fail) and `lastChangeAt` (each evidence record must carry `finishedAt` not earlier than the last edit); existing report formats and exit codes are unchanged, with 10 new self-tests including mutation controls (44/44 pass).
 - `verify-ui-in-browser` gains a change-regression matrix: changed pages, sibling entries, state coverage, data path and user-reported repro are each evidenced per row; a missing row is unverified and a green home page cannot substitute.
+- `verify-ui-in-browser` now covers the short-screen family with machine-checkable criteria: the breakpoint checklist adds a height matrix (1366×768, 1280×720 and the real embedded viewport), double-scrollbar and declared-overflow rules, and a same-origin iframe harness; new `scripts/assert-shortscreen.cjs` (layout assertions) and `scripts/assert-scrollbar.py` (scrollbar pixel and WCAG contrast assertions) both require a red negative control. Also documents the `TaskStop` process-tree fallback and how to resume `evaluate_script` after a deliberate navigation.
+- `responsive-craft` adds the short-screen failure mode and `preview.js --sizes` width×height previews: `--breakpoints` keeps the old width-only behaviour while `--sizes` renders each iframe at an exact width and height, exposing double scrollbars and primary CTAs pushed below the 768px fold; the testing checklist gains height breakpoints and first-screen operability checks.
+- `better-ui` adds scrollbar visual language: themed surfaces must not keep the bright browser-default bar, with width, track, thumb and WCAG contrast rules plus a Firefox fallback; "scrollbar" joins the trigger words.
+- New shipped skills: `vibecoding-batch-append` (append a batch card to an existing multi-file Vibecoding package), `spa-loading-hang-triage` (four-path forensic triage for a spinning or blank SPA), `intermittent-test-red-triage` (byte-level ownership and load A/B attribution for intermittent suite failures), and `design-engineering-catalogue` (design-engineering navigator; links to sibling skills that are not shipped are rendered as plain text so no reference dangles).
+- The hand-written skill inventory now includes `better-ui`, `better-typography` and the newly shipped skills, fixing the carrier contract gate N1 omission.
 
 ## [0.2.1] - 2026-11-16
 
@@ -576,7 +586,8 @@ During the 0.x line, minor versions may contain breaking changes.
 ### Contributors / 贡献者
 - @liushikuan63
 
-[Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.2
 [0.2.1]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.1
 [0.2.0]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.0
 [0.1.7]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.1.7

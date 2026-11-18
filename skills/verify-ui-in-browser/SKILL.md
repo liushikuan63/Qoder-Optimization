@@ -1,6 +1,6 @@
 ---
 name: verify-ui-in-browser
-description: "前台真实运行验收：网页/客户端/小程序/小游戏/App 的改动必须真跑 + 实际截图并比对预期才算完成，只过单测/构建不算。网页：dev server + 真实浏览器完整路径（含负向用例）、browser-use、SPA fallback 用 content-type 对照；小程序/小游戏：微信开发者工具实际点击 + 截图；App：模拟器/真机 + 截图；客户端：窗口截图。触发：前端验收、UI 验证、打开界面、dev server、playwright。"
+description: "前台真实运行验收：网页/客户端/小程序/小游戏/App 的改动必须真跑 + 实际截图并比对预期才算完成，只过单测/构建不算。网页：dev server + 真实浏览器完整路径（含负向用例）、browser-use、SPA fallback 用 content-type 对照；小程序/小游戏：微信开发者工具实际点击 + 截图；App：模拟器/真机 + 截图；客户端：窗口截图。触发：前端验收、UI 验证、打开界面、dev server、playwright、矮屏、滚动条。"
 ---
 
 # 前台真实运行验收
@@ -49,7 +49,7 @@ description: "前台真实运行验收：网页/客户端/小程序/小游戏/Ap
 - 改用 `evaluate_script` 驱动页面：交互用**原生 setter + dispatchEvent** 触发 React onChange。
 - 注意 `textarea` 与 `input` 的 setter 不同；`Illegal invocation` 通常是 prototype setter 用错，或对 `querySelectorAll` 返回的 NodeList 直接调方法。
 - 点击开关、断言 DOM 文案与持久化状态都可以用脚本完成。
-- 同一页面 `evaluate_script` 连续报 `Inspected target navigated or closed` 时**不要试第三次**：执行上下文已被 iframe 导航销毁；改 `take_snapshot` 取证，或直接导航到目标页 / 用同源 iframe harness 做断言。
+- 同一页面 `evaluate_script` 连续报 `Inspected target navigated or closed` 时**不要试第三次**：执行上下文已被 iframe 导航销毁；改 `take_snapshot` 取证，或直接导航到目标页 / 用同源 iframe harness 做断言。若该错误出现在**主动 `location.href` 导航之后**，属预期上下文销毁而非失败：用带 setTimeout 等待加载完成的新 `evaluate_script` 接续即可，不计入失败/重试预算（2026-11-18 并入）。
 - 截图拿不到就明确说明"以 DOM 断言代替视觉检查"，**不要谎报看到了界面**。
 
 ## 三、视口尺寸限制
@@ -59,9 +59,14 @@ description: "前台真实运行验收：网页/客户端/小程序/小游戏/Ap
 - 窄屏媒体查询分支（如 ≤700px）**无法在真实视口实测**。
 - 响应式改动要么用**注入 CSS 模拟桌面态测量**（可行），要么在总结里**显式标注"该断点未实测"**。
 
-### 多断点实测（2026-11-17 补）
+### 多断点实测（2026-11-17 补；2026-11-18 加高度维度）
 
-固定视口下的断点实跑路径：用 `responsive-craft` 技能自带的 `preview.js <页面或URL> --breakpoints 375,768,1024,1440`（在该技能的 scripts 目录）起多 iframe 预览（每个 iframe 按目标宽度独立渲染），或 headless Edge/CDP 指定窗口尺寸。验收按 [references/multi-breakpoint-checklist.md](references/multi-breakpoint-checklist.md)：横向溢出断言、sticky 生效、触控目标与 IME 文本规则，并做**负对照页判红**——只跑正例出绿是假绿。
+固定视口下的断点实跑路径：用 `responsive-craft` 技能自带的 `preview.js <页面或URL> --breakpoints 375,768,1024,1440`（在该技能的 scripts 目录）起多 iframe 预览（每个 iframe 按目标宽度独立渲染），**矮屏加 `--sizes 1366x768,1280x720,825x785` 显式指定宽×高**；或 headless Edge/CDP 指定窗口尺寸；或按清单里的同源 iframe harness 显式 width+height 测量。验收按 [references/multi-breakpoint-checklist.md](references/multi-breakpoint-checklist.md)：横向溢出断言、sticky 生效、触控目标与 IME 文本规则、**矮屏首屏可操作性 / 双滚动条 / 合法溢出声明**，并做**负对照页判红**——只跑正例出绿是假绿。
+
+机器判据脚本（本技能 scripts/，均可失败、EXIT 1 判红）：
+
+- `assert-shortscreen.cjs <measurements.json>`：矮屏布局断言（横向溢出、双滚动条、未声明溢出、首屏关键操作可见），测量 JSON 由清单内 harness 导出。
+- `assert-scrollbar.py <shot.png> --thumb #… --track #… --width 8 --forbid #…,#…`：滚动条视觉语言像素断言（带宽/反例色/暗轨存在/WCAG ≥3:1）；负对照＝注入旧调色板截图判红后移除复绿。
 
 ## 四、用户说"打开界面"时
 
@@ -125,7 +130,7 @@ description: "前台真实运行验收：网页/客户端/小程序/小游戏/Ap
 
 - 启动服务、跑脚本、改代码等本地可逆动作自主推进。
 - 端口被并发会话占用时换端口起自己的服务，**不要去杀别人的进程**。
-- 视觉证据确实拿不到时，如实降级说明；可失败判据本身的设计原则见 `verify-before-claim`。
+- **TaskStop 树杀失败的回退（2026-11-18 实测采纳）**：本机 TaskStop 对「launcher＋子进程树」后台任务（node preview→serve-static、Chrome 等）会报 `Failed to terminate process tree … exit code null`，**不重复重试**；改 pwsh7 `Get-CimInstance Win32_Process` 按本轮 profile/路径过滤出显式 PID 清单（同屏打印他人进程负对照计数）→ 逐 PID `Stop-Process` → 复验 LEFT=0 与端口 closed；首遍残留子进程再跑同过滤一遍。视觉证据确实拿不到时，如实降级说明；可失败判据本身的设计原则见 `verify-before-claim`。
 
 ## 七、Playwright / Cypress 稳定性（写 E2E 时）
 

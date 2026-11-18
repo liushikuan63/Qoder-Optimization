@@ -1,6 +1,6 @@
 ---
 name: responsive-craft
-description: "响应式实现与验收（responsive / breakpoint / viewport）：移动优先、容器查询、clamp 流式排版、sticky/滚动协同、响应式表格与仪表盘；含 13 类 AI 失败模式、8 个设计分叉与 375/768/1024/1440 多断点预览。用于修移动端布局、加断点、做自适应页面或响应式评审；不用于纯后端任务。"
+description: "响应式实现与验收（responsive / breakpoint / viewport）：移动优先、容器查询、clamp 流式排版、sticky/滚动协同、响应式表格与仪表盘；含 13+1 类 AI 失败模式（含矮屏族）、8 个设计分叉与 375/768/1024/1440 多断点及 --sizes 宽×高矮屏预览。用于修移动端布局、加断点、做自适应页面或响应式评审；不用于纯后端任务。"
 argument-hint: "[audit|build|preview]"
 ---
 
@@ -142,6 +142,8 @@ These are the most common mistakes. Check every responsive output against this l
 
 10. **Optimizing for one viewport** — Code that looks perfect at 1440px breaks at 320px, 768px portrait, and ultrawide. Always test the full range.
 
+11. **Short-screen (low viewport height) blindness** — Width-only testing misses the whole laptop-768px family: (a) fixed-`max-height` table/panel PLUS page-level overflow = double nested scrollbars; constrain the scroll region (`max-height: calc(100dvh - <chrome>)`) so only one axis scrolls; (b) vertical-stacked search/filter forms push the primary CTA below a 768px fold — switch orientation by height media query (`@media (max-height: 800px)`) or compact spacing, not by width alone; (c) `100vh` chrome/hero blocks eat the fold on 720px-tall screens — use `dvh`/`svh` and clamp hero height. Test 1366×768 and 1280×720 explicitly (`preview.js --sizes`), and declare any legitimate vertical overflow with a reason instead of leaving it silent.
+
 For the complete list with code examples, see `references/ai-failure-patterns.md`.
 
 ---
@@ -158,7 +160,11 @@ See all breakpoints simultaneously in the browser, with hot reload:
 node ${CLAUDE_SKILL_DIR}/scripts/preview.js http://localhost:3000
 node ${CLAUDE_SKILL_DIR}/scripts/preview.js ./index.html
 node ${CLAUDE_SKILL_DIR}/scripts/preview.js http://localhost:3000 --breakpoints 375,768,1024,1440,1920
+# Short-screen (height-aware) viewports: explicit WxH per frame
+node ${CLAUDE_SKILL_DIR}/scripts/preview.js http://localhost:3000 --sizes 1366x768,1280x720,1920x1080
 ```
+
+`--breakpoints` renders width-only frames (unchanged behavior); `--sizes` renders each frame at the exact width AND height so low-viewport-height defects (double scrollbars, CTA below the fold) are visible. Without `--sizes` the preview behaves exactly as before.
 
 ### Responsive Snapshots
 
