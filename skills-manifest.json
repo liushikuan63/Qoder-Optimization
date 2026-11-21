@@ -1,7 +1,7 @@
 {
  "package_name": "Qoder-Optimization",
- "version": "0.2.2",
- "generated": "2026-11-18",
+ "version": "0.2.3",
+ "generated": "2026-11-21",
  "skills": [
   {
    "name": "agent-client-network-triage",
@@ -661,7 +661,7 @@
   {
    "name": "verify-ui-in-browser",
    "tier": "core",
-   "files": 6
+   "files": 11
   },
   {
    "name": "verify-windows-cmd-tool",

@@ -1,4 +1,4 @@
-# Qoder-Optimization - 0.2.2 技能清单
+# Qoder-Optimization - 0.2.3 技能清单
 
 共 145 个源码随包技能：常驻 5 / 按需 140。机器可读版见 skills-manifest.json 与 catalog.json。
 
@@ -137,7 +137,7 @@
 - `umi3-to-umi4-upgrade`（按需）—— umi3 → umi4 / webpack5 升级后的回归排查与恢复：document.ejs 被静默取消（headScripts/links 恢复、#root 注入与 loading 约定）、深色主题样式回归（elementsFromPoint 归因、CSS module hash）、产物/全局变量/无头浏览器三层验证；含 mv 改名备份与字节断言。触发词：umi4 升级、document.ejs 失效、umi 样式回归、升级后白块、loading 不显示、headScripts、CSS module hash、webpack5 迁移；不用于：部署后用户端未生效、一般构建报错。
 - `user-side-deploy-verify`（按需）—— 部署自验全绿 ≠ 用户端生效的三道门：① 入口缓存头审计（首页与 fallback 必须 no-store；有 ETag 无 Cache-Control 即启发式缓存隐患）② 用户侧取证（access.log 按 UA 还原 document 链比对 bundle hash，旧 hash 不 404 时零报错）③ 冷环境复现（新 profile + 登录态 + 截图）。触发词：用户端没生效、复验全绿但用户还是旧版、缓存头、no-store、access.log UA。不用于：部署方自验（frontend-hash-deploy-verify）、浏览器打不开网页（edge-net-check）。
 - `verify-before-claim`（常驻）—— 验证证据纪律与通用检查排错：断言可失败、启动/HTTP独占端口与不存在路径对照、本轮构建退出码、计数前核对状态变化、分发产物字节一致/内容完整/干净环境消费、流式分块/UTF-8反例、运行态版本==磁盘、无证据标未验证。触发：检查排错、模型能力审查、证据审计、验收、测试、判据、全绿、汇报完成、再次检查、重复检查、循环检查。复核历史只作线索，区分静态/模拟/运行时/产物；不用于目标推进或接续。
-- `verify-ui-in-browser`（常驻）—— 前台真实运行验收：网页/客户端/小程序/小游戏/App 的改动必须真跑 + 实际截图并比对预期才算完成，只过单测/构建不算。网页：dev server + 真实浏览器完整路径（含负向用例）、browser-use、SPA fallback 用 content-type 对照；小程序/小游戏：微信开发者工具实际点击 + 截图；App：模拟器/真机 + 截图；客户端：窗口截图。触发：前端验收、UI 验证、打开界面、dev server、playwright、矮屏、滚动条。
+- `verify-ui-in-browser`（常驻）—— 前台真实运行验收：网页/客户端/小程序/小游戏/App 的改动必须真跑 + 实际截图并比对预期才算完成，只过单测/构建不算。网页：dev server + 真实浏览器完整路径（含负向用例）、browser-use、SPA fallback 用 content-type 对照；小程序/小游戏：微信开发者工具实际点击 + 截图；App：模拟器/真机 + 截图；客户端：窗口截图。含四向内缩（贴边）、列表塌陷与死白、报错刷屏的可失败量化判据与量测 harness。触发：前端验收、UI 验证、打开界面、dev server、playwright、矮屏、滚动条、贴边、内缩、布局塌陷。
 - `verify-windows-cmd-tool`（按需）—— 改/验/发 Windows 纯批处理（.cmd/.bat）控制台工具的闭环：① GBK+CRLF 编辑链（UTF-8 副本 → CRLF → GBK → 装全部副本 → md5 比对）；② 真实控制台验收（start 启动；禁用 MCP launch_app，会剥 APPDATA 造成假故障；capture-window.ps1 截图；SendInput 每键 250–350ms）；③ 无键盘验收；④ cmd 陷阱（chcp 吞 stdin、rmdir 加 nul 断链、NT 路径前缀、选择器 1 基序号）；⑤ 打包后解压逐字节比对。触发：编辑/验收/打包 .cmd 工具。
 - `vibe-coding-workflow`（按需）—— 大需求五阶段流程：需求澄清→架构→逐模块生成→调试→迭代；每阶段检查准入，已授权连续实施时不逐阶段重问；含 spec/plan/tasks 四层载体与 route-phase.js 阶段判定。触发词：五阶段、需求阶段、架构阶段、模块开发、调试、迭代、阶段准入。不用于：单点小改（直接做）、成套任务包→vibecoding-doc、纯文档分层→vibecoding-doc。
 - `vibecoding-batch-append`（按需）—— 向既有 Vibecoding 多文件任务包追加新批次卡（B0x）：先读包内 _AUTHORING 与 scripts/validate.mjs 硬规则，现读核对每条源码行号引用，按八章节模板写卡，同步总发起指令索引与批次表、_FACTS、台账与接续载体，双命令跑校验器，最后一次编辑后刷新校验存档并只加明确路径提交，立卡后停等评审。触发：追加批次、立卡、新增 B0x、批次编号连续性。不用于：从零建包（→vibecoding-doc）、按卡实施（→vibe-coding-workflow）。

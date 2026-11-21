@@ -4,6 +4,24 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 During the 0.x line, minor versions may contain breaking changes.
 
+## [0.2.3] - 2026-11-21
+
+### 中文摘要
+- `verify-ui-in-browser` 的四向内缩与布局塌陷判据从"项目里的证据脚本"上收为**包内可复用的量测 harness + 断言脚本**，随包新增 4 件：`scripts/harness-inset-probe.cjs`（文本轴 + 内容块轴的 `Range` 量测，settle 后取第二次）、`scripts/harness-layout-probe.cjs`（列表高 / 面板高 / 分页条底边 / 容器底边 / 真实横向溢出）、`scripts/assert-edge-gutter.cjs`（每路由 5 项 + 覆盖率 + 量测态前置检查，默认 `--min-x 12 --min-y 8`）、`scripts/assert-layout-collapse.cjs`（分页条与容器底差 **8–20px** 区间、距视口底 ≤40、宽档横向溢出必须 0）。每条判据都能失败，Git Bash 下 `--expect` 的 `/` 值会被 MSYS 改写成盘符路径，脚本对这种形态直接 exit 2。
+- 新增 `references/edge-gutter-layout-checklist.md`：把"用户点出一处贴边＝判据缺项"的做法写成 A–K 判据表（含阈值区间依据）、两种负对照模式（`probeCss` 剥离内缩契约、`clearTransitionResidue:false` 保留过渡残留）与复跑命令。
+- **六个坑只有真实浏览器实跑才暴露**（SKILL.md §三 与 checklist 第四节都留了台账）：① 表头误入文本轴；② 外层 `overflow-x:hidden` 让 `scrollWidth-clientWidth` 恒为 0（假绿），必须指到 `auto/scroll` 的内层，不符则记 `hOverflowUnusable` 而不是产出 0；③ settle 后取第二次；④ `loadTimeout` 到点后禁止迟到补量，超时记录冻结；⑤ 后台标签页 rAF 被节流使 Vue 过渡类永久残留，右/底轴系统性少 20px 并**伪报出一个"壳层底边偏低 15px"的假缺陷**（该缺陷本轮已撤销）；⑥ 定时器未 clear 会把已量完的记录标成 timeout。
+- 判据语义两处反向纠正：`errorStateExplained` 只在界面确有 alert / 错误 toast 信号时才要求解释（真实空集显示空表不是缺陷）；面板高度断言按 `paneIsAncestor` 分叉（`.el-table` 含表头本就比 `.el-table__body-wrapper` 高，直接判 `pane>=list` 是恒红假判据）。
+- `references/multi-breakpoint-checklist.md` 补第 11–13 条：四向内缩阈值（两档视口都要跑）、横向溢出必须量真实滚动容器、覆盖率判据（缺一个路由即判红，只测被点名那页不许报"全站通过"）。
+- 实跑数字（Vite dev + 同源 iframe + CUA 后台 Edge 截图）：14 路由四向内缩 `PASS 85/85 EXIT=0`；负对照 A（保留过渡残留）`FAIL transitionSettled EXIT=1`、负对照 B（`probeCss` 剥契约）`L=0/T=0/B=6` + 3 处 flush block `EXIT=1`；布局判据 `31 of 32`，唯一红项 `1366x768@/dead-msg hOverflowPx<=0（实测 83）`——即本轮据以立项并修复的真实列宽缺陷。
+
+### English Summary
+- `verify-ui-in-browser` promotes its edge-inset and layout-collapse criteria from one-off project evidence scripts into reusable shipped harnesses: four new files — `harness-inset-probe.cjs` (text axis via `Range` plus block axis, second measurement after settle), `harness-layout-probe.cjs` (list/pane heights, pagination bottom, container bottom, real horizontal overflow), `assert-edge-gutter.cjs` (five checks per route plus coverage and measurement-state preconditions, default `--min-x 12 --min-y 8`) and `assert-layout-collapse.cjs` (pagination-to-container gap must be **8–20px**, ≤40px from the viewport bottom, zero overflow on wide viewports). Every assertion can fail; under Git Bash the scripts exit 2 when MSYS rewrites `/`-prefixed `--expect` values into drive paths.
+- New `references/edge-gutter-layout-checklist.md` codifies "one reported flush edge means a missing criterion" as an A–K table with threshold rationale, the two negative-control modes (`probeCss` stripping the inset contract, `clearTransitionResidue:false` keeping transition residue) and the rerun commands.
+- Six pitfalls that only a real browser run exposes are documented in SKILL.md §三 and the checklist: table headers leaking into the text axis; an outer `overflow-x:hidden` wrapper whose `scrollWidth-clientWidth` is permanently 0 (false green) so the probe must target the `auto/scroll` inner element and record `hOverflowUnusable` otherwise; measuring before settle; late measurements overwriting a timed-out record; throttled rAF in a hidden tab leaving Vue transition classes stuck, which shifts the right/bottom axes by a systematic −20px and fabricated a "shell bottom 15px low" defect that has since been retracted; and an uncleared timer flagging a completed record as a timeout.
+- Two inverted assertions corrected: `errorStateExplained` now only fires when the page really shows an alert or error toast (an honest empty table is not a defect), and the pane-height check branches on `paneIsAncestor` because `.el-table` legitimately includes the header and is taller than `.el-table__body-wrapper`.
+- `references/multi-breakpoint-checklist.md` gains items 11–13: four-direction inset thresholds on both viewport sizes, overflow must be measured on the real scroll container, and route coverage is a hard criterion so a single spot-checked page can never be reported as "whole site verified".
+- Live-run numbers (Vite dev + same-origin iframe + background Edge screenshots): inset criteria `PASS 85/85 EXIT=0` over 14 routes; negative control A `FAIL transitionSettled EXIT=1`; negative control B `L=0/T=0/B=6` with three flush blocks `EXIT=1`; layout criteria `31 of 32`, the single red item being `1366x768@/dead-msg hOverflowPx<=0 (measured 83)` — the real column-width defect this release was filed against and fixed.
+
 ## [0.2.2] - 2026-11-18
 
 ### 中文摘要
@@ -587,6 +605,7 @@ During the 0.x line, minor versions may contain breaking changes.
 - @liushikuan63
 
 [Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.2.2...HEAD
+[0.2.3]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.3
 [0.2.2]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.2
 [0.2.1]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.1
 [0.2.0]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.0

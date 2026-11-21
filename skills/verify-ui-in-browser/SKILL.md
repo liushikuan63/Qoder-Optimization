@@ -1,6 +1,6 @@
 ---
 name: verify-ui-in-browser
-description: "前台真实运行验收：网页/客户端/小程序/小游戏/App 的改动必须真跑 + 实际截图并比对预期才算完成，只过单测/构建不算。网页：dev server + 真实浏览器完整路径（含负向用例）、browser-use、SPA fallback 用 content-type 对照；小程序/小游戏：微信开发者工具实际点击 + 截图；App：模拟器/真机 + 截图；客户端：窗口截图。触发：前端验收、UI 验证、打开界面、dev server、playwright、矮屏、滚动条。"
+description: "前台真实运行验收：网页/客户端/小程序/小游戏/App 的改动必须真跑 + 实际截图并比对预期才算完成，只过单测/构建不算。网页：dev server + 真实浏览器完整路径（含负向用例）、browser-use、SPA fallback 用 content-type 对照；小程序/小游戏：微信开发者工具实际点击 + 截图；App：模拟器/真机 + 截图；客户端：窗口截图。含四向内缩（贴边）、列表塌陷与死白、报错刷屏的可失败量化判据与量测 harness。触发：前端验收、UI 验证、打开界面、dev server、playwright、矮屏、滚动条、贴边、内缩、布局塌陷。"
 ---
 
 # 前台真实运行验收
@@ -17,6 +17,7 @@ description: "前台真实运行验收：网页/客户端/小程序/小游戏/Ap
 2. **细节精修**：按需读 `better-ui`（圆角、视觉对齐、阴影层级、图标与切换、微交互精确值）与 `better-typography`（字阶、行高、换行与截断、标点）；建站审美用 `design-taste-frontend`，AI 味的确定性检测用 `impeccable detect`。
 3. **负对照**：确认本门能判红——用已知丑样例，或临时破坏一处间距 / 对比，断言必须失败；全绿没有负对照视为未验证。
 4. **落证据**：汇报写“哪项 / 证据（截图、计算样式、像素差）/ 结论”；没做就写“审美门未做 + 原因”，不得用“看起来不错”结案。
+5. **量化内缩与布局契约门（2026-11-21 补，肉眼走查会放过贴边）**：凡涉及列表/表单/卡片页的前端验收，除主观走查外**必须跑判据脚本**——四向内缩（文字与内容块距主容器 ≥12px 水平 / ≥8px 垂直）、列表塌陷与死白（分页条与容器底差 8–20px、距视口底 ≤40px）、窄屏横向溢出（真实滚动容器，宽档必须为 0）、覆盖率（声明路由全测到）。流程与阈值见 [references/edge-gutter-layout-checklist.md](references/edge-gutter-layout-checklist.md)，脚本见 §三「机器判据脚本」。**判据本身要能失败**：同一脚本喂旧构建量测件必须报红，只报绿不算建立判据。**负对照有两种，至少跑一种**：`probeCss` 注入剥离内缩契约的 CSS（证明贴边会判红）、`clearTransitionResidue:false` 保留过渡残留（证明量测态污染会判红）——两种都由 harness 参数触发，不需要改业务代码。
 
 ## 一、标准验收流程
 
@@ -49,7 +50,7 @@ description: "前台真实运行验收：网页/客户端/小程序/小游戏/Ap
 - 改用 `evaluate_script` 驱动页面：交互用**原生 setter + dispatchEvent** 触发 React onChange。
 - 注意 `textarea` 与 `input` 的 setter 不同；`Illegal invocation` 通常是 prototype setter 用错，或对 `querySelectorAll` 返回的 NodeList 直接调方法。
 - 点击开关、断言 DOM 文案与持久化状态都可以用脚本完成。
-- 同一页面 `evaluate_script` 连续报 `Inspected target navigated or closed` 时**不要试第三次**：执行上下文已被 iframe 导航销毁；改 `take_snapshot` 取证，或直接导航到目标页 / 用同源 iframe harness 做断言。若该错误出现在**主动 `location.href` 导航之后**，属预期上下文销毁而非失败：用带 setTimeout 等待加载完成的新 `evaluate_script` 接续即可，不计入失败/重试预算（2026-11-18 并入）。
+- 同一页面 `evaluate_script` 连续报 `Inspected target navigated or closed` 时**不要试第三次**：执行上下文已被 iframe 导航销毁；改 `take_snapshot` 取证，或直接导航到目标页 / 用同源 iframe harness 做断言。若该错误出现在**主动 `location.href` 导航之后**，属预期上下文销毁而非失败：用带 setTimeout 等待加载完成的新 `evaluate_script` 接续即可，不计入失败/重试预算（2026-11-18 并入）。**同理，不要在同一个 `evaluate_script` 里调用 `location.reload()` / 页面跳转后再等待或断言**——导航会销毁该次执行上下文并稳定报此错；固定拆成两次调用：第一次只触发导航，第二次（新调用）等待后取证（2026-11-19）。
 - 截图拿不到就明确说明"以 DOM 断言代替视觉检查"，**不要谎报看到了界面**。
 
 ## 三、视口尺寸限制
@@ -67,6 +68,22 @@ description: "前台真实运行验收：网页/客户端/小程序/小游戏/Ap
 
 - `assert-shortscreen.cjs <measurements.json>`：矮屏布局断言（横向溢出、双滚动条、未声明溢出、首屏关键操作可见），测量 JSON 由清单内 harness 导出。
 - `assert-scrollbar.py <shot.png> --thumb #… --track #… --width 8 --forbid #…,#…`：滚动条视觉语言像素断言（带宽/反例色/暗轨存在/WCAG ≥3:1）；负对照＝注入旧调色板截图判红后移除复绿。
+- `assert-edge-gutter.cjs <measure.json> --expect r1,r2,… [--min-x 12] [--min-y 8]`：四向内缩与贴边断言（文本轴 + 内容块轴 + 路由覆盖率 + 量测稳定性），消费 `harness-inset-probe.cjs` 的产出。除阈值外还先判 `pageLoadedMeasured`（超时/缺主容器的记录没有可信读数，判红而不是让阈值各报一次 null 不达标）与 `transitionSettled`（过渡类残留会让右/底轴系统性偏移，实测 −20px）。**Git Bash 下必须先 `export MSYS2_ARG_CONV_EXCL="*"`**，否则 `--expect /,/source` 会被改写成 Windows 路径，脚本会直接 exit 2 报出来。
+- `harness-inset-probe.cjs`：内缩量测 harness（同源 iframe、settle 后取第二次；已内置「表头误入文本轴」「滚动条宽度误判贴边」两处修正的参数化版本）。
+- `assert-layout-collapse.cjs <measure.json> [--min-list 200] [--gap-min 8] [--gap-max 20] [--dead-max 40] [--overflow-wide 0] [--overflow-narrow 200]`：列表塌陷 / 分页死白 / 分页贴底 / 横向溢出 / 错误态可解释断言，兼容新旧字段名（`tableHeight`/`listHeight`、`pageFillBottom`/`containerBottom`）。面板高度规则按 `paneIsAncestor` 分叉：pane 是 list 的祖先才判「面板不该比表格矮」，否则只能按下限判塌陷（`.el-table` 含表头本就比 `.el-table__body-wrapper` 高，直接判 `pane>=list` 是反的）；错误态只在**确有 alert/错误 toast 信号**时要求可解释，真实空集显示空表不是缺陷。
+- `harness-layout-probe.cjs`：上述布局量测 harness；会校验溢出容器 `overflow-x` 确为 `auto/scroll`，不是则记 `hOverflowUnusable` 而不是产出恒 0 的假绿读数。
+
+**六个坑只有真跑才暴露**（A 表头进文本轴 / B 外层 `overflow-x:hidden` 恒 0 / C settle 后二次量测 / D 超时后补量必须冻结读数 / E 隐藏标签页 rAF 被节流→过渡类永久残留→读数系统性偏 20px 并造假出「壳层底边缺陷」/ F 超时定时器未 clear 会把已完成的记录标成 timeout）：细则、参数与本轮实跑数字见 [references/edge-gutter-layout-checklist.md](references/edge-gutter-layout-checklist.md)。
+
+## 三·五、贴边与布局塌陷的根因修法（改哪儿，而不是调阈值）
+
+用户点出一处贴边＝**判据缺失**，不是单页缺陷。修法顺序：
+
+1. **先量化全仓**：按路由表把**全部路由 × 四向**（左/右/上/下）一次测全，别只修被点名的那页；应测路由用覆盖率参数 `--expect` 显式声明，缺一条即判红。
+2. **修在单一真源**：水平/垂直内缩属于布局契约（壳层组件的 padding 与整块元素的 margin），不在各视图里重复 scoped 定义；已有同值局部定义时**删局部、留全局**，删后必须复跑判据证明行为中性（同读数、同 EXIT）。
+3. **区分 padding 与 margin**：整块要真正离开边缘只能用 margin（块自身内缩值 ≥12 视作“靠 padding 内缩”，不计入贴边命中）；只加 padding 会背景贴边、文字仍贴边。
+4. **异常读数先怀疑量测态，再动阈值（2026-11-21 实跑纠正）**：上一轮登记的「壳层底边整体偏低 15px」经真实浏览器复跑证伪——那是坑 E 的过渡类残留假读数（清理后 `containerBottom=768` 恰等于视口高、`gap=16`）。所以任何"整片同向偏移"的读数，先查 `hostVisibility` / `transitionStuck` / `residueCleared` 再立项；确认是真缺陷才登记，**不得为让判据通过把阈值调成 0 或调成"分页紧贴容器底"**——那正是上一轮放过缺陷的原因。
+5. **收尾**：新阈值上线后重跑旧数据件，旧构建必须报红（负对照）；把“上一轮标准放过了什么”写进缺陷清单。
 
 ## 四、用户说"打开界面"时
 

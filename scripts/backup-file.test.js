@@ -31,6 +31,14 @@ const mkbak = (orig, suffix, ageDays) => {
   fs.utimesSync(p, t, t);
   return p;
 };
+// 夹具文件名一律由「今天 − N 天」推导，不写死日期。写死日期会和按当前日期推导出来的标签撞车：
+// 2026-11-21 实测 staleTs（now−10d）正好等于写死的 .bak.20261111-000000，而该名字又被当成 mtime 2d 的新鲜件建过一次，
+// 结果同一路径被后一次 mkbak 覆盖成新鲜件，「超期件必须被裁」的负对照拿到的是新鲜件、判红的原因与真实语义无关。
+const dayTs = (daysAgo) => {
+  const d = new Date(Date.now() - daysAgo * DAY);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-000000`;
+};
 const listBaks = (orig) => {
   const dir = path.dirname(orig), base = path.basename(orig);
   return fs.readdirSync(dir).filter((n) => new RegExp('^' + base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\.bak').test(n));
@@ -115,20 +123,20 @@ const old = path.join(SB, 'old-source.txt');
 write(old, 'OLD');
 const oldT = (Date.now() - 10 * DAY) / 1000;
 fs.utimesSync(old, oldT, oldT);                       // 源文件很久没改
-mkbak(old, '.bak.20261110-000000', 3);                // 两份较新的既有备份（mtime 3d/2d）
-mkbak(old, '.bak.20261111-000000', 2);
+const priorOld = ['.bak.' + dayTs(3), '.bak.' + dayTs(2)];   // 两份较新的既有备份（mtime 3d/2d）
+priorOld.forEach((s, i) => mkbak(old, s, 3 - i));
 const r9 = run([old]);
 const oldBaks = listBaks(old);
-const newBak = oldBaks.find((n) => !/20261110|20261111/.test(n));
+const newBak = oldBaks.find((n) => !priorOld.some((s) => n.endsWith(s)));
 ok('A53 刚生成的备份仍在磁盘上（不被当超期裁掉）', r9.code === 0 && !!newBak && fs.existsSync(path.join(SB, newBak)), oldBaks.join(','));
 ok('A53 输出打印的备份指针真实存在（不悬空）', (() => {
   // 判据按实际输出契约写：backup-file.js 打印 `[备份] <路径>`（首版我误按部署脚本的 `->` 形式匹配，红错原因，已改并点名）。
   const m = r9.out.match(/\[备份\]\s*(.+?)\s*$/m);
   return !!m && /\.bak/.test(m[1]) && fs.existsSync(m[1].trim());
 })(), r9.out.slice(0, 200));
-ok('A53 负对照：指针解析不是恒真（不存在的路径必须判失败）', !fs.existsSync(path.join(SB, 'zz-no-such-backup.bak.20261113-000000')), '');
+ok('A53 负对照：指针解析不是恒真（不存在的路径必须判失败）', !fs.existsSync(path.join(SB, 'zz-no-such-backup.bak.' + dayTs(13))), '');
 ok('A53 新备份不被报成超期（龄报告用备份自身时间）', !/10 天前|（10d）/.test(r9.out), r9.out.slice(0, 240));
-ok('A53 负对照：两份既有备份仍在（没被顺手清空）', oldBaks.filter((n) => /20261110|20261111/.test(n)).length >= 1, oldBaks.join(','));
+ok('A53 负对照：两份既有备份仍在（没被顺手清空）', oldBaks.filter((n) => priorOld.some((s) => n.endsWith(s))).length >= 1, oldBaks.join(','));
 
 // ── 9. A53：别的工具留下的副本（文件名时间戳新、继承 mtime 旧）也按备份自身时间判龄 ──
 const foreign = path.join(SB, 'foreign.txt');
@@ -139,20 +147,21 @@ const todayTs = `${today.getFullYear()}${p2(today.getMonth() + 1)}${p2(today.get
 const foreignBak = foreign + '.bak.' + todayTs;
 write(foreignBak, 'copied by another tool');
 fs.utimesSync(foreignBak, oldT, oldT);                // 继承了源文件的旧 mtime
-mkbak(foreign, '.bak.20261110-000000', 3);
-mkbak(foreign, '.bak.20261111-000000', 2);
+mkbak(foreign, '.bak.' + dayTs(3), 3);
+mkbak(foreign, '.bak.' + dayTs(2), 2);
 const r10 = run(['--prune', foreign, '--apply']);
 ok('A53 文件名时间戳为今天的副本不被裁（mtime 继承旧值也不误判）', r10.code === 0 && fs.existsSync(foreignBak), listBaks(foreign).join(','));
 
 // ── 10. A53 负对照：真超期件仍必须被裁（证明不是把一切都判成新）──
 const stale = path.join(SB, 'stale.txt');
 write(stale, 'SSS');
-const staleTs = (() => { const d = new Date(Date.now() - 10 * DAY); return `${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-000000`; })();
+const staleTs = dayTs(10);                            // 文件名与 mtime 都超期（原写死日期会与下面两件新鲜件撞车，见 dayTs 注释）
 const staleBak = stale + '.bak.' + staleTs;
 write(staleBak, 'genuinely old');
 fs.utimesSync(staleBak, oldT, oldT);
-mkbak(stale, '.bak.20261111-000000', 2);
-mkbak(stale, '.bak.20261112-000000', 1);
+const staleSiblings = ['.bak.' + dayTs(2), '.bak.' + dayTs(1)];   // 两件不超期的对照组
+staleSiblings.forEach((s, i) => mkbak(stale, s, 2 - i));
+ok('A53 夹具自检：同组文件名互不冲突（写死日期与 dayTs(10) 撞车会让负对照失真）', new Set(['.bak.' + staleTs, ...staleSiblings]).size === 3, ['.bak.' + staleTs, ...staleSiblings].join(','));
 const r11 = run(['--prune', stale, '--apply']);
 ok('A53 负对照：文件名与 mtime 都超期的备份仍被裁', r11.code === 0 && !fs.existsSync(staleBak), listBaks(stale).join(','));
 ok('A53 负对照：超期裁剪后仍至少留 1 份', listBaks(stale).length >= 1, listBaks(stale).join(','));

@@ -3,7 +3,7 @@
 **An opt-in toolkit for making Qoder workflows more repeatable and verifiable.** It adds rules, on-demand skills, hooks, commands, scripts, and MCP templates through Qoder's extension points; it does not modify Qoder itself.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.2.2-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.2.3-blue.svg)](VERSION)
 [![Node](https://img.shields.io/badge/node-24-brightgreen.svg)](https://nodejs.org)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20(primary)-lightgrey.svg)](#requirements-and-limits)
 
@@ -22,6 +22,7 @@ No clone required — pick a version and download it. Every release carries a re
 
 | Version | Released | Highlights | Download |
 |---|---|---|---|
+| 0.2.3 | 2026-11-21 | Edge-inset and layout-collapse verification shipped as reusable harnesses: four new scripts (two probes, two assertors) with 8–20px gap bands, coverage criteria and two negative-control modes; six real-browser pitfalls documented (outer `overflow-x:hidden` false green, hidden-tab transition residue causing a −20px shift and a retracted fake defect); two inverted assertions corrected | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.3/Qoder-Optimization-0.2.3.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.3) |
 | 0.2.2 | 2026-11-18 | Short-screen and scrollbar verification: height-aware breakpoints, layout and scrollbar pixel assertions with negative controls, responsive --sizes previews; four more shipped skills (batch-card append, SPA hang triage, intermittent-red triage, design-engineering navigator); hand-written inventory repaired | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.2/Qoder-Optimization-0.2.2.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.2) |
 | 0.2.1 | 2026-11-16 | Production readiness audit: a checklist-driven, evidence-backed review skill with its report checker, wired into the vibecoding delivery gate; incremental carrier conflict resolution; grill-style requirement interviews folded into clarification | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.1/Qoder-Optimization-0.2.1.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.1) |
 | 0.2.0 | 2026-11-15 | Carrier authoring contract gate: 9 seconds-level checks run before the full suite, description caps single-sourced from the package side into `carrier-preflight --package`, authoring norms written back into existing carriers, hand-written skill inventory repaired to 135; adds the `long-task-merge-takeover` playbook and cross-volume promote/demote for bound skill libraries | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.0/Qoder-Optimization-0.2.0.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.0) |
@@ -171,7 +172,7 @@ Details: [installation and tiers](README-安装说明.md), [working rules](Qoder
 
 ### Catalog snapshot
 
-In the catalog generated on 2026-11-18, 5 core skill descriptions total 1,090 characters; all 145 skill descriptions total 30,065 characters. The core descriptions are 3.6% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
+In the catalog generated on 2026-11-21, 5 core skill descriptions total 1,143 characters; all 145 skill descriptions total 30,118 characters. The core descriptions are 3.8% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
 
 ### Requirements and limits
 
@@ -218,6 +219,7 @@ MIT; see [LICENSE](LICENSE). This is an unofficial community project and is not 
 
 | 版本 | 发布日期 | 主要内容 | 下载 |
 |---|---|---|---|
+| 0.2.3 | 2026-11-21 | 四向内缩与布局塌陷验收上收为可复用 harness：新增 4 件脚本（2 个量测探针 + 2 个判据断言），带 8–20px 区间阈值、路由覆盖率判据与两种负对照模式；入档六个只有真跑才暴露的坑（外层 `overflow-x:hidden` 假绿、后台标签页过渡残留致 −20px 系统性偏移并伪报出一个已撤销的假缺陷）；纠正两处反向判据语义 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.3/Qoder-Optimization-0.2.3.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.3) |
 | 0.2.2 | 2026-11-18 | 矮屏与滚动条验收：高度断点、布局与滚动条像素断言（含负对照）、响应式 --sizes 预览；新增 4 个随包技能（批次卡追加、SPA 转圈取证、间歇红归因、设计导航）；手写清单补齐 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.2/Qoder-Optimization-0.2.2.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.2) |
 | 0.2.1 | 2026-11-16 | 生产就绪审计：清单驱动、证据可校验的审查技能与报告校验器，并接入 vibecoding 交付门；载体冲突增量消解；grill 式需求追问并入澄清体系 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.1/Qoder-Optimization-0.2.1.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.1) |
 | 0.2.0 | 2026-11-15 | 载体入包契约门：9 项秒级判据先于全量套件跑、描述上限改由包侧单一真源经 `carrier-preflight --package` 硬拦、生成规范回写既有载体、手写技能清单修到 135；新增 `long-task-merge-takeover` 超长任务合并接管范式，以及已绑定技能库的跨卷晋升/降级 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.0/Qoder-Optimization-0.2.0.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.0) |
@@ -369,7 +371,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 
 ### 目录快照
 
-截至 2026-11-18 生成的目录，5 个常驻技能的描述共 1,090 字符；145 个技能的描述共 30,065 字符。常驻描述占全部技能描述文本的 3.6%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
+截至 2026-11-21 生成的目录，5 个常驻技能的描述共 1,143 字符；145 个技能的描述共 30,118 字符。常驻描述占全部技能描述文本的 3.8%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
 
 ### 环境与限制
 
@@ -412,7 +414,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 <!-- offline-bundle:start -->
 ### Optional offline bundle / 可选离线附件
 
-The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.2/Qoder-Optimization-0.2.2-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
+The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.3/Qoder-Optimization-0.2.3-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
 
 核心包不含 MCP 离线二进制；需要时单独下载离线附件，核对各自的 .sha256 后解压到同一目录。无需离线组件时只取核心包；链接仅在对应版本发布后可用。
 <!-- offline-bundle:end -->
