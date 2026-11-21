@@ -239,6 +239,34 @@ test('installer writes the kickoff preference only when explicitly chosen and ke
   assert.match(bad.stdout + bad.stderr, /--kickoff-resident/);
 });
 
+test('installer persists the reply style only when chosen and reports it in status', t => {
+  const f = fixture(t);
+  const file = path.join(f.client, 'response-style.json');
+  const first = f.run(['--yes', '--json']);
+  assert.equal(first.status, 0, first.stdout + first.stderr);
+  assert.equal(fs.existsSync(file), false, 'non-interactive install without the flag must not write a style');
+
+  const dry = f.run(['--yes', '--dry-run', '--response-style', 'plain', '--json']);
+  assert.equal(dry.status, 0, dry.stdout + dry.stderr);
+  assert.equal(fs.existsSync(file), false, 'dry-run must not write the style');
+
+  const plain = f.run(['--yes', '--response-style', 'plain', '--json']);
+  assert.equal(plain.status, 0, plain.stdout + plain.stderr);
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { schema: 1, style: 'plain' });
+
+  const kept = f.run(['--yes', '--json']);
+  assert.equal(kept.status, 0, kept.stdout + kept.stderr);
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).style, 'plain');
+
+  const bad = f.run(['--yes', '--response-style', 'loud']);
+  assert.notEqual(bad.status, 0);
+  assert.match(bad.stdout + bad.stderr, /--response-style/);
+
+  const status = f.run(['--status', '--json']);
+  assert.equal(status.status, 0, status.stdout + status.stderr);
+  assert.equal(JSON.parse(status.stdout).responseStyle.style, 'plain');
+});
+
 test('interactive install asks once whether the kickoff card stays resident', async t => {
   const f = fixture(t);
   const preload = path.join(f.home, 'fake-tty.cjs');

@@ -32,6 +32,7 @@ node scripts/install-package.cjs --yes --install skill:parallel-orchestration --
 
 - 常驻选择：所选技能默认进按需库；交互运行会询问是否设为常驻，非交互用 `--resident <exact-id>`（需与 `--install` 同时给出）。已安装技能换层用 `tier-skills --promote/--demote`，不重复安装。常驻数量按你的实际使用频率决定，包内默认值不是强制值。
 - 开工提示卡：交互安装会再问一次是否常驻开工提示卡（默认沿用现状），非交互用 `--kickoff-resident yes|no` 显式写入；选 `no` 后 `rules-reminder.js` 不再自动注入开工确认，R16/R17 门禁也停用，其他提醒保持原样。配置在 `<客户端>/kickoff-preference.json`，之后可随时用 `--kickoff-resident yes` 恢复。
+- 回复风格：安装流程会问一次「白话为主 / 术语优先」（推荐白话为主），用 `--response-style plain|terminology` 写入 `<客户端>/response-style.json`；`rules-reminder.js` 每轮注入。白话为主时默认大白话，术语首次出现补一句说明，只有你明确要求术语解释或切换术语时才展开。
 - 已有能力：与新包比较，只有本地完整匹配旧登记包的条目才自动更新；本地自改、额外文件或旧基线不明时列为 `REVIEW_UPDATE`，先核对，不覆盖。
 - 缺失能力：通用或符合明确偏好的才询问是否安装，专业不匹配的跳过。`--yes` 不代表同意全部可选条目，`--install <exact-id>` 才选择对应能力。
 - `routing`：安装规则提醒、能力规划与检索依赖，合并唯一 `UserPromptSubmit` 接线（新装默认 `--workflow-mode model`；已有接线保留原 route/model，不强制切换），登记当前包并维护完整技能索引；冲突保留现场，不能把半套安装报成功。

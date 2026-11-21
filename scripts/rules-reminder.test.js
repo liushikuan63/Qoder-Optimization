@@ -409,6 +409,19 @@ function runChunked(input, split) {
   });
 }
 
+// ㉟㊱ 回复风格偏好：有文件注入、缺省不注入
+const styleFile = path.join(HOME, '.qoder', 'response-style.json');
+fs.writeFileSync(styleFile, JSON.stringify({ schema: 1, style: 'plain' }));
+const styleReq = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'sid-style', cwd: 'X:/x' }));
+let styleCtx = '';
+try { styleCtx = JSON.parse(styleReq.stdout).hookSpecificOutput.additionalContext || ''; } catch {}
+check('㉟ 白话偏好 → 注入白话为主与术语说明', styleReq.status === 0 && styleCtx.includes('白话为主') && styleCtx.includes('术语解释'));
+fs.unlinkSync(styleFile);
+const noStyleReq = run(JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'sid-style-2', cwd: 'X:/x' }));
+let noStyleCtx = '';
+try { noStyleCtx = JSON.parse(noStyleReq.stdout).hookSpecificOutput.additionalContext || ''; } catch {}
+check('㊱ 无偏好 → 不注入风格行', noStyleReq.status === 0 && !noStyleCtx.includes('回复风格：用户已选择'));
+
 (async () => {
   try {
     for (const field of ['prompt', 'user_prompt']) {

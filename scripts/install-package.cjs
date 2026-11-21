@@ -41,7 +41,7 @@ function parseArgs(argv) {
   const result = { install: [], resident: [], yes: false, dryRun: false };
   const seen = new Set();
   const flags = new Map([['--yes', 'yes'], ['--dry-run', 'dryRun'], ['--json', 'json'], ['--continuity', 'continuity'], ['--no-auto-bind', 'noAutoBind'], ['--help', 'help'], ['-h', 'help'], ['--no', 'skip'], ['--skip', 'skip'], ['--non-interactive', 'nonInteractive'], ['--status', 'status']]);
-  const values = new Map([['--client-root', 'client'], ['--catalog', 'catalogFile'], ['--previous-catalog', 'previousCatalogFile'], ['--bind-library', 'bindLibrary'], ['--profile', 'profile'], ['--preferences', 'preferencesFile'], ['--install', 'install'], ['--resident', 'resident'], ['--workflow-mode', 'workflowMode'], ['--skills-scope', 'skillsScope'], ['--kickoff-resident', 'kickoffResident']]);
+  const values = new Map([['--client-root', 'client'], ['--catalog', 'catalogFile'], ['--previous-catalog', 'previousCatalogFile'], ['--bind-library', 'bindLibrary'], ['--profile', 'profile'], ['--preferences', 'preferencesFile'], ['--install', 'install'], ['--resident', 'resident'], ['--workflow-mode', 'workflowMode'], ['--skills-scope', 'skillsScope'], ['--kickoff-resident', 'kickoffResident'], ['--response-style', 'responseStyle']]);
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (!['--install', '--resident'].includes(arg) && seen.has(arg)) throw new Error('重复参数：' + arg);
@@ -62,6 +62,9 @@ function parseArgs(argv) {
       } else if (arg === '--kickoff-resident') {
         if (!['yes', 'no'].includes(value)) throw new Error('--kickoff-resident 只接受 yes 或 no');
         result.kickoffResident = value === 'yes';
+      } else if (arg === '--response-style') {
+        if (!['plain', 'terminology'].includes(value)) throw new Error('--response-style 只接受 plain 或 terminology');
+        result.responseStyle = value;
       } else if (arg === '--install' || arg === '--resident') {
         if (!/^(?:skill|script|command|agent):[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value)) throw new Error(arg + ' 需要完整的精确条目 id');
         const list = result[values.get(arg)];
@@ -283,6 +286,20 @@ function prepare(options = {}) {
   if (options.kickoffResident !== undefined) {
     const bytes = Buffer.from(JSON.stringify({ schema: 1, resident: options.kickoffResident, inject: options.kickoffResident, enforce: options.kickoffResident }, null, 2) + '\n');
     plan.kickoffBytes = fs.existsSync(plan.kickoffFile) && fs.readFileSync(plan.kickoffFile).equals(bytes) ? null : bytes;
+  }
+  // 回复风格偏好：安装流程问一次，非交互只认 --response-style；未给值不覆盖既有选择。
+  plan.responseStyleFile = path.join(client, 'response-style.json');
+  assertPath(plan, plan.responseStyleFile);
+  plan.responseStyleBefore = snapshot(plan.responseStyleFile);
+  let existingResponseStyle = null;
+  try {
+    const data = JSON.parse(fs.readFileSync(plan.responseStyleFile, 'utf8'));
+    if (data && data.schema === 1 && ['plain', 'terminology'].includes(data.style)) existingResponseStyle = data.style;
+  } catch {}
+  plan.responseStyle = options.responseStyle === undefined ? existingResponseStyle : options.responseStyle;
+  if (options.responseStyle !== undefined) {
+    const bytes = Buffer.from(JSON.stringify({ schema: 1, style: options.responseStyle }, null, 2) + '\n');
+    plan.responseStyleBytes = fs.existsSync(plan.responseStyleFile) && fs.readFileSync(plan.responseStyleFile).equals(bytes) ? null : bytes;
   }
   const closure = ids => {
     const order = [], visiting = new Set(), visited = new Set();
@@ -624,6 +641,11 @@ function apply(plan, options = {}) {
       fs.writeFileSync(file, plan.kickoffBytes, { flag: 'wx', mode: 0o600 });
       publish({ id: 'metadata:kickoff-preference', target: plan.kickoffFile, before: plan.kickoffBefore, staged: file });
     }
+    if (plan.responseStyleBytes) {
+      const file = path.join(stage, 'response-style.json');
+      fs.writeFileSync(file, plan.responseStyleBytes, { flag: 'wx', mode: 0o600 });
+      publish({ id: 'metadata:response-style', target: plan.responseStyleFile, before: plan.responseStyleBefore, staged: file });
+    }
     const receipt = { schema: 1, installedAt: new Date().toISOString(), catalog: plan.catalogFile, catalogSha256: plan.catalogHash, ready: plan.baseReady, kickoffResident: plan.kickoffResident, hook: plan.baseReady ? plan.hook.state : 'BLOCKED', ...(plan.baseReady ? { profile: plan.profile, managedRules: Object.fromEntries(plan.rules.map(rule => [rule.rel, rule.hash])), requiredFiles: [...plan.changes, ...plan.verifyTargets].filter(item => plan.requiredIds.includes(item.id)).map(item => path.relative(plan.client, path.join(item.target, item.entry?.category === 'skill' || item.id.startsWith('skill:') ? 'SKILL.md' : '')).split(path.sep).join('/')) } : plan.previousActivation), baseBlocked: plan.baseBlocked, installedIds: plan.changes.map(item => item.id), recoveryDirectory: stage, externalRecoveryDirectories: externalStages };
     const receiptFile = path.join(stage, 'package-activation.json'); fs.writeFileSync(receiptFile, JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
     publish({ id: 'metadata:activation', target: path.join(plan.client, 'package-activation.json'), before: plan.receiptBefore, staged: receiptFile });
@@ -680,6 +702,8 @@ function printSummary(result) {
     : 'base（只装工作流基础能力与 --install 明确选择，其余保持逐条询问）'));
   if (plan.bindings) console.log('按需库真实目录：' + plan.bindings.library.real + '；绑定：' + (plan.bindingBytes ? '本次明确登记' : '保留已有登记'));
   console.log('开工提示卡：' + (plan.kickoffResident ? '常驻（自动注入开工确认并启用 R16/R17）' : '已关闭（不自动触发；--kickoff-resident yes 可恢复）') + '；配置：' + plan.kickoffFile);
+  const styleLabel = plan.responseStyle === 'terminology' ? '术语优先' : plan.responseStyle === 'plain' ? '白话为主' : '未设置（安装时询问）';
+  console.log('回复风格：' + styleLabel + '；配置：' + plan.responseStyleFile);
   for (const diagnostic of plan.diagnostics) console.log('NOTE: ' + diagnostic);
   if (plan.profileUpgradeAvailable) console.log('完整工作流尚未启用；--profile complete 可安装公开通用规则、12个核心技能与16条hook，不含账号/私有BYOK守护。');
   if (result.receipt?.installedIds?.length) console.log('APPLIED: ' + result.receipt.installedIds.join(', '));
@@ -707,6 +731,8 @@ function printStatus(options) {
   const read = name => { try { return JSON.parse(fs.readFileSync(path.join(client, name), 'utf8')); } catch { return null; } };
   const activation = read('package-activation.json') || {};
   const pref = read('kickoff-preference.json');
+  const styleFile = read('response-style.json');
+  const responseStyle = styleFile && styleFile.schema === 1 && ['plain', 'terminology'].includes(styleFile.style) ? styleFile.style : null;
   const resident = pref && typeof pref.resident === 'boolean'
     ? pref.resident
     : pref && (typeof pref.inject === 'boolean' || typeof pref.enforce === 'boolean')
@@ -721,16 +747,17 @@ function printStatus(options) {
     ready: activation.ready === undefined ? null : activation.ready,
     hook: activation.hook || null,
     kickoff: { resident, inject, enforce, receiptResident: activation.kickoffResident === undefined ? null : activation.kickoffResident, configured: Boolean(pref), file: path.join(client, 'kickoff-preference.json') },
+    responseStyle: { style: responseStyle, configured: Boolean(responseStyle), file: path.join(client, 'response-style.json') },
   };
   if (options.json) console.log(JSON.stringify(status, null, 2));
-  else console.log('客户端：' + client + '\n安装：' + (status.installedAt || '未记录') + '（' + (status.profile || '未知') + '，ready=' + status.ready + '）\n开工提示卡：' + (resident ? '常驻' : '已关闭') + '（inject=' + inject + '，enforce=' + enforce + '）\n配置：' + status.kickoff.file);
+  else console.log('客户端：' + client + '\n安装：' + (status.installedAt || '未记录') + '（' + (status.profile || '未知') + '，ready=' + status.ready + '）\n开工提示卡：' + (resident ? '常驻' : '已关闭') + '（inject=' + inject + '，enforce=' + enforce + '）\n回复风格：' + (responseStyle === 'terminology' ? '术语优先' : responseStyle === 'plain' ? '白话为主' : '未设置') + '\n配置：' + status.kickoff.file);
   return 0;
 }
 
 async function main(argv) {
   const options = parseArgs(argv);
   if (options.help) {
-    console.log('用法：node scripts/install-package.cjs [--yes] [--dry-run] [--client-root <目录>] [--catalog <catalog.json>] [--install <exact-id>] [--resident <exact-id>] [--skills-scope all|base] [--kickoff-resident yes|no] [--preferences <json>] [--workflow-mode route|model] [--bind-library <已有真实目录>] [--continuity] [--no-auto-bind] [--json]\n默认只核对；新装默认 complete（12公开核心技能/规则/16条exec hook），已有登记保留 routing；--profile complete|routing 明确选择，--previous-catalog <可信旧catalog> 指定可追溯旧源。--yes 安装所选工作流基础能力并更新与旧包一致的已安装条目。技能默认按 --skills-scope all 全量安装：包内每个随包技能都装入按需库，由 skills-router/skill-load 按需引用，不再逐条挑选；--skills-scope base 回到只装基础能力与 --install 明确选择的旧路径。脚本、命令、agent 与 hook 属代码/接线，任何范围下都只装基础能力与明确选择项；本地有差异（REVIEW_UPDATE）只报告，不覆盖。所选技能默认进按需库；交互运行会询问是否常驻，非交互用 --resident 选择常驻（需与 --install 同时给出）。已安装技能换层请用 tier-skills --promote。--workflow-mode 显式切换已有 rules-reminder 接线；省略时新装默认 model、已有选择保留。--kickoff-resident 决定是否常驻开工提示卡：交互安装会问一次（默认沿用现状），非交互用 yes/no 显式写入；选 no 后不再自动注入开工确认，也不启用 R16/R17。接续存储仅在 --continuity 单独同意时调用旧安装器。--status 只读查看安装回执与开工提示卡偏好（可与 --json 同用）。');
+    console.log('用法：node scripts/install-package.cjs [--yes] [--dry-run] [--client-root <目录>] [--catalog <catalog.json>] [--install <exact-id>] [--resident <exact-id>] [--skills-scope all|base] [--kickoff-resident yes|no] [--response-style plain|terminology] [--preferences <json>] [--workflow-mode route|model] [--bind-library <已有真实目录>] [--continuity] [--no-auto-bind] [--json]\n默认只核对；新装默认 complete（12公开核心技能/规则/16条exec hook），已有登记保留 routing；--profile complete|routing 明确选择，--previous-catalog <可信旧catalog> 指定可追溯旧源。--yes 安装所选工作流基础能力并更新与旧包一致的已安装条目。技能默认按 --skills-scope all 全量安装：包内每个随包技能都装入按需库，由 skills-router/skill-load 按需引用，不再逐条挑选；--skills-scope base 回到只装基础能力与 --install 明确选择的旧路径。脚本、命令、agent 与 hook 属代码/接线，任何范围下都只装基础能力与明确选择项；本地有差异（REVIEW_UPDATE）只报告，不覆盖。所选技能默认进按需库；交互运行会询问是否常驻，非交互用 --resident 选择常驻（需与 --install 同时给出）。已安装技能换层请用 tier-skills --promote。--workflow-mode 显式切换已有 rules-reminder 接线；省略时新装默认 model、已有选择保留。--kickoff-resident 决定是否常驻开工提示卡：交互安装会问一次（默认沿用现状），非交互用 yes/no 显式写入；选 no 后不再自动注入开工确认，也不启用 R16/R17。--response-style 决定回复风格：plain 为白话为主（推荐），terminology 为术语优先；写入 <客户端>/response-style.json，由 rules-reminder 每轮注入。接续存储仅在 --continuity 单独同意时调用旧安装器。--status 只读查看安装回执与开工提示卡偏好（可与 --json 同用）。');
     return 0;
   }
   if (options.skip) { console.log('已跳过，未修改任何文件。'); return 0; }

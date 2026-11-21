@@ -58,6 +58,7 @@ const VERIFICATION_LOG_MAX_BYTES = 64 * 1024;
 const VERIFICATION_LOG_KEEP_LINES = 200;
 const CAPABILITY_CONFIG = path.join(CLIENT_ROOT, 'capability-advisor.json');
 const AMBIGUITY_CONFIG = path.join(CLIENT_ROOT, 'ambiguity-trigger.json');
+const RESPONSE_STYLE_FILE = path.join(CLIENT_ROOT, 'response-style.json');
 const capabilityDeliveries = [];
 
 const REMINDER = [
@@ -433,6 +434,22 @@ function capabilityNote(promptText) {
   }
 }
 
+function responseStyleLine() {
+  try {
+    const data = JSON.parse(fs.readFileSync(RESPONSE_STYLE_FILE, 'utf8'));
+    if (!data || data.schema !== 1) return '';
+    if (data.style === 'plain') return '1b. 回复风格：用户已选择「白话为主」——默认用大白话；术语首次出现按「解释用大白话」补一句说明；只有用户明确要求术语解释或切换术语时才展开术语。';
+    if (data.style === 'terminology') return '1b. 回复风格：用户已选择「术语优先」——保留领域术语并首次给简短定义；用户要求白话时切换为白话。';
+  } catch {}
+  return '';
+}
+
+function withResponseStyle(text) {
+  const line = responseStyleLine();
+  if (!line) return text;
+  return text.replace('\n2. ', '\n' + line + '\n2. ');
+}
+
 function workflowReminder() {
   if (WORKFLOW_MODE !== 'model') return REMINDER;
   const original = REMINDER.split('\n').find(line => line.startsWith('7.'));
@@ -447,7 +464,7 @@ function emit() {
   const payload = JSON.stringify({
     hookSpecificOutput: {
       hookEventName: 'UserPromptSubmit',
-      additionalContext: workflowReminder() + kickoffNote(prompt) + suppressedNote() + workflowNote(prompt) + goalNoteFor(prompt) + evolutionNote(prompt) + toolResearchNote(prompt) + verificationNote(prompt) + ambiguityNote(prompt) + recheckNoteFor(prompt) + capabilityNote(prompt) + requestEcho(prompt),
+      additionalContext: withResponseStyle(workflowReminder()) + kickoffNote(prompt) + suppressedNote() + workflowNote(prompt) + goalNoteFor(prompt) + evolutionNote(prompt) + toolResearchNote(prompt) + verificationNote(prompt) + ambiguityNote(prompt) + recheckNoteFor(prompt) + capabilityNote(prompt) + requestEcho(prompt),
     },
   });
   process.stdout.write(payload + '\n', (error) => {
