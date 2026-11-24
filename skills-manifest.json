@@ -281,7 +281,7 @@
   {
    "name": "minigame-dev-pro",
    "tier": "library",
-   "files": 121
+   "files": 136
   },
   {
    "name": "miniprogram-development",
@@ -636,7 +636,7 @@
   {
    "name": "tailwindcss-animations",
    "tier": "library",
-   "files": 1
+   "files": 2
   },
   {
    "name": "typescript-pro",

@@ -8,7 +8,7 @@
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 145,
-  "script": 178,
+  "script": 180,
   "command": 13,
   "agent": 2
  },
@@ -553,7 +553,7 @@
    "name": "java-architect",
    "status": "shipped",
    "tier": "library",
-   "description": "Use when building, configuring, or debugging enterprise Java applications with Spring Boot 3.x, microservices, or reactive programming。中文触发：Java 架构、Spring Boot 分层、模块边界、接口设计、JVM 组件。分工：本技能管架构取向与疑难排查，Spring 脚手架与端点实现走 springboot-patterns。",
+   "description": "Enterprise Java / Spring Boot 3.x：WebFlux、JPA/DB 性能、Spring Security OAuth2/JWT、异步、微服务、响应式。Use when building or debugging enterprise Spring apps, auth or async issues in cloud-native services。中文触发：Java 架构、Spring Boot 分层、模块边界、接口设计、JVM 组件。分工：本技能管架构取向与疑难排查，Spring 脚手架与端点实现走 springboot-patterns。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"
@@ -1865,7 +1865,7 @@
    "name": "verify-ui-in-browser",
    "status": "shipped",
    "tier": "core",
-   "description": "前台真实运行验收：网页/客户端/小程序/小游戏/App 的改动必须真跑 + 实际截图并比对预期才算完成，只过单测/构建不算。网页：dev server + 真实浏览器完整路径（含负向用例）、browser-use、SPA fallback 用 content-type 对照；小程序/小游戏：微信开发者工具实际点击 + 截图；App：模拟器/真机 + 截图；客户端：窗口截图。含四向内缩（贴边）、列表塌陷与死白、报错刷屏的可失败量化判据与量测 harness。触发：前端验收、UI 验证、打开界面、dev server、playwright、矮屏、滚动条、贴边、内缩、布局塌陷。",
+   "description": "前台真实运行验收：网页/客户端/小程序/小游戏/App 必须真跑、实际操作并截图比对，单测/构建不算。网页用真实浏览器走完整路径与负向用例，SPA fallback 核 content-type；小程序/小游戏用开发者工具，App 用模拟器/真机，客户端截窗口。含四向内缩、布局塌陷、图标缺字（tofu/方框叉＝静态资源被答成 200 text/html）、报错刷屏的可失败判据与量测 harness。触发：前端验收、UI 验证、打开界面、dev server、playwright、矮屏、滚动条、贴边、内缩、布局塌陷、图标不显示。",
    "install": {
     "mode": "copy-skill",
     "tier": "core"
@@ -3028,6 +3028,30 @@
    ]
   },
   {
+   "id": "script:grep-scope-core.cjs",
+   "category": "script",
+   "name": "grep-scope-core.cjs",
+   "status": "shipped",
+   "source": "scripts/grep-scope-core.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:client-root.js"
+   ]
+  },
+  {
+   "id": "script:grep-scope-guard.test.js",
+   "category": "script",
+   "name": "grep-scope-guard.test.js",
+   "status": "shipped",
+   "source": "scripts/grep-scope-guard.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": []
+  },
+  {
    "id": "script:guard-criteria.test.js",
    "category": "script",
    "name": "guard-criteria.test.js",
@@ -3595,6 +3619,7 @@
     "script:attempt-lock-core.js",
     "script:auth-lock-core.js",
     "script:client-root.js",
+    "script:grep-scope-core.cjs",
     "script:hook-crash-guard.js"
    ]
   },

@@ -206,6 +206,21 @@ try {
 } catch (e) {
   try { ledger('attempt-lock-pre-error|' + String((e && e.message) || e).replace(/\s+/g, ' ').slice(0, 140)); } catch (e2) {}
 }
+// 重依赖目录宽检索门禁（2026-11-20）：path 落在含 node_modules 的根上（rg 必超时）时直接拦并给收窄改法。
+// 判据/缓存/CLI 全在 grep-scope-core.cjs，这里只是多一个 Pre 入口；开关独立（grep-scope-guard.json）。
+// 不做"看返回记账"：实测工具报错那一次**不触发 PostToolUse**，账记不上（详见 core 头部说明）。
+// 顺序与 auth-lock / attempt-lock 相同：硬停优先于提醒类守卫；warn 只出声、不终止本守卫的其余职责。
+try {
+  const gs = require('./grep-scope-core.cjs').preCheck(input);
+  if (gs && gs.reason) {
+    const hard = gs.decision === 'block';
+    ledger(`${hard ? 'block' : 'warn'}|grep-scope|${String(gs.key || '').slice(0, 60)}`);
+    console.log(JSON.stringify({ decision: hard ? 'block' : 'approve', reason: gs.reason }));
+    if (hard) process.exit(0);
+  }
+} catch (e) {
+  try { ledger('grep-scope-pre-error|' + String((e && e.message) || e).replace(/\s+/g, ' ').slice(0, 140)); } catch (e2) {}
+}
 // 记忆优先门禁（2026-10-21 用户全局要求）：在硬停之后、按匹配删除判据之前
 const mfVerdict = checkMemoryFirst(input.session_id || input.sessionId || '', tool, ti);
 if (mfVerdict) {

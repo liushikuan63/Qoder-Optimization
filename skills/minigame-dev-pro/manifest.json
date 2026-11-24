@@ -12,8 +12,8 @@
     },
     {
       "path": "SKILL.md",
-      "sha256": "9df540a577c8df3faa3c8dcfd8791192965e8146ad502b13154a0c1957159ac1",
-      "bytes": 33770
+      "sha256": "5ea250482f4128c4ced171d0b0a370a1437780b75996a69ba381960f8c592032",
+      "bytes": 34041
     },
     {
       "path": "references/data/ad-law-words.json",
@@ -72,8 +72,8 @@
     },
     {
       "path": "references/knowledge/ai-agent-workflow.md",
-      "sha256": "be7cecb84c5994a897f0743d3ec05a2832d3cea319d1f9722f17868b34117ce8",
-      "bytes": 6588
+      "sha256": "176a18c8aa7167f599cde10d9a5cc6c1c26352e8fe767c410ef18924495c072e",
+      "bytes": 6577
     },
     {
       "path": "references/knowledge/art-audio.md",

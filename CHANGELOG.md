@@ -14,6 +14,18 @@ During the 0.x line, minor versions may contain breaking changes.
 - A public JSON record and its checksum tie the release to one Git commit, per-file digests for the core and MCP offline archives, the OCR archive, and the Windows and Ubuntu gates that ran.
 - The workflow carries forward the pinned OCR bytes and checks them before publishing. It compares each existing remote asset before retaining it. The evidence lists Qoder desktop, offline CUA and OCR runtime acceptance separately as not run.
 
+## [Unreleased]
+
+### 中文摘要
+- 回填现役较新的宽检索守卫：新增 `grep-scope-core.cjs` 与合成仓库正负自测，接进 `risky-match-guard.js`；`pre-tool-dispatcher.js` 为没有改法的拦截补可复制定位入口，并补对应测试与接线文档。catalog 安装 `risky-match-guard.js` 时会自动带上 core。
+- 回填 `verify-ui-in-browser` 的图标缺字（tofu）四层判据与 icon-only 按钮探针归因；描述压到 300 字符内。
+- 补齐 `minigame-dev-pro` 的 15 道 `tests/` 闸门并修正 manifest 中两条既有哈希漂移；补入 Tailwind 动画组合参考；`java-architect` 描述合并本地技术覆盖面与包内中文路由。
+
+### English Summary
+- Backfill the live wide-search guard: add `grep-scope-core.cjs` with synthetic positive/negative tests and wire it into `risky-match-guard.js`; `pre-tool-dispatcher.js` now adds a reproducible locator when a guard denies without an actionable hint, with tests and wiring docs. Installing `risky-match-guard.js` from the catalog pulls the core automatically.
+- Backfill `verify-ui-in-browser` tofu checks and icon-only button probe triage while keeping its description within 300 characters.
+- Restore all 15 `minigame-dev-pro` quality gates and repair two stale manifest hashes; add the Tailwind animation pattern reference; merge Java architecture technical coverage with the package's Chinese routing cues.
+
 ## [0.2.3] - 2026-11-21
 
 ### 中文摘要

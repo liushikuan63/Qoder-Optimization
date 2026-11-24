@@ -5,6 +5,8 @@ description: "Tailwind CSS animations/transitions：built-in animate-* (spin, pi
 
 # Tailwind CSS Animations & Transitions
 
+更多组合模式（group / staggered / loading / modal / toast / menu）见 [references/animation-patterns.md](references/animation-patterns.md)。
+
 ## Built-in Animations
 
 ### Spin

@@ -63,6 +63,18 @@ function clip(s) {
   return t.length > MAX_REASON ? t.slice(0, MAX_REASON) + '\n…(已截断)' : t;
 }
 
+// 拦截正文若只有守卫名、没有改法，补一条可复制的定位入口（只补说明，不改判定结果）。
+const HINT_MARK = /改法|建议|请|可用|试试|预览|负对照|参考|换成|先跑|instead|hint|try\b/i;
+function actionableReason(guardName, guardFile, tool, base) {
+  const text = String(base || '').trim();
+  if (text && HINT_MARK.test(text)) return text;
+  const head = text || `[${guardName}] 已拦截${tool ? '（工具 ' + tool + '）' : ''}，守卫未附原因正文`;
+  return head
+    + '\n改法：读守卫首段注释拿判据 → ' + guardFile
+    + '\n复现它的原因：' + process.execPath + ' "' + guardFile + '" < ' + path.join(STATE_DIR, 'stdin-last.json')
+    + '（该快照由本 dispatcher 写入；命中台账 ' + LEDGER + '）';
+}
+
 function main() {
   try { if (JSON.parse(fs.readFileSync(CONFIG, 'utf8')).disabled === true) return; } catch (e) {}
 
@@ -105,9 +117,9 @@ function main() {
       const hso = o.hookSpecificOutput || {};
       hit = true;
       if (hso.permissionDecision === 'deny') {
-        denyReasons.push(String(hso.permissionDecisionReason || o.reason || `[${g.name}] blocked`));
+        denyReasons.push(actionableReason(g.name, file, tool, hso.permissionDecisionReason || o.reason || ''));
       } else if (o.decision === 'block') {
-        blockReasons.push(String(o.reason || `[${g.name}] blocked`));
+        blockReasons.push(actionableReason(g.name, file, tool, o.reason || ''));
       } else if (hso.permissionDecision === 'allow') {
         if (hso.permissionDecisionReason) allowReasons.push(String(hso.permissionDecisionReason));
         if (hso.updatedInput && !updatedInput) updatedInput = hso.updatedInput;
@@ -117,7 +129,7 @@ function main() {
     }
     if (r.status === 2) {
       hit = true;
-      blockReasons.push(String(r.stderr || '').trim() || `[${g.name}] blocked`);
+      blockReasons.push(actionableReason(g.name, file, tool, String(r.stderr || '').trim()));
     }
     if (hit) ledger(`hit|${g.name}|${tool}`);
   }

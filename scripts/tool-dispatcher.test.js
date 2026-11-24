@@ -105,6 +105,35 @@ test('tool dispatchers', async (t) => {
     assert.match(result.ledger, /deny\|Bash/);
   });
 
+  await t.test('PreToolUse adds actionable hints to bare guard reasons without duplicating existing hints', () => {
+    const box = sandbox('pre-hint');
+    const mutantDir = path.join(box.dir, 'mutant');
+    fs.mkdirSync(mutantDir, { recursive: true });
+    for (const dep of ['hook-crash-guard.js', 'client-root.js']) {
+      fs.copyFileSync(path.join(SCRIPTS, dep), path.join(mutantDir, dep));
+    }
+    let source = fs.readFileSync(PRE, 'utf8');
+    const start = source.indexOf('const GUARDS = [');
+    const end = source.indexOf('\n];', start) + 3;
+    assert.ok(start >= 0 && end > start, 'GUARDS 锚点必须存在');
+    source = source.slice(0, start) + "const GUARDS = [{ name: 'bare-guard', file: 'bare-guard.js', matcher: null }];" + source.slice(end);
+    const mutant = path.join(mutantDir, 'pre-tool-dispatcher.js');
+    const guard = path.join(mutantDir, 'bare-guard.js');
+    fs.writeFileSync(mutant, source);
+    fs.writeFileSync(guard, "process.stdout.write(JSON.stringify({ decision: 'block', reason: 'bare block' }) + '\\n');\n");
+    const bare = run(mutant, UNBOUNDED, box);
+    const reason = only(bare.stdout).hookSpecificOutput.permissionDecisionReason;
+    assert.match(reason, /bare block/);
+    assert.match(reason, /改法：读守卫首段注释拿判据/);
+    assert.match(reason, /bare-guard\.js/);
+    assert.match(reason, /stdin-last\.json/);
+
+    fs.writeFileSync(guard, "process.stdout.write(JSON.stringify({ decision: 'block', reason: '已有改法：请收窄 path' }) + '\\n');\n");
+    const hinted = run(mutant, UNBOUNDED, box);
+    const hintedReason = only(hinted.stdout).hookSpecificOutput.permissionDecisionReason;
+    assert.equal(hintedReason, '已有改法：请收窄 path', '已有改法时必须原样保留，不能重复拼接');
+  });
+
   await t.test('Bash-only guards stay away from other tools', () => {
     const box = sandbox('pre-matcher');
     const bash = run(PRE, WIN_PATH, box);
