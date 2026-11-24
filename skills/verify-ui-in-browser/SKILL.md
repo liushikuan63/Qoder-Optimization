@@ -48,8 +48,8 @@ description: "前台真实运行验收：网页/客户端/小程序/小游戏/Ap
 
 **四层判据（都要能失败）**：
 
-1. **网络层（最省事的自动抓法）**：CDP `Network.responseReceived` 收集所有带静态扩展名（`woff2?|ttf|eot|otf|css|js|png|jpe?g|gif|svg|ico`）的响应，断言 `status==200 && mimeType` 命中 `text/html` 的集合**为空**。非空即缺陷，清单直接给出被吞的 URL。
-2. **运行态**：对每个图标字体族断言 `document.fonts.check('12px <family>')` 为 true，或枚举 `@font-face` 的 `loaded`；全 false 就是字体没拿到。
+1. **网络层（最省事的自动抓法）**：CDP `Network.responseReceived` 收集所有带静态扩展名（`woff2?|ttf|eot|otf|css|js|png|jpe?g|gif|svg|ico`）的响应，断言 `status==200 && mimeType` 命中 `text/html` 的集合**为空**。这里只判静态资源，SPA 入口 document 返回 `text/html` 是正常态；静态资源被答成 HTML 即缺陷，清单直接给出被吞的 URL。
+2. **运行态**：对每个图标字体族枚举 `document.fonts`，找到 `family` 匹配项并断言 `status==='loaded'`；`document.fonts.check('12px <family>')` 只作辅助信号（系统字体也可能返回 true）。找不到匹配项或全部未加载，就是字体没拿到。
 3. **像素层**：改前/改后**同 bbox、同倍率** `compare`，`diff_pixels` 必须 >0（图标真的变了）；同图自比必须 ==0（负对照，证明量具没坏）。
 4. **双端 parity**：把 dev 代理表与生产网关/nginx 的 location 前缀**逐个比对**——生产修过、dev 没同步，是这类缺陷最常见的成因（同一根因在两个环境分别复发）。
 

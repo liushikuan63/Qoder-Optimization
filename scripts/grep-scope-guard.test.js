@@ -40,6 +40,7 @@ for (const rel of [
   'frontend/workflow/node_modules/pkg',
   'frontend/app/src/.umi',
   'backend/service/target',
+  'git-only/.git/node_modules/pkg',
   'docs',
 ]) fs.mkdirSync(path.join(REPO, rel), { recursive: true });
 
@@ -96,11 +97,17 @@ o = pre('Grep', { pattern: 'x', path: HEAVY, glob: '**/src/**,!node_modules' });
 check('4 glob 排除 !node_modules→放行', !o.includes(HIT), o);
 o = pre('Grep', { pattern: 'x', path: HEAVY, glob: '**/src/**,!**/node_modules/**' });
 check('4b glob 排除写法二→放行', !o.includes(HIT), o);
+fs.rmSync(CACHE, { force: true });
+o = pre('Glob', { pattern: '!node_modules', path: HEAVY });
+check('4c Glob 的 pattern 不是排除语法→仍拦', o.includes('"decision":"block"') && o.includes(HIT), o);
 
 // 5. 正例：不带 path（落在会话 cwd＝仓库根）同样拦
 fs.rmSync(CACHE, { force: true });
 o = pre('Grep', { pattern: 'x' }, REPO);
 check('5 缺省 path 取会话 cwd→拦', o.includes('"decision":"block"') && o.includes(HIT), o);
+fs.rmSync(CACHE, { force: true });
+o = pre('Grep', { pattern: 'x', path: 'frontend' }, REPO);
+check('5b 相对 path 按会话 cwd 解析→拦', o.includes('"decision":"block"') && o.includes(HIT), o);
 
 // 6. 正例：Glob 工具同判据
 fs.rmSync(CACHE, { force: true });
@@ -110,6 +117,9 @@ check('6 Glob 工具同样拦', o.includes('"decision":"block"') && o.includes(H
 // 7. 负例：其它工具不受影响
 o = pre('Bash', { command: 'ls ' + HEAVY }, REPO);
 check('7 Bash→不误伤', !o.includes(HIT), o);
+fs.rmSync(CACHE, { force: true });
+o = pre('Grep', { pattern: 'x', path: path.join(REPO, 'git-only') });
+check('7b .git 内部依赖不参与判定→放行', !o.includes(HIT), o);
 
 // 8. 变异自证：maxDepth=1（只看根的直接子目录）时 fronted 的依赖目录在下一层、扫不到 → 放行；
 //    默认 4 层时同样这个根必须拦（见用例 1）——一拦一放成对，判据不是恒真。

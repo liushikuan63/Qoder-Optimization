@@ -40,6 +40,7 @@ const CACHE = path.join(STATE_DIR, 'roots.json');
 
 const DEFAULTS = { mode: 'block', ttlMinutes: 120, maxDepth: 4, maxDirs: 2000, deadlineMs: 120 };
 const TOOLS = new Set(['Grep', 'Glob']);
+const SKIP_DIRS = new Set(['.git', '.hg', '.svn']);
 // 排除 node_modules 的 glob 写法：-g '!node_modules' / '!**/node_modules/**' / 否定组里的 !node_modules
 const NEG_MODULE_RE = /!\*{0,2}\/{0,2}node_modules/;
 const HEAVY_RE = /^node_modules(\.|$)/;
@@ -72,7 +73,8 @@ function resolveRoot(toolInput, cwd) {
   const p = toolInput && (toolInput.path || toolInput.cwd || toolInput.dir);
   const raw = p && String(p).trim() ? String(p).trim() : base;
   try {
-    return path.resolve(raw).replace(/[\/\\]+$/, '') || path.resolve(raw);
+    const abs = path.resolve(base, raw);
+    return abs.replace(/[\/\\]+$/, '') || abs;
   } catch (e) {
     return String(raw);
   }
@@ -105,6 +107,7 @@ function scanHeavy(root, limit) {
     }
     for (const e of entries) {
       if (!e.isDirectory() && !e.isSymbolicLink()) continue;
+      if (SKIP_DIRS.has(e.name)) continue;
       if (!HEAVY_RE.test(e.name)) {
         queue.push([path.join(d, e.name), dep + 1]);
         continue;
@@ -155,8 +158,8 @@ function preCheck(payload) {
   const input = (payload && payload.tool_input) || {};
   const root = resolveRoot(input, payload && payload.cwd);
   const rk = keyOf(root);
-  // glob 里显式排除依赖 ⇒ rg 会剪枝，放行
-  const globStr = `${String(input.glob || '')} ${String(input.pattern || '')}`;
+  // 只有 Grep 的独立 glob 过滤器能表达排除；Glob 的 pattern 不是排除语法，不能据此放行。
+  const globStr = tool === 'Grep' ? String(input.glob || '') : '';
   if (NEG_MODULE_RE.test(globStr)) {
     ledger(`allow|negglob|${root}`);
     return null;

@@ -1,6 +1,6 @@
 ---
 name: java-architect
-description: "Enterprise Java / Spring Boot 3.x：WebFlux、JPA/DB 性能、Spring Security OAuth2/JWT、异步、微服务、响应式。Use when building or debugging enterprise Spring apps, auth or async issues in cloud-native services。中文触发：Java 架构、Spring Boot 分层、模块边界、接口设计、JVM 组件。分工：本技能管架构取向与疑难排查，Spring 脚手架与端点实现走 springboot-patterns。"
+description: "Enterprise Java / Spring Boot 3.x：WebFlux、JPA/DB 性能、Spring Security OAuth2/JWT、异步、微服务、响应式。Use when building, configuring or debugging Java/Spring apps, auth or async issues in cloud-native services。中文触发：Java 架构、Spring Boot 分层、模块边界、接口设计、JVM 组件。分工：本技能管架构取向与疑难排查，Spring 脚手架与端点实现走 springboot-patterns。"
 license: MIT
 metadata:
   author: https://github.com/Jeffallan

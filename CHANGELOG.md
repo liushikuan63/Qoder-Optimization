@@ -17,14 +17,14 @@ During the 0.x line, minor versions may contain breaking changes.
 ## [Unreleased]
 
 ### 中文摘要
-- 回填现役较新的宽检索守卫：新增 `grep-scope-core.cjs` 与合成仓库正负自测，接进 `risky-match-guard.js`；`pre-tool-dispatcher.js` 为没有改法的拦截补可复制定位入口，并补对应测试与接线文档。catalog 安装 `risky-match-guard.js` 时会自动带上 core。
-- 回填 `verify-ui-in-browser` 的图标缺字（tofu）四层判据与 icon-only 按钮探针归因；描述压到 300 字符内。
-- 补齐 `minigame-dev-pro` 的 15 道 `tests/` 闸门并修正 manifest 中两条既有哈希漂移；补入 Tailwind 动画组合参考；`java-architect` 描述合并本地技术覆盖面与包内中文路由。
+- 回填现役较新的宽检索守卫：新增 `grep-scope-core.cjs` 与合成仓库正负自测，接进 `risky-match-guard.js`；相对 path 按会话 cwd 解析、跳过 `.git`，`Glob` 不误用 Grep 的排除语法。`pre-tool-dispatcher.js` 为没有改法的拦截补可复制定位入口，并补对应测试与接线文档。catalog 安装 `risky-match-guard.js` 时会自动带上 core。
+- 回填 `verify-ui-in-browser` 的图标缺字（tofu）四层判据与 icon-only 按钮探针归因；区分 SPA 入口 document 与静态资源，字体加载同时核对 `FontFace.status`；描述压到 300 字符内。
+- 补齐 `minigame-dev-pro` 的 15 道 `tests/` 闸门并把内部 manifest 重建为 135 条逐文件哈希；补入 Tailwind 动画组合参考；`java-architect` 描述合并本地技术覆盖面与包内中文路由，同时保留 building/configuring/debugging 通用入口。
 
 ### English Summary
-- Backfill the live wide-search guard: add `grep-scope-core.cjs` with synthetic positive/negative tests and wire it into `risky-match-guard.js`; `pre-tool-dispatcher.js` now adds a reproducible locator when a guard denies without an actionable hint, with tests and wiring docs. Installing `risky-match-guard.js` from the catalog pulls the core automatically.
-- Backfill `verify-ui-in-browser` tofu checks and icon-only button probe triage while keeping its description within 300 characters.
-- Restore all 15 `minigame-dev-pro` quality gates and repair two stale manifest hashes; add the Tailwind animation pattern reference; merge Java architecture technical coverage with the package's Chinese routing cues.
+- Backfill the live wide-search guard: add `grep-scope-core.cjs` with synthetic positive/negative tests and wire it into `risky-match-guard.js`; relative paths resolve from the session cwd, `.git` is skipped, and `Glob` does not inherit Grep's exclusion syntax. `pre-tool-dispatcher.js` now adds a reproducible locator when a guard denies without an actionable hint, with tests and wiring docs. Installing `risky-match-guard.js` from the catalog pulls the core automatically.
+- Backfill `verify-ui-in-browser` tofu checks and icon-only button probe triage while keeping its description within 300 characters; distinguish SPA entry documents from static assets and require both `document.fonts.check()` and loaded `FontFace` status.
+- Restore all 15 `minigame-dev-pro` quality gates and rebuild its internal manifest as 135 per-file hashes; add the Tailwind animation pattern reference; merge Java architecture technical coverage with the package's Chinese routing cues while retaining the general building/configuring/debugging entry.
 
 ## [0.2.3] - 2026-11-21
 
