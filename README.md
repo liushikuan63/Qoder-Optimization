@@ -3,7 +3,7 @@
 **An opt-in toolkit for making Qoder workflows more repeatable and verifiable.** It adds rules, on-demand skills, hooks, commands, scripts, and MCP templates through Qoder's extension points; it does not modify Qoder itself.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.2.3-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.2.4-blue.svg)](VERSION)
 [![Node](https://img.shields.io/badge/node-24-brightgreen.svg)](https://nodejs.org)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20(primary)-lightgrey.svg)](#requirements-and-limits)
 
@@ -22,6 +22,7 @@ No clone required — pick a version and download it. Every release carries a re
 
 | Version | Released | Highlights | Download |
 |---|---|---|---|
+| 0.2.4 | 2026-11-25 | Release evidence binds the source commit, core, offline and OCR archive hashes, and completed CI checks; Qoder desktop and platform-specific acceptance stay explicit | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.4/Qoder-Optimization-0.2.4.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.4) |
 | 0.2.3 | 2026-11-21 | Edge-inset and layout-collapse verification shipped as reusable harnesses: four new scripts (two probes, two assertors) with 8–20px gap bands, coverage criteria and two negative-control modes; six real-browser pitfalls documented (outer `overflow-x:hidden` false green, hidden-tab transition residue causing a −20px shift and a retracted fake defect); two inverted assertions corrected | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.3/Qoder-Optimization-0.2.3.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.3) |
 | 0.2.2 | 2026-11-18 | Short-screen and scrollbar verification: height-aware breakpoints, layout and scrollbar pixel assertions with negative controls, responsive --sizes previews; four more shipped skills (batch-card append, SPA hang triage, intermittent-red triage, design-engineering navigator); hand-written inventory repaired | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.2/Qoder-Optimization-0.2.2.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.2) |
 | 0.2.1 | 2026-11-16 | Production readiness audit: a checklist-driven, evidence-backed review skill with its report checker, wired into the vibecoding delivery gate; incremental carrier conflict resolution; grill-style requirement interviews folded into clarification | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.1/Qoder-Optimization-0.2.1.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.1) |
@@ -172,7 +173,7 @@ Details: [installation and tiers](README-安装说明.md), [working rules](Qoder
 
 ### Catalog snapshot
 
-In the catalog generated on 2026-11-21, 5 core skill descriptions total 1,143 characters; all 145 skill descriptions total 30,118 characters. The core descriptions are 3.8% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
+In the catalog generated on 2026-11-25, 5 core skill descriptions total 1,143 characters; all 145 skill descriptions total 30,118 characters. The core descriptions are 3.8% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
 
 ### Requirements and limits
 
@@ -200,7 +201,9 @@ Maintain releases from a Git checkout, not from a downloaded zip. Fetch and merg
 
 Prepare locked test dependencies with `npm ci --prefix skills/office-docs --ignore-scripts` and `npm ci --prefix scripts/convention-runtime --ignore-scripts`, then run `node .github/run-tests.js` for isolated self-tests and release contracts. On Windows, set `RELEASE_TEST_HOME_PARENT` to a disposable parent outside paths classified as temporary, and keep TEMP/TMP in a separate test directory.
 
-The tag workflow validates and packages only approved committed files, then independently unpacks and compares their contents. Existing release assets are downloaded and compared before being retained; differing assets are not replaced. Finally, verify the actual CI run and download both published assets. A successful upload alone is not delivery verification.
+The tag workflow builds from one frozen Git commit, runs the Windows and Ubuntu suites, and compares extracted core and offline package members with the approved files. It also verifies the digest of the pinned OCR archive. Each release from v0.2.4 publishes a `*-release-evidence.json` and its separate `.sha256`. The JSON identifies the commit, archive and package-member hashes, and which automated checks passed. Qoder desktop, offline CUA, and OCR runtime acceptance stay marked `not-run` in the CI record.
+
+To verify the complete release offline, put the three ZIPs, the evidence JSON, and all four `.sha256` files in one directory. From the Git checkout at the release tag, run `node .github/release-evidence.js verify <directory>`. This compares the ZIP bytes and independently reads core and offline members; OCR verification compares its pinned archive digest. If you download only one archive, use its separate checksum. Existing release assets are downloaded and compared before being retained; differing assets are not replaced. Confirm the actual CI run and the released bytes.
 
 ### License
 
@@ -219,6 +222,7 @@ MIT; see [LICENSE](LICENSE). This is an unofficial community project and is not 
 
 | 版本 | 发布日期 | 主要内容 | 下载 |
 |---|---|---|---|
+| 0.2.4 | 2026-11-25 | 发布证据记录源码提交、核心包、离线包和 OCR 附件的哈希以及已执行的 CI 门禁；单独标记 Qoder 桌面和平台验收状态 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.4/Qoder-Optimization-0.2.4.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.4) |
 | 0.2.3 | 2026-11-21 | 四向内缩与布局塌陷验收上收为可复用 harness：新增 4 件脚本（2 个量测探针 + 2 个判据断言），带 8–20px 区间阈值、路由覆盖率判据与两种负对照模式；入档六个只有真跑才暴露的坑（外层 `overflow-x:hidden` 假绿、后台标签页过渡残留致 −20px 系统性偏移并伪报出一个已撤销的假缺陷）；纠正两处反向判据语义 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.3/Qoder-Optimization-0.2.3.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.3) |
 | 0.2.2 | 2026-11-18 | 矮屏与滚动条验收：高度断点、布局与滚动条像素断言（含负对照）、响应式 --sizes 预览；新增 4 个随包技能（批次卡追加、SPA 转圈取证、间歇红归因、设计导航）；手写清单补齐 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.2/Qoder-Optimization-0.2.2.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.2) |
 | 0.2.1 | 2026-11-16 | 生产就绪审计：清单驱动、证据可校验的审查技能与报告校验器，并接入 vibecoding 交付门；载体冲突增量消解；grill 式需求追问并入澄清体系 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.1/Qoder-Optimization-0.2.1.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.1) |
@@ -371,7 +375,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 
 ### 目录快照
 
-截至 2026-11-21 生成的目录，5 个常驻技能的描述共 1,143 字符；145 个技能的描述共 30,118 字符。常驻描述占全部技能描述文本的 3.8%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
+截至 2026-11-25 生成的目录，5 个常驻技能的描述共 1,143 字符；145 个技能的描述共 30,118 字符。常驻描述占全部技能描述文本的 3.8%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
 
 ### 环境与限制
 
@@ -399,7 +403,9 @@ node ~/.qoder/scripts/build-skills-index.cjs
 
 分别用 `npm ci --prefix skills/office-docs --ignore-scripts` 和 `npm ci --prefix scripts/convention-runtime --ignore-scripts` 准备锁定的测试依赖，再运行 `node .github/run-tests.js`。Windows 上把 `RELEASE_TEST_HOME_PARENT` 指向不会被识别为临时路径的独立沙箱父目录，TEMP/TMP 使用另一测试目录。
 
-标签工作流只校验和打包获准的已提交文件，并独立解包比对内容。已有同名资产下载比对后才保留，内容不一致时停止、不覆盖。最后核对真实 CI，并下载 ZIP 和校验文件复验；上传成功不能单独证明交付成功。
+标签工作流从同一个固定 Git 提交构建，运行 Windows 和 Ubuntu 测试，独立解包核对核心与离线文件，并核对固定来源的 OCR 附件摘要。v0.2.4 起发布 `*-release-evidence.json` 和独立的 `.sha256`，其中记录源码提交、归档及核心与离线文件哈希，以及实际通过的自动检查。Qoder 桌面、离线 CUA 和 OCR 的真实运行验收在 CI 证据中单独标为 `not-run`。
+
+离线复核整套发布时，将三个 ZIP、证据 JSON 和四个 `.sha256` 放入同一目录，在该标签对应的 Git 源码目录运行 `node .github/release-evidence.js verify <目录>`。该命令核对归档字节，独立读取核心包和离线包的内部文件，并验证 OCR 归档的固定摘要。只下载单个归档时可以使用其独立校验文件。已有同名资产下载比对后才保留，内容不一致时停止、不覆盖。最终核对真实 CI 与已发布字节。
 
 ### 许可证
 
@@ -407,14 +413,14 @@ node ~/.qoder/scripts/build-skills-index.cjs
 
 ### Optional OCR bundle for image detail / 图像细读的可选 OCR 附件
 
-`image-detail-inspect` needs a local Python 3 with Pillow for its core crop / zoom / metrics / compare commands; the package ships neither. OCR cross-check is optional and degrades with exit 5 when absent. For intranet machines, download the separate asset `Qoder-Optimization-0.2.0-ocr-bundle-cp314-win_amd64.zip` (official PyPI wheels + 3 ONNX models + a per-file sha256 manifest) and install it with `scripts/install-ocr-offline.py --bundle <dir> --target <OCR_LIB>` (`--no-index`, zero network). That asset is bound to CPython 3.14 / Windows x64; other platforms install from PyPI. Models and wheels are deliberately kept out of both the core ZIP and the MCP offline bundle. The 0.2.0 OCR bundle is the **same bytes** as the v0.1.7 asset (identical SHA-256): its content is version-independent tooling, so it was re-published under the 0.2.0 name rather than rebuilt.
+`image-detail-inspect` needs a local Python 3 with Pillow for crop, zoom, metrics and compare. OCR is optional and exits with code 5 when unavailable. For a machine without Internet access, download the release's separate `*-ocr-bundle-cp314-win_amd64.zip` (PyPI wheels, three ONNX models and a per-file manifest). Verify its `.sha256`, extract it, then run `python skills/image-detail-inspect/scripts/install-ocr-offline.py --bundle <dir> --target <OCR_LIB>` with CPython 3.14 on Windows x64. The installer uses `--no-index`. Models and wheels stay separate from the core and MCP offline archives; other platforms install from PyPI. Release evidence records the exact earlier published asset carried forward.
 
-图像细读技能的核心裁剪/放大/量化/对比需本机 Python 3 + Pillow，包内不带；OCR 交叉核对可选，缺失时以 exit 5 明确降级。内网机取独立资产 `Qoder-Optimization-0.2.0-ocr-bundle-cp314-win_amd64.zip`（官方 PyPI wheels＋3 个 ONNX 模型＋逐件 sha256 清单），用 `scripts/install-ocr-offline.py --bundle <目录> --target <OCR_LIB>` 零网络安装（内部 `--no-index`）。该资产绑定 CPython 3.14 / Windows x64，其他平台走 PyPI。模型与 wheels 有意不进核心包与 MCP 离线附件。0.2.0 的 OCR bundle 与 v0.1.7 资产**逐字节相同**（SHA-256 一致）：其内容是与包版本无关的工具链，因此按 0.2.0 名字重新发布，而不是重新构建。
+图像细读的裁剪、放大、量化和对比需本机 Python 3 与 Pillow。OCR 可选，缺失时返回退出码 5。内网机下载发布中的独立 `*-ocr-bundle-cp314-win_amd64.zip`（PyPI wheels、三个 ONNX 模型和逐件摘要清单），先校验 `.sha256` 再解压，在 Windows x64 的 CPython 3.14 中执行 `python skills/image-detail-inspect/scripts/install-ocr-offline.py --bundle <目录> --target <OCR_LIB>`。安装使用 `--no-index`；其他平台从 PyPI 安装。模型和 wheels 单独分发，发布证据列出复用的上一版资产。
 
 <!-- offline-bundle:start -->
 ### Optional offline bundle / 可选离线附件
 
-The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.3/Qoder-Optimization-0.2.3-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
+The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.4/Qoder-Optimization-0.2.4-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
 
 核心包不含 MCP 离线二进制；需要时单独下载离线附件，核对各自的 .sha256 后解压到同一目录。无需离线组件时只取核心包；链接仅在对应版本发布后可用。
 <!-- offline-bundle:end -->

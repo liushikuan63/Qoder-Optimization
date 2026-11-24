@@ -13,7 +13,7 @@ const hash = b => crypto.createHash('sha256').update(b).digest('hex');
 async function fixture(body) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'delivery-test-'));
   const name = 'Qoder-Optimization-0.0.4';
-  const manifest = { tag: 'v0.0.4', package: name, commit: 'a'.repeat(40), artifacts: [], files: {} };
+  const manifest = { tag: 'v0.0.4', package: name, commit: 'a'.repeat(40), epoch: 1700000000, artifacts: [], files: {} };
   const blobs = new Map();
   try {
     for (const [group, relative, text] of [['core', 'README.md', 'approved core'], ['offline', 'mcp/offline/tool.bin', 'approved offline']]) {
@@ -111,4 +111,64 @@ test('delivery CLI propagates verification failure as a nonzero process exit', (
   result = spawnSync(process.execPath, args, { encoding: 'utf8' });
   assert.equal(result.status, 1);
   assert.equal(result.stdout.includes('DELIVERY_VERIFIED'), false);
+}));
+
+test('public evidence is reproducible, proves actual archive bytes, and leaves unrun acceptance explicit', () => fixture(f => {
+  const script = path.join(__dirname, 'release-evidence.js');
+  const cli = (action, ...extra) => spawnSync(process.execPath, [script, action, f.dir, ...extra], { encoding: 'utf8' });
+  const write = cli('write');
+  assert.equal(write.status, 0, write.stderr);
+  const name = f.manifest.package + '-release-evidence.json';
+  const file = path.join(f.dir, name);
+  const bytes = fs.readFileSync(file);
+  const record = JSON.parse(bytes);
+  assert.equal(record.schema, 1);
+  assert.equal(record.source.commit, f.manifest.commit);
+  assert.deepEqual(record.artifacts, f.manifest.artifacts);
+  assert.deepEqual(record.files, f.manifest.files);
+  assert.equal(record.checks.archiveMembers, 'passed');
+  assert.equal(record.checks.ubuntuSelfTests, 'not-run');
+  assert.equal(record.nativeAcceptance.qoderDesktop, 'not-run');
+  assert.equal(record.nativeAcceptance.ocrWindowsCp314, 'not-run');
+  assert.equal(record.ocr, null);
+  assert.equal(bytes.includes(Buffer.from(f.dir)), false);
+  assert.equal(cli('verify').status, 0);
+  const repeated = cli('write');
+  assert.equal(repeated.status, 0, repeated.stderr);
+  assert.deepEqual(fs.readFileSync(file), bytes);
+  const sidecar = file + '.sha256';
+  const checksum = fs.readFileSync(sidecar);
+  record.nativeAcceptance.ocrWindowsCp314 = 'passed';
+  const falseClaim = Buffer.from(JSON.stringify(record, null, 2) + '\n');
+  fs.writeFileSync(file, falseClaim);
+  fs.writeFileSync(sidecar, hash(falseClaim) + '  ' + name + '\n');
+  assert.match(cli('verify').stderr, /invalid public evidence fields/);
+  fs.writeFileSync(file, bytes);
+  fs.writeFileSync(sidecar, checksum);
+  fs.appendFileSync(path.join(f.dir, f.manifest.artifacts[0].name), 'wrong bytes');
+  const verify = cli('verify');
+  assert.equal(verify.status, 1);
+  assert.match(verify.stderr, /artifact hash or size mismatch/);
+}));
+
+test('unobserved CI gates cannot be recorded as passed', () => fixture(f => {
+  const script = path.join(__dirname, 'release-evidence.js');
+  const args = ['write', f.dir, '--ci'];
+  const result = spawnSync(process.execPath, [script, ...args], {
+    encoding: 'utf8',
+    env: { ...process.env, GITHUB_ACTIONS: 'true', QODER_SOURCE_COMMIT: f.manifest.commit, QODER_WINDOWS_SELF_TESTS: 'failure' },
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /missing successful CI gate/);
+}));
+
+test('untrusted OCR bytes cannot be staged under the release name', () => fixture(f => {
+  const script = path.join(__dirname, 'release-evidence.js');
+  const wrong = path.join(f.dir, 'wrong-ocr.zip');
+  fs.writeFileSync(wrong, 'untrusted bytes');
+  const write = spawnSync(process.execPath, [script, 'write', f.dir, '--ocr', wrong], { encoding: 'utf8' });
+  assert.equal(write.status, 1);
+  assert.match(write.stderr, /pinned OCR size or SHA256 mismatch/);
+  assert.ok(!fs.existsSync(path.join(f.dir, f.manifest.package + '-release-evidence.json')));
+  assert.ok(!fs.existsSync(path.join(f.dir, f.manifest.package + '-ocr-bundle-cp314-win_amd64.zip')));
 }));

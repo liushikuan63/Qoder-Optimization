@@ -1,4 +1,4 @@
-# Qoder-Optimization-0.2.3 安装说明
+# Qoder-Optimization-0.2.4 安装说明
 
 ## 包内容与落点
 
@@ -15,6 +15,8 @@
 | `qoder-memory-export-*.tar.gz` | 通用脱敏记忆包（方法论与工具类，已剔除个人与内网信息）；解包后 `rules-summary.md` 就是**筛选菜单**（逐条勾选） | 按提示词文档第 3 步筛选后并入 `~/.qoder/memory/` |
 
 ## 先核对能力，再安装和使用
+
+自 v0.2.4 起，发布页的 `*-release-evidence.json` 记录源码提交、归档摘要和实际执行的 CI 门禁。单独下载的 ZIP 使用各自的 `.sha256` 校验。完整归档可用对应 Git 标签的 `node .github/release-evidence.js verify <下载目录>` 离线核对；桌面与 OCR 的实际运行结果不由归档校验推断。
 
 安装器及技能升降级会同时维护机器索引 `skills-index.json` 和人读导航 `SKILLS.md`，两份派生文件随事务一起提交或回滚。手动编辑技能后，运行 `node ~/.qoder/scripts/build-skills-index.cjs` 重建；加 `--check` 只检查导航是否过期，检索本身不写盘。
 
@@ -212,4 +214,4 @@ node scripts/install-continuity.cjs --yes --no-auto-bind # 只接线，仍按会
 - `office-docs` 需另行安装锁定依赖，`node_modules` 不随包。默认按需落点使用 `npm ci --ignore-scripts --prefix <客户端目录>/skills-library/office-docs`；显式装到core时使用安装器实际打印的目录。不自动联网装包。
 - Git Bash（Windows）：`sync-*.sh` 与部分守卫要用 bash；非 Windows 直接用系统 bash。
 - `image-detail-inspect`（图像细读）需本机 **Python 3 + Pillow**，包内不带解释器与 Pillow。核心裁剪/放大/量化/对比只依赖 Pillow；自检（可失败，缺 Pillow 必红）：`"<PY>" -c "import PIL; print(PIL.__version__)"`，再跑 `"<PY>" <客户端目录>/skills-library/image-detail-inspect/scripts/selftest.py`。Windows 上 PATH 里的 `python` 可能是应用商店占位程序，用实际解释器的绝对路径。
-- 该技能的 **OCR 交叉核对是可选增强**，未安装时 `imgdetail.py ocr` 以 exit 5 明确降级，不影响核心功能。联网安装：`"<PY>" -m pip install --target <OCR_LIB> rapidocr onnxruntime`（官方 PyPI）。内网零网络：取 Release 的独立资产 `Qoder-Optimization-<版本>-ocr-bundle-cp314-win_amd64.zip`（wheels＋3 个 .onnx 模型＋逐件 sha256 的 manifest.json），解压后 `"<PY>" scripts/install-ocr-offline.py --bundle <解压目录> --target <OCR_LIB>`（内部 `--no-index`，不触网）；运行时用 `IMGDETAIL_OCR_LIB=<OCR_LIB>` 指认库目录。OCR 模型与 wheels **不进核心包也不进 MCP 离线附件**：它们按解释器版本与平台绑定，随包会把包绑死到一个 Python 版本。详见技能内 `references/ocr.md`。
+- 该技能的 **OCR 交叉核对是可选增强**，未安装时 `imgdetail.py ocr` 以 exit 5 明确降级，不影响核心功能。联网安装：`"<PY>" -m pip install --target <OCR_LIB> rapidocr onnxruntime`（官方 PyPI）。Windows x64 / CPython 3.14 的内网安装：从发布页取得 `Qoder-Optimization-<版本>-ocr-bundle-cp314-win_amd64.zip`（wheels、三个 ONNX 模型及逐件摘要清单），核对独立 `.sha256` 再解压，执行 `"<PY>" skills/image-detail-inspect/scripts/install-ocr-offline.py --bundle <解压目录> --target <OCR_LIB>`（内部 `--no-index`）；运行时用 `IMGDETAIL_OCR_LIB=<OCR_LIB>` 指认库目录。OCR 模型与 wheels 按平台与解释器单独分发。详见技能内 `references/ocr.md`。

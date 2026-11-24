@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 During the 0.x line, minor versions may contain breaking changes.
 
+## [0.2.4] - 2026-11-25
+
+### 中文摘要
+- 发布附带可离线复核的 JSON 和 SHA-256：关联固定 Git 提交、核心与 MCP 离线包的逐件摘要、OCR 附件及已通过的 Windows / Ubuntu 门禁。
+- OCR 附件复用已发布的固定摘要版本，核对实际字节后才上传；已发布同名资产仍逐件下载比对，冲突不覆盖。CI 单列 Qoder 桌面、离线 CUA 与 OCR 真实运行验收为未执行。
+
+### English Summary
+- A public JSON record and its checksum tie the release to one Git commit, per-file digests for the core and MCP offline archives, the OCR archive, and the Windows and Ubuntu gates that ran.
+- The workflow carries forward the pinned OCR bytes and checks them before publishing. It compares each existing remote asset before retaining it. The evidence lists Qoder desktop, offline CUA and OCR runtime acceptance separately as not run.
+
 ## [0.2.3] - 2026-11-21
 
 ### 中文摘要
@@ -605,6 +615,7 @@ During the 0.x line, minor versions may contain breaking changes.
 - @liushikuan63
 
 [Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.2.2...HEAD
+[0.2.4]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.4
 [0.2.3]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.3
 [0.2.2]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.2
 [0.2.1]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.1

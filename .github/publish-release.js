@@ -5,6 +5,7 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { sha256 } = require('./build-release.js');
+const { verifyEvidence } = require('./release-evidence.js');
 
 function officialGh(args) {
   return spawnSync(process.env.GH_EXECUTABLE || 'gh', args, { encoding: 'utf8', timeout: 180000, maxBuffer: 4 * 1024 * 1024 });
@@ -94,6 +95,11 @@ function publishRelease({ repo, tag, dest, gh = officialGh, root = process.cwd()
   for (const artifact of artifacts) {
     if (sha256(path.join(dest, artifact.name)) !== artifact.sha256 ||
         fs.readFileSync(path.join(dest, artifact.name + '.sha256'), 'utf8') !== `${artifact.sha256}  ${artifact.name}\n`) throw new Error('local asset checksum mismatch');
+  }
+  // The evidence contract started with 0.2.4; never add assets to earlier tags.
+  const [major, minor, patch] = tag.slice(1).split('.').map(BigInt);
+  if (major > 0n || minor > 2n || (minor === 2n && patch >= 4n)) {
+    assets.push(...verifyEvidence(dest, { packageName: name, build: evidence, requireRelease: true }).supplementary);
   }
   const remoteCommit = invoke(['api', `repos/${repo}/commits/${tag}`, '--jq', '.sha']).trim();
   if (remoteCommit !== evidence.commit) throw new Error('remote tag does not match the tested source commit');

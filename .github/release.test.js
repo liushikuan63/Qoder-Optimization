@@ -416,15 +416,15 @@ test('a tracked private file blocks the build rather than being silently exporte
   assert.equal(fs.existsSync(path.join(f.base, 'dist/Qoder-Optimization-0.0.2.zip')), false);
 }));
 
-function publicationFixture(f, { existing = true, mismatch = false, error = false, wrongCommit = false, draft = false, history = [], listHistory = true, latestTag, stuckLatest = false, afterPromotion, tagKind = 'tag', tagMessage = 'Qoder-Optimization 0.0.2\n\n### 中文摘要\n- 夹具摘要条目。\n' } = {}) {
+function publicationFixture(f, { existing = true, mismatch = false, error = false, wrongCommit = false, draft = false, history = [], listHistory = true, latestTag, stuckLatest = false, afterPromotion, version = '0.0.2', tagKind = 'tag', tagMessage = 'Qoder-Optimization 0.0.2\n\n### 中文摘要\n- 夹具摘要条目。\n' } = {}) {
   const dest = path.join(f.base, 'publish');
   fs.mkdirSync(dest);
-  const name = 'Qoder-Optimization-0.0.2';
+  const name = 'Qoder-Optimization-' + version;
   fs.writeFileSync(path.join(dest, name + '.zip'), 'archive fixture');
   const digest = sha256(path.join(dest, name + '.zip'));
   fs.writeFileSync(path.join(dest, name + '.zip.sha256'), `${digest}  ${name}.zip\n`);
   const commit = 'a'.repeat(40);
-  fs.writeFileSync(path.join(dest, 'build.json'), JSON.stringify({ tag: 'v0.0.2', package: name, commit, sha256: digest, artifacts: [{ name: name + '.zip', sha256: digest }] }));
+  fs.writeFileSync(path.join(dest, 'build.json'), JSON.stringify({ tag: 'v' + version, package: name, commit, sha256: digest, artifacts: [{ name: name + '.zip', sha256: digest }] }));
   let release = existing ? { id: 900, tag_name: 'v0.0.2', draft, html_url: 'https://github.com/example/project/releases/tag/v0.0.2', assets: [{ name: name + '.zip' }, { name: name + '.zip.sha256' }] } : null;
   let visibleInList = existing;
   const others = structuredClone(history);
@@ -477,6 +477,12 @@ test('same-name assets are downloaded and compared, never blindly skipped', () =
   assert.equal(result.assets.length, 2);
   assert.equal(p.calls.filter(args => args[1] === 'download').length, 2);
   assert.equal(p.calls.some(a => a[1] === 'upload' || a.includes('POST') || a.includes('PATCH')), false);
+}));
+
+test('new release refuses to contact the remote without its public evidence and companions', () => withFixture(f => {
+  const p = publicationFixture(f, { version: '0.2.4' });
+  assert.throws(() => publishRelease({ repo: 'example/project', tag: 'v0.2.4', ...p }), /release-evidence\.json/);
+  assert.deepEqual(p.calls, []);
 }));
 
 test('existing draft hidden from the tag endpoint is verified without duplication', () => withFixture(f => {

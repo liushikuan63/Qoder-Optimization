@@ -78,6 +78,7 @@ jobs:
             scripts/convention-runtime/package-lock.json
 
       - name: Verify frozen checkout
+        id: frozen_checkout
         env:
           EXPECTED_COMMIT: ${{ needs.source.outputs.commit }}
         run: node -e "const cp=require('node:child_process');const actual=cp.execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();if(actual!==process.env.EXPECTED_COMMIT)throw new Error('checkout differs from frozen source commit');"
@@ -95,9 +96,11 @@ jobs:
           npm ci --prefix scripts/convention-runtime --ignore-scripts --no-audit --no-fund
 
       - name: Isolated self-tests and release contracts
+        id: self_tests
         run: node .github/run-tests.js
 
       - name: Gate, build and independently verify the committed package
+        id: committed_build
         env:
           REQUESTED_TAG: ${{ inputs.tag }}
           SOURCE_COMMIT: ${{ needs.source.outputs.commit }}
@@ -115,24 +118,51 @@ jobs:
           node .github/build-release.js "${TAG}" "${RUNNER_TEMP}/dist" "${REF}"
 
       - name: Verify skill reference integrity in the built package
+        id: skill_references
         run: |
           PKG="$(node -p "JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP + '/dist/build.json', 'utf8')).package")"
           node scripts/skill-reference-integrity.cjs --root "${RUNNER_TEMP}/dist/${PKG}" --check
 
       - name: Verify package contract
+        id: package_contract
         run: |
           PKG="$(node -p "JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP + '/dist/build.json', 'utf8')).package")"
           node scripts/share-package-verify.cjs "${RUNNER_TEMP}/dist/${PKG}"
 
       - name: Scan the actual distribution
+        id: secret_scan
         run: |
           PKG="$(node -p "JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP + '/dist/build.json', 'utf8')).package")"
           node scripts/share-secret-scan.cjs "${RUNNER_TEMP}/dist/${PKG}"
 
       - name: Scan distribution for machine-specific paths
+        id: machine_path_scan
         run: |
           PKG="$(node -p "JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP + '/dist/build.json', 'utf8')).package")"
           node scripts/carrier-contract-gate.cjs --root "${RUNNER_TEMP}/dist/${PKG}" --machine-ids --scan-all
+
+      - name: Record and verify release evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QODER_SOURCE_COMMIT: ${{ needs.source.outputs.commit }}
+          QODER_FROZEN_CHECKOUT: ${{ steps.frozen_checkout.outcome }}
+          QODER_UBUNTU_SELF_TESTS: ${{ steps.self_tests.outcome }}
+          QODER_WINDOWS_SELF_TESTS: ${{ needs.windows.result }}
+          QODER_COMMITTED_BUILD: ${{ steps.committed_build.outcome }}
+          QODER_SKILL_REFERENCES: ${{ steps.skill_references.outcome }}
+          QODER_PACKAGE_CONTRACT: ${{ steps.package_contract.outcome }}
+          QODER_SECRET_SCAN: ${{ steps.secret_scan.outcome }}
+          QODER_MACHINE_PATH_SCAN: ${{ steps.machine_path_scan.outcome }}
+        run: |
+          set -euo pipefail
+          # Manual dispatch can target a historical checkout without this tool.
+          if [[ ! -f .github/release-evidence.js ]]; then exit 0; fi
+          args=(--ci)
+          if [[ "${GITHUB_REF}" == refs/tags/* || "${GITHUB_EVENT_NAME}" == workflow_dispatch ]]; then
+            args+=(--fetch-ocr)
+          fi
+          node .github/release-evidence.js write "${RUNNER_TEMP}/dist" "${args[@]}"
+          node .github/release-evidence.js verify "${RUNNER_TEMP}/dist"
 
       - name: Publish only after remote asset comparison
         if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
