@@ -2,7 +2,7 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.2.4"
+  "version": "0.2.5"
  },
  "generated": "2026-11-25",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
@@ -1413,7 +1413,7 @@
    "name": "safe-text-editing",
    "status": "shipped",
    "tier": "library",
-   "description": "改文件与传参的字符安全 playbook。当\"内容写出来不对\"时用：引号/反斜杠/反引号/`$` 被 shell 先解释、中文进 .cmd 变乱码、CRLF 与 GBK 被改写、整文件覆盖丢内容、替换串手抄失配、管道吞掉退出码、命令成功但改错地方。触发词：编辑出错、字符被吃掉、内容不对、乱码、转义、引号问题、sed 替换没生效、写进去的不是我要的、编码、GBK、CRLF、退出码不对。不用于：纯文本内容校对（走文档类技能）、.cmd 工具的整套改/验/发链（走 verify-windows-cmd-tool）。",
+   "description": "改文件与传参的字符安全 playbook。当\"内容写出来不对\"时用：引号/反斜杠/反引号/`$` 被 shell 先解释、中文进 .cmd 变乱码、CRLF 与 GBK 被改写、整文件覆盖丢内容、替换串手抄失配、管道吞掉退出码、命令成功但改错地方。也用于 Bash 重复失败、hook 拦截和 Exit code 1 排错。触发词：编辑出错、乱码、转义、引号问题、sed 替换没生效、写进去的不是我要的、编码、GBK、CRLF、退出码不对、重复失败。不用于：纯文本内容校对（走文档类技能）、.cmd 工具的整套改/验/发链（走 verify-windows-cmd-tool）。",
    "install": {
     "mode": "copy-skill",
     "tier": "library"

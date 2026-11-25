@@ -167,7 +167,7 @@ function metadataFor(root, options = {}) {
       if (!line.startsWith('| ' + originalVersion + ' |')) return [line];
       // 这两行是**本次发版**的编辑性摘要，生产者无法从代码推导，每次升版必须手工更新；
       // 留着上一版的文案会让 README 新版本行描述旧内容（四道包契约门禁抓不到这种漂移）。
-      const summary = row++ === 0 ? 'Short-screen and scrollbar verification: height-aware breakpoints, layout and scrollbar pixel assertions with negative controls, responsive --sizes previews; four more shipped skills (batch-card append, SPA hang triage, intermittent-red triage, design-engineering navigator); hand-written inventory repaired' : '矮屏与滚动条验收：高度断点、布局与滚动条像素断言（含负对照）、响应式 --sizes 预览；新增 4 个随包技能（批次卡追加、SPA 转圈取证、间歇红归因、设计导航）；手写清单补齐';
+      const summary = row++ === 0 ? 'Live search and visual-evidence backflow: grep-scope guard, tofu/icon-only checks, minigame quality gates, Bash failure triage, ROI review manifests, and unsigned CUA process IDs' : '现役检索与视觉证据回流：宽检索守卫、图标缺字/纯图标探针、小游戏质量闸门、Bash 失败归因、ROI 审阅清单与 CUA 无符号进程 ID';
       const url = 'https://github.com/liushikuan63/Qoder-Optimization/releases/';
       return [`| ${version} | ${date} | ${summary} | [zip](${url}download/v${version}/${name}-${version}.zip) · [notes](${url}tag/v${version}) |`, line];
     }).join('\n');

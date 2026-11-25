@@ -1,6 +1,6 @@
 ---
 name: safe-text-editing
-description: 改文件与传参的字符安全 playbook。当"内容写出来不对"时用：引号/反斜杠/反引号/`$` 被 shell 先解释、中文进 .cmd 变乱码、CRLF 与 GBK 被改写、整文件覆盖丢内容、替换串手抄失配、管道吞掉退出码、命令成功但改错地方。触发词：编辑出错、字符被吃掉、内容不对、乱码、转义、引号问题、sed 替换没生效、写进去的不是我要的、编码、GBK、CRLF、退出码不对。不用于：纯文本内容校对（走文档类技能）、.cmd 工具的整套改/验/发链（走 verify-windows-cmd-tool）。
+description: 改文件与传参的字符安全 playbook。当"内容写出来不对"时用：引号/反斜杠/反引号/`$` 被 shell 先解释、中文进 .cmd 变乱码、CRLF 与 GBK 被改写、整文件覆盖丢内容、替换串手抄失配、管道吞掉退出码、命令成功但改错地方。也用于 Bash 重复失败、hook 拦截和 Exit code 1 排错。触发词：编辑出错、乱码、转义、引号问题、sed 替换没生效、写进去的不是我要的、编码、GBK、CRLF、退出码不对、重复失败。不用于：纯文本内容校对（走文档类技能）、.cmd 工具的整套改/验/发链（走 verify-windows-cmd-tool）。
 ---
 
 # 改文本 / 传参：字符安全 playbook
@@ -41,7 +41,22 @@ node ~/.qoder/skills/safe-text-editing/scripts/text-check.js --selftest
 - 内容类：**"新片段在"** 与 **"旧片段不在"** 两条都要断言（只查前者会被残留内容蒙混）。
 - 编码类：`--encoding gbk|utf8`、`--eol crlf|lf`、`--bom`（工具给退出码，不给"看起来对"）。
 
-## 四、长单文件分块写入（输出预算不够时）
+## 四、Bash 重复失败与工具拦截
+
+**先分类，再重试**：`Exit code 1` 只是终态，不是根因。同一命令第二次失败前，先读回原始 stderr、重定向日志和 `.exit`；若工具结果只有 `Exit code 1`，多半是输出被重定向，不要原样再跑。
+
+1. **预执行拦截**：出现 `hook blocking error` 说明命令未执行，不能算产品失败。按拦截消息改写命令，保留原命令、日志路径和真实退出码：
+   ```bash
+   <command> > evidence/<name>.log 2>&1
+   rc=$?
+   printf '%s\n' "$rc" > evidence/<name>.exit
+   exit "$rc"
+   ```
+   构建/测试用文件重定向；搜索优先用 Grep/Glob，必须用 shell 时加 `-m`/`-l`/`-c` 或 `| head -N`；读取用 Read 的 `offset/limit`，不用 `cat/head/tail` 铺全文。
+2. **重复失败**：第一次失败后只允许一次有诊断目的的重试，且必须改变一个变量（路径、范围、参数、环境或读取方式）；同一错误连续三次仍失败就停止并报告已试方法。换工具不能重置预算。
+3. **判据**：同时核对日志存在、失败时日志非空、`.exit` 与命令真实返回一致、正例/负例可区分。`cmd | tail` 会吞退出码；用 `set -o pipefail` 或上面的重定向链。Windows 下不要把 `/tmp/...` 直接喂给 Node；脚本用 `os.tmpdir()`，一次性证据优先落项目 `evidence/`。
+
+## 五、长单文件分块写入（输出预算不够时）
 
 长 HTML / SVG / 文档一次写不完时，按“骨架 + 唯一占位标记”分块：
 
@@ -51,7 +66,7 @@ node ~/.qoder/skills/safe-text-editing/scripts/text-check.js --selftest
 4. 每块写完不复述已写内容（省预算），只做增量定位。
 5. 收尾跑结构自检：残留占位符为 0、标签配平、引用存在。**结构自检只证明文件结构完整，不证明画面/行为正确**；无渲染验收时汇报里必须写“未做视觉验证 + 原因”。
 
-## 五、边界
+## 六、边界
 
 - **本类问题已有门禁**：`win-path-guard.js`（PreToolUse，matcher `^Bash$`）拦三种形态——`node -e/--eval/-p` 负载里的盘符+反斜杠路径、`node -e` 里拼 VBS 三引号、经 heredoc/echo 往 `.js/.cjs/.mjs/.vbs/.ps1` 写单反斜杠盘符路径。被拦不是误报，按提示改写法；确实要放行时写 `~/.qoder/win-path-guard.json` 的 `{"mode":"warn"}` 或 `{"disabled":true}`（自测：`node ~/.qoder/scripts/win-path-guard.test.js`）。
 - 别为了"让检查通过"绕过守卫（`huge-output-guard` / `edit-guard`）：它们的判据都是踩过的坑，被拦就改写法。

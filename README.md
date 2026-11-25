@@ -3,7 +3,7 @@
 **An opt-in toolkit for making Qoder workflows more repeatable and verifiable.** It adds rules, on-demand skills, hooks, commands, scripts, and MCP templates through Qoder's extension points; it does not modify Qoder itself.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.2.4-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.2.5-blue.svg)](VERSION)
 [![Node](https://img.shields.io/badge/node-24-brightgreen.svg)](https://nodejs.org)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20(primary)-lightgrey.svg)](#requirements-and-limits)
 
@@ -22,6 +22,7 @@ No clone required — pick a version and download it. Every release carries a re
 
 | Version | Released | Highlights | Download |
 |---|---|---|---|
+| 0.2.5 | 2026-11-25 | Live search and visual-evidence backflow: grep-scope guard, tofu/icon-only checks, minigame quality gates, Bash failure triage, ROI review manifests, and unsigned CUA process IDs | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.5/Qoder-Optimization-0.2.5.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.5) |
 | 0.2.4 | 2026-11-25 | Release evidence binds the source commit, core, offline and OCR archive hashes, and completed CI checks; Qoder desktop and platform-specific acceptance stay explicit | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.4/Qoder-Optimization-0.2.4.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.4) |
 | 0.2.3 | 2026-11-21 | Edge-inset and layout-collapse verification shipped as reusable harnesses: four new scripts (two probes, two assertors) with 8–20px gap bands, coverage criteria and two negative-control modes; six real-browser pitfalls documented (outer `overflow-x:hidden` false green, hidden-tab transition residue causing a −20px shift and a retracted fake defect); two inverted assertions corrected | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.3/Qoder-Optimization-0.2.3.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.3) |
 | 0.2.2 | 2026-11-18 | Short-screen and scrollbar verification: height-aware breakpoints, layout and scrollbar pixel assertions with negative controls, responsive --sizes previews; four more shipped skills (batch-card append, SPA hang triage, intermittent-red triage, design-engineering navigator); hand-written inventory repaired | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.2/Qoder-Optimization-0.2.2.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.2) |
@@ -173,7 +174,7 @@ Details: [installation and tiers](README-安装说明.md), [working rules](Qoder
 
 ### Catalog snapshot
 
-In the catalog generated on 2026-11-25, 5 core skill descriptions total 1,120 characters; all 145 skill descriptions total 30,158 characters. The core descriptions are 3.7% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
+In the catalog generated on 2026-11-25, 5 core skill descriptions total 1,120 characters; all 145 skill descriptions total 30,190 characters. The core descriptions are 3.7% of the full catalog description text. These figures sum each catalog description's JavaScript string length; they do not measure total prompt tokens.
 
 ### Requirements and limits
 
@@ -222,6 +223,7 @@ MIT; see [LICENSE](LICENSE). This is an unofficial community project and is not 
 
 | 版本 | 发布日期 | 主要内容 | 下载 |
 |---|---|---|---|
+| 0.2.5 | 2026-11-25 | 现役检索与视觉证据回流：宽检索守卫、图标缺字/纯图标探针、小游戏质量闸门、Bash 失败归因、ROI 审阅清单与 CUA 无符号进程 ID | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.5/Qoder-Optimization-0.2.5.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.5) |
 | 0.2.4 | 2026-11-25 | 发布证据记录源码提交、核心包、离线包和 OCR 附件的哈希以及已执行的 CI 门禁；单独标记 Qoder 桌面和平台验收状态 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.4/Qoder-Optimization-0.2.4.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.4) |
 | 0.2.3 | 2026-11-21 | 四向内缩与布局塌陷验收上收为可复用 harness：新增 4 件脚本（2 个量测探针 + 2 个判据断言），带 8–20px 区间阈值、路由覆盖率判据与两种负对照模式；入档六个只有真跑才暴露的坑（外层 `overflow-x:hidden` 假绿、后台标签页过渡残留致 −20px 系统性偏移并伪报出一个已撤销的假缺陷）；纠正两处反向判据语义 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.3/Qoder-Optimization-0.2.3.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.3) |
 | 0.2.2 | 2026-11-18 | 矮屏与滚动条验收：高度断点、布局与滚动条像素断言（含负对照）、响应式 --sizes 预览；新增 4 个随包技能（批次卡追加、SPA 转圈取证、间歇红归因、设计导航）；手写清单补齐 | [zip](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.2/Qoder-Optimization-0.2.2.zip) · [notes](https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.2) |
@@ -375,7 +377,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 
 ### 目录快照
 
-截至 2026-11-25 生成的目录，5 个常驻技能的描述共 1,120 字符；145 个技能的描述共 30,158 字符。常驻描述占全部技能描述文本的 3.7%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
+截至 2026-11-25 生成的目录，5 个常驻技能的描述共 1,120 字符；145 个技能的描述共 30,190 字符。常驻描述占全部技能描述文本的 3.7%。数据按 catalog 中 description 的 JavaScript 字符串长度求和，不是完整提示词 token 数。
 
 ### 环境与限制
 
@@ -420,7 +422,7 @@ node ~/.qoder/scripts/build-skills-index.cjs
 <!-- offline-bundle:start -->
 ### Optional offline bundle / 可选离线附件
 
-The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.4/Qoder-Optimization-0.2.4-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
+The core ZIP excludes MCP offline binaries. Download the [offline bundle](https://github.com/liushikuan63/Qoder-Optimization/releases/download/v0.2.5/Qoder-Optimization-0.2.5-offline.zip) only when needed; verify its separate .sha256 and extract both ZIPs into the same directory. Links become available when that version is published.
 
 核心包不含 MCP 离线二进制；需要时单独下载离线附件，核对各自的 .sha256 后解压到同一目录。无需离线组件时只取核心包；链接仅在对应版本发布后可用。
 <!-- offline-bundle:end -->

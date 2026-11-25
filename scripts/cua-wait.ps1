@@ -57,9 +57,9 @@ function Get-TopWindows {
             if ($len -gt 0) {
                 $sb = New-Object System.Text.StringBuilder ($len + 2)
                 [void][Wn]::GetWindowText($h, $sb, $sb.Capacity)
-                $procId = 0
-                [void][Wn]::GetWindowThreadProcessId($h, [ref]$procId)
-                [void]$list.Add([pscustomobject]@{ Hwnd = [int64]$h; Title = $sb.ToString(); Pid = $procId })
+                $wpid = [uint32]0
+                [void][Wn]::GetWindowThreadProcessId($h, [ref]$wpid)
+                [void]$list.Add([pscustomobject]@{ Hwnd = [int64]$h; Title = $sb.ToString(); Pid = $wpid })
             }
         }
         return $true

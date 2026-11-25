@@ -908,10 +908,24 @@ test('disk-sweeper purge still removes a coherent archive after full restore', (
   assert.equal(fs.readFileSync(restored, 'utf8'), 'a');
 }));
 
-test('cua-wait does not overwrite the read-only $PID variable', () => {
+test('cua-wait uses an unsigned process id without overwriting $PID', () => {
   const text = fs.readFileSync(path.join(source, 'scripts/cua-wait.ps1'), 'utf8');
   assert.equal(/\$pid\s*=/.test(text), false);
-  assert.ok(text.includes('$procId'));
+  assert.ok(text.includes('$wpid = [uint32]0'));
+  assert.ok(text.includes('GetWindowThreadProcessId($h, [ref]$wpid)'));
+});
+
+test('backflow keeps shell failure and visual evidence consumption gates', () => {
+  const safe = fs.readFileSync(path.join(source, 'skills/safe-text-editing/SKILL.md'), 'utf8');
+  assert.ok(safe.includes('## 四、Bash 重复失败与工具拦截'));
+  assert.ok(safe.includes('换工具不能重置预算'));
+  const verify = fs.readFileSync(path.join(source, 'skills/verify-before-claim/SKILL.md'), 'utf8');
+  assert.ok(verify.includes('截图文件存在不等于证据被消费'));
+  assert.ok(verify.includes('## 十一、交付前返工防线'));
+  const ui = fs.readFileSync(path.join(source, 'skills/verify-ui-in-browser/SKILL.md'), 'utf8');
+  assert.ok(ui.includes('### 视觉审阅消费门禁'));
+  assert.ok(ui.includes('## 零、审美前置门'));
+  assert.ok(ui.includes('## 一·五、改动回归矩阵'));
 });
 
 test('migration undo covers every allowed drive and has no nonexistent option', () => {

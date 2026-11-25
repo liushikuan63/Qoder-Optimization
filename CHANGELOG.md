@@ -4,6 +4,24 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 During the 0.x line, minor versions may contain breaking changes.
 
+## [0.2.5] - 2026-11-25
+
+### 中文摘要
+- 回填现役较新的宽检索守卫：新增 `grep-scope-core.cjs` 与合成仓库正负自测，接进 `risky-match-guard.js`；相对 path 按会话 cwd 解析、跳过 `.git`，`Glob` 不误用 Grep 的排除语法；拦截提示补可复制定位入口。
+- 回填 `verify-ui-in-browser` 的图标缺字（tofu）与 icon-only 按钮探针归因，区分 SPA 入口 document 与静态资源，并同时核对字体加载状态。
+- 补齐 `minigame-dev-pro` 的 15 道质量闸门与逐文件 manifest，补入 Tailwind 动画组合参考，并合并 Java 架构技能的通用入口与中文路由。
+- `safe-text-editing` 新增 Bash 重复失败、hook 预执行拦截、日志与真实退出码的归因流程；`cua-wait.ps1` 按 Win32 契约使用 `uint32` 进程 ID，避开只读 `$PID` 名称。
+- `verify-before-claim` 与 `verify-ui-in-browser` 新增视觉审阅消费门禁：ROI 覆盖、近景裁剪、审阅 manifest、过期/空图/已知缺陷反例，以及技术回归与视觉结论分离。
+
+### English Summary
+- Backfill the live wide-search guard with `grep-scope-core.cjs`, synthetic positive/negative tests and `risky-match-guard.js` wiring; resolve relative paths from the session cwd, skip `.git`, keep Glob semantics separate from Grep, and add reproducible locator hints.
+- Backfill tofu and icon-only button triage in `verify-ui-in-browser`, distinguishing SPA entry documents from static assets and requiring font-loading state as well as `document.fonts.check()`.
+- Restore all 15 `minigame-dev-pro` quality gates and its per-file manifest, add Tailwind animation patterns, and merge Java architecture routing with general building/configuring/debugging entry points.
+- Add Bash repeated-failure, pre-execution hook-block, log and real-exit-code triage to `safe-text-editing`; make `cua-wait.ps1` use the Win32 `uint32` process-id contract without the read-only `$PID` name.
+- Add visual-evidence consumption gates to `verify-before-claim` and `verify-ui-in-browser`: ROI coverage, close-up crops, review manifests, stale/empty/known-defect negative controls, and separate technical, review and aesthetic conclusions.
+
+## [Unreleased]
+
 ## [0.2.4] - 2026-11-25
 
 ### 中文摘要
@@ -13,18 +31,6 @@ During the 0.x line, minor versions may contain breaking changes.
 ### English Summary
 - A public JSON record and its checksum tie the release to one Git commit, per-file digests for the core and MCP offline archives, the OCR archive, and the Windows and Ubuntu gates that ran.
 - The workflow carries forward the pinned OCR bytes and checks them before publishing. It compares each existing remote asset before retaining it. The evidence lists Qoder desktop, offline CUA and OCR runtime acceptance separately as not run.
-
-## [Unreleased]
-
-### 中文摘要
-- 回填现役较新的宽检索守卫：新增 `grep-scope-core.cjs` 与合成仓库正负自测，接进 `risky-match-guard.js`；相对 path 按会话 cwd 解析、跳过 `.git`，`Glob` 不误用 Grep 的排除语法。`pre-tool-dispatcher.js` 为没有改法的拦截补可复制定位入口，并补对应测试与接线文档。catalog 安装 `risky-match-guard.js` 时会自动带上 core。
-- 回填 `verify-ui-in-browser` 的图标缺字（tofu）四层判据与 icon-only 按钮探针归因；区分 SPA 入口 document 与静态资源，字体加载同时核对 `FontFace.status`；描述压到 300 字符内。
-- 补齐 `minigame-dev-pro` 的 15 道 `tests/` 闸门并把内部 manifest 重建为 135 条逐文件哈希；补入 Tailwind 动画组合参考；`java-architect` 描述合并本地技术覆盖面与包内中文路由，同时保留 building/configuring/debugging 通用入口。
-
-### English Summary
-- Backfill the live wide-search guard: add `grep-scope-core.cjs` with synthetic positive/negative tests and wire it into `risky-match-guard.js`; relative paths resolve from the session cwd, `.git` is skipped, and `Glob` does not inherit Grep's exclusion syntax. `pre-tool-dispatcher.js` now adds a reproducible locator when a guard denies without an actionable hint, with tests and wiring docs. Installing `risky-match-guard.js` from the catalog pulls the core automatically.
-- Backfill `verify-ui-in-browser` tofu checks and icon-only button probe triage while keeping its description within 300 characters; distinguish SPA entry documents from static assets and require both `document.fonts.check()` and loaded `FontFace` status.
-- Restore all 15 `minigame-dev-pro` quality gates and rebuild its internal manifest as 135 per-file hashes; add the Tailwind animation pattern reference; merge Java architecture technical coverage with the package's Chinese routing cues while retaining the general building/configuring/debugging entry.
 
 ## [0.2.3] - 2026-11-21
 
