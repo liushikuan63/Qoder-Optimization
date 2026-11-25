@@ -926,6 +926,9 @@ test('backflow keeps shell failure and visual evidence consumption gates', () =>
   assert.ok(ui.includes('### 视觉审阅消费门禁'));
   assert.ok(ui.includes('## 零、审美前置门'));
   assert.ok(ui.includes('## 一·五、改动回归矩阵'));
+  const evolution = fs.readFileSync(path.join(source, 'skills/self-evolution/SKILL.md'), 'utf8');
+  assert.ok(evolution.includes('~/.qoder/scripts/evolution-capture.cjs'));
+  assert.ok(evolution.includes('必须接在 `stop-gate.js` **之前**'));
 });
 
 test('migration undo covers every allowed drive and has no nonexistent option', () => {

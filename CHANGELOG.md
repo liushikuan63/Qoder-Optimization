@@ -10,14 +10,14 @@ During the 0.x line, minor versions may contain breaking changes.
 - 回填现役较新的宽检索守卫：新增 `grep-scope-core.cjs` 与合成仓库正负自测，接进 `risky-match-guard.js`；相对 path 按会话 cwd 解析、跳过 `.git`，`Glob` 不误用 Grep 的排除语法；拦截提示补可复制定位入口。
 - 回填 `verify-ui-in-browser` 的图标缺字（tofu）与 icon-only 按钮探针归因，区分 SPA 入口 document 与静态资源，并同时核对字体加载状态。
 - 补齐 `minigame-dev-pro` 的 15 道质量闸门与逐文件 manifest，补入 Tailwind 动画组合参考，并合并 Java 架构技能的通用入口与中文路由。
-- `safe-text-editing` 新增 Bash 重复失败、hook 预执行拦截、日志与真实退出码的归因流程；`cua-wait.ps1` 按 Win32 契约使用 `uint32` 进程 ID，避开只读 `$PID` 名称。
+- `safe-text-editing` 新增 Bash 重复失败、hook 预执行拦截、日志与真实退出码的归因流程；`cua-wait.ps1` 按 Win32 契约使用 `uint32` 进程 ID，避开只读 `$PID` 名称；`self-evolution` 明确全局采集脚本路径，修复双端技能体检的悬空引用。
 - `verify-before-claim` 与 `verify-ui-in-browser` 新增视觉审阅消费门禁：ROI 覆盖、近景裁剪、审阅 manifest、过期/空图/已知缺陷反例，以及技术回归与视觉结论分离。
 
 ### English Summary
 - Backfill the live wide-search guard with `grep-scope-core.cjs`, synthetic positive/negative tests and `risky-match-guard.js` wiring; resolve relative paths from the session cwd, skip `.git`, keep Glob semantics separate from Grep, and add reproducible locator hints.
 - Backfill tofu and icon-only button triage in `verify-ui-in-browser`, distinguishing SPA entry documents from static assets and requiring font-loading state as well as `document.fonts.check()`.
 - Restore all 15 `minigame-dev-pro` quality gates and its per-file manifest, add Tailwind animation patterns, and merge Java architecture routing with general building/configuring/debugging entry points.
-- Add Bash repeated-failure, pre-execution hook-block, log and real-exit-code triage to `safe-text-editing`; make `cua-wait.ps1` use the Win32 `uint32` process-id contract without the read-only `$PID` name.
+- Add Bash repeated-failure, pre-execution hook-block, log and real-exit-code triage to `safe-text-editing`; make `cua-wait.ps1` use the Win32 `uint32` process-id contract without the read-only `$PID` name; qualify the global `self-evolution` capture script path so both client skill checks resolve it.
 - Add visual-evidence consumption gates to `verify-before-claim` and `verify-ui-in-browser`: ROI coverage, close-up crops, review manifests, stale/empty/known-defect negative controls, and separate technical, review and aesthetic conclusions.
 
 ## [Unreleased]

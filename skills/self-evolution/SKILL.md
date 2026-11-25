@@ -67,7 +67,7 @@ description: 将用户明确的长期偏好、重复纠正、验证过的复用�
 
 ## 每轮确定性采集（Stop hook）
 
-提醒只解决「想得起来」，采集解决「被掐断也留得下」。`scripts/evolution-capture.cjs` 挂在 Stop，且必须接在 `stop-gate.js` **之前**（采集先写本轮候选，门禁 R19 才能在清理门禁 R14/R15 之前弹出建议；顺序约束见 `hooks/README-hooks.md`），把本轮的问题与用户习惯写成候选：
+提醒只解决「想得起来」，采集解决「被掐断也留得下」。`~/.qoder/scripts/evolution-capture.cjs` 挂在 Stop，且必须接在 `stop-gate.js` **之前**（采集先写本轮候选，门禁 R19 才能在清理门禁 R14/R15 之前弹出建议；顺序约束见 `hooks/README-hooks.md`），把本轮的问题与用户习惯写成候选：
 
 - 落点只有 `~/.qoder/evolution/inbox.jsonl`（超过 4MB 轮转为 `inbox.archive-*.jsonl`）与心跳 `tmp/evolution-capture/heartbeat.log`。**绝不写规则、技能、hook、MCP、记忆或 settings.json**，永远 `exit 0`（fail-open），不挡收尾。
 - 判据来自共享信号核 `evolution-signal-core.js`，与每轮提醒同一真源；采集层用 `extended` 加宽召回，提醒层与门禁仍用历史判据（模式隔离，非触发轮注入逐字节不变）。
