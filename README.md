@@ -428,3 +428,13 @@ The core ZIP excludes MCP offline binaries. Download the [offline bundle](https:
 
 核心包不含 MCP 离线二进制；需要时单独下载离线附件，核对各自的 .sha256 后解压到同一目录。无需离线组件时只取核心包；链接仅在对应版本发布后可用。
 <!-- offline-bundle:end -->
+
+### 其他独立分享包 / Other independent toolkits
+
+These repositories target different clients; their rules, skills, hooks and installation behavior are not interchangeable.
+
+- [ClaudeCode-Optimization](https://github.com/liushikuan63/ClaudeCode-Optimization) — Claude Code on-demand skills, prompt hook and optional recovery gateway.
+- [DSH-Optimization](https://github.com/liushikuan63/DSH-Optimization) — portable DSH NEXT workflow, guarded repairs and layered acceptance.
+- [Codex-Optimization](https://github.com/liushikuan63/Codex-Optimization) — Codex skills, project rules and documentation connectors.
+
+这些仓库面向不同宿主，能力与权限边界各自独立，不能直接互换。
