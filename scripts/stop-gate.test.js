@@ -37,6 +37,10 @@ function run(payload, session, extraEnv = {}) {
       encoding: 'utf8',
       env: Object.assign({}, process.env, {
         HOME: ROOT, USERPROFILE: ROOT, HOOK_CRASH_LOG: path.join(ROOT, 'crash.log'), STOP_GATE_STATE_DIR: stateDir,
+        // clientRoot() 第一优先读 QODER_HOME：不覆盖它，沙箱 HOME 就是假的 —— R14/R15 的 tmp 探测会拿到
+        // 真实 ~/.qoder/tmp-sweeper.json（canonicalRoot = 本机 D:/tmp），结果随真实磁盘抖动（2026-11-26 实测：
+        // 同一份代码两种结果，13 红 / 0 红）。写法同 tmp-sweeper.test.js:158。
+        QODER_HOME: path.join(ROOT, '.qoder'),
         TEMP: path.join(ROOT, 'temp'), TMP: path.join(ROOT, 'temp'), TMPDIR: path.join(ROOT, 'temp'),
         LOCALAPPDATA: path.join(ROOT, 'la'),
       }, extraEnv),
@@ -407,6 +411,7 @@ function r18Mutant(label, from, to, tr, want) {
       env: Object.assign({}, process.env, {
         HOME: ROOT, USERPROFILE: ROOT, HOOK_CRASH_LOG: path.join(ROOT, 'crash.log'),
         STOP_GATE_STATE_DIR: path.join(ROOT, 'state-' + session),
+        QODER_HOME: path.join(ROOT, '.qoder'),   // 同 run()：不覆盖就漏真实 ~/.qoder
         TEMP: path.join(ROOT, 'temp'), TMP: path.join(ROOT, 'temp'), TMPDIR: path.join(ROOT, 'temp'),
         LOCALAPPDATA: path.join(ROOT, 'la'),
       }),
@@ -421,7 +426,86 @@ r18Mutant('claim-neutered', 'if (!SEDIMENT_CLAIM.test(text)) return false;', 'if
 r18Mutant('evidence-ignored', 'return !carrierWritten(ctx) && !memoryWritten(ctx);', 'return true;',
   r18pos([tool('Write', { file_path: r18ruleFile.replace(/\\/g, '/') })]), 'block');
 
+// R20 断言"不可行 / 做不到 / 需要对方配合"前必须三查（2026-11-26 用户纠正，机制化 AGENTS「排查纪律」那条）。
+// 事故原型：把"审计根修要动日志系统"写成"跨项目、做不到"挂成外部整改，一次查证都没做；
+// 补查后发现服务器上该 webapp 的 .class 就在磁盘上可替换（只是重启核心服务需批准 ≠ 不可行）。
+// 证据口径与 R3/R9/R18 同族：只认真跑过的查证工具；三查按会话累计在 per-session state 的 checks 里。
+const r20Claim = '这块本机没有源码，属于日志系统那边的缺陷，需要对方配合，我先记成待外部整改项。';
+const r20MemDir = path.join(ROOT, 'r20', 'memory');
+const r20SrcFile = path.join(ROOT, 'r20', 'src', 'LogDataDAO.java');
+fs.mkdirSync(r20MemDir, { recursive: true });
+fs.mkdirSync(path.dirname(r20SrcFile), { recursive: true });
+fs.writeFileSync(path.join(r20MemDir, 'reference-tle-patch-deploy.md'), '# 补丁式发布\n\n同类先查这里。\n', 'utf8');
+fs.writeFileSync(r20SrcFile, 'public class LogDataDAO { }\n', 'utf8');
+// ③ 的远端探测用占位主机名与 POSIX 绝对路径：不写凭据、不写内网地址（凭据按纪律留在本机保险箱）。
+const r20RemoteCmd = 'ssh ops@srv "ls -l /srv/webapps/log/WEB-INF/classes/com/x/LogDataDAO.class"';
+const r20ThreeChecks = [
+  tool('Grep', { pattern: 'LogDataDAO', path: r20MemDir.replace(/\\/g, '/') }, 'reference-tle-patch-deploy.md:3'),
+  tool('Read', { file_path: r20SrcFile.replace(/\\/g, '/') }, 'public class LogDataDAO'),
+  tool('Bash', { command: r20RemoteCmd }, '-rw-r--r-- 1 root root 9123'),
+];
+const r20tr = (tools, text, userText) => transcript([user(userText || '看看审计根修这块能不能在本仓解决'), ...tools, asst(text || r20Claim)]);
+const r20run = (label, tr, want, session) => {
+  const got = run({ transcript_path: tr, session_id: session }, session);
+  check(label, got.decision, want);
+  return got;
+};
+// —— 正向：有措辞、没取证 ⇒ 必拦，且归因必须是 R20（不被别的规则顶包）——
+const r20Bad = r20run('R20 违规必须拦：断言需对方配合但零查证', r20tr([tool('Bash', { command: 'ls -la' })]), 'block', 'r20a');
+check('R20 归因必须是 R20', r20Bad.out.includes('R20-infeasible-claim-without-three-checks') ? 'yes' : 'no', 'yes');
+r20run('R20 违规必须拦：只看主索引 MEMORY.md 不算①（用户点名反例）',
+  r20tr([tool('Read', { file_path: path.join(r20MemDir, 'MEMORY.md').replace(/\\/g, '/') }, '- [x] 索引')]), 'block', 'r20b');
+r20run('R20 违规必须拦：相对路径实测不算②（须绝对路径）',
+  r20tr([tool('Bash', { command: 'grep -rin DAO "' + r20MemDir.replace(/\\/g, '/') + '"', }), tool('Bash', { command: 'ls -la target/classes' }, 'LogDataDAO.class')]), 'block', 'r20c');
+r20run('R20 违规必须拦：只查本机、涉服务器却不做③',
+  r20tr([tool('Bash', { command: 'grep -rin DAO "' + r20MemDir.replace(/\\/g, '/') + '"' }, 'hit'),
+    tool('Read', { file_path: r20SrcFile.replace(/\\/g, '/') }, 'class')]), 'block', 'r20d');
+r20run('R20 违规必须拦：远端探测报错不算③',
+  r20tr([tool('Bash', { command: 'grep -rin DAO "' + r20MemDir.replace(/\\/g, '/') + '"' }, 'hit'),
+    tool('Read', { file_path: r20SrcFile.replace(/\\/g, '/') }, 'class'),
+    tool('Bash', { command: r20RemoteCmd }, 'Permission denied, please try again.', true)]), 'block', 'r20e');
+// —— 负向：查证齐 / 诚实降级 / 自我纠正 / 引用式措辞 / 只读审阅 ⇒ 一律放行 ——
+const r20Good = r20run('R20 对照组：三查证据齐则放行', r20tr(r20ThreeChecks), 'allow', 'r20f');
+r20run('R20 对照组：涉服务器但本机可解（不要求③）',
+  r20tr([tool('Bash', { command: 'grep -rin DAO "' + r20MemDir.replace(/\\/g, '/') + '"' }, 'hit'),
+    tool('Read', { file_path: r20SrcFile.replace(/\\/g, '/') }, 'class')],
+    '根因在本仓这个类里，改不了上游的字段口径，我按现状给出本仓侧修法。'), 'allow', 'r20g');
+r20run('R20 对照组：诚实标注「未三查 + 原因」',
+  r20tr([tool('Bash', { command: 'ls' })],
+    '这块看着需要对方配合，但我属于未三查：原因＝本会话没有该主机通道，先记为待核实，不据此定性不可行。'), 'allow', 'r20h');
+r20run('R20 对照组：标注「未验证 + 原因」',
+  r20tr([tool('Bash', { command: 'ls' })],
+    '这条结论未验证，原因＝缺远端通道，不当成做不到写进结论。'), 'allow', 'r20i');
+r20run('R20 对照组：自我纠正旧结论（并非做不到）',
+  r20tr([tool('Bash', { command: 'ls' })],
+    '上一条把它写成不可行是不成立的：并非做不到，只是重启核心服务需要单独批准，路径我已按待批准列出。'), 'allow', 'r20j');
+r20run('R20 对照组：引用纪律原文的「不可行」不算我的定性',
+  r20tr([tool('Bash', { command: 'ls' })],
+    '纪律要求：断言「不可行 / 做不到」前必须三查并留证据，本轮我按这条给了命令与结果。'), 'allow', 'r20k');
+r20run('R20 对照组：只读审阅不要求三查',
+  r20tr([tool('Bash', { command: 'ls' })], r20Claim, '只读审阅，不要修改任何文件'), 'allow', 'r20l');
+r20run('R20 对照组：交接场景不要求三查',
+  r20tr([tool('Bash', { command: 'ls' })], r20Claim, '仅做交接，我自己新开会话'), 'allow', 'r20m');
+r20run('R20 对照组：权限真的被拒后如实上报阻塞',
+  transcript([user('远程确认下产物能不能替换'),
+    tool('Bash', { command: r20RemoteCmd }, 'CONFIRMATION_REQUIRED: 需要人工批准', true),
+    asst('远端通道被平台拒绝，这块我这边无法推进，需要你批准后再查。')]), 'allow', 'r20n');
+r20run('R20 对照组：无定性措辞的收尾不拦',
+  r20tr([tool('Bash', { command: 'ls' })], '这轮把补丁链路跑通了，剩下的是发版节律问题。'), 'allow', 'r20o');
+r20run('R20 会话累计：上一回合查过、这一回合才定性也放行', (() => {
+  // 先跑一次只带查证、不带措辞的收尾（证据应落进 per-session state 的 checks），再用同一会话收尾定性文本。
+  const s = 'r20p';
+  run({ transcript_path: transcript([user('先查证'), ...r20ThreeChecks, asst('查证命令与结果都在上面这轮里，本轮先不结论。')]), session_id: s }, s);
+  return transcript([user('那这轮能给结论吗'), asst(r20Claim)]);
+})(), 'allow', 'r20p');
+// —— 改坏必红：摘掉措辞判据 ⇒ 违规用例变放行；把证据判据钉成"永远缺" ⇒ 三查齐的对照组变拦 ——
+r18Mutant('r20-claim-neutered', 'if (!INFEASIBLE_CLAIM.test(clean)) return false;', 'if (true) return false;',
+  r20tr([tool('Bash', { command: 'ls -la' })]), 'allow');
+r18Mutant('r20-evidence-forged', 'return missingChecks(ctx, clean).length > 0;', 'return true;',
+  r20tr(r20ThreeChecks), 'block');
+
 // R19 收尾自进化建议未弹窗（用户 2026-11-12 明确要求：每轮收尾把建议弹窗给用户拍板）。
+
 // 采集 hook 只写 pending 且永不拦截，"一定会弹"由本规则保证；这里证明它既能拦、也不误拦。
 const R19_STATE = path.join(ROOT, 'r19-capture-state');
 const r19Text = '这一格按你说的口径改好了，细节都在上面的 diff 里。';
@@ -1132,6 +1216,13 @@ check('R14 清理失败不算闭环', r14('r14-m', [failedApply], '已清理本�
 const uncoveredJson = JSON.stringify({ entries: [], deleted: [], failed: [], protected: [], recommended: { clean: [], preserve: [] } });
 const uncoveredApply = tool('Bash', { command: 'node ~/.qoder/scripts/tmp-round-scan.cjs --since ' + turnStart + ' --apply --json' }, uncoveredJson);
 check('R14 结果未覆盖探测条目不算闭环', r14('r14-n', [uncoveredApply], '已清理本轮临时产物 1 项。').decision, 'block');
+// 并行会话文件进了 recommended.sessionSkipped（未删除是有意保留），应计入覆盖，不再误报。
+const skippedJson = JSON.stringify({ entries: [{ name: 'task-shot.png', path: tempShot }], deleted: [], failed: [], protected: [], recommended: { clean: [], preserve: [], sessionSkipped: [tempShot] } });
+const skippedApply = tool('Bash', { command: 'node ~/.qoder/scripts/tmp-round-scan.cjs --since ' + turnStart + ' --apply --json' }, skippedJson);
+check('R14 sessionSkipped 计入保留覆盖', r14('r14-o', [skippedApply], '已清理本轮临时产物 1 项。').decision, 'allow');
+const skippedOtherJson = JSON.stringify({ entries: [{ name: 'task-shot.png', path: tempShot }], deleted: [], failed: [], protected: [], recommended: { clean: [], preserve: [], sessionSkipped: [path.join(TMPROOT, 'other.png')] } });
+const skippedOtherApply = tool('Bash', { command: 'node ~/.qoder/scripts/tmp-round-scan.cjs --since ' + turnStart + ' --apply --json' }, skippedOtherJson);
+check('R14 未覆盖的条目仍要拦', r14('r14-p', [skippedOtherApply], '已清理本轮临时产物 1 项。').decision, 'block');
 const r14Share = r14('r14-j', [tool('Bash', { command: 'node scripts/install-package.cjs --yes' }, 'ok')]);
 check('R14 分享包轮次交给 R15', r14Share.out.includes('R15-share-package-temp-scan-missing') && !r14Share.out.includes('R14-temp-artifacts-unhandled'), true);
 

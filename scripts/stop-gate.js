@@ -948,7 +948,8 @@ function roundScanResult(x, ctx) {
   if (!res || !Array.isArray(res.entries) || !Array.isArray(res.deleted) || !Array.isArray(res.failed)) return null;
   if (res.failed.length) return null;
   const preserve = new Set([...(res.protected || []),
-    ...((res.recommended && res.recommended.preserve) || [])].map(normPath));
+    ...((res.recommended && res.recommended.preserve) || []),
+    ...((res.recommended && res.recommended.sessionSkipped) || [])].map(normPath));
   const deleted = new Set(res.deleted.map(normPath));
   const covered = tempGateProbe(ctx).every((e) => deleted.has(normPath(e.path)) || preserve.has(normPath(e.path)));
   return covered ? res : null;
@@ -1017,6 +1018,141 @@ function suggestionReason(ctx) {
     + '用户选采纳才动载体：先 carrier-preflight，再备份、最小差异修改、验证、evolution.js record；'
     + '选跳过就运行 `node ~/.qoder/scripts/evolution-capture.cjs --decline <topic>` 登记，同主题不再重复弹。'
     + '候选只是待核对材料（verified 一律 false），不是授权；只读 / 仅交接 / 禁记忆轮不要求弹窗。';
+}
+
+// —— R20：断言「不可行 / 做不到 / 需要对方配合」前必须留下三查证据（2026-11-26 用户纠正）——
+// 事故：把"审计根修要动日志系统"写成"跨项目、做不到"挂成待外部整改，一次查证都没做；
+// 补查后发现目标服务器上该 webapp 的 `WEB-INF/classes/**.class` 就在磁盘上可替换，
+// 与本仓已有的补丁式发布同型，只是重启核心服务需要单独批准 —— 那是"待批准"，不是"不可行"。
+// 判据已写进 AGENTS「排查纪律」与记忆 feedback-verify-before-diagnose，本条把它做成机制拦截。
+// 证据只认工具台账（与 R3/R9/R18 同口径）：正文写"我查过了"不算，得有真的查证调用。
+// 三查按**会话**累计：记进本门禁已有的 per-session state（`STATE_DIR/<session>.json` 的 `checks`），
+// 不新建平铺配置；带 TTL，几天前的查证不能挡住新一轮定性。
+const CHECK_KEYS = ['memory', 'local', 'server'];
+const CHECK_TTL_MS = 24 * 60 * 60 * 1000; // 与 R19 pending 同口径
+
+const INFEASIBLE_CLAIM = /不可行|行不通|做不到|做不了|办不到|改不了|实现不了|无从下手|无法(?:完成|实现|落地|改动|替换|部署|推进)|(?:需要?|得)\s*(?:对方|他方|第三方|厂商|现场|甲方|业务方|上游|别的项目)[^。；\n]{0,8}配合|属于(?:外部|第三方|对方|别的?项目)[^。；\n]{0,8}(?:缺陷|问题|改动|整改)|不在我方(?:范围|可控)|只能等(?:对方|现场)|需?另立整改项/;
+// 同一小句里的否定/自我纠正不算定性（"并非做不到""把『不可行』当结论不成立"）；引用式已由 stripQuoted 剥掉。
+const INFEASIBLE_NEGATED = /(?:并?不|不是|并非|谈不上|算不上|不能算|不该|此前误判|之前写错|原先的判断|修正|推翻)[^。；\n]{0,14}(?:不可行|做不到|办不到|做不了|改不了|无法(?:完成|实现|落地|改动|替换|部署)|配合)|(?:不可行|做不到|办不到)[^。；\n]{0,10}(?:不成立|说法有误|是我判断错)/;
+// 如实标注"没查证 + 原因"属诚实降级（改成待核实口径即可），与全局规则「未验证须说明原因」一致。
+const HONEST_UNCHECKED = /(?:未|尚未|还没|没有)[^。；\n]{0,6}(?:三查|查证|取证|核验|核实)|(?:三查|查证)[^。；\n]{0,8}(?:未做|没做|待做|待补|未逐条)|(?:标注|写成|记为|改成|标记)[^。；\n]{0,10}(?:未验证|未查证|待核实|待查证)|未验证[^\n]{0,16}(?:原因|因为|由于|：|:)/;
+// 只有牵涉"服务器 / 他方系统 / 可部署产物"的定性才要求第③查；纯本机可做的活不额外索要远程探测。
+const NEEDS_SERVER_PROBE = /服务器|远端|线上|生产|现场|部署|发布|\bwar\b|WEB-INF|tomcat|日志系统|另一?侧|对方|他方|第三方|厂商|跨项目|另立整改|核心服务|重启|那边的|那边改/;
+// 绝对路径口径要同时认 Windows 盘符、UNC、`~/`、`$VAR/` 和 Git Bash 的 `/盘名/…`
+// （本机 shell 是 Git Bash：`ls /d/tmp/x` 就是绝对路径实测，只认 `D:\` 会把真实查证判成没查）。
+const ABS_PATH_RE = /(?:[A-Za-z]:[\/\\]|\\\\[A-Za-z0-9._-]+\\|~[\/\\]|\$[A-Za-z_]+[\/\\]|(?:^|[\s"'`(])\/[A-Za-z0-9._-]+\/)/;
+const LOCAL_PROBE_VERB_RE = /\b(?:ls|ll|stat|test|find|dir|Get-ChildItem|Get-Item|which|where|whereis|file|cat|head|grep|rg|unzip|jar|readelf)\b/;
+// 查证对象得是"源码 / 可部署产物 / 服务"，否则 `ls ~/` 这种随手一看也算查过就太松了。
+const PROBE_TARGET_RE = /(?:[\\/](?:src|webroot|web-inf\b|webapps?|classes|static|lib|scripts|deploy|target|dist|node_modules|backend|fronted)[\\/]|WEB-INF|\.class\b|\.jar\b|\.war\b|\.(?:java|js|cjs|mjs|ts|tsx|vue|less|css|properties|xml|json)\b|pom\.xml|build\.xml|systemctl|\bservice\b|tomcat|jboss|nginx)/i;
+const REMOTE_TRANSPORT_RE = /\b(?:ssh|scp|sftp|pscp|plink|sshpass|winrs|Invoke-Command|Enter-PSSession)\b/;
+const REMOTE_PROBE_VERB_RE = /\b(?:ls|ll|stat|test|find|dir|Get-ChildItem|systemctl|service|ps|tasklist|jar|unzip|cat|head|grep)\b/;
+
+// memory 目录的"全目录"形态：路径落在 `…/memory`（目录本身或其下的条目文件）才算；
+// 只指主索引 MEMORY.md 不算（用户点名的反例正是"只看 MEMORY.md"）。
+// 尾字符不能写死成 `$`：命令里目录后面常跟引号/斜杠/空格（`grep -r x "<root>/memory"`），
+// 写成 `(\/|$)` 会把真实的全目录检索判成没查（2026-11-26 自测抓到）。
+function isMemoryDirTarget(s) {
+  const t = String(s || '').replace(/\\/g, '/');
+  const DIR_RE = /[\/~$]memory(?![\w.-])/i;
+  if (!DIR_RE.test(t)) return false;
+  // 只把 `…/memory/MEMORY.md` 抠掉再判一次：剩下还有 memory 目录引用，才说明是目录级检索；
+  // 只剩主索引一个目标 ⇒ 不算（同一条命令里既指目录又指索引的，算目录级）。
+  return DIR_RE.test(t.replace(/[\/~$]memory\/MEMORY\.md\b/gi, ' '));
+}
+// ① 记忆与项目记录：目录级检索（Grep/Glob 的 path 落在 memory 目录，或 Bash 对 memory 目录跑 grep/find）。
+//    **空返回也算查过** —— 查不到时按纪律写「记忆无此项」，所以闸门设在"确实全目录检索"，
+//    不设"必须有命中"；但只 Read 主索引 MEMORY.md 不算（那正是用户点名的反例）。
+function checkMemoryProbe(tool) {
+  if (!tool.success) return false;
+  const name = toolName(tool);
+  if (name === 'Grep' || name === 'Glob') return isMemoryDirTarget(tool.input.path);
+  if (name === 'Read') return isMemoryDirTarget(tool.input.file_path);
+  if (name === 'Bash') {
+    const cmd = String(tool.input.command || '');
+    return /\b(?:grep|rg|find|ls|cat|head|Select-String|Get-ChildItem)\b/.test(cmd) && isMemoryDirTarget(cmd);
+  }
+  return false;
+}
+// ② 本机源码与产物：**绝对路径**实测代码/产物，且这次探测真的执行完了（工具没报错）。
+//    空返回同样是有效查证——"全深度 find 确认本机确无该源码"正是写"本机没有 X"的合法前置。
+function checkLocalProbe(tool) {
+  if (!tool.success) return false;
+  const name = toolName(tool);
+  if (name === 'Read') {
+    const p = String(tool.input.file_path || '');
+    if (!ABS_PATH_RE.test(p) || !PROBE_TARGET_RE.test(p)) return false;
+    try { const st = fs.statSync(p); return st.isFile() && st.size > 0; } catch { return false; }
+  }
+  if (name === 'Glob' || name === 'Grep') {
+    const blob = String(tool.input.path || '') + ' ' + String(tool.input.pattern || '') + ' ' + String(tool.input.glob || '');
+    return ABS_PATH_RE.test(String(tool.input.path || '')) && PROBE_TARGET_RE.test(blob);
+  }
+  if (name === 'Bash') {
+    const cmd = String(tool.input.command || '');
+    return LOCAL_PROBE_VERB_RE.test(cmd) && ABS_PATH_RE.test(cmd) && PROBE_TARGET_RE.test(cmd);
+  }
+  return false;
+}
+// ③ 目标服务器：经远程通道真跑过"看服务 / 看可部署产物"的探测（工具没报错）。
+//    远端回"No such file"同样算查过——它证的是"该服务器上不存在"，而不是"没查"。
+function checkServerProbe(tool) {
+  if (!tool.success || toolName(tool) !== 'Bash') return false;
+  const cmd = String(tool.input.command || '');
+  return REMOTE_TRANSPORT_RE.test(cmd) && REMOTE_PROBE_VERB_RE.test(cmd) && PROBE_TARGET_RE.test(cmd);
+}
+
+function checksFromTools(ctx) {
+  const found = { memory: false, local: false, server: false };
+  for (const tool of ctx.turnTools || []) {
+    if (!found.memory && checkMemoryProbe(tool)) found.memory = true;
+    if (!found.local && checkLocalProbe(tool)) found.local = true;
+    if (!found.server && checkServerProbe(tool)) found.server = true;
+  }
+  return found;
+}
+function freshChecks(state, now) {
+  const c = (state && state.checks) || {};
+  const out = {};
+  for (const k of CHECK_KEYS) {
+    const at = Number(c[k]);
+    out[k] = Number.isFinite(at) && now - at <= CHECK_TTL_MS;
+  }
+  return out;
+}
+function missingChecks(ctx, text) {
+  const led = ctx.checkLedger || {};
+  const miss = [];
+  if (!led.memory) miss.push('memory');
+  if (!led.local) miss.push('local');
+  if (NEEDS_SERVER_PROBE.test(text) && !led.server) miss.push('server');
+  return miss;
+}
+function infeasibleReason(ctx) {
+  const clean = stripQuoted(ctx.lastAssistantText || '');
+  const hit = String((INFEASIBLE_CLAIM.exec(clean) || [''])[0]).slice(0, 24);
+  const miss = missingChecks(ctx, clean);
+  const lines = [];
+  if (miss.includes('memory')) {
+    lines.push(' ① 记忆与项目记录：**全目录**检索，只 Read 主索引 MEMORY.md 不算 ——'
+      + ' `grep -rin "<关键词>" ~/.qoder/memory ~/.qoder/projects/<本仓>/memory`，或把 Grep 的 `path` 指到 memory 目录；');
+  }
+  if (miss.includes('local')) {
+    lines.push(' ② 本机源码与产物：**绝对路径**实测，不凭印象 —— `ls -la "<绝对路径>"`、'
+      + '`find <绝对根> -name "<类名>.class"`，或直接 Read 源文件；查不到＝实测确认不存在，同样算查证，但要把命令与空结果写进汇报。');
+  }
+  if (miss.includes('server')) {
+    lines.push(' ③ 目标服务器上是否存在该服务、其可部署产物是否可替换 ——'
+      + ' `ssh <账号>@<主机> "ls -l <webapp 绝对路径>/WEB-INF/classes/<包路径>/<类>.class"`，'
+      + '并写清可替换产物与重启影响面（地址与账号从记忆条目取，不进汇报）。');
+  }
+  return '收尾文本把这件事定性成「' + hit + '」，但本会话没有对应的三查证据记录（缺：'
+    + miss.join(' / ') + '）。按 2026-11-26 的长期纠正：**断言不可行前必须三查并留证据**，'
+    + '而且「需要批准 / 需要停机 / 需要凭据」不是"不可行"，它们只是待批准那一格，路径本身要查清写进方案。\n'
+    + lines.join('\n')
+    + '\n现在：按缺项逐条查证（证据＝真实工具调用与返回，正文写"我查过了"不作数），把结论改成'
+    + '「已查证：<命令> → <结果>，可行/不可行的具体依据是 X」，或改成「待批准：动作＝…，回滚＝…，判据＝…」；'
+    + '确实查不动（无凭据 / 无通道）就显式标注「未三查 + 原因」并说明需要什么条件才能查。'
+    + '只读审阅、仅交接，以及权限被平台拒绝后如实上报阻塞的，不受本条约束。';
 }
 
 const RULES = [
@@ -1242,6 +1378,22 @@ const RULES = [
       + '自进化采集 hook 写进 inbox 的只是**候选**，不等于载体已落地。'
       + '要么现在按授权真写进最窄载体并给出文件路径与验证结果，要么把结论改成「已记录候选，待授权晋升」/「未沉淀 + 原因」；'
       + '只读、仅交接或禁止记忆时不要求写入，被权限拒绝时如实报告阻塞。',
+  },
+  {
+    id: 'R20-infeasible-claim-without-three-checks',
+    // 窄条件：出现"不可行族"定性措辞 + 本会话缺三查证据 + 不是诚实标注 / 自我纠正 / 权限被拒。
+    // 与 R3/R9/R18 同族（都拿工具台账当证据），差别是证据窗口按会话累计（见 state.checks）。
+    test: (t, ctx) => {
+      if (ctx.scope.readOnly || ctx.scope.handoffOnly) return false;
+      const clean = stripQuoted(t);
+      if (!INFEASIBLE_CLAIM.test(clean)) return false;
+      if (INFEASIBLE_NEGATED.test(clean) || HONEST_UNCHECKED.test(clean)) return false;
+      // 平台/权限真的拒过（工具结果里有拒绝证据）时如实上报阻塞不算违规 —— 与 needsMemory / R18 同口径。
+      if (/(?:权限|审批|授权|批准|拒绝)/.test(clean)
+        && ctx.turnTools.some((tool) => !tool.success && /permission|denied|CONFIRMATION_REQUIRED|权限|拒绝/i.test(JSON.stringify(tool.result || '')))) return false;
+      return missingChecks(ctx, clean).length > 0;
+    },
+    reason: (ctx) => infeasibleReason(ctx),
   },
   {
     id: 'R19-evolution-suggestion-not-asked',
@@ -1474,6 +1626,21 @@ function main() {
   const state = json(stateFile);
   state.rules = state.rules || {};
   state.total = state.total || 0;
+  // R20 的会话级三查台账：本轮观察到的查证证据累计进**本门禁已有的** per-session state，
+  // 这样"上一回合查过、这一回合才下结论"也算有证据。只在新证据出现时写盘，常规回合零写入。
+  const checksNow = Date.now();
+  ctx.checkLedger = freshChecks(state, checksNow);
+  const foundChecks = checksFromTools(ctx);
+  let checksChanged = false;
+  for (const k of CHECK_KEYS) {
+    if (foundChecks[k] && !ctx.checkLedger[k]) { state.checks = state.checks || {}; state.checks[k] = checksNow; ctx.checkLedger[k] = true; checksChanged = true; }
+  }
+  if (checksChanged) {
+    try {
+      fs.mkdirSync(STATE_DIR, { recursive: true });
+      fs.writeFileSync(stateFile, JSON.stringify(state));
+    } catch (e) {}
+  }
 
   for (const rule of RULES) {
     if (noText && rule.needsText !== false) continue;

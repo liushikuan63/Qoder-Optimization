@@ -10,7 +10,7 @@
 | 机制 | 入口 | 作用 |
 |---|---|---|
 | 每轮规则提醒 | `scripts/rules-reminder.js`（UserPromptSubmit） | 把首要纪律每轮重注入，抗压缩丢失与注意力衰减；并内置目标候选、自进化采集、含混初筛、理解确认与 `/clarify` 纠正稿推荐、B05 自动选档触发（新装默认 `--workflow-mode model`：结构化判定 + `verification-trigger-core.js` 关键词兜底；回退 `route` 时仅走关键词判定，可写 `~/.qoder/verification-trigger.json` 的 `{"enabled":false}` 关闭）及主动联网查证/工具获取提示。纠正稿与理解确认只作建议、不构成执行授权。禁止联网或引用不触发，只读/禁止下载只提示查证；hook 不联网、不下载或安装，不改变平台权限 |
-| 停手门禁 | `scripts/stop-gate.js`（Stop） | 收尾文本命中 R1 停手等待 / R1b 声明下一步未做 / R2 裁决未弹窗 / R3 前台无视觉证据 / R4 明确记忆请求无成功证据 / R5 无主张踢皮球 / R6-R6c 队列与阻塞 / R7 大会话交接 / R8 记忆证据 / R10 安装更新未询问 / R11 发布后未询问部署 ⇒ `decision:block` 逼回正轨；只检查当前授权任务，只读/交接不催办 |
+| 停手门禁 | `scripts/stop-gate.js`（Stop） | 收尾文本命中 R1 停手等待 / R1b 声明下一步未做 / R2 裁决未弹窗 / R3 前台无视觉证据 / R4 明确记忆请求无成功证据 / R5 无主张踢皮球 / R6-R6c 队列与阻塞 / R7 大会话交接 / R8 记忆证据 / R10 安装更新未询问 / R11 发布后未询问部署 / R20 不可行断言缺三查证据 ⇒ `decision:block` 逼回正轨；只检查当前授权任务，只读/交接不催办 |
 | 规则真源体检 | `scripts/global-config-guard.js`（SessionStart） | AGENTS.md 与 `rules/*.md` 两侧漂移、memory 分叉、规则里的悬空文件引用；健康时零输出。**两路 bash 检查共用一个 11s 截止线**（hook 只给 15s，各设 8s 会相加越界、被掐时连提醒都不输出）：到点跳过剩余项并明说「未检查」，检查器跑不起来（退出码非 0/1）也一律出声 |
 | 会话体积与接续 | `scripts/session-budget.js`（UserPromptSubmit + SessionStart） | **三个独立信号**：① 体积 ≥8MB 节约模式 / ≥15MB **先落盘再继续** / ≥25MB **立即落盘**；② transcript 里 `isCompactSummary:true` 的**压缩次数** ≥1 条提醒落盘、≥2 条**落盘并继续**。体积说"会不会被掐断"，压缩次数说"已经丢过几次上下文"（context rot），**③ 上一回合的上下文增量**（≥2MB 报警，`SB_TURN_GROWTH_MB` 可调）说"上一回合灌得太快"——这是**返回侧入账**：读取侧守卫只拦"明显超标的单条"，拦不住多条中等返回累积。**已知局限**：增量只有回合粒度，看不出是哪一个工具贡献的（要单工具粒度需 PostToolUse，尚未接）。SessionStart 另注入两样：未完成的 `.qoder-work-queue.md` 接续点（文案是"**第一条未完成项就是你本轮的第一件事，直接接着做**"） + **看门狗**（见下行）。**为什么必须前移**：被掐断的回合到不了 Stop，R7 兜不住它要防的那件事。**文案定调**：落盘与换会话都是手段、都**不是收工信号**——到档位先落盘，**然后继续推进当前任务**，任务不停只是换个地方跑 |
 | 看门狗（谁看住看门的人） | 同上，`session-budget.js` 的 SessionStart 分支 | 周检会查其它机制的心跳，但**周检自己没跑**（cron 失效 / 周一机器关机）没人知道。会话开台是与 cron **完全独立**的通道 ⇒ 用它查"周检上次成功是多久前"，超 `SB_AUDIT_STALE_DAYS`（默认 10 天，允许漏一轮不报）或台账根本不存在时在开局提示并给出手工命令 |
@@ -252,6 +252,11 @@ Post 是另一个事件面（要看返回），塞进 `risky-match-guard` 就等
 ⇒ 这一行只可能由合并后的入口写出。合并后全量真机台账 26 行**全是 allow**、`state.json` 无条目
 ⇒ 测试输出里引用的报错字符串没有被误计数（Post 半边要求"调用本身带数据目标维度"才建账）。
 
+**PostToolUse 的一条硬边界（2026-11-20 实测）**：工具**以报错形态返回**（超时 / 参数校验失败 / 抛异常）时 PostToolUse **不触发**。
+证据：同一轮里 20 秒超时的 Grep 在 `post-tool-dispatcher` 台账中**没有对应行**，紧接着一发成功的 Grep 却有 `pass|Grep`。
+⇒ 凡"失败信号只存在于**报错返回**里"的判据，走 Post 记账等于永远学不到东西（本应拦的那一次恰好不投递），必须做成 Pre 侧结构性判定——
+`grep-scope-core.cjs` 就是这么定的。auth-lock / attempt-lock 覆盖的是 Bash **非零退出**，那属于正常返回、Post 照常触发，不受这条边界影响。
+
 ## 2026-10-27：通用任务检查强化（R3 / R9 / 连败计数 / 返回侧）
 
 用户要求把上一轮复盘出的缺口一次做完。判据与证据如下（每条都有红/绿对照用例）：
@@ -307,4 +312,21 @@ Post 是另一个事件面（要看返回），塞进 `risky-match-guard` 就等
 | 分享包产物与旧回滚点永久删除 | `--include-share-package` 默认移入 `<root>/.trash/<时间戳>`，保留 7 天后回收；`--no-trash` 才永久删 | tmp-round-scan 隔离区用例 |
 | 临时根总量失控没有提醒 | SessionStart 调 `tmp-sweeper --usage`，超过 5GB 或 2000 个顶层条目时提醒，24h 节流 | session-budget 水位用例 |
 
-**自测入口**：`node ~/.qoder/scripts/stop-gate.test.js`（511 条）、`tmp-sweeper.test.js`（40 条）、`tmp-round-scan.test.js`（142 条）、`session-budget.test.js`（全过）。
+**自测入口**：`node ~/.qoder/scripts/stop-gate.test.js`（532 条）、`tmp-sweeper.test.js`（40 条）、`tmp-round-scan.test.js`（142 条）、`session-budget.test.js`（全过）。
+
+## 2026-11-26：R20 —— 断言「不可行 / 做不到 / 需要对方配合」前必须留下三查证据
+
+| 问题 | 改法 | 判据 |
+|---|---|---|
+| 「审计根修要动日志系统」被写成"跨项目、做不到"挂成外部整改，**一次查证都没做**；补查发现目标服务器上该 webapp 的 `WEB-INF/classes/**.class` 就在盘上可替换（与本仓补丁式发布同型），只是重启核心服务需单独批准——那是**待批准**，不是不可行 | `stop-gate.js` 新增 `R20-infeasible-claim-without-three-checks`（复用 R3/R9/R18 的"只认真实工具调用"证据口径，不另起框架）：收尾文本命中定性措辞（`INFEASIBLE_CLAIM`：不可行 / 行不通 / 做不到 / 办不到 / 改不了 / 实现不了 / 无从下手 / 无法完成·实现·落地·替换·部署·推进 / 需要对方·他方·第三方·厂商·现场·甲方·业务方·上游配合 / 属于外部·第三方·别的项目的缺陷·问题·改动 / 不在我方可控 / 只能等对方 / 需另立整改项）**且缺三查证据** ⇒ `decision:block`，reason 逐条点名缺哪一格并给可执行示例命令 | 违规必红 6 条 + 对照组必绿 10 条 + 跨回合累计 1 条 + 两条变异对照（见下） |
+| 三查证据从哪来？只看本轮工具清单会漏掉"上一回合查过、这一回合成文"的正常形态 | 证据落在门禁**已有的** per-session 状态文件 `tmp/stop-gate/<session>.json` 的新字段 `checks`（不新建扁平配置）：`memory` / `local` / `server` 三格，由 `checksFromTools()` 从工具调用折叠得出，只在真出现新证据时写盘，TTL 24h（与 R19 pending 同口径）。① 记忆＝对 memory **目录**做 Grep/Glob/Read 或 Bash 检索（**只读主索引 `MEMORY.md` 不算**，正是用户点名的反例）；② 本机＝绝对路径 + 探测动词（`ls\|stat\|find\|dir\|grep\|rg\|jar\|unzip\|cat…`）+ 代码/产物/服务线索（`WEB-INF\|.class\|.jar\|.war\|src\|webapps\|pom.xml\|systemctl…`），**必须绝对路径**，相对路径不算"实测"；③ 服务器＝`ssh\|scp\|sftp\|plink\|pscp\|winrs\|Invoke-Command…` + 远端探测动词 + 上述产物线索且**该次调用成功**（远端报错不算查过） | 只看主索引不算① / 相对路径 `ls -la target/classes` 不算② / 远端探测失败不算③ 三条独立植入必红 |
+| 会不会拦掉合法的"已验证外部阻塞"上报？ | 四道出口：① 只读审阅 / 仅交接（`taskScope`）直接豁免；② 措辞属自我纠正（`INFEASIBLE_NEGATED`：并非做不到 / 不可行的说法不成立 / 此前误判…）或诚实标注未取证（`HONEST_UNCHECKED`：未三查 / 待查证 / 标注未验证 + 原因…）放行；③ 文本提到权限/审批且本轮**确有失败的、含 permission/denied/CONFIRMATION_REQUIRED 的工具结果**才放行——不看散文只看真结果；④ ③ 只在文本触及服务器/远端/线上/部署/对方/跨项目/重启/核心服务（`NEEDS_SERVER_PROBE`）时才要求，本机可解的任务不会因为没 ssh 而被拦 | 「只读审阅不要求三查」「交接场景不要求三查」「权限真的被拒后如实上报阻塞」「无定性措辞的收尾不拦」「涉服务器但本机可解（不要求③）」五条对照组全绿 |
+| 引用纪律原文会不会被当成我自己的定性？（R3 当年就踩过） | 判据先过 `stripQuoted()`（剥围栏代码块、行内码、`"…"`、“…”、「…」）再看措辞 | 「引用纪律原文的『不可行』不算我的定性」对照组绿 |
+| 门禁自己会不会恒绿 | 复用 `r18Mutant` 做变异对照：`INFEASIBLE_CLAIM` 判定改假 ⇒ 违规样本变 allow；`missingChecks(...)` 改成 `return true` ⇒ 三查齐全的对照组变 block（两向都能失败） | 两条变异均如预期红（还原后复绿） |
+| **顺带修掉的既有测试隔离缺陷**（非本批引入）：同一份代码 13 红 / 0 红 | `stop-gate.test.js` 的 harness 只覆盖了 `HOME/USERPROFILE`，漏了 `QODER_HOME`——而 `client-root.js:20` **第一优先**读 `QODER_HOME`，本机设了它 ⇒ 沙箱里 R14/R15 的 `tempGateProbe` 仍拿到真实 `~/.qoder/tmp-sweeper.json`（`canonicalRoot: D:/tmp`，786 个顶层条目、仅 1 个比 2 分钟新），结果随真实磁盘抖动。改法＝两处 harness（`run()` 与变异对照 `r18Mutant()`）各补 `QODER_HOME: path.join(ROOT, '.qoder')`（写法同 `tmp-sweeper.test.js:158`） | 改前 `519/532`、FAIL 集为 13 条 R14/R15（两次连跑 FAIL 集完全一致）；还原 pristine 门禁 + 当前测试同样 13 条 ⇒ 与本批无关。清掉 `QODER_HOME` 后 `EXIT=0`；补上沙箱值后 **532/532 全绿、`TEST_EXIT=0`** |
+
+**未覆盖的边界（如实说明）**：
+- 措辞表是正则，**换更冷僻的说法定性不可行**（如"这块我们这边使不上劲"）仍会漏检——和 R5 一样属固有边界，未做语义判定；发现新的漏检句式按本表补进 `INFEASIBLE_CLAIM`。
+- ②/③ 判的是"有一次成功的、指向代码/产物/服务的绝对路径探测"，**不校验探测输出的内容对不对**：空结果视为"已实测确认不存在"（这正是用户给的正例口径），但也意味着"探错文件"不会被识别。
+- 诚实标注出口是**措辞级**的——写一句"未三查"即可绕过，这是刻意的（把"要不要装作已取证"的成本压低，换"至少留下未取证的信号"）；跨会话（新 session 的 `checks` 从零开始）不复用旧会话证据。
+- 「本机/本环境没有 X」的绝对路径实测口径另有硬事实登记簿那条钉住，R20 只在收尾出现定性措辞时兜底，不等于任何"没有"断言都被拦。
