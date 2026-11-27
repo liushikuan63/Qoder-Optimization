@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 During the 0.x line, minor versions may contain breaking changes.
 
+## [0.2.6] - 2026-11-27
+
+### 中文摘要
+- 新增 `/mcp-toggle`（`scripts/mcp-toggle.cjs` + `commands/mcp-toggle.md`）：按需列出、启用、禁用 MCP server；默认只预览，`--apply` 才写 `settings.json` 且先备份，`--both` 只处理已存在的另一侧，未知 server / 损坏 JSON 拒绝写入；自带 10 项沙箱自测。
+- 补齐「能力生命周期」纪律：每轮提醒第 11 条与 `workflow-profile` 工具条新增「用完即释放」；`skills-router` 增加按需装载后的释放步骤与 `mcp_list` / `mcp_get` / `mcp_call` 定向发现；`rules/long-task.md` 增两条能力纪律（按需装载、用完释放）。
+- `mcp/README-mcp.md` 新增「按需启用与用完释放」：`mcp.lazyLoad` 默认值、`disabled`、`includeTools` / `excludeTools`、`mcp.allowed` / `excluded`、`/mcp reload` 生效条件，以及宿主不能中途卸载已加载工具的边界。
+- 修复 `rules-reminder.test.js` 的 UTF-8 分块用例未剥离宿主注入的 `QODER_HOME`、导致沙箱被指回真实配置的假失败。
+
+### English Summary
+- Add `/mcp-toggle` (`scripts/mcp-toggle.cjs` plus `commands/mcp-toggle.md`): list, enable or disable MCP servers on demand. It previews by default, writes `settings.json` only with `--apply` after a backup, treats `--both` as existing sides only, refuses unknown servers and corrupt JSON, and ships 10 sandboxed self-tests.
+- Add the capability-lifecycle discipline: the per-turn reminder item 11 and the `workflow-profile` tool bullet now say "release after use"; `skills-router` gains the release step and directed `mcp_list` / `mcp_get` / `mcp_call` discovery; `rules/long-task.md` gains load-on-demand and release-after-use rules.
+- `mcp/README-mcp.md` gains an on-demand enable/release section covering `mcp.lazyLoad` defaults, `disabled`, `includeTools` / `excludeTools`, `mcp.allowed` / `excluded`, `/mcp reload` activation, and the host limit that loaded tools cannot be unloaded mid-session.
+- Fix the `rules-reminder.test.js` UTF-8 chunk cases that failed to strip the host-injected `QODER_HOME`, pointing the sandbox at the real configuration.
+
 ## [0.2.5] - 2026-11-25
 
 ### 中文摘要
@@ -633,6 +647,7 @@ During the 0.x line, minor versions may contain breaking changes.
 - @liushikuan63
 
 [Unreleased]: https://github.com/liushikuan63/Qoder-Optimization/compare/v0.2.2...HEAD
+[0.2.6]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.6
 [0.2.4]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.4
 [0.2.3]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.3
 [0.2.2]: https://github.com/liushikuan63/Qoder-Optimization/releases/tag/v0.2.2

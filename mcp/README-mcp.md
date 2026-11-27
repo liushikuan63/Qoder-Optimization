@@ -63,3 +63,11 @@ install-mcp.cmd --wire-guard   :: 同时接线鼠标抢占守卫（需先把 scr
 启动命令指向本地源码（`node <仓库>/src/index.js`），源码不随包；没有该仓库就不要注册。
 
 > 凭据纪律：连接串 / 口令只写本机文件，不写进规则、记忆、分享包。
+
+## 六、按需启用与用完释放（懒加载 / disabled / includeTools）
+
+- **懒加载默认开启**：`mcp.lazyLoad` 默认 `true`，工具 schema 按需加载，会话里先看到 meta tools（`mcp_list` / `mcp_get` / `mcp_call`）。手动关闭需设 `mcp.lazyLoad:false` 并重启；`QODER_MCP_LAZY=1` 强制开启（设 `0` 不会关闭）。
+- **服务级释放**：每个 server 可设 `"disabled": true`，保留配置但不加载工具；改完 `/mcp reload` 或重开会话生效。CLI 也可 `qoder mcp list` / `qoder mcp remove <name>`。
+- **工具面收窄**：单 server 用 `includeTools` / `excludeTools` 只保留任务需要的工具；全局用 `mcp.allowed` / `mcp.excluded` 控制 server 白/黑名单。
+- **一键开关**：`node ~/.qoder/scripts/mcp-toggle.cjs --list` 查看；`--disable <name>` 预览禁用，确认后加 `--apply`（写前自动备份 `settings.json.bak.*`）；`--enable <name> --apply` 恢复；`--both` 同时处理已存在的另一侧配置。默认只预览，不写盘。
+- **边界**：宿主不能卸载当前会话已加载的工具，也不能改写历史（见规则文档「我们做不到的」）。释放靠下一次 reload / 新会话与子会话隔离；不要把 `disabled` 当成「当前会话立即消失」。

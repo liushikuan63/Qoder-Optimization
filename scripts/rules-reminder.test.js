@@ -2,7 +2,7 @@
 // rules-reminder.js 的自测：每轮提醒是"最易被忽略的纪律"的唯一兜底，它自己坏了不该没人知道。
 // 判据（任一不成立即 exit 1）：
 //   ① 合法 UserPromptSubmit 载荷 → 退出码 0、stdout 是合法 JSON、形状为 hookSpecificOutput.additionalContext
-//   ② 提醒正文含 10 条要素与两条**本轮强化的判据**（声明下一步就当场做 / 裁决先弹窗）
+//   ② 提醒正文含全部要素与强化判据（声明下一步就当场做 / 裁决先弹窗 / 用完即释放）
 //   ③ 空 stdin（宿主异常）也必须照样注入——注入不能依赖载荷内容
 //   ④ 心跳日志追加了一行（"机制在跑"的可观测证据）
 //   ⑤ 对照组：删掉一条要素的"假提醒"必须被判红（证明 ② 的断言真能失败）
@@ -33,7 +33,7 @@ const run = (input) => spawnSync(process.execPath, [SCRIPT], {
 });
 
 const MARKERS = ['简体中文', '不随意停止', '需拍板', '验证要能失败', '先备份', '先只读预览命中范围', '明确结论', 'Vibecoding 两问', '目标模式', '开工先判定', '含混自检', '能力自检', '开工确认', 'grill', '审查+成文', '过程落盘', '领域与流程纪律', '自进化采集', '确认理解一次'];
-const STRENGTHENED = ['只读', '不重复确认', '不得通过换工具', '零文件写入', '不适用记 N/A'];
+const STRENGTHENED = ['只读', '不重复确认', '不得通过换工具', '零文件写入', '不适用记 N/A', '用完即释放', 'mcp-toggle'];
 const checkText = (text, expected) => MARKERS.concat(STRENGTHENED).every((k) => expected ? text.includes(k) : true);
 
 // ① 合法载荷
@@ -43,9 +43,9 @@ try { ctx = JSON.parse(r1.stdout).hookSpecificOutput.additionalContext || ''; } 
 check('① 合法载荷 → exit 0 + 合法 JSON + 形状正确',
   r1.status === 0 && /hookSpecificOutput/.test(r1.stdout) && ctx.length > 100, `exit=${r1.status}`);
 
-// ② 要素完整（含本轮强化的两条）
+// ② 要素完整（含强化判据）
 const missing = MARKERS.concat(STRENGTHENED).filter((k) => !ctx.includes(k));
-check('② 11 条要素 + 2 条强化判据齐全', missing.length === 0, missing.length ? '缺 ' + missing.join(',') : '');
+check('② 11 条要素 + 强化判据齐全', missing.length === 0, missing.length ? '缺 ' + missing.join(',') : '');
 
 // ③ 空 stdin 也要注入
 const r3 = run('');
@@ -386,7 +386,7 @@ check('明确请求 → 不注入含混提示', clearReq.status === 0 && !clearC
 function runChunked(input, split) {
   return new Promise(resolve => {
     const source = `process.stdin.once('data', () => process.stderr.write('CHUNK_READY')); require(${JSON.stringify(SCRIPT)});`;
-    const child = spawn(process.execPath, ['-e', source], { env: { ...process.env, USERPROFILE: HOME, HOME } });
+    const child = spawn(process.execPath, ['-e', source], { env: CHILD_ENV });
     let stdout = '', stderr = '', error = null, sent = false;
     const timer = setTimeout(() => child.kill(), 15000);
     child.stdout.setEncoding('utf8');

@@ -34,13 +34,13 @@ const HOOKS = [
   ['PostToolUse', 'image-detail-trigger.js', 10, '^Read$'],
 ];
 const CORE_SKILLS = ['concurrent-edit-attribution-check', 'continuation-state-audit', 'goal-driven-execution', 'safe-text-editing', 'self-evolution', 'ship-clean-pr', 'skills-router', 'structured-edit-safety', 'verify-before-claim', 'verify-ui-in-browser', 'vibe-coding-workflow', 'vibecoding-doc'];
-const COMPLETE_IDS = [...new Set(['script:run-package-hook.cjs', 'script:workflow-profile.cjs', 'script:work-queue-check.js', 'command:checkpoint', 'command:fact', ...HOOKS.map(hook => 'script:' + hook[1]), ...CORE_SKILLS.map(name => 'skill:' + name)])];
+const COMPLETE_IDS = [...new Set(['script:run-package-hook.cjs', 'script:workflow-profile.cjs', 'script:work-queue-check.js', 'script:mcp-toggle.cjs', 'command:checkpoint', 'command:fact', 'command:mcp-toggle', ...HOOKS.map(hook => 'script:' + hook[1]), ...CORE_SKILLS.map(name => 'skill:' + name)])];
 const RULES = {
   'AGENTS.md': `# 分享包通用工作流
 当前用户要求、平台约束和项目约定优先；本段不扩大授权。已有个人细则继续保留。
 - 默认简体中文，行动请求持续完成检查、实现、验证和交付；缺非关键细节自行选合理值。只读审查只交付报告，不写文件或顺带接手旧待办。
 - 开工先检查实际仓库、工具链、Git 状态和已有任务归属；保护他人未提交修改，不 reset、stash、clean 或整仓暂存。
-- 工具按当前步骤定向检索名称/描述，仅读取必要 schema 和参考片段；能力不足再扩检，不反复转储全部工具、环境或日志。检查真实解释器、锁定版本和 argv；Git Bash、WSL、PowerShell 5.1/7 不互换，不为任务改全局工具链。
+- 工具按当前步骤定向检索名称/描述，仅读取必要 schema 和参考片段；能力不足再扩检，不反复转储全部工具、环境或日志。用完即释放：步骤结束不复述输出、大结果落盘，重工具链交子代理，不再需要的 MCP server 用 /mcp-toggle 禁用或 includeTools/excludeTools 收窄；宿主不支持会话内卸载。检查真实解释器、锁定版本和 argv；Git Bash、WSL、PowerShell 5.1/7 不互换，不为任务改全局工具链。
 - 按当前任务检索已装 skills 与 skills-library，读取真实入口后采用适用步骤。已明确选择或必要调用直接使用；待选择的相关能力说明用途并询问，拒绝后不催问。
 - 安装包先核对已装/缺失：随包技能按全量装入按需库，由 skills-router/skill-load 按需引用，不再逐条挑选；脚本、命令、agent 与 hook 属代码或接线，仍要逐条明确选择。只有与可信旧包逐字节一致的旧副本可更新，本地定制保留审查。全量安装不改变已有技能层级，也不把本次选择不静默变成长期偏好。
 - 目标仅在用户或系统/开发者明确要求时创建，已有目标不重建。并行先分析依赖、授权和唯一写入权；共享文件/生成物串行，写入使用隔离工作树和逐提交范围核验，实际集成后再验收。

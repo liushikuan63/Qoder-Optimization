@@ -2,14 +2,14 @@
  "schema": 1,
  "package": {
   "name": "Qoder-Optimization",
-  "version": "0.2.5"
+  "version": "0.2.6"
  },
- "generated": "2026-11-25",
+ "generated": "2026-11-27",
  "usage": "node ~/.qoder/scripts/pkg-catalog.cjs register <包目录> → search \"<关键词>\" → install <id> [--apply]",
  "counts": {
   "skill": 145,
-  "script": 180,
-  "command": 13,
+  "script": 182,
+  "command": 14,
   "agent": 2
  },
  "entries": [
@@ -3273,6 +3273,33 @@
    "dependencies": []
   },
   {
+   "id": "script:mcp-toggle.cjs",
+   "category": "script",
+   "name": "mcp-toggle.cjs",
+   "status": "shipped",
+   "source": "scripts/mcp-toggle.cjs",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:backup-file.js",
+    "script:client-root.js"
+   ]
+  },
+  {
+   "id": "script:mcp-toggle.test.js",
+   "category": "script",
+   "name": "mcp-toggle.test.js",
+   "status": "shipped",
+   "source": "scripts/mcp-toggle.test.js",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": [
+    "script:mcp-toggle.cjs"
+   ]
+  },
+  {
    "id": "script:migrate-data-to-disk.sh",
    "category": "script",
    "name": "migrate-data-to-disk.sh",
@@ -4514,6 +4541,17 @@
    "name": "grill-me",
    "status": "shipped",
    "source": "commands/grill-me.md",
+   "install": {
+    "mode": "copy-file"
+   },
+   "dependencies": []
+  },
+  {
+   "id": "command:mcp-toggle",
+   "category": "command",
+   "name": "mcp-toggle",
+   "status": "shipped",
+   "source": "commands/mcp-toggle.md",
    "install": {
     "mode": "copy-file"
    },
